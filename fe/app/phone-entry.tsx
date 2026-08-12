@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
@@ -17,6 +18,8 @@ import Animated, {
 import Svg, { Circle, G, Path } from 'react-native-svg';
 import { PrimaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { sendOTP } from '@/src/api/auth';
+import { ApiError } from '@/src/api/client';
 
 export function maskPhone(phone: string): string {
   const clean = phone.replace(/\D/g, '').slice(-10);
@@ -83,9 +86,9 @@ export default function PhoneEntryRoute() {
   const router = useRouter();
 
   const [phone, setPhone] = useState('');
-  const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [apiError, setApiError] = useState('');
   const inputRef = useRef<TextInput>(null);
 
   const shakeX = useSharedValue(0);
@@ -97,7 +100,6 @@ export default function PhoneEntryRoute() {
 
   const clean = phone.replace(/\D/g, '');
   const isValid = clean.length === 10;
-  const formatError = touched && !isValid && phone.length > 0 && !submitting;
   const rateLimited = cooldown > 0;
 
   useEffect(() => {
@@ -120,27 +122,32 @@ export default function PhoneEntryRoute() {
     );
   };
 
-  const handleSubmit = () => {
-    if (submitting || rateLimited) return;
-    setTouched(true);
-    if (!isValid) {
-      triggerShake();
-      inputRef.current?.focus();
-      return;
+  const handleChangeText = (t: string) => {
+    const digits = t.replace(/\D/g, '');
+    setPhone(digits);
+    setApiError('');
+    if (digits.length === 10) {
+      Keyboard.dismiss();
     }
-    setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      // First request: success -> OTP verify. Repeated requests simulate rate limit.
-      // (Mock: flip to rate-limited after the first send to exercise the cooldown UI.)
-      setCooldown(5 * 60);
-      router.push({ pathname: '/otp-verify', params: { phone: clean } });
-    }, 900);
   };
 
-  const handleBlur = () => {
-    setTouched(true);
-    if (!isValid && phone.length > 0) triggerShake();
+  const handleSubmit = async () => {
+    if (submitting || rateLimited || !isValid) return;
+    setSubmitting(true);
+    setApiError('');
+    try {
+      await sendOTP(clean);
+      router.push({ pathname: '/otp-verify', params: { phone: clean } });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        setCooldown(5 * 60);
+      } else {
+        setApiError(err instanceof Error ? err.message : 'Something went wrong');
+        triggerShake();
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
@@ -200,8 +207,7 @@ export default function PhoneEntryRoute() {
               <TextInput
                 ref={inputRef}
                 value={phone}
-                onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-                onBlur={handleBlur}
+                onChangeText={handleChangeText}
                 keyboardType="number-pad"
                 placeholder="10-digit mobile number"
                 placeholderTextColor={color('text/tertiary')}
@@ -213,8 +219,8 @@ export default function PhoneEntryRoute() {
                     color: color('text/primary'),
                     backgroundColor: color('bg/sunken'),
                     borderRadius: radius.sm,
-                    borderWidth: formatError ? 2 : 1,
-                    borderColor: formatError
+                    borderWidth: 1,
+                    borderColor: apiError
                       ? color('semantic/danger')
                       : color('border/subtle'),
                     paddingHorizontal: space.sm,
@@ -224,16 +230,7 @@ export default function PhoneEntryRoute() {
                 ]}
               />
             </View>
-            {formatError ? (
-              <Text
-                style={[
-                  type['type/caption'],
-                  { color: color('semantic/danger'), marginTop: space['2xs'] },
-                ]}
-              >
-                Enter a valid 10-digit mobile number.
-              </Text>
-            ) : rateLimited ? (
+            {rateLimited ? (
               <Text
                 style={[
                   type['type/caption'],
@@ -242,6 +239,15 @@ export default function PhoneEntryRoute() {
               >
                 Too many attempts. Try again in a few minutes.
               </Text>
+            ) : apiError ? (
+              <Text
+                style={[
+                  type['type/caption'],
+                  { color: color('semantic/danger'), marginTop: space['2xs'] },
+                ]}
+              >
+                {apiError}
+              </Text>
             ) : null}
           </Staggered>
         </Animated.View>
@@ -249,10 +255,10 @@ export default function PhoneEntryRoute() {
         <Staggered delayMs={320}>
           <Animated.View style={buttonAnimStyle}>
             <PrimaryButton
-              label={rateLimited ? `Try again in ${mm(cooldown)}` : 'Send OTP'}
+              label={rateLimited ? `Try again in ${mm(cooldown)}` : 'Continue'}
               onPress={handleSubmit}
               loading={submitting}
-              disabled={(!isValid && !rateLimited) || rateLimited || submitting}
+              disabled={!isValid || rateLimited || submitting}
               style={{ marginTop: space.lg }}
             />
           </Animated.View>

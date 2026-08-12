@@ -18,16 +18,19 @@ export type PrimaryButtonProps = {
 };
 
 export function PrimaryButton({ label, onPress, disabled, loading, style }: PrimaryButtonProps) {
-  const { color, type, radius, space } = useTheme();
+  const { color: colorFn, type, radius, space } = useTheme();
   const pressed = useSharedValue(0);
   const nonInteractive = disabled || loading;
+  const accentDefault = colorFn('accent/default');
+  const accentPressed = colorFn('accent/pressed');
+  const onAccent = colorFn('accent/on-accent');
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: withTiming(pressed.value ? 0.97 : 1, { duration: 90 }) }],
     backgroundColor: interpolateColor(
       pressed.value,
       [0, 1],
-      [color('accent/default'), color('accent/pressed')]
+      [accentDefault, accentPressed]
     ),
   }));
 
@@ -52,9 +55,9 @@ export function PrimaryButton({ label, onPress, disabled, loading, style }: Prim
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={color('accent/on-accent')} size="small" />
+        <ActivityIndicator color={onAccent} size="small" />
       ) : (
-        <Text style={[type['type/body-m-medium'], { color: color('accent/on-accent') }]}>
+        <Text style={[type['type/body-m-medium'], { color: onAccent }]}>
           {label}
         </Text>
       )}

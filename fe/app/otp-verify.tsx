@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -19,12 +20,8 @@ import { maskPhone } from './phone-entry';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useToast } from '@/src/components';
 import { useRole } from '@/src/context/RoleContext';
-
-// MOCK — remove when real auth exists. Magic phone numbers to reach each
-// role's home without a backend: 9999999999 -> Admin, 8888888888 -> Teacher,
-// anything else -> Student (existing course-selection flow).
-const ADMIN_TEST_NUMBER = '9999999999';
-const TEACHER_TEST_NUMBER = '8888888888';
+import { verifyOTP, sendOTP } from '@/src/api/auth';
+import { ApiError } from '@/src/api/client';
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 45;
@@ -73,29 +70,46 @@ export default function OtpVerifyRoute() {
     return () => clearInterval(t);
   }, [resendIn]);
 
-  const submit = (code: string) => {
+  const submit = async (code: string) => {
     setVerifying(true);
+    setError(null);
     pulse.value = withSequence(
       withTiming(1.04, { duration: 120 }),
       withTiming(1, { duration: 160 }),
     );
-    setTimeout(() => {
-      setVerifying(false);
-      // Mock: any complete 6-digit code succeeds. Magic test numbers route
-      // straight into Admin/Teacher; everyone else follows the normal
-      // new-student flow into Course Selection.
-      const cleanPhone = typeof phone === 'string' ? phone : '';
-      if (cleanPhone === ADMIN_TEST_NUMBER) {
-        setCurrentRole('admin');
+
+    const cleanPhone = typeof phone === 'string' ? phone : '';
+    const deviceId = `${Platform.OS}-${Date.now()}`;
+    const deviceInfo = `${Platform.OS} ${Platform.Version}`;
+
+    try {
+      const res = await verifyOTP(cleanPhone, code, deviceId, deviceInfo);
+      const role = res.user.role;
+      setCurrentRole(role);
+
+      // TODO: persist res.access_token for authenticated requests
+
+      if (role === 'admin') {
         router.replace('/(admin)/(home)');
-      } else if (cleanPhone === TEACHER_TEST_NUMBER) {
-        setCurrentRole('teacher');
+      } else if (role === 'teacher') {
         router.replace('/(teacher)/(home)');
       } else {
-        setCurrentRole('student');
         router.replace('/course-selection');
       }
-    }, 700);
+    } catch (err) {
+      setVerifying(false);
+      const msg = err instanceof ApiError ? err.message : 'Verification failed';
+      setError(msg);
+      shakeX.value = withSequence(
+        withTiming(-4, { duration: 50 }),
+        withTiming(4, { duration: 100 }),
+        withTiming(0, { duration: 50 }),
+      );
+      // Clear digits so user can re-enter
+      setDigits(Array(CODE_LENGTH).fill(''));
+      setActive(0);
+      refs.current[0]?.focus();
+    }
   };
 
   const setDigit = (i: number, val: string) => {
@@ -133,14 +147,20 @@ export default function OtpVerifyRoute() {
     else setDigit(i, val);
   };
 
-  const resend = () => {
+  const resend = async () => {
+    const cleanPhone = typeof phone === 'string' ? phone : '';
+    try {
+      await sendOTP(cleanPhone);
+      show('New code sent');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Failed to resend';
+      setError(msg);
+    }
     setResendIn(RESEND_SECONDS);
     setExpired(false);
-    setError(null);
     setDigits(Array(CODE_LENGTH).fill(''));
     setActive(0);
     refs.current[0]?.focus();
-    show('New code sent');
   };
 
   const pulseStyle = useAnimatedStyle(() => ({
