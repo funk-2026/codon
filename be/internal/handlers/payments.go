@@ -37,7 +37,7 @@ func NewPaymentHandler(db *gorm.DB, subSvc *services.SubscriptionService) *Payme
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		500		{object}	errorResponse
-//	@Router			/subscriptions/checkout [post]
+//	@Router			/api/v1/subscriptions/checkout [post]
 func (h *PaymentHandler) Checkout(c *gin.Context) {
 	user := middleware.GetUser(c)
 
@@ -79,7 +79,7 @@ func (h *PaymentHandler) Checkout(c *gin.Context) {
 //	@Success		200		{object}	messageResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
-//	@Router			/subscriptions/verify-payment [post]
+//	@Router			/api/v1/subscriptions/verify-payment [post]
 func (h *PaymentHandler) VerifyPayment(c *gin.Context) {
 	var req verifyPaymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -112,7 +112,7 @@ func (h *PaymentHandler) VerifyPayment(c *gin.Context) {
 //	@Success		200						{object}	webhookAckResponse
 //	@Failure		400						{object}	errorResponse
 //	@Failure		401						{object}	errorResponse
-//	@Router			/webhooks/razorpay [post]
+//	@Router			/api/v1/webhooks/razorpay [post]
 func (h *PaymentHandler) RazorpayWebhook(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -174,7 +174,7 @@ func (h *PaymentHandler) RazorpayWebhook(c *gin.Context) {
 //	@Success		200		{object}	listPaymentsResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
-//	@Router			/admin/payments [get]
+//	@Router			/api/v1/admin/payments [get]
 func (h *PaymentHandler) ListPayments(c *gin.Context) {
 	status := c.Query("status")
 	userIDStr := c.Query("user_id")
@@ -202,7 +202,7 @@ func (h *PaymentHandler) ListPayments(c *gin.Context) {
 //	@Param			id	path		string	true	"Payment record UUID"
 //	@Success		200	{object}	models.PaymentRecord
 //	@Failure		404	{object}	errorResponse
-//	@Router			/admin/payments/{id} [get]
+//	@Router			/api/v1/admin/payments/{id} [get]
 func (h *PaymentHandler) GetPayment(c *gin.Context) {
 	id := c.Param("id")
 	var payment models.PaymentRecord

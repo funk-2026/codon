@@ -23,7 +23,7 @@ func NewKYCHandler(db *gorm.DB) *KYCHandler { return &KYCHandler{DB: db} }
 //	@Tags			KYC
 //	@Produce		json
 //	@Success		200	{object}	kycRequiredResponse
-//	@Router			/platform-settings/kyc-required [get]
+//	@Router			/api/v1/platform-settings/kyc-required [get]
 func (h *KYCHandler) GetKYCRequired(c *gin.Context) {
 	var setting models.PlatformSetting
 	if err := h.DB.Where("key = ?", "kyc_required").First(&setting).Error; err != nil {
@@ -46,7 +46,7 @@ func (h *KYCHandler) GetKYCRequired(c *gin.Context) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
-//	@Router			/admin/settings/kyc-required [patch]
+//	@Router			/api/v1/admin/settings/kyc-required [patch]
 func (h *KYCHandler) SetKYCRequired(c *gin.Context) {
 	admin := middleware.GetUser(c)
 
@@ -93,7 +93,7 @@ func (h *KYCHandler) SetKYCRequired(c *gin.Context) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		409		{object}	errorResponse	"KYC already submitted or approved"
-//	@Router			/me/kyc [post]
+//	@Router			/api/v1/me/kyc [post]
 func (h *KYCHandler) SubmitKYC(c *gin.Context) {
 	user := middleware.GetUser(c)
 
@@ -141,7 +141,7 @@ func (h *KYCHandler) SubmitKYC(c *gin.Context) {
 //	@Success		200	{object}	models.KYCRecord
 //	@Failure		401	{object}	errorResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/me/kyc [get]
+//	@Router			/api/v1/me/kyc [get]
 func (h *KYCHandler) GetMyKYC(c *gin.Context) {
 	user := middleware.GetUser(c)
 	var record models.KYCRecord
@@ -163,7 +163,7 @@ func (h *KYCHandler) GetMyKYC(c *gin.Context) {
 //	@Success		200		{object}	listKYCResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
-//	@Router			/admin/kyc [get]
+//	@Router			/api/v1/admin/kyc [get]
 func (h *KYCHandler) ListKYC(c *gin.Context) {
 	status := c.DefaultQuery("status", "pending")
 	var records []models.KYCRecord
@@ -182,7 +182,7 @@ func (h *KYCHandler) ListKYC(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Failure		400	{object}	errorResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/admin/kyc/{id}/approve [post]
+//	@Router			/api/v1/admin/kyc/{id}/approve [post]
 func (h *KYCHandler) ApproveKYC(c *gin.Context) {
 	admin := middleware.GetUser(c)
 	id, err := uuid.Parse(c.Param("id"))
@@ -220,7 +220,7 @@ func (h *KYCHandler) ApproveKYC(c *gin.Context) {
 //	@Success		200		{object}	messageResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/admin/kyc/{id}/reject [post]
+//	@Router			/api/v1/admin/kyc/{id}/reject [post]
 func (h *KYCHandler) RejectKYC(c *gin.Context) {
 	admin := middleware.GetUser(c)
 	id, err := uuid.Parse(c.Param("id"))

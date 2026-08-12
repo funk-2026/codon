@@ -33,7 +33,7 @@ func NewAuthHandler(db *gorm.DB, otpSvc *services.OTPService, sessionSvc *servic
 //	@Success		200		{object}	messageResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		429		{object}	errorResponse	"Rate limit exceeded"
-//	@Router			/auth/otp/send [post]
+//	@Router			/api/v1/auth/otp/send [post]
 func (h *AuthHandler) SendOTP(c *gin.Context) {
 	var req sendOTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -62,7 +62,7 @@ func (h *AuthHandler) SendOTP(c *gin.Context) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		500		{object}	errorResponse
-//	@Router			/auth/otp/verify [post]
+//	@Router			/api/v1/auth/otp/verify [post]
 func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 	var req verifyOTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -110,7 +110,7 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 //	@Produce		json
 //	@Success		200	{object}	messageResponse
 //	@Failure		401	{object}	errorResponse
-//	@Router			/auth/logout [post]
+//	@Router			/api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	session := middleware.GetSession(c)
 	if session == nil {
@@ -133,7 +133,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 //	@Produce		json
 //	@Success		200	{object}	listSessionsResponse
 //	@Failure		401	{object}	errorResponse
-//	@Router			/auth/sessions [get]
+//	@Router			/api/v1/auth/sessions [get]
 func (h *AuthHandler) ListSessions(c *gin.Context) {
 	user := middleware.GetUser(c)
 	sessions, err := h.SessionSvc.ListActiveSessions(c.Request.Context(), user.ID)
@@ -155,7 +155,7 @@ func (h *AuthHandler) ListSessions(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Failure		401	{object}	errorResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/auth/sessions/{id} [delete]
+//	@Router			/api/v1/auth/sessions/{id} [delete]
 func (h *AuthHandler) RevokeSession(c *gin.Context) {
 	user := middleware.GetUser(c)
 	sessionIDStr := c.Param("id")

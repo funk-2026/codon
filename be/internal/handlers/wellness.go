@@ -24,7 +24,7 @@ func NewWellnessHandler(db *gorm.DB) *WellnessHandler { return &WellnessHandler{
 //	@Param			category	query		string	false	"Filter by category: guidance | motivation"
 //	@Success		200			{object}	listWellnessResponse
 //	@Failure		401			{object}	errorResponse
-//	@Router			/wellness/content [get]
+//	@Router			/api/v1/wellness/content [get]
 func (h *WellnessHandler) ListWellnessContent(c *gin.Context) {
 	category := c.Query("category")
 
@@ -52,7 +52,7 @@ func (h *WellnessHandler) ListWellnessContent(c *gin.Context) {
 //	@Produce		json
 //	@Success		200	{object}	listPromptsResponse
 //	@Failure		401	{object}	errorResponse
-//	@Router			/wellness/reflection-prompts [get]
+//	@Router			/api/v1/wellness/reflection-prompts [get]
 func (h *WellnessHandler) ListReflectionPrompts(c *gin.Context) {
 	var items []models.WellnessContent
 	h.DB.WithContext(c.Request.Context()).
@@ -75,7 +75,7 @@ func (h *WellnessHandler) ListReflectionPrompts(c *gin.Context) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
-//	@Router			/admin/wellness-content [post]
+//	@Router			/api/v1/admin/wellness-content [post]
 func (h *WellnessHandler) CreateWellnessContent(c *gin.Context) {
 	admin := middleware.GetUser(c)
 
@@ -114,7 +114,7 @@ func (h *WellnessHandler) CreateWellnessContent(c *gin.Context) {
 //	@Param			body	body		updateWellnessRequest	true	"Fields to update"
 //	@Success		200		{object}	models.WellnessContent
 //	@Failure		404		{object}	errorResponse
-//	@Router			/admin/wellness-content/{id} [patch]
+//	@Router			/api/v1/admin/wellness-content/{id} [patch]
 func (h *WellnessHandler) UpdateWellnessContent(c *gin.Context) {
 	id := c.Param("id")
 	var item models.WellnessContent
@@ -158,7 +158,7 @@ func (h *WellnessHandler) UpdateWellnessContent(c *gin.Context) {
 //	@Param			id	path		string	true	"Wellness content UUID"
 //	@Success		200	{object}	messageResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/admin/wellness-content/{id} [delete]
+//	@Router			/api/v1/admin/wellness-content/{id} [delete]
 func (h *WellnessHandler) DeleteWellnessContent(c *gin.Context) {
 	id := c.Param("id")
 	var item models.WellnessContent

@@ -15,7 +15,65 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/admin/content": {
+        "/api/v1/admin/chapters/{id}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Partially updates a chapter.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Curriculum"
+                ],
+                "summary": "Update a Chapter (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Chapter UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.updateChapterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codon-backend_internal_models.Chapter"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/content": {
             "get": {
                 "security": [
                     {
@@ -61,7 +119,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/content/{id}/approve": {
+        "/api/v1/admin/content/{id}/approve": {
             "post": {
                 "security": [
                     {
@@ -101,7 +159,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/content/{id}/reject": {
+        "/api/v1/admin/content/{id}/reject": {
             "post": {
                 "security": [
                     {
@@ -159,7 +217,65 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/dashboard/summary": {
+        "/api/v1/admin/courses/{course_id}/subjects": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new subject under a specific course.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Curriculum"
+                ],
+                "summary": "Create a Subject (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Course UUID",
+                        "name": "course_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Subject details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.createSubjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codon-backend_internal_models.Subject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/dashboard/summary": {
             "get": {
                 "security": [
                     {
@@ -196,7 +312,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/kyc": {
+        "/api/v1/admin/kyc": {
             "get": {
                 "security": [
                     {
@@ -242,7 +358,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/kyc/{id}/approve": {
+        "/api/v1/admin/kyc/{id}/approve": {
             "post": {
                 "security": [
                     {
@@ -288,7 +404,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/kyc/{id}/reject": {
+        "/api/v1/admin/kyc/{id}/reject": {
             "post": {
                 "security": [
                     {
@@ -346,7 +462,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/payments": {
+        "/api/v1/admin/payments": {
             "get": {
                 "security": [
                     {
@@ -397,7 +513,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/payments/{id}": {
+        "/api/v1/admin/payments/{id}": {
             "get": {
                 "security": [
                     {
@@ -437,7 +553,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/settings/kyc-required": {
+        "/api/v1/admin/settings/kyc-required": {
             "patch": {
                 "security": [
                     {
@@ -494,7 +610,123 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/subscription-plans": {
+        "/api/v1/admin/subjects/{id}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Partially updates a subject.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Curriculum"
+                ],
+                "summary": "Update a Subject (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subject UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.updateSubjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codon-backend_internal_models.Subject"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/subjects/{subject_id}/chapters": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new chapter under a specific subject.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Curriculum"
+                ],
+                "summary": "Create a Chapter (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subject UUID",
+                        "name": "subject_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chapter details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.createChapterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codon-backend_internal_models.Chapter"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/subscription-plans": {
             "post": {
                 "security": [
                     {
@@ -551,7 +783,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/subscription-plans/{id}": {
+        "/api/v1/admin/subscription-plans/{id}": {
             "delete": {
                 "security": [
                     {
@@ -647,7 +879,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/tests": {
+        "/api/v1/admin/tests": {
             "get": {
                 "security": [
                     {
@@ -693,7 +925,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/tests/{id}/approve": {
+        "/api/v1/admin/tests/{id}/approve": {
             "post": {
                 "security": [
                     {
@@ -733,7 +965,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/tests/{id}/reject": {
+        "/api/v1/admin/tests/{id}/reject": {
             "post": {
                 "security": [
                     {
@@ -791,7 +1023,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/users": {
+        "/api/v1/admin/users": {
             "get": {
                 "security": [
                     {
@@ -842,7 +1074,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/users/{id}": {
+        "/api/v1/admin/users/{id}": {
             "get": {
                 "security": [
                     {
@@ -882,7 +1114,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/users/{id}/role": {
+        "/api/v1/admin/users/{id}/role": {
             "patch": {
                 "security": [
                     {
@@ -940,7 +1172,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/users/{id}/teacher-permissions": {
+        "/api/v1/admin/users/{id}/teacher-permissions": {
             "patch": {
                 "security": [
                     {
@@ -992,7 +1224,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/wellness-content": {
+        "/api/v1/admin/wellness-content": {
             "post": {
                 "security": [
                     {
@@ -1049,7 +1281,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/wellness-content/{id}": {
+        "/api/v1/admin/wellness-content/{id}": {
             "delete": {
                 "security": [
                     {
@@ -1139,7 +1371,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/attempts/{id}/answers/{question_id}": {
+        "/api/v1/attempts/{id}/answers/{question_id}": {
             "put": {
                 "security": [
                     {
@@ -1204,7 +1436,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/attempts/{id}/result": {
+        "/api/v1/attempts/{id}/result": {
             "get": {
                 "security": [
                     {
@@ -1244,7 +1476,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/attempts/{id}/review": {
+        "/api/v1/attempts/{id}/review": {
             "get": {
                 "security": [
                     {
@@ -1284,7 +1516,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/attempts/{id}/submit": {
+        "/api/v1/attempts/{id}/submit": {
             "post": {
                 "security": [
                     {
@@ -1335,7 +1567,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/logout": {
+        "/api/v1/auth/logout": {
             "post": {
                 "security": [
                     {
@@ -1366,7 +1598,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/otp/send": {
+        "/api/v1/auth/otp/send": {
             "post": {
                 "description": "Sends a one-time password to the given phone number via SMS (or logs to console in dev mode). Rate-limited to 3 requests per phone number per hour.",
                 "consumes": [
@@ -1412,7 +1644,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/otp/verify": {
+        "/api/v1/auth/otp/verify": {
             "post": {
                 "description": "Verifies the OTP for a phone number. Creates the user if they are new (role=student). Enforces the two-device limit (3rd login evicts the oldest session). Returns a JWT access token.",
                 "consumes": [
@@ -1464,7 +1696,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/sessions": {
+        "/api/v1/auth/sessions": {
             "get": {
                 "security": [
                     {
@@ -1495,7 +1727,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/sessions/{id}": {
+        "/api/v1/auth/sessions/{id}": {
             "delete": {
                 "security": [
                     {
@@ -1541,7 +1773,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/courses": {
+        "/api/v1/courses": {
             "get": {
                 "description": "Returns the fixed set of 3 active courses: NEET UG, 9th Standard, 10th Standard.",
                 "produces": [
@@ -1561,7 +1793,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/courses/{id}": {
+        "/api/v1/courses/{id}": {
             "get": {
                 "description": "Returns a single active course by its UUID.",
                 "produces": [
@@ -1596,7 +1828,42 @@ const docTemplate = `{
                 }
             }
         },
-        "/me": {
+        "/api/v1/courses/{id}/curriculum": {
+            "get": {
+                "description": "Returns the nested hierarchy of a course -\u003e subjects -\u003e chapters, including counts of published content and tests.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Curriculum"
+                ],
+                "summary": "Get course curriculum hierarchy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Course UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.curriculumResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/me": {
             "get": {
                 "security": [
                     {
@@ -1676,7 +1943,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/me/attempts": {
+        "/api/v1/me/attempts": {
             "get": {
                 "security": [
                     {
@@ -1707,7 +1974,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/me/kyc": {
+        "/api/v1/me/kyc": {
             "get": {
                 "security": [
                     {
@@ -1799,7 +2066,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/me/progress": {
+        "/api/v1/me/progress": {
             "get": {
                 "security": [
                     {
@@ -1830,7 +2097,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/me/subscription": {
+        "/api/v1/me/subscription": {
             "get": {
                 "security": [
                     {
@@ -1861,7 +2128,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/platform-settings/kyc-required": {
+        "/api/v1/platform-settings/kyc-required": {
             "get": {
                 "description": "Returns whether the KYC feature is currently enabled platform-wide. When true, students must have approved KYC to access subscription-gated content.",
                 "produces": [
@@ -1881,7 +2148,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/subscription-plans": {
+        "/api/v1/subscription-plans": {
             "get": {
                 "description": "Returns all active subscription plans. Plans are admin-managed (name, price, duration).",
                 "produces": [
@@ -1901,7 +2168,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/subscriptions/checkout": {
+        "/api/v1/subscriptions/checkout": {
             "post": {
                 "security": [
                     {
@@ -1958,7 +2225,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/subscriptions/verify-payment": {
+        "/api/v1/subscriptions/verify-payment": {
             "post": {
                 "security": [
                     {
@@ -2009,7 +2276,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/content": {
+        "/api/v1/teacher/content": {
             "get": {
                 "security": [
                     {
@@ -2089,7 +2356,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/content/{id}": {
+        "/api/v1/teacher/content/{id}": {
             "patch": {
                 "security": [
                     {
@@ -2147,7 +2414,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/content/{id}/publish": {
+        "/api/v1/teacher/content/{id}/publish": {
             "post": {
                 "security": [
                     {
@@ -2187,7 +2454,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/content/{id}/submit-for-review": {
+        "/api/v1/teacher/content/{id}/submit-for-review": {
             "post": {
                 "security": [
                     {
@@ -2227,7 +2494,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/csv-imports/{id}": {
+        "/api/v1/teacher/csv-imports/{id}": {
             "get": {
                 "security": [
                     {
@@ -2267,7 +2534,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/tests": {
+        "/api/v1/teacher/tests": {
             "get": {
                 "security": [
                     {
@@ -2353,7 +2620,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/tests/{id}": {
+        "/api/v1/teacher/tests/{id}": {
             "patch": {
                 "security": [
                     {
@@ -2417,7 +2684,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/tests/{id}/csv-import": {
+        "/api/v1/teacher/tests/{id}/csv-import": {
             "post": {
                 "security": [
                     {
@@ -2475,7 +2742,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/tests/{id}/publish": {
+        "/api/v1/teacher/tests/{id}/publish": {
             "post": {
                 "security": [
                     {
@@ -2515,7 +2782,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/tests/{id}/questions": {
+        "/api/v1/teacher/tests/{id}/questions": {
             "post": {
                 "security": [
                     {
@@ -2573,7 +2840,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/teacher/tests/{id}/submit-for-review": {
+        "/api/v1/teacher/tests/{id}/submit-for-review": {
             "post": {
                 "security": [
                     {
@@ -2613,7 +2880,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/tests": {
+        "/api/v1/tests": {
             "get": {
                 "security": [
                     {
@@ -2643,8 +2910,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter by topic (partial match)",
-                        "name": "topic",
+                        "description": "Filter by subject UUID",
+                        "name": "subject_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by chapter UUID",
+                        "name": "chapter_id",
                         "in": "query"
                     }
                 ],
@@ -2664,7 +2937,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/tests/{id}": {
+        "/api/v1/tests/{id}": {
             "get": {
                 "security": [
                     {
@@ -2704,7 +2977,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/tests/{id}/attempts": {
+        "/api/v1/tests/{id}/attempts": {
             "post": {
                 "security": [
                     {
@@ -2750,7 +3023,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/tests/{id}/questions": {
+        "/api/v1/tests/{id}/questions": {
             "get": {
                 "security": [
                     {
@@ -2796,7 +3069,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads/presign": {
+        "/api/v1/uploads/presign": {
             "post": {
                 "security": [
                     {
@@ -2847,7 +3120,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/webhooks/razorpay": {
+        "/api/v1/webhooks/razorpay": {
             "post": {
                 "description": "Receives Razorpay webhook events. Verifies the X-Razorpay-Signature header before processing. Handles payment.captured (activates subscription) and payment.failed (marks record failed). Idempotent.",
                 "consumes": [
@@ -2900,7 +3173,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/wellness/content": {
+        "/api/v1/wellness/content": {
             "get": {
                 "security": [
                     {
@@ -2939,7 +3212,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/wellness/reflection-prompts": {
+        "/api/v1/wellness/reflection-prompts": {
             "get": {
                 "security": [
                     {
@@ -3041,9 +3314,41 @@ const docTemplate = `{
                 }
             }
         },
+        "codon-backend_internal_models.Chapter": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "order_index": {
+                    "type": "integer"
+                },
+                "subject_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "codon-backend_internal_models.ContentItem": {
             "type": "object",
             "properties": {
+                "chapter": {
+                    "$ref": "#/definitions/codon-backend_internal_models.Chapter"
+                },
+                "chapter_id": {
+                    "type": "string"
+                },
                 "content_type": {
                     "$ref": "#/definitions/codon-backend_internal_models.ContentType"
                 },
@@ -3081,9 +3386,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/codon-backend_internal_models.ContentStatus"
                 },
                 "title": {
-                    "type": "string"
-                },
-                "topic": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -3441,6 +3743,32 @@ const docTemplate = `{
                 }
             }
         },
+        "codon-backend_internal_models.Subject": {
+            "type": "object",
+            "properties": {
+                "course_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "order_index": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "codon-backend_internal_models.Subscription": {
             "type": "object",
             "properties": {
@@ -3544,6 +3872,12 @@ const docTemplate = `{
         "codon-backend_internal_models.Test": {
             "type": "object",
             "properties": {
+                "chapter": {
+                    "$ref": "#/definitions/codon-backend_internal_models.Chapter"
+                },
+                "chapter_id": {
+                    "type": "string"
+                },
                 "course": {
                     "$ref": "#/definitions/codon-backend_internal_models.Course"
                 },
@@ -3586,10 +3920,13 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/codon-backend_internal_models.ContentStatus"
                 },
-                "title": {
+                "subject": {
+                    "$ref": "#/definitions/codon-backend_internal_models.Subject"
+                },
+                "subject_id": {
                     "type": "string"
                 },
-                "topic": {
+                "title": {
                     "type": "string"
                 },
                 "total_questions": {
@@ -3783,9 +4120,30 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.createChapterRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Laws of thermodynamics"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Thermodynamics"
+                },
+                "order_index": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
         "internal_handlers.createContentRequest": {
             "type": "object",
             "properties": {
+                "chapter_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440002"
+                },
                 "content_type": {
                     "type": "string",
                     "enum": [
@@ -3809,10 +4167,6 @@ const docTemplate = `{
                 "title": {
                     "type": "string",
                     "example": "Cell Biology — Lecture 1"
-                },
-                "topic": {
-                    "type": "string",
-                    "example": "Cell Structure"
                 }
             }
         },
@@ -3852,9 +4206,30 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.createSubjectRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "The study of matter and energy"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Physics"
+                },
+                "order_index": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
         "internal_handlers.createTestRequest": {
             "type": "object",
             "properties": {
+                "chapter_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440002"
+                },
                 "course_id": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
@@ -3884,13 +4259,13 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "subject_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440001"
+                },
                 "title": {
                     "type": "string",
                     "example": "Biology Chapter 1 — Cell Structure"
-                },
-                "topic": {
-                    "type": "string",
-                    "example": "Cell Biology"
                 }
             }
         },
@@ -3952,6 +4327,78 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codon-backend_internal_models.CSVImportRowError"
                     }
+                }
+            }
+        },
+        "internal_handlers.curriculumChapterView": {
+            "type": "object",
+            "properties": {
+                "content_count": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Thermodynamics"
+                },
+                "order_index": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "test_count": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "internal_handlers.curriculumCourseView": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "NEET UG"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handlers.curriculumSubjectView"
+                    }
+                }
+            }
+        },
+        "internal_handlers.curriculumResponse": {
+            "type": "object",
+            "properties": {
+                "course": {
+                    "$ref": "#/definitions/internal_handlers.curriculumCourseView"
+                }
+            }
+        },
+        "internal_handlers.curriculumSubjectView": {
+            "type": "object",
+            "properties": {
+                "chapters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handlers.curriculumChapterView"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Physics"
+                },
+                "order_index": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },
@@ -4313,9 +4760,26 @@ const docTemplate = `{
                 "questions": {}
             }
         },
+        "internal_handlers.updateChapterRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "order_index": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_handlers.updateContentRequest": {
             "type": "object",
             "properties": {
+                "chapter_id": {
+                    "type": "string"
+                },
                 "file_key": {
                     "type": "string"
                 },
@@ -4323,9 +4787,6 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "title": {
-                    "type": "string"
-                },
-                "topic": {
                     "type": "string"
                 }
             }
@@ -4387,6 +4848,20 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.updateSubjectRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "order_index": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_handlers.updateTeacherPermissionsRequest": {
             "type": "object",
             "properties": {
@@ -4399,6 +4874,9 @@ const docTemplate = `{
         "internal_handlers.updateTestRequest": {
             "type": "object",
             "properties": {
+                "chapter_id": {
+                    "type": "string"
+                },
                 "duration_minutes": {
                     "type": "integer"
                 },
@@ -4411,10 +4889,10 @@ const docTemplate = `{
                 "requires_subscription": {
                     "type": "boolean"
                 },
-                "title": {
+                "subject_id": {
                     "type": "string"
                 },
-                "topic": {
+                "title": {
                     "type": "string"
                 }
             }

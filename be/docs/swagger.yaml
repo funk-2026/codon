@@ -45,8 +45,29 @@ definitions:
       row_number:
         type: integer
     type: object
+  codon-backend_internal_models.Chapter:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      order_index:
+        type: integer
+      subject_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
   codon-backend_internal_models.ContentItem:
     properties:
+      chapter:
+        $ref: '#/definitions/codon-backend_internal_models.Chapter'
+      chapter_id:
+        type: string
       content_type:
         $ref: '#/definitions/codon-backend_internal_models.ContentType'
       course:
@@ -72,8 +93,6 @@ definitions:
       status:
         $ref: '#/definitions/codon-backend_internal_models.ContentStatus'
       title:
-        type: string
-      topic:
         type: string
       updated_at:
         type: string
@@ -323,6 +342,23 @@ definitions:
       wrong_count:
         type: integer
     type: object
+  codon-backend_internal_models.Subject:
+    properties:
+      course_id:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      order_index:
+        type: integer
+      updated_at:
+        type: string
+    type: object
   codon-backend_internal_models.Subscription:
     properties:
       auto_renew:
@@ -393,6 +429,10 @@ definitions:
     - SubCancelled
   codon-backend_internal_models.Test:
     properties:
+      chapter:
+        $ref: '#/definitions/codon-backend_internal_models.Chapter'
+      chapter_id:
+        type: string
       course:
         $ref: '#/definitions/codon-backend_internal_models.Course'
       course_id:
@@ -421,9 +461,11 @@ definitions:
         type: string
       status:
         $ref: '#/definitions/codon-backend_internal_models.ContentStatus'
-      title:
+      subject:
+        $ref: '#/definitions/codon-backend_internal_models.Subject'
+      subject_id:
         type: string
-      topic:
+      title:
         type: string
       total_questions:
         type: integer
@@ -560,8 +602,23 @@ definitions:
         example: order_Abc123
         type: string
     type: object
+  internal_handlers.createChapterRequest:
+    properties:
+      description:
+        example: Laws of thermodynamics
+        type: string
+      name:
+        example: Thermodynamics
+        type: string
+      order_index:
+        example: 1
+        type: integer
+    type: object
   internal_handlers.createContentRequest:
     properties:
+      chapter_id:
+        example: 550e8400-e29b-41d4-a716-446655440002
+        type: string
       content_type:
         enum:
         - video
@@ -579,9 +636,6 @@ definitions:
         type: boolean
       title:
         example: Cell Biology — Lecture 1
-        type: string
-      topic:
-        example: Cell Structure
         type: string
     type: object
   internal_handlers.createPlanRequest:
@@ -610,8 +664,23 @@ definitions:
         example: 299900
         type: integer
     type: object
+  internal_handlers.createSubjectRequest:
+    properties:
+      description:
+        example: The study of matter and energy
+        type: string
+      name:
+        example: Physics
+        type: string
+      order_index:
+        example: 1
+        type: integer
+    type: object
   internal_handlers.createTestRequest:
     properties:
+      chapter_id:
+        example: 550e8400-e29b-41d4-a716-446655440002
+        type: string
       course_id:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
@@ -634,11 +703,11 @@ definitions:
       requires_subscription:
         example: true
         type: boolean
+      subject_id:
+        example: 550e8400-e29b-41d4-a716-446655440001
+        type: string
       title:
         example: Biology Chapter 1 — Cell Structure
-        type: string
-      topic:
-        example: Cell Biology
         type: string
     type: object
   internal_handlers.createWellnessRequest:
@@ -682,6 +751,55 @@ definitions:
         items:
           $ref: '#/definitions/codon-backend_internal_models.CSVImportRowError'
         type: array
+    type: object
+  internal_handlers.curriculumChapterView:
+    properties:
+      content_count:
+        example: 5
+        type: integer
+      id:
+        type: string
+      name:
+        example: Thermodynamics
+        type: string
+      order_index:
+        example: 1
+        type: integer
+      test_count:
+        example: 2
+        type: integer
+    type: object
+  internal_handlers.curriculumCourseView:
+    properties:
+      id:
+        type: string
+      name:
+        example: NEET UG
+        type: string
+      subjects:
+        items:
+          $ref: '#/definitions/internal_handlers.curriculumSubjectView'
+        type: array
+    type: object
+  internal_handlers.curriculumResponse:
+    properties:
+      course:
+        $ref: '#/definitions/internal_handlers.curriculumCourseView'
+    type: object
+  internal_handlers.curriculumSubjectView:
+    properties:
+      chapters:
+        items:
+          $ref: '#/definitions/internal_handlers.curriculumChapterView'
+        type: array
+      id:
+        type: string
+      name:
+        example: Physics
+        type: string
+      order_index:
+        example: 1
+        type: integer
     type: object
   internal_handlers.dashboardSummaryResponse:
     properties:
@@ -922,15 +1040,24 @@ definitions:
         type: string
       questions: {}
     type: object
+  internal_handlers.updateChapterRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      order_index:
+        type: integer
+    type: object
   internal_handlers.updateContentRequest:
     properties:
+      chapter_id:
+        type: string
       file_key:
         type: string
       requires_subscription:
         type: boolean
       title:
-        type: string
-      topic:
         type: string
     type: object
   internal_handlers.updateMeRequest:
@@ -972,6 +1099,15 @@ definitions:
         example: teacher
         type: string
     type: object
+  internal_handlers.updateSubjectRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      order_index:
+        type: integer
+    type: object
   internal_handlers.updateTeacherPermissionsRequest:
     properties:
       can_manage_all_content:
@@ -980,6 +1116,8 @@ definitions:
     type: object
   internal_handlers.updateTestRequest:
     properties:
+      chapter_id:
+        type: string
       duration_minutes:
         type: integer
       marks_per_correct:
@@ -988,9 +1126,9 @@ definitions:
         type: number
       requires_subscription:
         type: boolean
-      title:
+      subject_id:
         type: string
-      topic:
+      title:
         type: string
     type: object
   internal_handlers.updateWellnessRequest:
@@ -1059,7 +1197,44 @@ definitions:
 info:
   contact: {}
 paths:
-  /admin/content:
+  /api/v1/admin/chapters/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates a chapter.
+      parameters:
+      - description: Chapter UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.updateChapterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Chapter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a Chapter (Admin)
+      tags:
+      - Curriculum
+  /api/v1/admin/content:
     get:
       description: Returns content items filterable by status. Defaults to pending_review.
       parameters:
@@ -1088,7 +1263,7 @@ paths:
       summary: List content items by status (Admin)
       tags:
       - Admin
-  /admin/content/{id}/approve:
+  /api/v1/admin/content/{id}/approve:
     post:
       description: Approves a pending_review content item. The teacher can then publish
         it.
@@ -1114,7 +1289,7 @@ paths:
       summary: Approve a content item (Admin)
       tags:
       - Admin
-  /admin/content/{id}/reject:
+  /api/v1/admin/content/{id}/reject:
     post:
       consumes:
       - application/json
@@ -1151,7 +1326,44 @@ paths:
       summary: Reject a content item (Admin)
       tags:
       - Admin
-  /admin/dashboard/summary:
+  /api/v1/admin/courses/{course_id}/subjects:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new subject under a specific course.
+      parameters:
+      - description: Course UUID
+        in: path
+        name: course_id
+        required: true
+        type: string
+      - description: Subject details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.createSubjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Subject'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a Subject (Admin)
+      tags:
+      - Curriculum
+  /api/v1/admin/dashboard/summary:
     get:
       description: 'Returns live counts for the admin dashboard: total users, active
         subscriptions, pending KYC records, and pending content review items.'
@@ -1175,7 +1387,7 @@ paths:
       summary: Get admin dashboard summary
       tags:
       - Admin
-  /admin/kyc:
+  /api/v1/admin/kyc:
     get:
       description: Returns KYC records filterable by status. Defaults to 'pending'
         to show the admin review queue.
@@ -1205,7 +1417,7 @@ paths:
       summary: List KYC records (Admin)
       tags:
       - KYC
-  /admin/kyc/{id}/approve:
+  /api/v1/admin/kyc/{id}/approve:
     post:
       description: Approves a student's KYC submission and sets their kyc_status to
         'approved'.
@@ -1235,7 +1447,7 @@ paths:
       summary: Approve a KYC record (Admin)
       tags:
       - KYC
-  /admin/kyc/{id}/reject:
+  /api/v1/admin/kyc/{id}/reject:
     post:
       consumes:
       - application/json
@@ -1273,7 +1485,7 @@ paths:
       summary: Reject a KYC record (Admin)
       tags:
       - KYC
-  /admin/payments:
+  /api/v1/admin/payments:
     get:
       description: Returns all payment records with optional filtering by status and
         user_id.
@@ -1306,7 +1518,7 @@ paths:
       summary: List all payment records (Admin)
       tags:
       - Subscriptions & Payments
-  /admin/payments/{id}:
+  /api/v1/admin/payments/{id}:
     get:
       description: Returns a single payment record by its UUID.
       parameters:
@@ -1331,7 +1543,7 @@ paths:
       summary: Get a payment record by ID (Admin)
       tags:
       - Subscriptions & Payments
-  /admin/settings/kyc-required:
+  /api/v1/admin/settings/kyc-required:
     patch:
       consumes:
       - application/json
@@ -1368,7 +1580,81 @@ paths:
       summary: Toggle KYC required flag (Admin)
       tags:
       - KYC
-  /admin/subscription-plans:
+  /api/v1/admin/subjects/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates a subject.
+      parameters:
+      - description: Subject UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.updateSubjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Subject'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a Subject (Admin)
+      tags:
+      - Curriculum
+  /api/v1/admin/subjects/{subject_id}/chapters:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new chapter under a specific subject.
+      parameters:
+      - description: Subject UUID
+        in: path
+        name: subject_id
+        required: true
+        type: string
+      - description: Chapter details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.createChapterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Chapter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a Chapter (Admin)
+      tags:
+      - Curriculum
+  /api/v1/admin/subscription-plans:
     post:
       consumes:
       - application/json
@@ -1404,7 +1690,7 @@ paths:
       summary: Create a subscription plan (Admin)
       tags:
       - Subscription Plans
-  /admin/subscription-plans/{id}:
+  /api/v1/admin/subscription-plans/{id}:
     delete:
       description: Soft-deletes a plan by setting is_active=false. Existing subscriptions
         are not affected.
@@ -1467,7 +1753,7 @@ paths:
       summary: Update a subscription plan (Admin)
       tags:
       - Subscription Plans
-  /admin/tests:
+  /api/v1/admin/tests:
     get:
       description: Returns tests filterable by status. Defaults to pending_review
         to show the admin moderation queue.
@@ -1497,7 +1783,7 @@ paths:
       summary: List tests by status (Admin)
       tags:
       - Admin
-  /admin/tests/{id}/approve:
+  /api/v1/admin/tests/{id}/approve:
     post:
       description: Approves a pending_review test. The teacher can then publish it.
       parameters:
@@ -1522,7 +1808,7 @@ paths:
       summary: Approve a test (Admin)
       tags:
       - Admin
-  /admin/tests/{id}/reject:
+  /api/v1/admin/tests/{id}/reject:
     post:
       consumes:
       - application/json
@@ -1560,7 +1846,7 @@ paths:
       summary: Reject a test (Admin)
       tags:
       - Admin
-  /admin/users:
+  /api/v1/admin/users:
     get:
       description: Returns all users filterable by role and searchable by phone number
         or name.
@@ -1593,7 +1879,7 @@ paths:
       summary: List all users (Admin)
       tags:
       - Admin
-  /admin/users/{id}:
+  /api/v1/admin/users/{id}:
     get:
       description: Returns a single user's profile including their selected course.
       parameters:
@@ -1618,7 +1904,7 @@ paths:
       summary: Get a user by ID (Admin)
       tags:
       - Admin
-  /admin/users/{id}/role:
+  /api/v1/admin/users/{id}/role:
     patch:
       consumes:
       - application/json
@@ -1656,7 +1942,7 @@ paths:
       summary: Update a user's role (Admin)
       tags:
       - Admin
-  /admin/users/{id}/teacher-permissions:
+  /api/v1/admin/users/{id}/teacher-permissions:
     patch:
       consumes:
       - application/json
@@ -1691,7 +1977,7 @@ paths:
       summary: Update teacher content permissions (Admin)
       tags:
       - Admin
-  /admin/wellness-content:
+  /api/v1/admin/wellness-content:
     post:
       consumes:
       - application/json
@@ -1728,7 +2014,7 @@ paths:
       summary: Create wellness content (Admin)
       tags:
       - Wellness
-  /admin/wellness-content/{id}:
+  /api/v1/admin/wellness-content/{id}:
     delete:
       description: Soft-deletes (deactivates) a wellness content item by setting is_active=false.
       parameters:
@@ -1786,7 +2072,7 @@ paths:
       summary: Update wellness content (Admin)
       tags:
       - Wellness
-  /attempts/{id}/answers/{question_id}:
+  /api/v1/attempts/{id}/answers/{question_id}:
     put:
       consumes:
       - application/json
@@ -1830,7 +2116,7 @@ paths:
       summary: Save / update an answer
       tags:
       - Attempts
-  /attempts/{id}/result:
+  /api/v1/attempts/{id}/result:
     get:
       description: 'Returns the scored summary for a submitted attempt: total score,
         marks, correct/wrong/unattempted counts, and time taken.'
@@ -1856,7 +2142,7 @@ paths:
       summary: Get attempt result
       tags:
       - Attempts
-  /attempts/{id}/review:
+  /api/v1/attempts/{id}/review:
     get:
       description: 'Returns per-question review for a submitted attempt: the student''s
         answer vs. the correct answer, explanation, and marks awarded for each question.'
@@ -1882,7 +2168,7 @@ paths:
       summary: Get attempt review
       tags:
       - Attempts
-  /attempts/{id}/submit:
+  /api/v1/attempts/{id}/submit:
     post:
       consumes:
       - application/json
@@ -1916,7 +2202,7 @@ paths:
       summary: Submit a test attempt
       tags:
       - Attempts
-  /auth/logout:
+  /api/v1/auth/logout:
     post:
       description: Revokes the current session. The JWT will no longer be accepted.
       produces:
@@ -1935,7 +2221,7 @@ paths:
       summary: Logout
       tags:
       - Auth
-  /auth/otp/send:
+  /api/v1/auth/otp/send:
     post:
       consumes:
       - application/json
@@ -1967,7 +2253,7 @@ paths:
       summary: Send OTP
       tags:
       - Auth
-  /auth/otp/verify:
+  /api/v1/auth/otp/verify:
     post:
       consumes:
       - application/json
@@ -2003,7 +2289,7 @@ paths:
       summary: Verify OTP and login
       tags:
       - Auth
-  /auth/sessions:
+  /api/v1/auth/sessions:
     get:
       description: Returns all active (non-revoked, non-expired) sessions for the
         authenticated user.
@@ -2023,7 +2309,7 @@ paths:
       summary: List active sessions
       tags:
       - Auth
-  /auth/sessions/{id}:
+  /api/v1/auth/sessions/{id}:
     delete:
       description: Remotely logs out another device by revoking a specific session
         by its ID.
@@ -2053,7 +2339,7 @@ paths:
       summary: Revoke a specific session
       tags:
       - Auth
-  /courses:
+  /api/v1/courses:
     get:
       description: 'Returns the fixed set of 3 active courses: NEET UG, 9th Standard,
         10th Standard.'
@@ -2067,7 +2353,7 @@ paths:
       summary: List all courses
       tags:
       - Courses
-  /courses/{id}:
+  /api/v1/courses/{id}:
     get:
       description: Returns a single active course by its UUID.
       parameters:
@@ -2090,7 +2376,31 @@ paths:
       summary: Get a course by ID
       tags:
       - Courses
-  /me:
+  /api/v1/courses/{id}/curriculum:
+    get:
+      description: Returns the nested hierarchy of a course -> subjects -> chapters,
+        including counts of published content and tests.
+      parameters:
+      - description: Course UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.curriculumResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      summary: Get course curriculum hierarchy
+      tags:
+      - Curriculum
+  /api/v1/me:
     get:
       description: Returns the authenticated user's profile, active subscription summary,
         and current KYC required flag.
@@ -2142,7 +2452,7 @@ paths:
       summary: Update my profile
       tags:
       - Profile
-  /me/attempts:
+  /api/v1/me/attempts:
     get:
       description: Returns the full attempt history for the authenticated student,
         ordered by most recent.
@@ -2162,7 +2472,7 @@ paths:
       summary: List my test attempts
       tags:
       - Profile
-  /me/kyc:
+  /api/v1/me/kyc:
     get:
       description: Returns the authenticated student's most recent KYC record and
         status.
@@ -2223,7 +2533,7 @@ paths:
       summary: Submit KYC document
       tags:
       - KYC
-  /me/progress:
+  /api/v1/me/progress:
     get:
       description: Returns the number of tests attempted and the average score for
         the authenticated student.
@@ -2243,7 +2553,7 @@ paths:
       summary: Get my progress metrics
       tags:
       - Profile
-  /me/subscription:
+  /api/v1/me/subscription:
     get:
       description: Returns the student's current active subscription with plan and
         course details, or null if none.
@@ -2263,7 +2573,7 @@ paths:
       summary: Get my active subscription
       tags:
       - Profile
-  /platform-settings/kyc-required:
+  /api/v1/platform-settings/kyc-required:
     get:
       description: Returns whether the KYC feature is currently enabled platform-wide.
         When true, students must have approved KYC to access subscription-gated content.
@@ -2277,7 +2587,7 @@ paths:
       summary: Get KYC required flag
       tags:
       - KYC
-  /subscription-plans:
+  /api/v1/subscription-plans:
     get:
       description: Returns all active subscription plans. Plans are admin-managed
         (name, price, duration).
@@ -2291,7 +2601,7 @@ paths:
       summary: List active subscription plans
       tags:
       - Subscription Plans
-  /subscriptions/checkout:
+  /api/v1/subscriptions/checkout:
     post:
       consumes:
       - application/json
@@ -2329,7 +2639,7 @@ paths:
       summary: Create Razorpay checkout order
       tags:
       - Subscriptions & Payments
-  /subscriptions/verify-payment:
+  /api/v1/subscriptions/verify-payment:
     post:
       consumes:
       - application/json
@@ -2363,7 +2673,7 @@ paths:
       summary: Verify Razorpay payment (client-side fallback)
       tags:
       - Subscriptions & Payments
-  /teacher/content:
+  /api/v1/teacher/content:
     get:
       description: Returns all content items uploaded by the authenticated teacher.
         Teachers with can_manage_all_content=true see all content platform-wide.
@@ -2416,7 +2726,7 @@ paths:
       summary: Upload content item (Teacher)
       tags:
       - Teacher
-  /teacher/content/{id}:
+  /api/v1/teacher/content/{id}:
     patch:
       consumes:
       - application/json
@@ -2453,7 +2763,7 @@ paths:
       summary: Update a content item (Teacher)
       tags:
       - Teacher
-  /teacher/content/{id}/publish:
+  /api/v1/teacher/content/{id}/publish:
     post:
       description: Transitions an approved content item to published, making it visible
         to students.
@@ -2479,7 +2789,7 @@ paths:
       summary: Publish an approved content item (Teacher)
       tags:
       - Teacher
-  /teacher/content/{id}/submit-for-review:
+  /api/v1/teacher/content/{id}/submit-for-review:
     post:
       description: Transitions a draft or rejected content item to pending_review
         status.
@@ -2505,7 +2815,7 @@ paths:
       summary: Submit content for admin review (Teacher)
       tags:
       - Teacher
-  /teacher/csv-imports/{id}:
+  /api/v1/teacher/csv-imports/{id}:
     get:
       description: Returns the current status and per-row error log for a CSV import
         batch.
@@ -2531,7 +2841,7 @@ paths:
       summary: Get CSV import batch status (Teacher)
       tags:
       - Teacher
-  /teacher/tests:
+  /api/v1/teacher/tests:
     get:
       description: Returns all tests created by the authenticated teacher across all
         statuses. Teachers with can_manage_all_content=true see all tests platform-wide.
@@ -2587,7 +2897,7 @@ paths:
       summary: Create a draft test (Teacher)
       tags:
       - Teacher
-  /teacher/tests/{id}:
+  /api/v1/teacher/tests/{id}:
     patch:
       consumes:
       - application/json
@@ -2629,7 +2939,7 @@ paths:
       summary: Update a draft test (Teacher)
       tags:
       - Teacher
-  /teacher/tests/{id}/csv-import:
+  /api/v1/teacher/tests/{id}/csv-import:
     post:
       consumes:
       - application/json
@@ -2669,7 +2979,7 @@ paths:
       summary: Bulk import questions from CSV (Teacher)
       tags:
       - Teacher
-  /teacher/tests/{id}/publish:
+  /api/v1/teacher/tests/{id}/publish:
     post:
       description: Transitions the test from approved to published, making it visible
         to students.
@@ -2695,7 +3005,7 @@ paths:
       summary: Publish an approved test (Teacher)
       tags:
       - Teacher
-  /teacher/tests/{id}/questions:
+  /api/v1/teacher/tests/{id}/questions:
     post:
       consumes:
       - application/json
@@ -2734,7 +3044,7 @@ paths:
       summary: Add a question to a test (Teacher)
       tags:
       - Teacher
-  /teacher/tests/{id}/submit-for-review:
+  /api/v1/teacher/tests/{id}/submit-for-review:
     post:
       description: Transitions the test from draft or rejected state to pending_review.
         The test must have at least one question.
@@ -2760,7 +3070,7 @@ paths:
       summary: Submit a test for admin review (Teacher)
       tags:
       - Teacher
-  /tests:
+  /api/v1/tests:
     get:
       description: Returns all published tests (Q Bank, Test Series, Practice) filterable
         by course, module type, and topic. Items with requires_subscription=true require
@@ -2774,9 +3084,13 @@ paths:
         in: query
         name: module_type
         type: string
-      - description: Filter by topic (partial match)
+      - description: Filter by subject UUID
         in: query
-        name: topic
+        name: subject_id
+        type: string
+      - description: Filter by chapter UUID
+        in: query
+        name: chapter_id
         type: string
       produces:
       - application/json
@@ -2794,7 +3108,7 @@ paths:
       summary: List published tests
       tags:
       - Tests
-  /tests/{id}:
+  /api/v1/tests/{id}:
     get:
       description: Returns metadata for a single published test (no questions or answers
         included).
@@ -2820,7 +3134,7 @@ paths:
       summary: Get a test by ID
       tags:
       - Tests
-  /tests/{id}/attempts:
+  /api/v1/tests/{id}/attempts:
     post:
       description: Starts a new attempt for the given test. If the student already
         has an in-progress attempt on this test, the existing attempt is returned
@@ -2851,7 +3165,7 @@ paths:
       summary: Start or resume a test attempt
       tags:
       - Attempts
-  /tests/{id}/questions:
+  /api/v1/tests/{id}/questions:
     get:
       description: Returns the question text and options for a published test. Correct
         answers and explanations are NOT included (those are shown via /attempts/{id}/review
@@ -2882,7 +3196,7 @@ paths:
       summary: Get test questions (requires active attempt)
       tags:
       - Tests
-  /uploads/presign:
+  /api/v1/uploads/presign:
     post:
       consumes:
       - application/json
@@ -2917,7 +3231,7 @@ paths:
       summary: Generate presigned upload URL
       tags:
       - Uploads
-  /webhooks/razorpay:
+  /api/v1/webhooks/razorpay:
     post:
       consumes:
       - application/json
@@ -2954,7 +3268,7 @@ paths:
       summary: Razorpay webhook receiver
       tags:
       - Subscriptions & Payments
-  /wellness/content:
+  /api/v1/wellness/content:
     get:
       description: Returns active wellness content of category guidance or motivation.
         Filter by category using the query param.
@@ -2979,7 +3293,7 @@ paths:
       summary: List wellness content
       tags:
       - Wellness
-  /wellness/reflection-prompts:
+  /api/v1/wellness/reflection-prompts:
     get:
       description: Returns active reflection_prompt wellness content. These are read-only
         in v1 — no student response is captured.

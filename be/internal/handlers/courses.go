@@ -22,7 +22,7 @@ func NewCourseHandler(db *gorm.DB) *CourseHandler { return &CourseHandler{DB: db
 //	@Tags			Courses
 //	@Produce		json
 //	@Success		200	{object}	listCoursesResponse
-//	@Router			/courses [get]
+//	@Router			/api/v1/courses [get]
 func (h *CourseHandler) ListCourses(c *gin.Context) {
 	var courses []models.Course
 	h.DB.WithContext(c.Request.Context()).Where("is_active = ?", true).Find(&courses)
@@ -38,7 +38,7 @@ func (h *CourseHandler) ListCourses(c *gin.Context) {
 //	@Param			id	path		string	true	"Course UUID"
 //	@Success		200	{object}	models.Course
 //	@Failure		404	{object}	errorResponse
-//	@Router			/courses/{id} [get]
+//	@Router			/api/v1/courses/{id} [get]
 func (h *CourseHandler) GetCourse(c *gin.Context) {
 	id := c.Param("id")
 	var course models.Course
@@ -62,7 +62,7 @@ func NewPlanHandler(db *gorm.DB) *PlanHandler { return &PlanHandler{DB: db} }
 //	@Tags			Subscription Plans
 //	@Produce		json
 //	@Success		200	{object}	listPlansResponse
-//	@Router			/subscription-plans [get]
+//	@Router			/api/v1/subscription-plans [get]
 func (h *PlanHandler) ListPlans(c *gin.Context) {
 	var plans []models.SubscriptionPlan
 	h.DB.WithContext(c.Request.Context()).
@@ -85,7 +85,7 @@ func (h *PlanHandler) ListPlans(c *gin.Context) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
-//	@Router			/admin/subscription-plans [post]
+//	@Router			/api/v1/admin/subscription-plans [post]
 func (h *PlanHandler) CreatePlan(c *gin.Context) {
 	admin := middleware.GetUser(c)
 
@@ -135,7 +135,7 @@ func (h *PlanHandler) CreatePlan(c *gin.Context) {
 //	@Success		200		{object}	models.SubscriptionPlan
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/admin/subscription-plans/{id} [patch]
+//	@Router			/api/v1/admin/subscription-plans/{id} [patch]
 func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 	id := c.Param("id")
 	var plan models.SubscriptionPlan
@@ -185,7 +185,7 @@ func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 //	@Param			id	path		string	true	"Plan UUID"
 //	@Success		200	{object}	messageResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/admin/subscription-plans/{id} [delete]
+//	@Router			/api/v1/admin/subscription-plans/{id} [delete]
 func (h *PlanHandler) DeletePlan(c *gin.Context) {
 	id := c.Param("id")
 	var plan models.SubscriptionPlan

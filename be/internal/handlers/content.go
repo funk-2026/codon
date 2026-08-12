@@ -29,7 +29,7 @@ func NewContentHandler(db *gorm.DB) *ContentHandler { return &ContentHandler{DB:
 //	@Success		201		{object}	models.ContentItem
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
-//	@Router			/teacher/content [post]
+//	@Router			/api/v1/teacher/content [post]
 func (h *ContentHandler) CreateContent(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 
@@ -42,6 +42,12 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 	courseID, err := uuid.Parse(req.CourseID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid course_id"})
+		return
+	}
+
+	chapterID, err := uuid.Parse(req.ChapterID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid chapter_id"})
 		return
 	}
 
@@ -63,7 +69,7 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 	}
 
 	item := models.ContentItem{
-		Title: req.Title, CourseID: courseID, ContentType: ct, Topic: req.Topic,
+		Title: req.Title, CourseID: courseID, ContentType: ct, ChapterID: chapterID,
 		UploadedBy: teacher.ID, FileKey: req.FileKey,
 		RequiresSubscription: requiresSub, Status: models.StatusDraft,
 	}
@@ -100,7 +106,7 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 //	@Success		200		{object}	models.ContentItem
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/teacher/content/{id} [patch]
+//	@Router			/api/v1/teacher/content/{id} [patch]
 func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 	id := c.Param("id")
@@ -125,8 +131,10 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	if req.Title != nil {
 		updates["title"] = *req.Title
 	}
-	if req.Topic != nil {
-		updates["topic"] = *req.Topic
+	if req.ChapterID != nil {
+		if u, err := uuid.Parse(*req.ChapterID); err == nil {
+			updates["chapter_id"] = u
+		}
 	}
 	if req.FileKey != nil {
 		updates["file_key"] = *req.FileKey
@@ -150,7 +158,7 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 //	@Param			id	path		string	true	"Content item UUID"
 //	@Success		200	{object}	messageResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/teacher/content/{id}/submit-for-review [post]
+//	@Router			/api/v1/teacher/content/{id}/submit-for-review [post]
 func (h *ContentHandler) SubmitContentForReview(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 	id := c.Param("id")
@@ -179,7 +187,7 @@ func (h *ContentHandler) SubmitContentForReview(c *gin.Context) {
 //	@Param			id	path		string	true	"Content item UUID"
 //	@Success		200	{object}	messageResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/teacher/content/{id}/publish [post]
+//	@Router			/api/v1/teacher/content/{id}/publish [post]
 func (h *ContentHandler) PublishContent(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 	id := c.Param("id")
@@ -207,7 +215,7 @@ func (h *ContentHandler) PublishContent(c *gin.Context) {
 //	@Produce		json
 //	@Success		200	{object}	listContentResponse
 //	@Failure		401	{object}	errorResponse
-//	@Router			/teacher/content [get]
+//	@Router			/api/v1/teacher/content [get]
 func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 
@@ -233,7 +241,7 @@ func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 //	@Success		200		{object}	listContentResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
-//	@Router			/admin/content [get]
+//	@Router			/api/v1/admin/content [get]
 func (h *ContentHandler) AdminListContent(c *gin.Context) {
 	status := c.DefaultQuery("status", string(models.StatusPendingReview))
 	var items []models.ContentItem
@@ -255,7 +263,7 @@ func (h *ContentHandler) AdminListContent(c *gin.Context) {
 //	@Param			id	path		string	true	"Content item UUID"
 //	@Success		200	{object}	messageResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/admin/content/{id}/approve [post]
+//	@Router			/api/v1/admin/content/{id}/approve [post]
 func (h *ContentHandler) AdminApproveContent(c *gin.Context) {
 	admin := middleware.GetUser(c)
 	id := c.Param("id")
@@ -286,7 +294,7 @@ func (h *ContentHandler) AdminApproveContent(c *gin.Context) {
 //	@Success		200		{object}	messageResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/admin/content/{id}/reject [post]
+//	@Router			/api/v1/admin/content/{id}/reject [post]
 func (h *ContentHandler) AdminRejectContent(c *gin.Context) {
 	admin := middleware.GetUser(c)
 	id := c.Param("id")
@@ -321,14 +329,14 @@ type createContentRequest struct {
 	Title                string  `json:"title"        example:"Cell Biology — Lecture 1"`
 	CourseID             string  `json:"course_id"    example:"550e8400-e29b-41d4-a716-446655440000"`
 	ContentType          string  `json:"content_type" example:"video" enums:"video,document"`
-	Topic                *string `json:"topic"        example:"Cell Structure"`
+	ChapterID            string  `json:"chapter_id"   example:"550e8400-e29b-41d4-a716-446655440002"`
 	FileKey              string  `json:"file_key"     example:"video/user-uuid/file-uuid.mp4"`
 	RequiresSubscription *bool   `json:"requires_subscription" example:"true"`
 }
 
 type updateContentRequest struct {
 	Title                *string `json:"title"`
-	Topic                *string `json:"topic"`
+	ChapterID            *string `json:"chapter_id"`
 	FileKey              *string `json:"file_key"`
 	RequiresSubscription *bool   `json:"requires_subscription"`
 }

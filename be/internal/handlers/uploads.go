@@ -37,7 +37,7 @@ var allowedPurposes = map[string][]string{
 //	@Success		200		{object}	presignResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
-//	@Router			/uploads/presign [post]
+//	@Router			/api/v1/uploads/presign [post]
 func (h *UploadHandler) Presign(c *gin.Context) {
 	user := middleware.GetUser(c)
 

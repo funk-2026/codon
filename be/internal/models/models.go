@@ -205,6 +205,28 @@ type Course struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type Subject struct {
+	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	CourseID    uuid.UUID `gorm:"type:uuid;not null;index" json:"course_id"`
+	Course      Course    `gorm:"foreignKey:CourseID" json:"-"`
+	Name        string    `gorm:"type:text;not null" json:"name"`
+	Description string    `gorm:"type:text" json:"description,omitempty"`
+	OrderIndex  int       `gorm:"not null;default:0" json:"order_index"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type Chapter struct {
+	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	SubjectID   uuid.UUID `gorm:"type:uuid;not null;index" json:"subject_id"`
+	Subject     Subject   `gorm:"foreignKey:SubjectID" json:"-"`
+	Name        string    `gorm:"type:text;not null" json:"name"`
+	Description string    `gorm:"type:text" json:"description,omitempty"`
+	OrderIndex  int       `gorm:"not null;default:0" json:"order_index"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type SubscriptionPlan struct {
 	ID           uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	Name         string     `gorm:"type:text;not null" json:"name"`
@@ -263,7 +285,10 @@ type Test struct {
 	Course              Course        `gorm:"foreignKey:CourseID" json:"course,omitempty"`
 	ModuleType          ModuleType    `gorm:"type:text;not null" json:"module_type"`
 	RequiresSubscription bool         `gorm:"not null;default:true" json:"requires_subscription"`
-	Topic               *string       `gorm:"type:text" json:"topic,omitempty"`
+	SubjectID           *uuid.UUID    `gorm:"type:uuid;index" json:"subject_id,omitempty"`
+	Subject             *Subject      `gorm:"foreignKey:SubjectID" json:"subject,omitempty"`
+	ChapterID           *uuid.UUID    `gorm:"type:uuid;index" json:"chapter_id,omitempty"`
+	Chapter             *Chapter      `gorm:"foreignKey:ChapterID" json:"chapter,omitempty"`
 	CreatedBy           uuid.UUID     `gorm:"type:uuid;not null" json:"created_by"`
 	Creator             User          `gorm:"foreignKey:CreatedBy" json:"-"`
 	TotalQuestions      int           `gorm:"not null;default:0" json:"total_questions"`
@@ -332,7 +357,8 @@ type ContentItem struct {
 	Course               Course        `gorm:"foreignKey:CourseID" json:"course,omitempty"`
 	ContentType          ContentType   `gorm:"type:text;not null" json:"content_type"`
 	RequiresSubscription bool          `gorm:"not null;default:true" json:"requires_subscription"`
-	Topic                *string       `gorm:"type:text" json:"topic,omitempty"`
+	ChapterID            uuid.UUID     `gorm:"type:uuid;not null;index" json:"chapter_id"`
+	Chapter              Chapter       `gorm:"foreignKey:ChapterID" json:"chapter,omitempty"`
 	UploadedBy           uuid.UUID     `gorm:"type:uuid;not null" json:"uploaded_by"`
 	Uploader             User          `gorm:"foreignKey:UploadedBy" json:"-"`
 	FileKey              string        `gorm:"type:text;not null" json:"file_key"`

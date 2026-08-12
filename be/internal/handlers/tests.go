@@ -26,14 +26,16 @@ func NewTestHandler(db *gorm.DB) *TestHandler { return &TestHandler{DB: db} }
 //	@Produce		json
 //	@Param			course_id	query		string	false	"Filter by course UUID"
 //	@Param			module_type	query		string	false	"Filter by module type: qbank | test_series | practice"
-//	@Param			topic		query		string	false	"Filter by topic (partial match)"
+//	@Param			subject_id	query		string	false	"Filter by subject UUID"
+//	@Param			chapter_id	query		string	false	"Filter by chapter UUID"
 //	@Success		200			{object}	listTestsResponse
 //	@Failure		401			{object}	errorResponse
-//	@Router			/tests [get]
+//	@Router			/api/v1/tests [get]
 func (h *TestHandler) ListTests(c *gin.Context) {
 	courseID := c.Query("course_id")
 	moduleType := c.Query("module_type")
-	topic := c.Query("topic")
+	subjectID := c.Query("subject_id")
+	chapterID := c.Query("chapter_id")
 
 	query := h.DB.WithContext(c.Request.Context()).
 		Where("status = ?", models.StatusPublished)
@@ -44,8 +46,11 @@ func (h *TestHandler) ListTests(c *gin.Context) {
 	if moduleType != "" {
 		query = query.Where("module_type = ?", moduleType)
 	}
-	if topic != "" {
-		query = query.Where("topic ILIKE ?", "%"+topic+"%")
+	if subjectID != "" {
+		query = query.Where("subject_id = ?", subjectID)
+	}
+	if chapterID != "" {
+		query = query.Where("chapter_id = ?", chapterID)
 	}
 
 	var tests []models.Test
@@ -63,7 +68,7 @@ func (h *TestHandler) ListTests(c *gin.Context) {
 //	@Param			id	path		string	true	"Test UUID"
 //	@Success		200	{object}	models.Test
 //	@Failure		404	{object}	errorResponse
-//	@Router			/tests/{id} [get]
+//	@Router			/api/v1/tests/{id} [get]
 func (h *TestHandler) GetTest(c *gin.Context) {
 	id := c.Param("id")
 	var test models.Test
@@ -88,7 +93,7 @@ func (h *TestHandler) GetTest(c *gin.Context) {
 //	@Success		200	{object}	testQuestionsResponse
 //	@Failure		403	{object}	errorResponse	"No active attempt"
 //	@Failure		404	{object}	errorResponse
-//	@Router			/tests/{id}/questions [get]
+//	@Router			/api/v1/tests/{id}/questions [get]
 func (h *TestHandler) GetQuestions(c *gin.Context) {
 	user := middleware.GetUser(c)
 	testID, err := uuid.Parse(c.Param("id"))
@@ -148,7 +153,7 @@ func (h *TestHandler) GetQuestions(c *gin.Context) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
-//	@Router			/teacher/tests [post]
+//	@Router			/api/v1/teacher/tests [post]
 func (h *TestHandler) CreateTest(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 
@@ -184,9 +189,24 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 		marksWrong = *req.MarksPerWrong
 	}
 
+	var sID, cID *uuid.UUID
+	if req.SubjectID != nil && *req.SubjectID != "" {
+		u, err := uuid.Parse(*req.SubjectID)
+		if err == nil {
+			sID = &u
+		}
+	}
+	if req.ChapterID != nil && *req.ChapterID != "" {
+		u, err := uuid.Parse(*req.ChapterID)
+		if err == nil {
+			cID = &u
+		}
+	}
+
 	test := models.Test{
 		Title: req.Title, CourseID: courseID,
-		ModuleType: models.ModuleType(req.ModuleType), Topic: req.Topic,
+		ModuleType: models.ModuleType(req.ModuleType),
+		SubjectID: sID, ChapterID: cID,
 		DurationMinutes: req.DurationMinutes, MarksPerCorrect: marksCorrect,
 		MarksPerWrong: marksWrong, RequiresSubscription: requiresSub,
 		CreatedBy: teacher.ID, Status: models.StatusDraft,
@@ -212,7 +232,7 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
 //	@Failure		409		{object}	errorResponse	"Test not in editable state"
-//	@Router			/teacher/tests/{id} [patch]
+//	@Router			/api/v1/teacher/tests/{id} [patch]
 func (h *TestHandler) UpdateTest(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 	id := c.Param("id")
@@ -242,8 +262,19 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 	if req.Title != nil {
 		updates["title"] = *req.Title
 	}
-	if req.Topic != nil {
-		updates["topic"] = *req.Topic
+	if req.SubjectID != nil {
+		if *req.SubjectID == "" {
+			updates["subject_id"] = nil
+		} else if u, err := uuid.Parse(*req.SubjectID); err == nil {
+			updates["subject_id"] = u
+		}
+	}
+	if req.ChapterID != nil {
+		if *req.ChapterID == "" {
+			updates["chapter_id"] = nil
+		} else if u, err := uuid.Parse(*req.ChapterID); err == nil {
+			updates["chapter_id"] = u
+		}
 	}
 	if req.DurationMinutes != nil {
 		updates["duration_minutes"] = *req.DurationMinutes
@@ -276,7 +307,7 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 //	@Success		201		{object}	models.Question
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/teacher/tests/{id}/questions [post]
+//	@Router			/api/v1/teacher/tests/{id}/questions [post]
 func (h *TestHandler) AddQuestion(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 	testID, err := uuid.Parse(c.Param("id"))
@@ -342,7 +373,7 @@ func (h *TestHandler) AddQuestion(c *gin.Context) {
 //	@Success		202		{object}	csvImportAcceptedResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/teacher/tests/{id}/csv-import [post]
+//	@Router			/api/v1/teacher/tests/{id}/csv-import [post]
 func (h *TestHandler) CSVImport(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 	testID, err := uuid.Parse(c.Param("id"))
@@ -386,7 +417,7 @@ func (h *TestHandler) CSVImport(c *gin.Context) {
 //	@Param			id	path		string	true	"Batch UUID"
 //	@Success		200	{object}	csvImportStatusResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/teacher/csv-imports/{id} [get]
+//	@Router			/api/v1/teacher/csv-imports/{id} [get]
 func (h *TestHandler) GetCSVImport(c *gin.Context) {
 	id := c.Param("id")
 	var batch models.CSVImportBatch
@@ -411,7 +442,7 @@ func (h *TestHandler) GetCSVImport(c *gin.Context) {
 //	@Param			id	path		string	true	"Test UUID"
 //	@Success		200	{object}	messageResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/teacher/tests/{id}/submit-for-review [post]
+//	@Router			/api/v1/teacher/tests/{id}/submit-for-review [post]
 func (h *TestHandler) SubmitForReview(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 	id := c.Param("id")
@@ -440,7 +471,7 @@ func (h *TestHandler) SubmitForReview(c *gin.Context) {
 //	@Param			id	path		string	true	"Test UUID"
 //	@Success		200	{object}	messageResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/teacher/tests/{id}/publish [post]
+//	@Router			/api/v1/teacher/tests/{id}/publish [post]
 func (h *TestHandler) PublishTest(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 	id := c.Param("id")
@@ -468,7 +499,7 @@ func (h *TestHandler) PublishTest(c *gin.Context) {
 //	@Produce		json
 //	@Success		200	{object}	listTestsResponse
 //	@Failure		401	{object}	errorResponse
-//	@Router			/teacher/tests [get]
+//	@Router			/api/v1/teacher/tests [get]
 func (h *TestHandler) ListTeacherTests(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 
@@ -494,7 +525,7 @@ func (h *TestHandler) ListTeacherTests(c *gin.Context) {
 //	@Success		200		{object}	listTestsResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
-//	@Router			/admin/tests [get]
+//	@Router			/api/v1/admin/tests [get]
 func (h *TestHandler) AdminListTests(c *gin.Context) {
 	status := c.DefaultQuery("status", string(models.StatusPendingReview))
 	var tests []models.Test
@@ -516,7 +547,7 @@ func (h *TestHandler) AdminListTests(c *gin.Context) {
 //	@Param			id	path		string	true	"Test UUID"
 //	@Success		200	{object}	messageResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/admin/tests/{id}/approve [post]
+//	@Router			/api/v1/admin/tests/{id}/approve [post]
 func (h *TestHandler) AdminApproveTest(c *gin.Context) {
 	admin := middleware.GetUser(c)
 	id := c.Param("id")
@@ -547,7 +578,7 @@ func (h *TestHandler) AdminApproveTest(c *gin.Context) {
 //	@Success		200		{object}	messageResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/admin/tests/{id}/reject [post]
+//	@Router			/api/v1/admin/tests/{id}/reject [post]
 func (h *TestHandler) AdminRejectTest(c *gin.Context) {
 	admin := middleware.GetUser(c)
 	id := c.Param("id")
@@ -587,7 +618,8 @@ type createTestRequest struct {
 	Title               string  `json:"title"       example:"Biology Chapter 1 — Cell Structure"`
 	CourseID            string  `json:"course_id"   example:"550e8400-e29b-41d4-a716-446655440000"`
 	ModuleType          string  `json:"module_type" example:"qbank" enums:"qbank,test_series,practice"`
-	Topic               *string `json:"topic"       example:"Cell Biology"`
+	SubjectID           *string `json:"subject_id"  example:"550e8400-e29b-41d4-a716-446655440001"`
+	ChapterID           *string `json:"chapter_id"  example:"550e8400-e29b-41d4-a716-446655440002"`
 	DurationMinutes     *int    `json:"duration_minutes" example:"60"`
 	MarksPerCorrect     *float64 `json:"marks_per_correct" example:"4"`
 	MarksPerWrong       *float64 `json:"marks_per_wrong"   example:"-1"`
@@ -596,7 +628,8 @@ type createTestRequest struct {
 
 type updateTestRequest struct {
 	Title               *string  `json:"title"`
-	Topic               *string  `json:"topic"`
+	SubjectID           *string  `json:"subject_id"`
+	ChapterID           *string  `json:"chapter_id"`
 	DurationMinutes     *int     `json:"duration_minutes"`
 	MarksPerCorrect     *float64 `json:"marks_per_correct"`
 	MarksPerWrong       *float64 `json:"marks_per_wrong"`

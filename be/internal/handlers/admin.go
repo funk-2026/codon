@@ -26,7 +26,7 @@ func NewAdminHandler(db *gorm.DB) *AdminHandler { return &AdminHandler{DB: db} }
 //	@Success		200		{object}	listUsersResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
-//	@Router			/admin/users [get]
+//	@Router			/api/v1/admin/users [get]
 func (h *AdminHandler) ListUsers(c *gin.Context) {
 	role := c.Query("role")
 	search := c.Query("search")
@@ -54,7 +54,7 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 //	@Param			id	path		string	true	"User UUID"
 //	@Success		200	{object}	models.User
 //	@Failure		404	{object}	errorResponse
-//	@Router			/admin/users/{id} [get]
+//	@Router			/api/v1/admin/users/{id} [get]
 func (h *AdminHandler) GetUser(c *gin.Context) {
 	id := c.Param("id")
 	var user models.User
@@ -81,7 +81,7 @@ func (h *AdminHandler) GetUser(c *gin.Context) {
 //	@Success		200		{object}	messageResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/admin/users/{id}/role [patch]
+//	@Router			/api/v1/admin/users/{id}/role [patch]
 func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	_ = middleware.GetUser(c)
 	id := c.Param("id")
@@ -120,7 +120,7 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 //	@Param			body	body		updateTeacherPermissionsRequest	true	"Permission flag"
 //	@Success		200		{object}	messageResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/admin/users/{id}/teacher-permissions [patch]
+//	@Router			/api/v1/admin/users/{id}/teacher-permissions [patch]
 func (h *AdminHandler) UpdateTeacherPermissions(c *gin.Context) {
 	id := c.Param("id")
 
@@ -151,7 +151,7 @@ func (h *AdminHandler) UpdateTeacherPermissions(c *gin.Context) {
 //	@Success		200	{object}	dashboardSummaryResponse
 //	@Failure		401	{object}	errorResponse
 //	@Failure		403	{object}	errorResponse
-//	@Router			/admin/dashboard/summary [get]
+//	@Router			/api/v1/admin/dashboard/summary [get]
 func (h *AdminHandler) DashboardSummary(c *gin.Context) {
 	var userCount, activeSubCount, pendingKYCCount, pendingTestCount, pendingContentCount int64
 

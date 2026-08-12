@@ -43,6 +43,8 @@ func AutoMigrateAll() error {
 		&models.OTPRequest{},
 		&models.Session{},
 		&models.Course{},
+		&models.Subject{},
+		&models.Chapter{},
 		&models.SubscriptionPlan{},
 		&models.Subscription{},
 		&models.PaymentRecord{},

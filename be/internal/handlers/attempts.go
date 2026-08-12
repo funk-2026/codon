@@ -32,7 +32,7 @@ func NewAttemptHandler(db *gorm.DB, scoringSvc *services.ScoringService) *Attemp
 //	@Success		200	{object}	models.StudentAttempt
 //	@Failure		403	{object}	errorResponse	"Subscription required"
 //	@Failure		404	{object}	errorResponse
-//	@Router			/tests/{id}/attempts [post]
+//	@Router			/api/v1/tests/{id}/attempts [post]
 func (h *AttemptHandler) StartAttempt(c *gin.Context) {
 	user := middleware.GetUser(c)
 	testID, err := uuid.Parse(c.Param("id"))
@@ -71,7 +71,7 @@ func (h *AttemptHandler) StartAttempt(c *gin.Context) {
 //	@Success		200			{object}	messageResponse
 //	@Failure		400			{object}	errorResponse
 //	@Failure		403			{object}	errorResponse
-//	@Router			/attempts/{id}/answers/{question_id} [put]
+//	@Router			/api/v1/attempts/{id}/answers/{question_id} [put]
 func (h *AttemptHandler) UpsertAnswer(c *gin.Context) {
 	user := middleware.GetUser(c)
 	attemptID, err := uuid.Parse(c.Param("id"))
@@ -124,7 +124,7 @@ func (h *AttemptHandler) UpsertAnswer(c *gin.Context) {
 //	@Param			body	body		submitAttemptRequest	false	"Optional: time taken in seconds"
 //	@Success		200		{object}	models.StudentAttempt
 //	@Failure		400		{object}	errorResponse
-//	@Router			/attempts/{id}/submit [post]
+//	@Router			/api/v1/attempts/{id}/submit [post]
 func (h *AttemptHandler) SubmitAttempt(c *gin.Context) {
 	user := middleware.GetUser(c)
 	attemptID, err := uuid.Parse(c.Param("id"))
@@ -154,7 +154,7 @@ func (h *AttemptHandler) SubmitAttempt(c *gin.Context) {
 //	@Param			id	path		string	true	"Attempt UUID"
 //	@Success		200	{object}	models.StudentAttempt
 //	@Failure		404	{object}	errorResponse
-//	@Router			/attempts/{id}/result [get]
+//	@Router			/api/v1/attempts/{id}/result [get]
 func (h *AttemptHandler) GetResult(c *gin.Context) {
 	user := middleware.GetUser(c)
 	attemptID := c.Param("id")
@@ -180,7 +180,7 @@ func (h *AttemptHandler) GetResult(c *gin.Context) {
 //	@Param			id	path		string	true	"Attempt UUID"
 //	@Success		200	{object}	reviewResponse
 //	@Failure		404	{object}	errorResponse
-//	@Router			/attempts/{id}/review [get]
+//	@Router			/api/v1/attempts/{id}/review [get]
 func (h *AttemptHandler) GetReview(c *gin.Context) {
 	user := middleware.GetUser(c)
 	attemptID, err := uuid.Parse(c.Param("id"))

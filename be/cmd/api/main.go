@@ -97,6 +97,7 @@ func main() {
 	contentH := handlers.NewContentHandler(db.DB)
 	wellnessH := handlers.NewWellnessHandler(db.DB)
 	adminH := handlers.NewAdminHandler(db.DB)
+	curriculumH := handlers.NewCurriculumHandler(db.DB)
 
 	// ─── Gin Engine ──────────────────────────────────────────────────────────
 	if config.AppConfig.Env == "production" {
@@ -157,6 +158,7 @@ func main() {
 	{
 		courses.GET("", courseH.ListCourses)
 		courses.GET("/:id", courseH.GetCourse)
+		courses.GET("/:id/curriculum", curriculumH.GetCurriculum)
 	}
 
 	// Subscription plans (public list)
@@ -241,6 +243,12 @@ func main() {
 	// ─── Admin routes ─────────────────────────────────────────────────────────
 	admin := api.Group("/admin").Use(auth).Use(middleware.RequireRole(models.RoleAdmin))
 	{
+		// Curriculum
+		admin.POST("/courses/:course_id/subjects", curriculumH.CreateSubject)
+		admin.PATCH("/subjects/:id", curriculumH.UpdateSubject)
+		admin.POST("/subjects/:subject_id/chapters", curriculumH.CreateChapter)
+		admin.PATCH("/chapters/:id", curriculumH.UpdateChapter)
+
 		// Subscription plans
 		admin.POST("/subscription-plans", planH.CreatePlan)
 		admin.PATCH("/subscription-plans/:id", planH.UpdatePlan)

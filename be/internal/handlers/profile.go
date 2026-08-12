@@ -27,7 +27,7 @@ func NewProfileHandler(db *gorm.DB) *ProfileHandler {
 //	@Produce		json
 //	@Success		200	{object}	getMeResponse
 //	@Failure		401	{object}	errorResponse
-//	@Router			/me [get]
+//	@Router			/api/v1/me [get]
 func (h *ProfileHandler) GetMe(c *gin.Context) {
 	user := middleware.GetUser(c)
 
@@ -66,7 +66,7 @@ func (h *ProfileHandler) GetMe(c *gin.Context) {
 //	@Success		200		{object}	models.User
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
-//	@Router			/me [patch]
+//	@Router			/api/v1/me [patch]
 func (h *ProfileHandler) UpdateMe(c *gin.Context) {
 	user := middleware.GetUser(c)
 
@@ -115,7 +115,7 @@ func (h *ProfileHandler) UpdateMe(c *gin.Context) {
 //	@Produce		json
 //	@Success		200	{object}	progressResponse
 //	@Failure		401	{object}	errorResponse
-//	@Router			/me/progress [get]
+//	@Router			/api/v1/me/progress [get]
 func (h *ProfileHandler) GetProgress(c *gin.Context) {
 	user := middleware.GetUser(c)
 
@@ -138,7 +138,7 @@ func (h *ProfileHandler) GetProgress(c *gin.Context) {
 //	@Produce		json
 //	@Success		200	{object}	listAttemptsResponse
 //	@Failure		401	{object}	errorResponse
-//	@Router			/me/attempts [get]
+//	@Router			/api/v1/me/attempts [get]
 func (h *ProfileHandler) GetAttempts(c *gin.Context) {
 	user := middleware.GetUser(c)
 
@@ -161,7 +161,7 @@ func (h *ProfileHandler) GetAttempts(c *gin.Context) {
 //	@Produce		json
 //	@Success		200	{object}	mySubscriptionResponse
 //	@Failure		401	{object}	errorResponse
-//	@Router			/me/subscription [get]
+//	@Router			/api/v1/me/subscription [get]
 func (h *ProfileHandler) GetMySubscription(c *gin.Context) {
 	user := middleware.GetUser(c)
 
