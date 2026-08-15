@@ -1,26 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { PencilSimple, CaretRight, Stack } from 'phosphor-react-native';
 import { SecondaryButton, useToast } from '@/src/components';
 import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
-
-const CAN_MANAGE_ALL_CONTENT = false;
+import { useAuth } from '@/src/auth/AuthContext';
+import { updateMe } from '@/src/api/profile';
 
 export default function TeacherProfileRoute() {
   const { color, type, space, radius, preference, setPreference } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-
-  const [name, setName] = useState('Kavya Iyer');
+  const auth = useAuth();
+  const user = auth.user;
+  
+  const [name, setName] = useState(user?.name || 'Teacher');
   const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState(name);
+  const [draftName, setDraftName] = useState(user?.name || 'Teacher');
   const [soundEffects, setSoundEffects] = useState(true);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [canManageAllContent, setCanManageAllContent] = useState(false);
+  const [contentCount, setContentCount] = useState<number | null>(null);
 
-  const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2);
+  useEffect(() => {
+    if (user?.name) {
+      setName(user.name);
+      setDraftName(user.name);
+    }
+  }, [user?.name]);
+
+  useEffect(() => {
+    import('@/src/api/profile').then(({ getMe }) => {
+      getMe().then(res => {
+        if (res.user && (res.user as any).can_manage_all_content) {
+          setCanManageAllContent(true);
+        }
+      }).catch(() => {});
+    });
+
+    import('@/src/api/teacher').then(({ listTeacherContent, listTeacherTests }) => {
+      Promise.all([listTeacherContent(), listTeacherTests()])
+        .then(([cRes, tRes]) => {
+          setContentCount((cRes.content?.length || 0) + (tRes.tests?.length || 0));
+        })
+        .catch(() => {});
+    });
+  }, []);
+
+  const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
   const segments: { key: ThemePreference; label: string }[] = [
     { key: 'system', label: 'System' },
@@ -28,19 +57,27 @@ export default function TeacherProfileRoute() {
     { key: 'dark', label: 'Dark' },
   ];
 
-  const commitName = () => {
+  const commitName = async () => {
     const trimmed = draftName.trim();
     if (trimmed.length > 0 && trimmed !== name) {
       setName(trimmed);
-      show('Profile updated', 'success');
+      try {
+        await updateMe({ name: trimmed });
+        await auth.refreshUser();
+        show('Profile updated', 'success');
+      } catch (e) {
+        show('Failed to update profile', 'error');
+        setName(name); // revert
+      }
     } else {
       setDraftName(name);
     }
     setEditingName(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setLogoutConfirmOpen(false);
+    await auth.signOut();
     router.replace('/phone-entry');
   };
 
@@ -75,7 +112,7 @@ export default function TeacherProfileRoute() {
             <View style={[styles.chip, { backgroundColor: color('bg/sunken'), borderRadius: radius.pill, paddingHorizontal: space.sm }]}>
               <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Teacher</Text>
             </View>
-            {CAN_MANAGE_ALL_CONTENT ? (
+            {canManageAllContent ? (
               <View style={[styles.chip, { backgroundColor: color('accent/tint'), borderRadius: radius.pill, paddingHorizontal: space.sm }]}>
                 <Text style={[type['type/caption'], { color: color('accent/default') }]}>Can manage all content</Text>
               </View>
@@ -92,7 +129,7 @@ export default function TeacherProfileRoute() {
         >
           <Stack size={20} color={color('accent/default')} weight="duotone" />
           <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
-            My Content — 15 items
+            My Content {contentCount !== null ? `— ${contentCount} items` : ''}
           </Text>
           <CaretRight size={18} color={color('text/tertiary')} />
         </Pressable>
