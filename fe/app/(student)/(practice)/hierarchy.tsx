@@ -60,11 +60,12 @@ function levelNoun(level: Level): string {
   return 'item';
 }
 
-function subjectIcon(id: string, ink: string) {
-  if (id === 'physics') return <Atom size={22} color={ink} weight="duotone" />;
-  if (id === 'chemistry') return <Flask size={22} color={ink} weight="duotone" />;
-  if (id === 'botany') return <Leaf size={22} color={ink} weight="duotone" />;
-  if (id === 'zoology') return <Leaf size={22} color={ink} weight="duotone" />;
+function subjectIcon(title: string, ink: string) {
+  const t = title.toLowerCase();
+  if (t.includes('physics')) return <Atom size={22} color={ink} weight="duotone" />;
+  if (t.includes('chemistry')) return <Flask size={22} color={ink} weight="duotone" />;
+  if (t.includes('botany')) return <Leaf size={22} color={ink} weight="duotone" />;
+  if (t.includes('zoology')) return <Leaf size={22} color={ink} weight="duotone" />;
   return <Folder size={22} color={ink} weight="duotone" />;
 }
 
@@ -114,7 +115,7 @@ export default function HierarchyBrowserRoute() {
       if (!user?.selected_course_id) return;
       try {
         const res = await getCurriculum(user.selected_course_id);
-        setSubjects(res.subjects || []);
+        setSubjects(res.course.subjects || []);
         setCourseName(res.course.name);
       } catch (err) {
         console.error('Failed to load curriculum', err);
@@ -356,7 +357,7 @@ export default function HierarchyBrowserRoute() {
                     {row.level === 'leaf'
                       ? leafIcon(row.leafKind, color('accent/default'))
                       : row.level === 'subject'
-                        ? subjectIcon(row.id, color('accent/default'))
+                        ? subjectIcon(row.title, color('accent/default'))
                         : <Folder size={22} color={color('accent/default')} weight="duotone" />}
                   </View>
                   <View style={{ flex: 1, marginLeft: space.sm }}>

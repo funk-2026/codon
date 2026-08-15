@@ -17,6 +17,8 @@ export type Chapter = {
   name: string;
   description: string;
   order_index: number;
+  content_count?: number;
+  test_count?: number;
 };
 
 export type Subject = {
@@ -29,8 +31,7 @@ export type Subject = {
 };
 
 export type CurriculumResponse = {
-  course: Course;
-  subjects: Subject[];
+  course: Course & { subjects: Subject[] };
 };
 
 /** GET /api/v1/courses/:id/curriculum */

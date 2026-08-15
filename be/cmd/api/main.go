@@ -225,6 +225,7 @@ func main() {
 	{
 		studentContent.GET("/chapters/:chapter_id/content", contentH.GetChapterContent)
 		studentContent.GET("/content/:id", contentH.GetContentItem)
+		studentContent.POST("/content/:id/heartbeat", profileH.ContentHeartbeat)
 	}
 
 	// ─── Teacher routes ────────────────────────────────────────────────────────

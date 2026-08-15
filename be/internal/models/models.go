@@ -447,6 +447,25 @@ type BackgroundJob struct {
 	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
+type UserWatchHistory struct {
+	ID              uuid.UUID   `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	UserID          uuid.UUID   `gorm:"type:uuid;not null;index" json:"user_id"`
+	User            User        `gorm:"foreignKey:UserID" json:"-"`
+	ContentItemID   uuid.UUID   `gorm:"type:uuid;not null;index" json:"content_item_id"`
+	ContentItem     ContentItem `gorm:"foreignKey:ContentItemID" json:"content_item,omitempty"`
+	ProgressSeconds int         `gorm:"not null;default:0" json:"progress_seconds"`
+	IsCompleted     bool        `gorm:"not null;default:false" json:"is_completed"`
+	LastWatchedAt   time.Time   `gorm:"not null" json:"last_watched_at"`
+}
+
+type DailyActivity struct {
+	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_user_date" json:"user_id"`
+	User      User      `gorm:"foreignKey:UserID" json:"-"`
+	Date      time.Time `gorm:"type:date;not null;uniqueIndex:idx_user_date" json:"date"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type UserFeedback struct {
 	ID         uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	UserID     uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`

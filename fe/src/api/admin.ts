@@ -147,3 +147,19 @@ export function setKYCRequired(required: boolean): Promise<{ message: string }> 
     body: JSON.stringify({ required }),
   });
 }
+
+/** POST /api/v1/admin/courses/:course_id/subjects */
+export function createSubject(courseId: string, name: string, description: string): Promise<any> {
+  return apiFetch<any>(`/admin/courses/${courseId}/subjects`, {
+    method: 'POST',
+    body: JSON.stringify({ name, description }),
+  });
+}
+
+/** POST /api/v1/admin/subjects/:subject_id/chapters */
+export function createChapter(subjectId: string, name: string, description: string): Promise<any> {
+  return apiFetch<any>(`/admin/subjects/${subjectId}/chapters`, {
+    method: 'POST',
+    body: JSON.stringify({ name, description }),
+  });
+}

@@ -24,7 +24,7 @@ import {
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
-import { getMe, getProgress } from '@/src/api/profile';
+import { getMe, getProgress, getProgressBreakdown, getRecentContent } from '@/src/api/profile';
 import type { Subscription } from '@/src/api/profile';
 
 type SubState = 'active' | 'expiring' | 'none';
@@ -76,18 +76,18 @@ export default function HomeDashboardRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
-  
+
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - space.md * 2;
   const bhCardWidth = Math.max(130, Math.min(200, (screenWidth - space.md * 2) / 2.6));
 
   const [subState, setSubState] = useState<SubState>('none');
   const [subText, setSubText] = useState('');
-  
-  const [stats, setStats] = useState({ attempted: 0, avgScore: 0 });
-  const [isNewUser, setIsNewUser] = useState(true);
 
-  const hasActivity = true; // Placeholder for now
+  const [stats, setStats] = useState({ attempted: 0, avgScore: 0 });
+  const [streak, setStreak] = useState(0);
+  const [isNewUser, setIsNewUser] = useState(true);
+  const [recentItem, setRecentItem] = useState<any>(null);
 
   const flatRef = useRef<FlatList<typeof UPDATES[number]>>(null);
   const [slide, setSlide] = useState(0);
@@ -96,13 +96,23 @@ export default function HomeDashboardRoute() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [meRes, progRes] = await Promise.all([getMe(), getProgress()]);
-        
+        const [meRes, progRes, breakdownRes, recentRes] = await Promise.all([
+          getMe(),
+          getProgress(),
+          getProgressBreakdown(),
+          getRecentContent()
+        ]);
+
+        if (recentRes.recent && recentRes.recent.length > 0) {
+          setRecentItem(recentRes.recent[0]);
+        }
+
+        setStreak(breakdownRes.day_streak);
         if (meRes.active_subscription) {
           const end = new Date(meRes.active_subscription.end_date);
           const diffDays = Math.ceil((end.getTime() - Date.now()) / (1000 * 3600 * 24));
           const planName = meRes.active_subscription.plan?.name || 'Pro';
-          
+
           if (diffDays <= 7) {
             setSubState('expiring');
             setSubText(`Your ${planName} plan expires in ${diffDays} days — renew to keep access.`);
@@ -158,7 +168,7 @@ export default function HomeDashboardRoute() {
                   <View style={[styles.streakRow, { gap: space['2xs'], marginTop: space['2xs'] }]}>
                     <Flame size={16} color={color('semantic/warning')} weight="fill" />
                     <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
-                      12 day streak
+                      {streak} day streak
                     </Text>
                   </View>
                 </View>
@@ -186,7 +196,7 @@ export default function HomeDashboardRoute() {
             </Stagger>
 
             {/* Updates carousel */}
-            <Stagger delayMs={80}>
+            {/* <Stagger delayMs={80}>
               <View style={{ marginTop: space.lg }}>
                 <FlatList
                   ref={flatRef}
@@ -221,10 +231,10 @@ export default function HomeDashboardRoute() {
                   ))}
                 </View>
               </View>
-            </Stagger>
+            </Stagger> */}
 
             {/* Continue Learning */}
-            {hasActivity ? (
+            {recentItem ? (
               <Stagger delayMs={160}>
                 <View style={{ marginTop: space.xl }}>
                   <Text
@@ -253,14 +263,18 @@ export default function HomeDashboardRoute() {
                           { backgroundColor: color('accent/tint'), borderRadius: radius.md },
                         ]}
                       >
-                        <Exam size={28} color={color('accent/default')} weight="duotone" />
+                        {recentItem.kind === 'video' ? (
+                          <BookOpen size={28} color={color('accent/default')} weight="duotone" />
+                        ) : (
+                          <Exam size={28} color={color('accent/default')} weight="duotone" />
+                        )}
                       </View>
                       <View style={{ flex: 1, marginLeft: space.md }}>
                         <Text
                           style={[type['type/h3'], { color: color('text/primary') }]}
                           numberOfLines={1}
                         >
-                          Resume: Thermodynamics — Practice Set 3
+                          Resume: {recentItem.title || 'Content'}
                         </Text>
                         <Text
                           style={[
@@ -268,7 +282,7 @@ export default function HomeDashboardRoute() {
                             { color: color('text/secondary'), marginTop: 2 },
                           ]}
                         >
-                          Question 7 of 20
+                          {recentItem.pct === 100 ? 'Completed' : `${recentItem.pct}% Completed`}
                         </Text>
                       </View>
                     </View>
@@ -282,7 +296,7 @@ export default function HomeDashboardRoute() {
                     >
                       <View
                         style={{
-                          width: '35%',
+                          width: `${recentItem.pct}%`,
                           height: 4,
                           backgroundColor: color('accent/default'),
                           borderRadius: 2,
@@ -290,7 +304,11 @@ export default function HomeDashboardRoute() {
                       />
                     </View>
                     <Pressable
-                      onPress={() => router.push('/(student)/(practice)/test-question')}
+                      onPress={() => {
+                        if (recentItem.id) {
+                          router.push({ pathname: '/(student)/(learn)/video-player', params: { id: recentItem.id } });
+                        }
+                      }}
                       style={({ pressed }) => [
                         styles.resumeBtn,
                         {
@@ -309,7 +327,7 @@ export default function HomeDashboardRoute() {
                           { color: color('accent/on-accent') },
                         ]}
                       >
-                        Resume
+                        Continue Now
                       </Text>
                     </Pressable>
                   </View>

@@ -59,6 +59,8 @@ func AutoMigrateAll() error {
 		&models.WellnessContent{},
 		&models.PlatformSetting{},
 		&models.BackgroundJob{},
+		&models.UserWatchHistory{},
+		&models.DailyActivity{},
 		&models.UserFeedback{},
 	)
 }

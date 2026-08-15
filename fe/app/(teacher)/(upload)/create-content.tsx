@@ -47,7 +47,7 @@ export default function CreateContentRoute() {
       if (res.courses.length > 0) {
         setCourseId(res.courses[0].id);
         getCurriculum(res.courses[0].id).then(cRes => {
-          const chaps = cRes.subjects.flatMap(s => s.chapters);
+          const chaps = cRes.course.subjects.flatMap((s: any) => s.chapters);
           if (chaps.length > 0) setChapterId(chaps[0].id);
         }).catch(() => {});
       }

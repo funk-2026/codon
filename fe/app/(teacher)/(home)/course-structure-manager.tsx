@@ -6,7 +6,7 @@ import { CaretLeft, CaretRight, Folder, Plus } from 'phosphor-react-native';
 import { PrimaryButton, SecondaryButton, StatusBadge, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 
-type Level = 'subject' | 'chapter' | 'subchapter';
+type Level = 'subject' | 'chapter';
 type Status = 'approved' | 'pending' | 'rejected';
 
 type Node = {
@@ -20,30 +20,9 @@ type Node = {
 
 const COURSE_NAME = 'NEET UG';
 
-const INITIAL_TREE: Node[] = [
-  {
-    id: 'physics', title: 'Physics', level: 'subject', status: 'approved',
-    children: [
-      {
-        id: 'thermo', title: 'Thermodynamics', level: 'chapter', status: 'approved',
-        children: [
-          { id: 'laws-th', title: 'Laws of Thermodynamics', level: 'subchapter', status: 'approved', children: [] },
-          { id: 'entropy', title: 'Entropy', level: 'subchapter', status: 'pending', children: [] },
-        ],
-      },
-      { id: 'optics', title: 'Optics', level: 'chapter', status: 'approved', children: [] },
-      { id: 'modern', title: '[new] Modern Physics II', level: 'chapter', status: 'rejected', rejectReason: 'Duplicate of the existing "Modern Physics" chapter — please add sub-chapters there instead.', children: [] },
-    ],
-  },
-  { id: 'chemistry', title: 'Chemistry', level: 'subject', status: 'approved', children: [] },
-  { id: 'botany', title: 'Botany', level: 'subject', status: 'approved', children: [] },
-  { id: 'zoology', title: '[new] Zoology', level: 'subject', status: 'pending', children: [] },
-];
-
-function levelNoun(level: Level | 'root'): 'chapter' | 'sub-chapter' | 'subject' {
+function levelNoun(level: Level | 'root'): 'chapter' | 'subject' {
   if (level === 'root') return 'subject';
-  if (level === 'subject') return 'chapter';
-  return 'sub-chapter';
+  return 'chapter';
 }
 
 function pluralize(n: number, noun: string): string {
@@ -81,7 +60,36 @@ export default function CourseStructureManagerRoute() {
       : '/(teacher)/(upload)/create-test';
   const extraParams = pickerMode ? { pickerMode: '1', returnTo: params.returnTo ?? '' } : {};
 
-  const [tree, setTree] = useState<Node[]>(INITIAL_TREE);
+  const [tree, setTree] = useState<Node[]>([]);
+  const [courseId, setCourseId] = useState<string | null>(null);
+
+  useMemo(() => {
+    import('@/src/api/courses').then(({ listCourses, getCurriculum }) => {
+      listCourses().then((cRes) => {
+        const neet = cRes.courses.find((c) => c.name === COURSE_NAME);
+        if (neet) {
+          setCourseId(neet.id);
+          getCurriculum(neet.id).then((res) => {
+            const fetchedTree: Node[] = res.course.subjects.map((sub: any) => ({
+              id: sub.id,
+              title: sub.name,
+              level: 'subject',
+              status: 'approved',
+              children: sub.chapters.map((chap: any) => ({
+                id: chap.id,
+                title: chap.name,
+                level: 'chapter',
+                status: 'approved',
+                children: [],
+              })),
+            }));
+            setTree(fetchedTree);
+          });
+        }
+      });
+    });
+  }, []);
+
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -104,10 +112,10 @@ export default function CourseStructureManagerRoute() {
   }, [pathIds, tree]);
 
   const currentLevel: Level | 'root' =
-    crumbs.length === 0 ? 'root' : crumbs.length === 1 ? 'subject' : crumbs.length === 2 ? 'chapter' : 'subchapter';
+    crumbs.length === 0 ? 'root' : crumbs.length === 1 ? 'subject' : 'chapter';
   const nextLevel: Level | null =
-    currentLevel === 'root' ? 'subject' : currentLevel === 'subject' ? 'chapter' : currentLevel === 'chapter' ? 'subchapter' : null;
-  const addLabel = nextLevel === 'subject' ? 'Add Subject' : nextLevel === 'chapter' ? 'Add Chapter' : 'Add Sub-chapter';
+    currentLevel === 'root' ? 'subject' : currentLevel === 'subject' ? 'chapter' : null;
+  const addLabel = nextLevel === 'subject' ? 'Add Subject' : 'Add Chapter';
   const currentTitle = crumbs.length ? crumbs[crumbs.length - 1].title : 'Subjects';
   const canAddDeeper = nextLevel !== null;
 
@@ -138,12 +146,23 @@ export default function CourseStructureManagerRoute() {
     router.replace({ pathname: returnTo, params: { locationLabel: label } });
   };
 
-  const submitNewNode = () => {
-    if (newName.trim().length === 0 || submitting || !nextLevel) return;
+  const submitNewNode = async () => {
+    if (newName.trim().length === 0 || submitting || !nextLevel || !courseId) return;
     setSubmitting(true);
-    setTimeout(() => {
-      const id = `n${Date.now()}`;
-      const newNode: Node = { id, title: newName.trim(), level: nextLevel, status: 'pending', children: [] };
+    
+    try {
+      const adminApi = await import('@/src/api/admin');
+      let newId = '';
+      if (nextLevel === 'subject') {
+        const res = await adminApi.createSubject(courseId, newName.trim(), 'Subject for ' + COURSE_NAME);
+        newId = res.id;
+      } else if (nextLevel === 'chapter') {
+        const subjectId = pathIds[0];
+        const res = await adminApi.createChapter(subjectId, newName.trim(), 'Chapter for ' + newName.trim());
+        newId = res.id;
+      }
+
+      const newNode: Node = { id: newId, title: newName.trim(), level: nextLevel, status: 'approved', children: [] };
 
       setTree((prev) => {
         const insert = (nodes: Node[], depth: number): Node[] => {
@@ -154,11 +173,13 @@ export default function CourseStructureManagerRoute() {
         };
         return insert(prev, 0);
       });
-
-      setSubmitting(false);
       setAddOpen(false);
       setNewName('');
-    }, 500);
+    } catch (e) {
+       console.error("Failed to create node:", e);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resubmitRejected = () => {
@@ -236,7 +257,7 @@ export default function CourseStructureManagerRoute() {
               const childCount = node.children?.length ?? 0;
               const pendingChildCount = node.children?.filter((c) => c.status === 'pending').length ?? 0;
               const countLabel =
-                node.level !== 'subchapter'
+                node.level === 'subject'
                   ? pendingChildCount > 0
                     ? `${pluralize(childCount, levelNoun(node.level))} · ${pendingChildCount} in review`
                     : pluralize(childCount, levelNoun(node.level))

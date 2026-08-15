@@ -32,3 +32,11 @@ export type GetContentResponse = {
 export function getContentItem(id: string): Promise<GetContentResponse> {
   return apiFetch<GetContentResponse>(`/content/${id}`, { method: 'GET' });
 }
+
+/** POST /api/v1/content/:id/heartbeat (Student) */
+export function sendHeartbeat(id: string, progressSeconds: number, isCompleted: boolean): Promise<{status: string}> {
+  return apiFetch<{status: string}>(`/content/${id}/heartbeat`, {
+    method: 'POST',
+    body: JSON.stringify({ progress_seconds: progressSeconds, is_completed: isCompleted })
+  });
+}

@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { CaretLeft, Play, Pause, X, GridFour } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { getContentItem, getChapterContent, ContentItem } from '@/src/api/content';
+import { getContentItem, getChapterContent, ContentItem, sendHeartbeat } from '@/src/api/content';
 import { SkeletonBlock } from '@/src/components';
 
 
@@ -67,6 +67,15 @@ export default function VideoPlayerRoute() {
     const t = setInterval(() => setElapsed((e) => Math.min(e + 1, duration)), 1000);
     return () => clearInterval(t);
   }, [playing, duration]);
+
+  useEffect(() => {
+    if (!playing || !id) return;
+    // Heartbeat every 10 seconds
+    const t = setInterval(() => {
+       sendHeartbeat(id, elapsed, elapsed >= duration - 5).catch(() => {});
+    }, 10000);
+    return () => clearInterval(t);
+  }, [playing, elapsed, duration, id]);
 
   const floatScale = useSharedValue(0);
   useEffect(() => {

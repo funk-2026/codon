@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -215,17 +217,117 @@ type listAttemptsResponse struct {
 //	@Success		200	{object}	recentContentResponse
 //	@Failure		401	{object}	errorResponse
 //	@Router			/api/v1/me/recent-content [get]
+type heartbeatRequest struct {
+	ProgressSeconds int  `json:"progress_seconds"`
+	IsCompleted     bool `json:"is_completed"`
+}
+
+func (h *ProfileHandler) ContentHeartbeat(c *gin.Context) {
+	user := middleware.GetUser(c)
+	contentID := c.Param("id")
+
+	var req heartbeatRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+
+	var parsedID uuid.UUID
+	var err error
+	if parsedID, err = uuid.Parse(contentID); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid content id"})
+		return
+	}
+
+	// Update or create watch history
+	var history models.UserWatchHistory
+	err = h.DB.WithContext(c.Request.Context()).
+		Where("user_id = ? AND content_item_id = ?", user.ID, parsedID).
+		First(&history).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			history = models.UserWatchHistory{
+				UserID:          user.ID,
+				ContentItemID:   parsedID,
+				ProgressSeconds: req.ProgressSeconds,
+				IsCompleted:     req.IsCompleted,
+				LastWatchedAt:   time.Now(),
+			}
+			h.DB.Create(&history)
+		} else {
+			c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to save heartbeat"})
+			return
+		}
+	} else {
+		if req.ProgressSeconds > history.ProgressSeconds {
+			history.ProgressSeconds = req.ProgressSeconds
+		}
+		if req.IsCompleted {
+			history.IsCompleted = true
+		}
+		history.LastWatchedAt = time.Now()
+		h.DB.Save(&history)
+	}
+
+	// Update daily activity
+	today := time.Now().Truncate(24 * time.Hour)
+	var daily models.DailyActivity
+	err = h.DB.Where("user_id = ? AND date = ?", user.ID, today).First(&daily).Error
+	if err == gorm.ErrRecordNotFound {
+		h.DB.Create(&models.DailyActivity{
+			UserID:    user.ID,
+			Date:      today,
+			CreatedAt: time.Now(),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 func (h *ProfileHandler) GetRecentContent(c *gin.Context) {
-	// For MVP: Return a hardcoded mock matching the FE format so we don't need a new table for watch history right now.
-	// In production, this would query a 'user_content_progress' table.
-	c.JSON(http.StatusOK, recentContentResponse{
-		Recent: []map[string]interface{}{
-			{"id": "1", "title": "Thermodynamics — Lecture 3", "breadcrumb": "Physics › Thermodynamics", "kind": "video", "pct": 72},
-			{"id": "2", "title": "Laws of Motion — Notes", "breadcrumb": "Physics › Mechanics", "kind": "document", "pct": 100},
-			{"id": "3", "title": "Optics — Ray Diagrams", "breadcrumb": "Physics › Optics", "kind": "video", "pct": 35},
-			{"id": "4", "title": "Modern Physics — Quick Notes", "breadcrumb": "Physics › Modern Physics", "kind": "document", "pct": 100},
-		},
-	})
+	user := middleware.GetUser(c)
+
+	var history []models.UserWatchHistory
+	h.DB.WithContext(c.Request.Context()).
+		Where("user_id = ?", user.ID).
+		Preload("ContentItem").
+		Order("last_watched_at desc").
+		Limit(10).
+		Find(&history)
+
+	var recent []map[string]interface{}
+	for _, hist := range history {
+		if hist.ContentItem.ID == uuid.Nil {
+			continue
+		}
+		
+		breadcrumb := "Subject › Chapter"
+		var chapter models.Chapter
+		if err := h.DB.Preload("Subject").Where("id = ?", hist.ContentItem.ChapterID).First(&chapter).Error; err == nil {
+			breadcrumb = chapter.Subject.Name + " › " + chapter.Name
+		}
+
+		pct := 0
+		if hist.IsCompleted {
+			pct = 100
+		} else if hist.ProgressSeconds > 0 {
+			pct = 50 // Mocking 50% for in-progress since we don't have duration
+		}
+
+		recent = append(recent, map[string]interface{}{
+			"id":         hist.ContentItem.ID.String(),
+			"title":      hist.ContentItem.Title,
+			"breadcrumb": breadcrumb,
+			"kind":       string(hist.ContentItem.ContentType),
+			"pct":        pct,
+		})
+	}
+	
+	if recent == nil {
+		recent = []map[string]interface{}{}
+	}
+
+	c.JSON(http.StatusOK, recentContentResponse{Recent: recent})
 }
 
 type recentContentResponse struct {
@@ -302,9 +404,33 @@ func (h *ProfileHandler) GetProgressBreakdown(c *gin.Context) {
 		}
 	}
 
-	// Mocking streak and last7days for MVP
-	dayStreak := 12
-	last7Days := []bool{true, true, false, true, true, true, true}
+	// Real streak calculation
+	dayStreak := 0
+	today := time.Now().Truncate(24 * time.Hour)
+	for i := 0; ; i++ {
+		checkDate := today.AddDate(0, 0, -i)
+		var count int64
+		h.DB.Model(&models.DailyActivity{}).
+			Where("user_id = ? AND date = ?", user.ID, checkDate).
+			Count(&count)
+		if count > 0 {
+			dayStreak++
+		} else {
+			if i > 0 {
+				break
+			}
+		}
+	}
+
+	last7Days := make([]bool, 7)
+	for i := 0; i < 7; i++ {
+		checkDate := today.AddDate(0, 0, -i)
+		var count int64
+		h.DB.Model(&models.DailyActivity{}).
+			Where("user_id = ? AND date = ?", user.ID, checkDate).
+			Count(&count)
+		last7Days[6-i] = count > 0
+	}
 
 	resp := progressBreakdownResponse{
 		Trend:     trend,

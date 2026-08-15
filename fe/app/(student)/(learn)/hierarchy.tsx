@@ -41,62 +41,6 @@ type Row = {
   children?: Row[];
 };
 
-const COURSE_NAME = 'NEET UG';
-
-const TREE: Row[] = [
-  {
-    id: 'physics',
-    title: 'Physics',
-    level: 'subject',
-    count: 4,
-    children: [
-      {
-        id: 'mechanics',
-        title: 'Mechanics',
-        level: 'chapter',
-        count: 3,
-        children: [
-          {
-            id: 'laws-motion',
-            title: 'Laws of Motion',
-            level: 'subchapter',
-            count: 2,
-            children: [
-              { id: 'v1', title: "Newton’s Laws — Lecture", level: 'leaf', leafKind: 'video', meta: '18 min' },
-              { id: 'd1', title: 'Laws of Motion — Notes', level: 'leaf', leafKind: 'document', meta: '6 min read' },
-            ],
-          },
-          { id: 'kinematics', title: 'Kinematics', level: 'subchapter', count: 3, children: [] },
-        ],
-      },
-      {
-        id: 'thermo',
-        title: 'Thermodynamics',
-        level: 'chapter',
-        count: 3,
-        children: [
-          {
-            id: 'laws-th',
-            title: 'Laws of Thermodynamics',
-            level: 'subchapter',
-            count: 2,
-            children: [
-              { id: 'v2', title: 'Laws of Thermodynamics — Explained', level: 'leaf', leafKind: 'video', meta: '12:40' },
-              { id: 'd2', title: 'Entropy — Chapter Notes', level: 'leaf', leafKind: 'document', meta: '6 min read', locked: true },
-            ],
-          },
-          { id: 'heat-engines', title: 'Heat Engines', level: 'subchapter', count: 4, children: [] },
-          { id: 'entropy', title: 'Entropy', level: 'subchapter', count: 5, children: [] },
-        ],
-      },
-      { id: 'optics', title: 'Optics', level: 'chapter', count: 6, children: [] },
-      { id: 'modern', title: 'Modern Physics', level: 'chapter', count: 9, children: [] },
-    ],
-  },
-  { id: 'chemistry', title: 'Chemistry', level: 'subject', count: 7, children: [] },
-  { id: 'botany', title: 'Botany', level: 'subject', count: 5, children: [] },
-  { id: 'zoology', title: 'Zoology', level: 'subject', count: 6, children: [] },
-];
 
 function pluralize(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
@@ -109,11 +53,12 @@ function levelNoun(level: Level): string {
   return 'item';
 }
 
-function subjectIcon(id: string, ink: string) {
-  if (id === 'physics') return <Atom size={22} color={ink} weight="duotone" />;
-  if (id === 'chemistry') return <Flask size={22} color={ink} weight="duotone" />;
-  if (id === 'botany') return <Leaf size={22} color={ink} weight="duotone" />;
-  if (id === 'zoology') return <Leaf size={22} color={ink} weight="duotone" />;
+function subjectIcon(title: string, ink: string) {
+  const t = title.toLowerCase();
+  if (t.includes('physics')) return <Atom size={22} color={ink} weight="duotone" />;
+  if (t.includes('chemistry')) return <Flask size={22} color={ink} weight="duotone" />;
+  if (t.includes('botany')) return <Leaf size={22} color={ink} weight="duotone" />;
+  if (t.includes('zoology')) return <Leaf size={22} color={ink} weight="duotone" />;
   return <Folder size={22} color={ink} weight="duotone" />;
 }
 
@@ -148,9 +93,64 @@ export default function LearnHierarchyRoute() {
     [params.path],
   );
 
+  const [tree, setTree] = useState<Row[]>([]);
+  const [courseName, setCourseName] = useState('Course');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const { getMe } = await import('@/src/api/profile');
+        const { getCurriculum } = await import('@/src/api/courses');
+        const me = await getMe();
+        if (me.user.selected_course_id) {
+          const cur = await getCurriculum(me.user.selected_course_id);
+          setCourseName(cur.course.name);
+          const newTree: Row[] = cur.course.subjects.map((sub) => ({
+            id: sub.id,
+            title: sub.name,
+            level: 'subject',
+            count: sub.chapters?.length || 0,
+            children: sub.chapters?.map((chap) => ({
+              id: chap.id,
+              title: chap.name,
+              level: 'chapter',
+              count: chap.content_count || 0,
+              children: [], // will fetch on demand or we can leave empty
+            })) || [],
+          }));
+          setTree(newTree);
+        }
+      } catch (err) {}
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const [leafs, setLeafs] = useState<Row[]>([]);
+  useEffect(() => {
+    if (pathIds.length === 2) {
+      // Path is [subjectId, chapterId]
+      const chapterId = pathIds[1];
+      import('@/src/api/content').then(({ getChapterContent }) => {
+        getChapterContent(chapterId).then(res => {
+          setLeafs(res.content.map(c => ({
+            id: c.id,
+            title: c.title,
+            level: 'leaf',
+            leafKind: c.content_type === 'video' ? 'video' : 'document',
+            locked: c.requires_subscription, // simplified for now
+          })));
+        });
+      });
+    } else {
+      setLeafs([]);
+    }
+  }, [pathIds]);
+
   const crumbs = useMemo(() => {
     const out: { id: string; title: string; path: string }[] = [];
-    let layer: Row[] = TREE;
+    let layer: Row[] = tree;
     let acc = '';
     for (const id of pathIds) {
       const found = layer.find((r) => r.id === id);
@@ -159,8 +159,14 @@ export default function LearnHierarchyRoute() {
       out.push({ id: found.id, title: found.title, path: acc });
       layer = found.children ?? [];
     }
-    return { crumbs: out, currentLayer: layer };
-  }, [pathIds]);
+    
+    let currentLayer = layer;
+    if (pathIds.length === 2 && leafs.length > 0) {
+      currentLayer = leafs;
+    }
+
+    return { crumbs: out, currentLayer };
+  }, [pathIds, tree, leafs]);
 
   const currentLevel: Level = crumbs.crumbs.length === 0
     ? 'subject'
@@ -230,7 +236,7 @@ export default function LearnHierarchyRoute() {
           <View style={{ flex: 1, marginLeft: space.sm }}>
             <View style={[styles.crumbRow, { gap: space['2xs'] }]}>
               <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
-                {COURSE_NAME}
+                {courseName}
               </Text>
               <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>›</Text>
               {crumbs.crumbs.map((c, i) => (
@@ -327,7 +333,7 @@ export default function LearnHierarchyRoute() {
                     {row.level === 'leaf'
                       ? leafIcon(row.leafKind, color('accent/default'))
                       : row.level === 'subject'
-                        ? subjectIcon(row.id, color('accent/default'))
+                        ? subjectIcon(row.title, color('accent/default'))
                         : <Folder size={22} color={color('accent/default')} weight="duotone" />}
                   </View>
                   <View style={{ flex: 1, marginLeft: space.sm }}>
