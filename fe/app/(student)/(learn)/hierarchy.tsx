@@ -206,22 +206,14 @@ export default function LearnHierarchyRoute() {
   };
 
   const jumpTo = (path: string) => {
-    router.replace({
+    router.dismissTo({
       pathname: '/(student)/(learn)/hierarchy',
       params: { path, kind: params.kind },
     });
   };
 
   const goBack = () => {
-    if (pathIds.length === 0) {
-      router.back();
-      return;
-    }
-    const parent = pathIds.slice(0, -1).join('/');
-    router.replace({
-      pathname: '/(student)/(learn)/hierarchy',
-      params: { path: parent, kind: params.kind },
-    });
+    router.back();
   };
 
   const emptyNoun = levelNoun(currentLevel);

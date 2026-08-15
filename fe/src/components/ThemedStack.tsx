@@ -3,6 +3,7 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 export function useStackScreenOptions() {
   const { color, type } = useTheme();
   return {
+    headerShown: false,
     headerStyle: { backgroundColor: color('bg/surface') },
     headerTintColor: color('text/primary'),
     headerTitleStyle: {
