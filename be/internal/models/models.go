@@ -184,15 +184,15 @@ type OTPRequest struct {
 }
 
 type Session struct {
-	ID         uuid.UUID  `gorm:"type:uuid;primaryKey"` // also the JWT jti
-	UserID     uuid.UUID  `gorm:"type:uuid;not null;index"`
-	User       User       `gorm:"foreignKey:UserID"`
-	DeviceID   string     `gorm:"type:text;not null"`
-	DeviceInfo *string    `gorm:"type:text"`
-	CreatedAt  time.Time
-	LastUsedAt time.Time
-	ExpiresAt  time.Time  `gorm:"not null;index"`
-	RevokedAt  *time.Time
+	ID         uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"` // also the JWT jti
+	UserID     uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
+	User       User       `gorm:"foreignKey:UserID" json:"-"`
+	DeviceID   string     `gorm:"type:text;not null" json:"device_id"`
+	DeviceInfo *string    `gorm:"type:text" json:"device_info"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt time.Time  `json:"last_used_at"`
+	ExpiresAt  time.Time  `gorm:"not null;index" json:"expires_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
 }
 
 type Course struct {

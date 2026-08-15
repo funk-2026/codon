@@ -42,8 +42,7 @@ func (s *SessionService) CreateSession(ctx context.Context, user *models.User, d
 	// Evict oldest if already at 2
 	if len(activeSessions) >= 2 {
 		oldest := activeSessions[0]
-		now := time.Now()
-		s.DB.WithContext(ctx).Model(&oldest).Update("revoked_at", now)
+		s.DB.WithContext(ctx).Delete(&oldest)
 	}
 
 	// Create new session record
@@ -130,12 +129,11 @@ func (s *SessionService) ValidateToken(ctx context.Context, tokenStr string) (*C
 	return claims, &session, nil
 }
 
-// RevokeSession marks a session as revoked.
+// RevokeSession deletes a session from the DB to keep the table clean.
 func (s *SessionService) RevokeSession(ctx context.Context, sessionID uuid.UUID) error {
-	now := time.Now()
-	return s.DB.WithContext(ctx).Model(&models.Session{}).
+	return s.DB.WithContext(ctx).
 		Where("id = ?", sessionID).
-		Update("revoked_at", now).Error
+		Delete(&models.Session{}).Error
 }
 
 // ListActiveSessions returns active sessions for a user.

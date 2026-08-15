@@ -184,7 +184,6 @@ export default function SettingsRoute() {
             />
             <Row
               label="Manage Devices"
-              caption="2 active"
               onPress={() => router.push('/(student)/(profile)/manage-devices')}
             />
           </View>

@@ -9,6 +9,7 @@ import {
   type StoredUser,
 } from './tokenStore';
 import { getMe } from '../api/profile';
+import { logout as apiLogout } from '../api/sessions';
 
 export type Role = 'student' | 'teacher' | 'admin';
 
@@ -44,9 +45,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    if (state.status === 'authenticated') {
+      try {
+        await apiLogout();
+      } catch (err) {
+        // ignore if token already expired
+      }
+    }
     await clearSession();
     setState({ status: 'unauthenticated' });
-  }, []);
+  }, [state]);
 
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('onTokenExpired', () => {
