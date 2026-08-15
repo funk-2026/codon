@@ -78,7 +78,7 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 
 	var user models.User
 	result := h.DB.WithContext(c.Request.Context()).
-		Where("phone_number = ?", phone).
+		Where(models.User{PhoneNumber: phone}).
 		Attrs(models.User{
 			Role:      models.RoleStudent,
 			KYCStatus: models.KYCNotRequired,

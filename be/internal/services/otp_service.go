@@ -126,7 +126,6 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) error {
 		return fmt.Errorf("invalid OTP code")
 	}
 
-	// Mark consumed
-	now := time.Now()
-	return s.DB.WithContext(ctx).Model(&record).Update("consumed_at", now).Error
+	// Successfully verified! Delete ALL OTP records for this phone number to prevent table bloat.
+	return s.DB.WithContext(ctx).Where("phone_number = ?", phone).Delete(&models.OTPRequest{}).Error
 }
