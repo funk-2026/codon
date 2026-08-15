@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { getAccessToken } from '../auth/tokenStore';
+import { DeviceEventEmitter } from 'react-native';
 
 /**
  * Resolve the API base URL dynamically.
@@ -36,6 +37,9 @@ export async function apiFetch<T = unknown>(
   const body = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if (res.status === 401 && !url.includes('/auth/otp')) {
+      DeviceEventEmitter.emit('onTokenExpired');
+    }
     const msg = (body as Record<string, string>).error ?? res.statusText;
     throw new ApiError(msg, res.status);
   }

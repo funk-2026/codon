@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { DeviceEventEmitter } from 'react-native';
+import { useRouter } from 'expo-router';
 import {
   saveSession,
   getAccessToken,
@@ -26,6 +28,7 @@ type AuthContextValue = AuthState & {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [state, setState] = useState<AuthState>({ status: 'loading' });
 
   // On mount — try to restore session from secure storage
@@ -40,15 +43,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  const signOut = useCallback(async () => {
+    await clearSession();
+    setState({ status: 'unauthenticated' });
+  }, []);
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('onTokenExpired', () => {
+      signOut();
+      router.replace('/onboarding');
+    });
+    return () => sub.remove();
+  }, [signOut, router]);
+
   const signIn = useCallback(async (token: string, user: StoredUser) => {
     await saveSession(token, user);
     setState({ status: 'authenticated', token, user });
   }, []);
 
-  const signOut = useCallback(async () => {
-    await clearSession();
-    setState({ status: 'unauthenticated' });
-  }, []);
+
 
   const refreshUser = useCallback(async () => {
     if (state.status !== 'authenticated') return;

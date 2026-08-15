@@ -79,11 +79,11 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 	var user models.User
 	result := h.DB.WithContext(c.Request.Context()).
 		Where("phone_number = ?", phone).
-		FirstOrCreate(&user, models.User{
-			PhoneNumber: phone,
-			Role:        models.RoleStudent,
-			KYCStatus:   models.KYCNotRequired,
-		})
+		Attrs(models.User{
+			Role:      models.RoleStudent,
+			KYCStatus: models.KYCNotRequired,
+		}).
+		FirstOrCreate(&user)
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create user"})
 		return

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { CaretLeft, DeviceMobile, DeviceTablet } from 'phosphor-react-native';
 import { SecondaryButton, SkeletonBlock, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { listSessions, revokeSession } from '@/src/api/sessions';
 
 type Device = {
   id: string;
@@ -14,10 +15,7 @@ type Device = {
   kind: 'phone' | 'tablet';
 };
 
-const INITIAL_DEVICES: Device[] = [
-  { id: 'd1', label: 'iPhone 14', lastActive: 'Active now', current: true, kind: 'phone' },
-  { id: 'd2', label: 'iPad Air', lastActive: 'Last active 2 hours ago', current: false, kind: 'tablet' },
-];
+
 
 export default function TeacherManageDevicesRoute() {
   const { color, type, space, radius } = useTheme();
@@ -26,19 +24,44 @@ export default function TeacherManageDevicesRoute() {
   const { show } = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
+  const [devices, setDevices] = useState<Device[]>([]);
   const [target, setTarget] = useState<Device | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(t);
-  }, []);
+    async function load() {
+      try {
+        const { sessions } = await listSessions();
+        const mapped: Device[] = sessions.map(s => {
+          const kind = s.device_info?.toLowerCase().includes('ipad') || s.device_info?.toLowerCase().includes('tablet') ? 'tablet' : 'phone';
+          return {
+            id: s.id,
+            label: s.device_info || 'Unknown Device',
+            lastActive: new Date(s.last_used_at).toLocaleDateString(),
+            current: false,
+            kind,
+          };
+        });
+        if (mapped.length > 0) mapped[0].current = true; // Best effort for current session indicator
+        setDevices(mapped);
+      } catch (err) {
+        show('Failed to load devices', 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [show]);
 
-  const confirmRemove = () => {
+  const confirmRemove = async () => {
     if (!target) return;
-    setDevices((prev) => prev.filter((d) => d.id !== target.id));
-    setTarget(null);
-    show('Device signed out', 'success');
+    try {
+      await revokeSession(target.id);
+      setDevices((prev) => prev.filter((d) => d.id !== target.id));
+      setTarget(null);
+      show('Device signed out', 'success');
+    } catch (err) {
+      show('Failed to log out device', 'error');
+    }
   };
 
   return (

@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"time"
 
+	"codon-backend/internal/config"
 	"codon-backend/internal/models"
 	"codon-backend/internal/otp"
 
@@ -58,14 +59,17 @@ func otpRateKey(phone string) string {
 
 // SendOTP generates, stores (hashed), rate-limits, and dispatches the OTP.
 func (s *OTPService) SendOTP(ctx context.Context, phone string) error {
-	// Rate-limit check
-	key := otpRateKey(phone)
-	count, err := s.Redis.Get(ctx, key).Int()
-	if err != nil && err != redis.Nil {
-		return fmt.Errorf("redis rate check: %w", err)
-	}
-	if count >= s.RateLimitPerHour {
-		return fmt.Errorf("OTP rate limit exceeded — try again later")
+	var key string
+	// Rate-limit check (skip in dev mode)
+	if config.AppConfig.Env != "development" {
+		key = otpRateKey(phone)
+		count, err := s.Redis.Get(ctx, key).Int()
+		if err != nil && err != redis.Nil {
+			return fmt.Errorf("redis rate check: %w", err)
+		}
+		if count >= s.RateLimitPerHour {
+			return fmt.Errorf("OTP rate limit exceeded — try again later")
+		}
 	}
 
 	code, err := generateOTP(otpLength)
@@ -84,11 +88,13 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) error {
 	}
 
 	// Increment rate counter (reset hourly)
-	pipe := s.Redis.Pipeline()
-	pipe.Incr(ctx, key)
-	pipe.Expire(ctx, key, time.Hour)
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("redis rate increment: %w", err)
+	if config.AppConfig.Env != "development" {
+		pipe := s.Redis.Pipeline()
+		pipe.Incr(ctx, key)
+		pipe.Expire(ctx, key, time.Hour)
+		if _, err := pipe.Exec(ctx); err != nil {
+			return fmt.Errorf("redis rate increment: %w", err)
+		}
 	}
 
 	// Send via provider

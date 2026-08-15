@@ -140,7 +140,12 @@ export default function PhoneEntryRoute() {
       router.push({ pathname: '/otp-verify', params: { phone: clean } });
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
-        setCooldown(5 * 60);
+        if (__DEV__) {
+          setApiError('Rate limit exceeded (Dev Mode).');
+          triggerShake();
+        } else {
+          setCooldown(5 * 60);
+        }
       } else {
         setApiError(err instanceof Error ? err.message : 'Something went wrong');
         triggerShake();
