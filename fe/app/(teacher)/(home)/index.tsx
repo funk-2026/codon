@@ -185,24 +185,6 @@ export default function TeacherHomeRoute() {
           </View>
         </Stagger>
 
-        <Stagger delayMs={240}>
-          <Pressable
-            onPress={() => router.push('/(teacher)/(home)/course-structure-manager')}
-            style={({ pressed }) => [
-              styles.structureCard,
-              { backgroundColor: color('accent/tint'), borderRadius: radius.lg, padding: space.lg, marginTop: space.lg, opacity: pressed ? 0.94 : 1 },
-            ]}
-          >
-            <TreeStructure size={28} color={color('accent/default')} weight="duotone" />
-            <View style={{ flex: 1, marginLeft: space.md }}>
-              <Text style={[type['type/h3'], { color: color('text/primary') }]}>Manage Course Structure</Text>
-              <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
-                Add subjects, chapters, and sub-chapters
-              </Text>
-            </View>
-            <CaretRight size={20} color={color('accent/default')} />
-          </Pressable>
-        </Stagger>
 
         <View style={{ marginTop: space.xl }}>
           <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>
