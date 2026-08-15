@@ -11,13 +11,9 @@ import Svg, { Circle } from 'react-native-svg';
 import { CaretLeft } from 'phosphor-react-native';
 import { PrimaryButton, SecondaryButton, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getAttemptResult } from '@/src/api/attempts';
+import type { StudentAttempt } from '@/src/api/attempts';
 
-const SCORE = 72;
-const MAX = 100;
-const CORRECT = 14;
-const INCORRECT = 4;
-const UNATTEMPTED = 2;
-const PERCENT = Math.round((SCORE / MAX) * 100);
 
 function band(p: number): { color: string; headline: string } {
   if (p >= 85) return { color: 'semantic/success', headline: 'Excellent work.' };
@@ -45,8 +41,26 @@ export default function TestResultRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { fromHistory } = useLocalSearchParams<{ fromHistory?: string }>();
+  const { id, fromHistory } = useLocalSearchParams<{ id: string; fromHistory?: string }>();
   const revisited = fromHistory === '1';
+
+  const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    getAttemptResult(id)
+      .then(res => setAttempt(res.attempt))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const SCORE = attempt?.score || 0;
+  const MAX = attempt?.total_marks || 100;
+  const CORRECT = attempt?.correct_count || 0;
+  const INCORRECT = attempt?.wrong_count || 0;
+  const UNATTEMPTED = attempt?.unattempted_count || 0;
+  const PERCENT = MAX > 0 ? Math.round((SCORE / MAX) * 100) : 0;
 
   const ringFill = useSharedValue(0);
   const scoreNum = useSharedValue(0);
@@ -85,8 +99,20 @@ export default function TestResultRoute() {
     opacity: headlineShown.value,
   }));
 
-  const [moduleType] = useState<'qbank' | 'test_series' | 'practice'>('test_series');
+  const moduleType = attempt?.test?.module_type || 'test_series';
   const canRetake = moduleType === 'qbank' || moduleType === 'practice';
+  
+  const breadcrumb = attempt?.test?.subject?.name 
+    ? `${attempt.test.subject.name} › ${attempt.test.chapter?.name || 'General'}` 
+    : (attempt?.test?.course?.name || 'General');
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas'), justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Loading results...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -158,10 +184,10 @@ export default function TestResultRoute() {
             ]}
           >
             <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
-              Thermodynamics Full Chapter Test
+              {attempt?.test?.title || 'Practice Test'}
             </Text>
             <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-              Physics › Thermodynamics · 18 min of 25 min
+              {breadcrumb} · {Math.floor((attempt?.time_taken_seconds || 0) / 60)} min
             </Text>
           </View>
         </Stagger>
@@ -171,12 +197,12 @@ export default function TestResultRoute() {
           <View style={{ marginTop: space.xl, gap: space.sm }}>
             <PrimaryButton
               label="Review Answers"
-              onPress={() => router.push('/(student)/(practice)/test-review')}
+              onPress={() => router.push({ pathname: '/(student)/(practice)/test-review', params: { id } })}
             />
             {canRetake ? (
               <SecondaryButton
                 label="Retake Test"
-                onPress={() => router.push('/(student)/(practice)/test-pre-start')}
+                onPress={() => router.push({ pathname: '/(student)/(practice)/test-pre-start', params: { id: attempt?.test_id } })}
               />
             ) : null}
             <View style={{ alignItems: 'center' }}>

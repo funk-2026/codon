@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { CaretLeft, Clock, CheckCircle, XCircle } from 'phosphor-react-native';
-import { PrimaryButton, TextButton } from '@/src/components';
+import { PrimaryButton, TextButton, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getMyKYC, KYCRecord } from '@/src/api/kyc';
 
 type Status = 'pending' | 'approved' | 'rejected';
 
@@ -14,15 +15,28 @@ const REJECTION_REASON = 'the document photo was blurry and the ID number could 
 export default function KycStatusRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const status = 'pending' as Status;
+  
+  const [record, setRecord] = useState<KYCRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getMyKYC()
+      .then(setRecord)
+      .catch(() => {}) // handled gracefully by showing empty or generic state
+      .finally(() => setLoading(false));
+  }, []);
+
+  const status = record?.status || 'pending';
+  const REJECTION_REASON = record?.rejection_reason || 'Unknown error';
 
   const opacity = useSharedValue(0);
   const scale = useSharedValue(status === 'approved' ? 0.8 : 1);
 
   useEffect(() => {
+    if (loading) return;
     opacity.value = withTiming(1, { duration: 280 });
     if (status === 'approved') scale.value = withTiming(1, { duration: 320 });
-  }, [opacity, scale, status]);
+  }, [opacity, scale, status, loading]);
 
   const markStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -68,28 +82,36 @@ export default function KycStatusRoute() {
       </View>
 
       <View style={[styles.body, { paddingHorizontal: space.lg }]}>
-        <Animated.View style={[{ alignItems: 'center' }, markStyle]}>
-          {c.icon}
-          <Text style={[type['type/h2'], { color: color(c.token), marginTop: space.md }]}>{c.label}</Text>
-        </Animated.View>
-        <Text
-          style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.sm, textAlign: 'center' }]}
-        >
-          {c.explanation}
-        </Text>
+        {loading ? (
+          <SkeletonBlock height={300} radius={radius.lg} />
+        ) : (
+          <>
+            <Animated.View style={[{ alignItems: 'center' }, markStyle]}>
+              {c.icon}
+              <Text style={[type['type/h2'], { color: color(c.token), marginTop: space.md }]}>{c.label}</Text>
+            </Animated.View>
+            <Text
+              style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.sm, textAlign: 'center' }]}
+            >
+              {c.explanation}
+            </Text>
 
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.xl },
-          ]}
-        >
-          <DetailRow label="ID Type" value="Aadhaar" />
-          <Divider />
-          <DetailRow label="ID Number" value="XXXX XXXX 1234" />
-          <Divider />
-          <DetailRow label="Submitted" value="16 Jul 2026" />
-        </View>
+            {record && (
+              <View
+                style={[
+                  styles.card,
+                  { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.xl },
+                ]}
+              >
+                <DetailRow label="ID Type" value={record.id_type === 'pan' ? 'PAN' : 'Aadhaar'} />
+                <Divider />
+                <DetailRow label="ID Number" value={record.id_number} />
+                <Divider />
+                <DetailRow label="Submitted" value={new Date(record.submitted_at).toLocaleDateString()} />
+              </View>
+            )}
+          </>
+        )}
       </View>
 
       <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>

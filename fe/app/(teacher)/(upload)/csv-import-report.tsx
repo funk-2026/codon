@@ -5,30 +5,50 @@ import { useRouter } from 'expo-router';
 import { CaretLeft } from 'phosphor-react-native';
 import { PrimaryButton, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { useLocalSearchParams } from 'expo-router';
+import { getCSVImportReport } from '@/src/api/teacher';
 
 type ErrorRow = { row: number; reason: string; preview: string };
 
-const TOTAL_ROWS = 40;
-const ERROR_ROWS: ErrorRow[] = [
-  { row: 12, reason: 'Missing option_d', preview: 'Which of the following best describes an adiabatic process?' },
-  { row: 27, reason: "correct_option must be A, B, C, or D — got 'E'", preview: 'The SI unit of entropy is measured in...' },
-];
-
 export default function CsvImportReportRoute() {
   const { color, type, space, radius } = useTheme();
+
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { batchId } = useLocalSearchParams<{ batchId?: string }>();
 
   const [processing, setProcessing] = useState(true);
-  const successCount = TOTAL_ROWS - ERROR_ROWS.length;
+  const [report, setReport] = useState<any>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setProcessing(false), 1200);
-    return () => clearTimeout(t);
-  }, []);
+    if (!batchId) {
+      setProcessing(false);
+      return;
+    }
+    const interval = setInterval(() => {
+      getCSVImportReport(batchId)
+        .then((res) => {
+          if (res.status === 'completed' || res.status === 'failed') {
+            setReport(res);
+            setProcessing(false);
+            clearInterval(interval);
+          }
+        })
+        .catch(() => {
+          setProcessing(false);
+          clearInterval(interval);
+        });
+    }, 1000);
 
-  const allSucceeded = ERROR_ROWS.length === 0;
-  const allFailed = successCount === 0;
+    return () => clearInterval(interval);
+  }, [batchId]);
+
+  const totalRows = report?.total_rows || 0;
+  const successCount = report?.successful_rows || 0;
+  const errors: ErrorRow[] = report?.errors || [];
+
+  const allSucceeded = errors.length === 0;
+  const allFailed = successCount === 0 && totalRows > 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -78,11 +98,11 @@ export default function CsvImportReportRoute() {
                 {successCount}
               </Text>
               <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
-                of {TOTAL_ROWS} rows imported
+                of {totalRows} rows imported
               </Text>
               {!allSucceeded ? (
                 <Text style={[type['type/body-m-medium'], { color: color('semantic/warning'), marginTop: space.sm }]}>
-                  {ERROR_ROWS.length} rows need attention
+                  {errors.length} rows need attention
                 </Text>
               ) : null}
             </>
@@ -101,13 +121,13 @@ export default function CsvImportReportRoute() {
           </View>
         ) : null}
 
-        {!processing && ERROR_ROWS.length > 0 ? (
+        {!processing && errors.length > 0 ? (
           <View style={{ marginTop: space.xl }}>
             <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>
               ROWS TO FIX
             </Text>
             <View style={{ gap: space.sm }}>
-              {ERROR_ROWS.map((e) => (
+              {errors.map((e) => (
                 <View
                   key={e.row}
                   style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}

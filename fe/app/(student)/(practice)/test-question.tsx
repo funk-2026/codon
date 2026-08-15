@@ -10,48 +10,10 @@ import Animated, {
 import { X, GridFour, CaretLeft, CaretRight } from 'phosphor-react-native';
 import { PrimaryButton, SecondaryButton, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-
-type Question = {
-  id: string;
-  text: string;
-  options: string[];
-};
-
-const QUESTIONS: Question[] = [
-  {
-    id: 'q1',
-    text: 'A gas undergoes an isothermal expansion. Which of the following remains constant?',
-    options: ['Internal energy', 'Pressure', 'Volume', 'Temperature and internal energy'],
-  },
-  {
-    id: 'q2',
-    text: 'For an adiabatic process, the first law of thermodynamics reduces to:',
-    options: ['Q = W', 'ΔU = 0', 'ΔU = -W', 'Q = ΔU + W'],
-  },
-  {
-    id: 'q3',
-    text: 'The efficiency of a Carnot engine operating between 400 K and 300 K is:',
-    options: ['25%', '33%', '50%', '75%'],
-  },
-  {
-    id: 'q4',
-    text: 'In which thermodynamic process is work done by the gas zero?',
-    options: ['Isothermal', 'Adiabatic', 'Isochoric', 'Isobaric'],
-  },
-  {
-    id: 'q5',
-    text: 'The second law of thermodynamics states that:',
-    options: [
-      'Energy is conserved',
-      'Entropy of an isolated system never decreases',
-      'Heat flows from cold to hot spontaneously',
-      'Work can be fully converted to heat',
-    ],
-  },
-];
-
-const TOTAL = QUESTIONS.length;
-const TOTAL_SECONDS = 25 * 60;
+import { getTestQuestions } from '@/src/api/tests';
+import { startAttempt, upsertAnswer } from '@/src/api/attempts';
+import type { Question } from '@/src/api/tests';
+import type { StudentAttempt, AttemptAnswer } from '@/src/api/attempts';
 
 export default function TestQuestionRoute() {
   const { color, type, space, radius } = useTheme();
@@ -59,17 +21,63 @@ export default function TestQuestionRoute() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
 
+  const [loading, setLoading] = useState(true);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
+
   const [current, setCurrent] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [answers, setAnswers] = useState<Record<string, number>>({});
+  
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(TOTAL_SECONDS);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  
   const [slideDir, setSlideDir] = useState<1 | -1>(1);
   const slideX = useSharedValue(0);
   const sheetRise = useSharedValue(0);
 
-  const timed = true;
-  const q = QUESTIONS[current];
+  const timed = attempt?.test?.duration_minutes && attempt.test.duration_minutes > 0;
+  const q = questions[current];
+  const TOTAL = questions.length;
+
+  useEffect(() => {
+    if (!id) return;
+    async function init() {
+      try {
+        const [attRes, qRes] = await Promise.all([
+          startAttempt(id as string),
+          getTestQuestions(id as string)
+        ]);
+        setAttempt(attRes.attempt);
+        setQuestions(qRes.questions);
+
+        // Pre-fill answers from previous session
+        const ansMap: Record<string, number> = {};
+        attRes.answers.forEach((a: AttemptAnswer) => {
+           if (a.selected_option) {
+             // We need to map options like 'A', 'B' to index 0, 1
+             const idx = a.selected_option.charCodeAt(0) - 65;
+             if (idx >= 0 && idx <= 3) {
+               ansMap[a.question_id] = idx;
+             }
+           }
+        });
+        setAnswers(ansMap);
+
+        if (attRes.attempt.test?.duration_minutes) {
+          const totalSec = attRes.attempt.test.duration_minutes * 60;
+          const startedAt = new Date(attRes.attempt.started_at).getTime();
+          const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+          setSecondsLeft(Math.max(0, totalSec - elapsed));
+        }
+      } catch (err) {
+        console.error('Failed to init test', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    init();
+  }, [id]);
 
   useEffect(() => {
     if (!timed) return;
@@ -89,21 +97,37 @@ export default function TestQuestionRoute() {
     return () => clearInterval(t);
   }, [timed, router, id]);
 
-  const selectOption = (optIdx: number) => {
-    setAnswers((a) => ({ ...a, [current]: optIdx }));
+  const selectOption = async (optIdx: number) => {
+    if (!q || !attempt) return;
+    setAnswers((a) => ({ ...a, [q.id]: optIdx }));
+    try {
+      await upsertAnswer(attempt.id, q.id, {
+        selected_option: String.fromCharCode(65 + optIdx)
+      });
+    } catch (e) {
+      console.error('Failed to save answer', e);
+    }
   };
 
-  const clearResponse = () => {
+  const clearResponse = async () => {
+    if (!q || !attempt) return;
     setAnswers((a) => {
       const copy = { ...a };
-      delete copy[current];
+      delete copy[q.id];
       return copy;
     });
+    try {
+      await upsertAnswer(attempt.id, q.id, {
+        selected_option: null
+      });
+    } catch (e) {
+      console.error('Failed to clear answer', e);
+    }
   };
 
   const goNext = () => {
     if (current >= TOTAL - 1) {
-      router.push({ pathname: '/(student)/(practice)/test-submit-confirm', params: { id: id ?? '1' } });
+      router.push({ pathname: '/(student)/(practice)/test-submit-confirm', params: { id: attempt?.id ?? '1' } });
       return;
     }
     setSlideDir(1);
@@ -126,7 +150,7 @@ export default function TestQuestionRoute() {
   };
 
   const answeredCount = Object.keys(answers).length;
-  const selectedOpt = answers[current];
+  const selectedOpt = q ? answers[q.id] : undefined;
   const mm = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const timerWarning = timed && secondsLeft <= 300 && secondsLeft > 60;
   const timerDanger = timed && secondsLeft <= 60 && secondsLeft > 0;
@@ -214,8 +238,14 @@ export default function TestQuestionRoute() {
         </View>
       </View>
 
-      {/* Question + options */}
-      <View style={{ flex: 1, paddingHorizontal: space.md, marginTop: space.xl }}>
+      {loading || !q ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Loading...</Text>
+        </View>
+      ) : (
+      <>
+        {/* Question + options */}
+        <View style={{ flex: 1, paddingHorizontal: space.md, marginTop: space.xl }}>
         <Animated.View style={slideStyle}>
           <View
             style={[
@@ -234,12 +264,12 @@ export default function TestQuestionRoute() {
             <Text
               style={[type['type/body-l'], { color: color('text/primary'), marginTop: space['2xs'] }]}
             >
-              {q.text}
+              {q.question_text}
             </Text>
           </View>
 
           <View style={{ gap: space.sm, marginTop: space.lg }}>
-            {q.options.map((opt, i) => {
+            {[q.option_a, q.option_b, q.option_c, q.option_d].map((opt, i) => {
               const isSel = selectedOpt === i;
               return (
                 <Pressable
@@ -401,17 +431,19 @@ export default function TestQuestionRoute() {
                 );
               })}
             </View>
-            <PrimaryButton
-              label="Submit Test"
-              onPress={() => {
-                setPaletteOpen(false);
-                router.push({ pathname: '/(student)/(practice)/test-submit-confirm', params: { id: id ?? '1' } });
-              }}
-              style={{ marginTop: space.lg }}
-            />
-          </Animated.View>
-        </View>
-      ) : null}
+              <PrimaryButton
+                label="Submit Test"
+                onPress={() => {
+                  setPaletteOpen(false);
+                  router.push({ pathname: '/(student)/(practice)/test-submit-confirm', params: { id: attempt?.id ?? '1' } });
+                }}
+                style={{ marginTop: space.lg }}
+              />
+            </Animated.View>
+          </View>
+        ) : null}
+      </>
+      )}
 
       {/* Exit confirmation */}
       {exitOpen ? (

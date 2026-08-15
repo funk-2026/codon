@@ -10,6 +10,8 @@ import Animated, {
 import { CaretLeft, Check } from 'phosphor-react-native';
 import { PrimaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getTest } from '@/src/api/tests';
+import type { Test } from '@/src/api/tests';
 
 const INSTRUCTIONS_TIMED = [
   'Once started, a timed test\u2019s clock cannot be paused.',
@@ -45,18 +47,30 @@ export default function TestPreStartRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id, kind } = useLocalSearchParams<{ id?: string; kind?: string }>();
-
-  const isResume = kind === 'resume';
-  const timed = true;
-  const moduleType: TestKind = 'test_series';
-  const moduleLabel = moduleType === 'test_series' ? 'Test Series' : moduleType === 'qbank' ? 'Q Bank' : 'Practice';
+  const { id } = useLocalSearchParams<{ id: string }>();
 
   const [loading, setLoading] = useState(true);
+  const [test, setTest] = useState<Test | null>(null);
+
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(t);
-  }, []);
+    if (!id) return;
+    async function load() {
+      try {
+        const res = await getTest(id as string);
+        setTest(res.test);
+      } catch (err) {
+        console.error('Failed to load test', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [id]);
+
+  const isResume = false; // We can detect in-progress attempt later if needed
+  const timed = !!(test && test.duration_minutes && test.duration_minutes > 0);
+  const moduleType = test?.module_type || 'test_series';
+  const moduleLabel = moduleType === 'test_series' ? 'Test Series' : moduleType === 'qbank' ? 'Q Bank' : 'Practice';
 
   const instructions = timed ? INSTRUCTIONS_TIMED : INSTRUCTIONS_UNTIMED;
 
@@ -73,10 +87,10 @@ export default function TestPreStartRoute() {
           </Pressable>
           <View style={{ flex: 1, marginLeft: space.xs }}>
             <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
-              NEET UG · Physics · Thermodynamics
+              {test?.course?.name || 'General'} {test?.subject?.name ? `· ${test.subject.name}` : ''}
             </Text>
             <Text style={[type['type/h1'], { color: color('text/primary') }]}>
-              Thermodynamics Full Chapter Test
+              {test?.title || 'Practice Test'}
             </Text>
           </View>
         </View>
@@ -99,16 +113,16 @@ export default function TestPreStartRoute() {
               shadow(),
             ]}
           >
-            {loading ? (
+            {loading || !test ? (
               <View style={{ height: 120, justifyContent: 'center', alignItems: 'center' }}>
                 <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Loading\u2026</Text>
               </View>
             ) : (
               <View>
                 <View style={styles.statGrid}>
-                  <StatCell label="Questions" value="20" />
+                  <StatCell label="Questions" value={test.total_questions.toString()} />
                   <View style={{ width: 1, backgroundColor: color('border/subtle') }} />
-                  <StatCell label="Duration" value={timed ? '25 min' : 'Untimed'} />
+                  <StatCell label="Duration" value={timed ? `${test.duration_minutes} min` : 'Untimed'} />
                 </View>
                 <View style={{ height: 1, backgroundColor: color('border/subtle'), marginVertical: space.sm }} />
                 <View style={styles.statGrid}>
@@ -117,9 +131,9 @@ export default function TestPreStartRoute() {
                       Marking
                     </Text>
                     <Text style={[type['type/h3'], { color: color('text/primary') }]}>
-                      <Text style={{ color: color('semantic/success') }}>+4</Text>
+                      <Text style={{ color: color('semantic/success') }}>+{test.marks_per_correct}</Text>
                       {' / '}
-                      <Text style={{ color: color('semantic/danger') }}>-1</Text>
+                      <Text style={{ color: color('semantic/danger') }}>-{test.marks_per_wrong}</Text>
                     </Text>
                   </View>
                   <View style={{ width: 1, backgroundColor: color('border/subtle') }} />

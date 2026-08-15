@@ -5,6 +5,8 @@ import { useRouter } from 'expo-router';
 import { CaretLeft, UploadSimple, FileCsv, X } from 'phosphor-react-native';
 import { PrimaryButton, SecondaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { useLocalSearchParams } from 'expo-router';
+import { importQuestionsCSV } from '@/src/api/teacher';
 
 const COLUMNS = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation'];
 
@@ -12,6 +14,7 @@ export default function CsvBulkUploadRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { testId } = useLocalSearchParams<{ testId?: string }>();
 
   const [file, setFile] = useState<{ name: string; size: string } | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -22,13 +25,21 @@ export default function CsvBulkUploadRoute() {
     setFile({ name: 'thermodynamics_questions.csv', size: '18 KB' });
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!file) return;
+    if (!testId) {
+      setError('Test ID is missing. Please save the test first.');
+      return;
+    }
     setUploading(true);
-    setTimeout(() => {
+    try {
+      const res = await importQuestionsCSV(testId, { file_key: 'mock-csv-key' });
+      router.push({ pathname: '/(teacher)/(upload)/csv-import-report', params: { batchId: res.batch_id } });
+    } catch (err) {
+      setError('Failed to upload CSV.');
+    } finally {
       setUploading(false);
-      router.push('/(teacher)/(upload)/csv-import-report');
-    }, 900);
+    }
   };
 
   return (

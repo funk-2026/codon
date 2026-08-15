@@ -12,7 +12,7 @@ import {
 } from '@expo-google-fonts/manrope';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { ThemeProvider } from '@/src/theme/ThemeProvider';
-import { RoleProvider } from '@/src/context/RoleContext';
+import { AuthProvider } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components';
 
 SplashScreen.preventAutoHideAsync();
@@ -40,7 +40,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <RoleProvider>
+      <AuthProvider>
         <ToastProvider>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
@@ -48,7 +48,7 @@ export default function RootLayout() {
             <Stack.Screen name="phone-entry" />
             <Stack.Screen name="otp-verify" />
             <Stack.Screen name="preview-mode" />
-            <Stack.Screen name="course-selection" />
+            <Stack.Screen name="profile-setup" />
             <Stack.Screen name="(student)" />
             <Stack.Screen name="(teacher)" />
             <Stack.Screen name="(admin)" />
@@ -56,7 +56,7 @@ export default function RootLayout() {
           </Stack>
           <StatusBar style="auto" />
         </ToastProvider>
-      </RoleProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

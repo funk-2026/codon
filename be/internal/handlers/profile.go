@@ -205,6 +205,125 @@ type listAttemptsResponse struct {
 	Attempts []models.StudentAttempt `json:"attempts"`
 }
 
+// GetRecentContent godoc
+//
+//	@Summary		Get recently watched/viewed content
+//	@Description	Returns a list of recently accessed content for the authenticated student.
+//	@Tags			Profile
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{object}	recentContentResponse
+//	@Failure		401	{object}	errorResponse
+//	@Router			/api/v1/me/recent-content [get]
+func (h *ProfileHandler) GetRecentContent(c *gin.Context) {
+	// For MVP: Return a hardcoded mock matching the FE format so we don't need a new table for watch history right now.
+	// In production, this would query a 'user_content_progress' table.
+	c.JSON(http.StatusOK, recentContentResponse{
+		Recent: []map[string]interface{}{
+			{"id": "1", "title": "Thermodynamics — Lecture 3", "breadcrumb": "Physics › Thermodynamics", "kind": "video", "pct": 72},
+			{"id": "2", "title": "Laws of Motion — Notes", "breadcrumb": "Physics › Mechanics", "kind": "document", "pct": 100},
+			{"id": "3", "title": "Optics — Ray Diagrams", "breadcrumb": "Physics › Optics", "kind": "video", "pct": 35},
+			{"id": "4", "title": "Modern Physics — Quick Notes", "breadcrumb": "Physics › Modern Physics", "kind": "document", "pct": 100},
+		},
+	})
+}
+
+type recentContentResponse struct {
+	Recent []map[string]interface{} `json:"recent"`
+}
+
 type mySubscriptionResponse struct {
 	Subscription *models.Subscription `json:"subscription"`
+}
+
+// GetProgressBreakdown godoc
+//
+//	@Summary		Get my progress breakdown
+//	@Description	Returns detailed progress metrics including trend, subject accuracy, and streaks.
+//	@Tags			Profile
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{object}	progressBreakdownResponse
+//	@Failure		401	{object}	errorResponse
+//	@Router			/api/v1/me/progress/breakdown [get]
+func (h *ProfileHandler) GetProgressBreakdown(c *gin.Context) {
+	user := middleware.GetUser(c)
+
+	// Trend: last 10 attempts
+	var trendScores []float64
+	h.DB.WithContext(c.Request.Context()).
+		Model(&models.StudentAttempt{}).
+		Where("user_id = ? AND status = ?", user.ID, models.AttemptSubmitted).
+		Order("created_at ASC").
+		Limit(10).
+		Pluck("score", &trendScores)
+
+	trend := make([]int, len(trendScores))
+	for i, s := range trendScores {
+		trend[i] = int(s)
+	}
+	if len(trend) == 0 {
+		trend = []int{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	}
+
+	// Subjects Accuracy
+	type subjectStat struct {
+		Name     string
+		Accuracy float64
+	}
+	var subStats []subjectStat
+
+	query := `
+		SELECT s.name as name,
+		       (COUNT(CASE WHEN aa.selected_option = q.correct_option THEN 1 END) * 100.0) / NULLIF(COUNT(aa.id), 0) as accuracy
+		FROM attempt_answers aa
+		JOIN questions q ON aa.question_id = q.id
+		JOIN student_attempts sa ON aa.attempt_id = sa.id
+		JOIN tests t ON sa.test_id = t.id
+		JOIN subjects s ON t.subject_id = s.id
+		WHERE sa.user_id = ? AND sa.status = ?
+		GROUP BY s.id, s.name
+	`
+	h.DB.WithContext(c.Request.Context()).Raw(query, user.ID, models.AttemptSubmitted).Scan(&subStats)
+
+	subjects := make([]progressSubject, len(subStats))
+	for i, s := range subStats {
+		subjects[i] = progressSubject{
+			Name:     s.Name,
+			Accuracy: int(s.Accuracy),
+		}
+	}
+	if len(subjects) == 0 {
+		subjects = []progressSubject{
+			{Name: "Physics", Accuracy: 0},
+			{Name: "Chemistry", Accuracy: 0},
+			{Name: "Botany", Accuracy: 0},
+			{Name: "Zoology", Accuracy: 0},
+		}
+	}
+
+	// Mocking streak and last7days for MVP
+	dayStreak := 12
+	last7Days := []bool{true, true, false, true, true, true, true}
+
+	resp := progressBreakdownResponse{
+		Trend:     trend,
+		Subjects:  subjects,
+		DayStreak: dayStreak,
+		Last7Days: last7Days,
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+type progressSubject struct {
+	Name     string `json:"name"`
+	Accuracy int    `json:"accuracy"`
+}
+
+type progressBreakdownResponse struct {
+	Trend     []int             `json:"trend"`
+	Subjects  []progressSubject `json:"subjects"`
+	DayStreak int               `json:"day_streak"`
+	Last7Days []bool            `json:"last_7_days"`
 }

@@ -5,6 +5,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretRight, Stack, Exam, Lightning, WarningCircle, Minus, Plus } from 'phosphor-react-native';
 import { InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { createTest } from '@/src/api/teacher';
+import { listCourses } from '@/src/api/courses';
 
 type ModuleType = 'Q Bank' | 'Test Series' | 'Practice';
 
@@ -28,7 +30,14 @@ export default function CreateTestRoute() {
   const [marksCorrect, setMarksCorrect] = useState('4');
   const [marksWrong, setMarksWrong] = useState('-1');
   const [saving, setSaving] = useState(false);
+  const [courseId, setCourseId] = useState<string | null>(null);
   const questionCount = isRejectedEdit ? 20 : 0;
+
+  useEffect(() => {
+    listCourses().then(res => {
+      if (res.courses.length > 0) setCourseId(res.courses[0].id);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (locationLabel) setLocation(locationLabel);
@@ -45,12 +54,23 @@ export default function CreateTestRoute() {
   const locationSet = !!location;
   const canProceed = locationSet;
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
+    if (!title || !moduleType || !courseId) return;
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      const res = await createTest({
+        title,
+        course_id: courseId,
+        module_type: moduleType === 'Q Bank' ? 'qbank' : moduleType === 'Test Series' ? 'test_series' : 'practice',
+      });
       show('Draft saved', 'success');
-    }, 600);
+      // For MVP, proceed to question builder
+      router.push({ pathname: '/(teacher)/(upload)/question-builder', params: { testId: res.id } });
+    } catch (err) {
+      show('Failed to save draft', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const goToLocationPicker = () => {
@@ -256,8 +276,9 @@ export default function CreateTestRoute() {
           {questionCount === 0 ? (
             <PrimaryButton
               label="Add Questions"
-              onPress={() => router.push('/(teacher)/(upload)/question-builder')}
-              disabled={!canProceed}
+              onPress={handleSaveDraft}
+              disabled={!canProceed || !title || !moduleType || !courseId || saving}
+              loading={saving}
             />
           ) : (
             <>

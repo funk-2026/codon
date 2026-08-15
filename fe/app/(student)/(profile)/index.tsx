@@ -20,6 +20,9 @@ import {
 } from 'phosphor-react-native';
 import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { useAuth } from '@/src/auth/AuthContext';
+import { getMe, getProgress } from '@/src/api/profile';
+import type { Subscription } from '@/src/api/profile';
 
 type SubState = 'active' | 'none';
 type KycState = 'not_started' | 'pending' | 'verified' | 'action_needed' | null;
@@ -52,17 +55,33 @@ function shadow(): {} {
 export default function ProfileHomeRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
+  
   const [loading, setLoading] = useState(true);
+  const [sub, setSub] = useState<Subscription | null>(null);
+  const [stats, setStats] = useState({ attempts: 0, avg: 0 });
+  const [kycRequired, setKycRequired] = useState(false);
 
-  const name = 'Aarav Sharma';
-  const courseChip = 'NEET UG';
-  const subState: SubState = 'active';
-  const kycRequired = true;
-  const kycState = 'pending' as KycState;
+  const name = user?.name || 'Student';
+  // Note: we'd ideally resolve selected_course_id to a name, but for now we just show a generic label or fetch it
+  const courseChip = user?.selected_course_id ? 'Enrolled' : 'No Course';
+  
+  const kycState = (user?.kyc_status as KycState) || 'not_started';
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(t);
+    async function load() {
+      try {
+        const [me, prog] = await Promise.all([getMe(), getProgress()]);
+        if (me.active_subscription) setSub(me.active_subscription);
+        setKycRequired(me.kyc_required);
+        setStats({ attempts: prog.attempted_count, avg: prog.avg_score });
+      } catch (err) {
+        console.error('Failed to load profile', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   const kycConfig: Record<Exclude<KycState, null>, { label: string; token: 'text/tertiary' | 'semantic/warning' | 'semantic/success' | 'semantic/danger' }> = {
@@ -74,7 +93,7 @@ export default function ProfileHomeRoute() {
 
   const initials = name
     .split(' ')
-    .map((p) => p[0])
+    .map((p: string) => p[0])
     .join('')
     .slice(0, 2);
 
@@ -156,15 +175,15 @@ export default function ProfileHomeRoute() {
                   shadow(),
                 ]}
               >
-                {subState === 'active' ? (
+                {sub ? (
                   <>
                     <Text style={[type['type/h3'], { color: color('text/primary') }]}>
-                      NEET UG Pro
+                      {sub.plan?.name || 'Pro Subscription'}
                     </Text>
                     <Text
                       style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}
                     >
-                      Active until 14 Mar 2027
+                      Active until {new Date(sub.end_date).toLocaleDateString()}
                     </Text>
                   </>
                 ) : (
@@ -206,7 +225,7 @@ export default function ProfileHomeRoute() {
                     Test History
                   </Text>
                   <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
-                    34 attempts
+                    {stats.attempts} attempts
                   </Text>
                 </Pressable>
                 <Pressable
@@ -222,7 +241,7 @@ export default function ProfileHomeRoute() {
                     Progress
                   </Text>
                   <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
-                    72% avg
+                    {Math.round(stats.avg)}% avg
                   </Text>
                 </Pressable>
               </>

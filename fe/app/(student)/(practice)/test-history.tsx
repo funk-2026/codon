@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CaretLeft, ClockCounterClockwise } from 'phosphor-react-native';
 import { EmptyState, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getAttempts } from '@/src/api/profile';
+import type { StudentAttempt } from '@/src/api/attempts';
 
 type ModuleType = 'All' | 'Q Bank' | 'Test Series' | 'Practice';
 type Attempt = {
@@ -13,19 +15,12 @@ type Attempt = {
   breadcrumb: string;
   module: Exclude<ModuleType, 'All'>;
   group: 'Today' | 'This Week' | 'Earlier';
-  status: 'completed' | 'in_progress';
+  status: 'submitted' | 'in_progress';
   score?: string;
   scorePct?: number;
 };
 
-const ATTEMPTS: Attempt[] = [
-  { id: '1', title: 'Thermodynamics — Practice Set 3', breadcrumb: 'Physics › Thermodynamics', module: 'Practice', group: 'Today', status: 'in_progress' },
-  { id: '2', title: 'Mechanics Full Chapter Test', breadcrumb: 'Physics › Mechanics', module: 'Test Series', group: 'Today', status: 'completed', score: '18/20', scorePct: 90 },
-  { id: '3', title: 'Optics Concept Check', breadcrumb: 'Physics › Optics', module: 'Q Bank', group: 'This Week', status: 'completed', score: '14/20', scorePct: 70 },
-  { id: '4', title: 'Modern Physics Quick Set', breadcrumb: 'Physics › Modern Physics', module: 'Practice', group: 'This Week', status: 'completed', score: '9/10', scorePct: 90 },
-  { id: '5', title: 'Organic Chemistry Basics', breadcrumb: 'Chemistry › Organic', module: 'Q Bank', group: 'Earlier', status: 'completed', score: '6/20', scorePct: 30 },
-  { id: '6', title: 'Full Mock Test 3', breadcrumb: 'NEET UG › Test Series', module: 'Test Series', group: 'Earlier', status: 'completed', score: '11/20', scorePct: 55 },
-];
+
 
 const FILTERS: ModuleType[] = ['All', 'Q Bank', 'Test Series', 'Practice'];
 const GROUPS: Attempt['group'][] = ['Today', 'This Week', 'Earlier'];
@@ -41,9 +36,50 @@ export default function TestHistoryRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<ModuleType>('All');
+  
+  const [loading, setLoading] = useState(true);
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
 
-  const filtered = ATTEMPTS.filter((a) => filter === 'All' || a.module === filter);
-  const isEmptyOverall = ATTEMPTS.length === 0;
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await getAttempts();
+        const now = new Date();
+        const mapped = res.attempts.map((a: StudentAttempt): Attempt => {
+          const startedAt = new Date(a.started_at);
+          const diffMs = now.getTime() - startedAt.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+          let group: Attempt['group'] = 'Earlier';
+          if (diffDays < 1) group = 'Today';
+          else if (diffDays < 7) group = 'This Week';
+          
+          let module: Exclude<ModuleType, 'All'> = 'Practice';
+          if (a.test?.module_type === 'test_series') module = 'Test Series';
+          if (a.test?.module_type === 'qbank') module = 'Q Bank';
+
+          return {
+            id: a.id,
+            title: a.test?.title || 'Unknown Test',
+            breadcrumb: a.test?.subject?.name ? `${a.test.subject.name} › ${a.test.chapter?.name || 'General'}` : (a.test?.course?.name || 'General'),
+            module,
+            group,
+            status: a.status,
+            score: a.status === 'submitted' ? `${a.score || 0}/${a.total_marks || 0}` : undefined,
+            scorePct: a.status === 'submitted' && (a.total_marks || 0) > 0 ? ((a.score || 0) / (a.total_marks || 1)) * 100 : undefined,
+          };
+        });
+        setAttempts(mapped);
+      } catch (err) {
+        console.error('Failed to load history', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  const filtered = attempts.filter((a) => filter === 'All' || a.module === filter);
+  const isEmptyOverall = attempts.length === 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -103,7 +139,11 @@ export default function TestHistoryRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
-        {isEmptyOverall ? (
+        {loading ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Loading history...</Text>
+          </View>
+        ) : isEmptyOverall ? (
           <EmptyState
             icon={<ClockCounterClockwise size={32} color={color('text/tertiary')} />}
             title="No attempts yet"
@@ -128,8 +168,8 @@ export default function TestHistoryRoute() {
                     <Pressable
                       key={a.id}
                       onPress={() =>
-                        a.status === 'completed'
-                          ? router.push({ pathname: '/(student)/(practice)/test-review', params: { id: a.id } })
+                        a.status === 'submitted'
+                          ? router.push({ pathname: '/(student)/(practice)/test-result', params: { id: a.id, fromHistory: '1' } })
                           : router.push({ pathname: '/(student)/(practice)/test-question', params: { id: a.id } })
                       }
                       style={({ pressed }) => [
@@ -146,7 +186,7 @@ export default function TestHistoryRoute() {
                           {a.breadcrumb}
                         </Text>
                       </View>
-                      {a.status === 'completed' ? (
+                      {a.status === 'submitted' ? (
                         <View
                           style={[
                             styles.badge,

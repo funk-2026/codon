@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,6 +9,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { CaretLeft, Check, X } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getAttemptReview } from '@/src/api/attempts';
+import type { ReviewItem } from '@/src/api/attempts';
+import type { StudentAttempt } from '@/src/api/attempts';
 
 type Status = 'correct' | 'incorrect' | 'unattempted';
 
@@ -20,54 +23,6 @@ type ReviewQuestion = {
   pickedIdx?: number;
   explanation?: string;
 };
-
-const QUESTIONS: ReviewQuestion[] = [
-  {
-    n: 1,
-    text: 'A gas undergoes an isothermal expansion. Which of the following remains constant?',
-    options: ['Internal energy', 'Pressure', 'Volume', 'Temperature and internal energy'],
-    correctIdx: 3,
-    pickedIdx: 3,
-    explanation:
-      'In an isothermal process, temperature is constant by definition. For an ideal gas, internal energy depends only on temperature, so it too remains constant.',
-  },
-  {
-    n: 2,
-    text: 'For an adiabatic process, the first law of thermodynamics reduces to:',
-    options: ['Q = W', 'ΔU = 0', 'ΔU = -W', 'Q = ΔU + W'],
-    correctIdx: 2,
-    pickedIdx: 0,
-    explanation:
-      'Adiabatic means Q = 0 (no heat exchange). The first law ΔU = Q - W becomes ΔU = -W.',
-  },
-  {
-    n: 3,
-    text: 'The efficiency of a Carnot engine operating between 400 K and 300 K is:',
-    options: ['25%', '33%', '50%', '75%'],
-    correctIdx: 0,
-    pickedIdx: 0,
-  },
-  {
-    n: 4,
-    text: 'In which thermodynamic process is work done by the gas zero?',
-    options: ['Isothermal', 'Adiabatic', 'Isochoric', 'Isobaric'],
-    correctIdx: 2,
-  },
-  {
-    n: 5,
-    text: 'The second law of thermodynamics states that:',
-    options: [
-      'Energy is conserved',
-      'Entropy of an isolated system never decreases',
-      'Heat flows from cold to hot spontaneously',
-      'Work can be fully converted to heat',
-    ],
-    correctIdx: 1,
-    pickedIdx: 3,
-    explanation:
-      'The second law states the entropy of an isolated system never decreases. Option D is subtly wrong: while work can be fully converted to heat, the reverse is not true, which is the actual point of the second law.',
-  },
-];
 
 function status(q: ReviewQuestion): Status {
   if (q.pickedIdx == null) return 'unattempted';
@@ -95,18 +50,45 @@ export default function TestReviewRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+
+  const [loading, setLoading] = useState(true);
+  const [questions, setQuestions] = useState<ReviewQuestion[]>([]);
+
+  useEffect(() => {
+    if (!id) return;
+    async function load() {
+      try {
+        const res = await getAttemptReview(id as string);
+        const mapped: ReviewQuestion[] = res.review.map((r, i) => ({
+          n: i + 1,
+          text: r.question_text,
+          options: [r.option_a, r.option_b, r.option_c, r.option_d],
+          correctIdx: r.correct_option.charCodeAt(0) - 65,
+          pickedIdx: r.selected_option ? r.selected_option.charCodeAt(0) - 65 : undefined,
+          explanation: r.explanation || undefined,
+        }));
+        setQuestions(mapped);
+      } catch (err) {
+        console.error('Failed to load review', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [id]);
 
   const [filter, setFilter] = useState<Filter>('all');
   const [fadeKey, setFadeKey] = useState(0);
 
   const counts = {
-    all: QUESTIONS.length,
-    incorrect: QUESTIONS.filter((q) => status(q) === 'incorrect').length,
-    correct: QUESTIONS.filter((q) => status(q) === 'correct').length,
-    unattempted: QUESTIONS.filter((q) => status(q) === 'unattempted').length,
+    all: questions.length,
+    incorrect: questions.filter((q) => status(q) === 'incorrect').length,
+    correct: questions.filter((q) => status(q) === 'correct').length,
+    unattempted: questions.filter((q) => status(q) === 'unattempted').length,
   };
 
-  const filtered = QUESTIONS.filter((q) => {
+  const filtered = questions.filter((q) => {
     if (filter === 'all') return true;
     return status(q) === filter;
   });
@@ -144,7 +126,7 @@ export default function TestReviewRoute() {
           <View style={{ marginLeft: space.xs }}>
             <Text style={[type['type/h1'], { color: color('text/primary') }]}>Review</Text>
             <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
-              Thermodynamics Full Chapter Test
+              Test Review
             </Text>
           </View>
         </View>

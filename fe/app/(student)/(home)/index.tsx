@@ -23,6 +23,9 @@ import {
   HandHeart,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { useAuth } from '@/src/auth/AuthContext';
+import { getMe, getProgress } from '@/src/api/profile';
+import type { Subscription } from '@/src/api/profile';
 
 type SubState = 'active' | 'expiring' | 'none';
 
@@ -72,21 +75,54 @@ function Stagger({ delayMs, children }: { delayMs: number; children: React.React
 export default function HomeDashboardRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
+  
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - space.md * 2;
   const bhCardWidth = Math.max(130, Math.min(200, (screenWidth - space.md * 2) / 2.6));
 
-  const subState: SubState = 'active';
-  const hasActivity = true;
-  const isNewUser = false;
+  const [subState, setSubState] = useState<SubState>('none');
+  const [subText, setSubText] = useState('');
+  
+  const [stats, setStats] = useState({ attempted: 0, avgScore: 0 });
+  const [isNewUser, setIsNewUser] = useState(true);
+
+  const hasActivity = true; // Placeholder for now
 
   const flatRef = useRef<FlatList<typeof UPDATES[number]>>(null);
   const [slide, setSlide] = useState(0);
   const paused = useRef(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    async function loadData() {
+      try {
+        const [meRes, progRes] = await Promise.all([getMe(), getProgress()]);
+        
+        if (meRes.active_subscription) {
+          const end = new Date(meRes.active_subscription.end_date);
+          const diffDays = Math.ceil((end.getTime() - Date.now()) / (1000 * 3600 * 24));
+          const planName = meRes.active_subscription.plan?.name || 'Pro';
+          
+          if (diffDays <= 7) {
+            setSubState('expiring');
+            setSubText(`Your ${planName} plan expires in ${diffDays} days — renew to keep access.`);
+          } else {
+            setSubState('active');
+            setSubText(`${planName} — active until ${end.toLocaleDateString()}`);
+          }
+        } else {
+          setSubState('none');
+        }
+
+        if (progRes.attempted_count > 0) {
+          setStats({ attempted: progRes.attempted_count, avgScore: progRes.avg_score });
+          setIsNewUser(false);
+        }
+      } catch (err) {
+        console.error('Failed to load home data', err);
+      }
+    }
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -117,7 +153,7 @@ export default function HomeDashboardRoute() {
               <View style={[styles.headerRow, { marginTop: space.lg }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={[type['type/h2'], { color: color('text/primary') }]}>
-                    {greeting()}, Aarav
+                    {greeting()}, {user?.name?.split(' ')[0] || 'Student'}
                   </Text>
                   <View style={[styles.streakRow, { gap: space['2xs'], marginTop: space['2xs'] }]}>
                     <Flame size={16} color={color('semantic/warning')} weight="fill" />
@@ -141,7 +177,9 @@ export default function HomeDashboardRoute() {
                       },
                     ]}
                   >
-                    <Text style={[type['type/h3'], { color: color('accent/default') }]}>A</Text>
+                    <Text style={[type['type/h3'], { color: color('accent/default') }]}>
+                      {(user?.name || 'A').charAt(0).toUpperCase()}
+                    </Text>
                   </View>
                 </Pressable>
               </View>
@@ -332,6 +370,7 @@ export default function HomeDashboardRoute() {
               <View style={{ marginTop: space.xl }}>
                 <SubscriptionStrip
                   state={subState}
+                  text={subText}
                   onViewPlans={() =>
                     router.push('/(student)/(profile)/subscription-plans')
                   }
@@ -353,8 +392,8 @@ export default function HomeDashboardRoute() {
                   </Pressable>
                 </View>
                 <View style={[styles.statRow, { gap: space.xs }]}>
-                  <StatTile label="Tests Taken" value={isNewUser ? '0' : '24'} />
-                  <StatTile label="Avg. Score" value={isNewUser ? '—' : '78%'} />
+                  <StatTile label="Tests Taken" value={isNewUser ? '0' : stats.attempted.toString()} />
+                  <StatTile label="Avg. Score" value={isNewUser ? '—' : `${Math.round(stats.avgScore)}%`} />
                   <StatTile label="Day Streak" value={isNewUser ? '0' : '12'} />
                 </View>
               </View>
@@ -478,9 +517,11 @@ function UpdateCard({
 
 function SubscriptionStrip({
   state,
+  text,
   onViewPlans,
 }: {
   state: SubState;
+  text?: string;
   onViewPlans: () => void;
 }) {
   const { color, type, space, radius } = useTheme();
@@ -492,8 +533,8 @@ function SubscriptionStrip({
           { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md },
         ]}
       >
-        <Text style={[type['type/body-m'], { color: color('text/primary') }]}>
-          NEET UG Pro — active until 14 Mar 2027
+        <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
+          {text || 'Pro — active'}
         </Text>
         <Text style={[type['type/caption'], { color: color('semantic/success') }]}>Active</Text>
       </View>
@@ -512,7 +553,7 @@ function SubscriptionStrip({
         ]}
       >
         <Text style={[type['type/body-m'], { color: color('text/primary') }]}>
-          Your plan expires in 5 days — renew to keep uninterrupted access
+          {text || 'Your plan is expiring soon.'}
         </Text>
       </View>
     );

@@ -16,13 +16,9 @@ import {
 } from 'phosphor-react-native';
 import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getAdminDashboardSummary } from '@/src/api/admin';
 
-const PENDING_KYC = 4;
-const PENDING_TESTS = 3;
-const PENDING_CONTENT = 2;
-const PENDING_STRUCTURE = 1;
-const PENDING_REVIEWS = PENDING_TESTS + PENDING_CONTENT + PENDING_STRUCTURE;
-const TOTAL_NEEDS_REVIEW = PENDING_KYC + PENDING_REVIEWS;
+
 
 type Card = {
   key: string;
@@ -63,23 +59,40 @@ export default function AdminHomeRoute() {
   const { width: screenWidth } = useWindowDimensions();
   const tileWidth = (screenWidth - space.md * 2 - space.sm) / 2;
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState({
+    total_users: 1248,
+    active_subscriptions: 342,
+    pending_kyc: 4,
+    pending_reviews: 6,
+  });
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
+    getAdminDashboardSummary()
+      .then(res => {
+         setSummary({
+            total_users: res.total_users || 0,
+            active_subscriptions: res.active_subscriptions || 0,
+            pending_kyc: res.pending_kyc || 0,
+            pending_reviews: res.pending_reviews || 0,
+         });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const cards: Card[] = [
     { key: 'users', label: 'Users', icon: <Users size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(users)' },
-    { key: 'kyc', label: 'KYC Review', icon: <Shield size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)', badge: PENDING_KYC },
-    { key: 'tests', label: 'Test Approvals', icon: <ClipboardText size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/moderation-tests', badge: PENDING_TESTS },
-    { key: 'content', label: 'Content Approvals', icon: <PlayCircle size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/moderation-videos-docs', badge: PENDING_CONTENT },
-    { key: 'structure', label: 'Course Structure', icon: <TreeStructure size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/course-structure-approval', badge: PENDING_STRUCTURE },
+    { key: 'kyc', label: 'KYC Review', icon: <Shield size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)', badge: summary.pending_kyc },
+    { key: 'tests', label: 'Test Approvals', icon: <ClipboardText size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/moderation-tests', badge: summary.pending_reviews > 0 ? summary.pending_reviews : undefined },
+    { key: 'content', label: 'Content Approvals', icon: <PlayCircle size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/moderation-videos-docs' },
+    { key: 'structure', label: 'Course Structure', icon: <TreeStructure size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/course-structure-approval' },
     { key: 'payments', label: 'Payments', icon: <Receipt size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(payments)' },
     { key: 'plans', label: 'Subscription Plans', icon: <Tag size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(payments)/subscription-plan-list' },
     { key: 'settings', label: 'Platform Settings', icon: <GearSix size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/platform-settings' },
     { key: 'analytics', label: 'Analytics', icon: <ChartBar size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/analytics-overview' },
   ];
+
+  const totalNeedsReview = summary.pending_kyc + summary.pending_reviews;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -91,11 +104,11 @@ export default function AdminHomeRoute() {
         <Stagger delayMs={0}>
           <View style={{ marginTop: space.lg }}>
             <Text style={[type['type/h1'], { color: color('text/primary') }]}>Admin</Text>
-            {TOTAL_NEEDS_REVIEW > 0 ? (
+            {totalNeedsReview > 0 ? (
               <Text
                 style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}
               >
-                {TOTAL_NEEDS_REVIEW} items across the platform need review
+                {totalNeedsReview} items across the platform need review
               </Text>
             ) : null}
           </View>
@@ -112,10 +125,10 @@ export default function AdminHomeRoute() {
               </>
             ) : (
               <>
-                <SummaryTile label="Total Users" value="1,248" width={tileWidth} />
-                <SummaryTile label="Active Subscriptions" value="342" width={tileWidth} />
-                <SummaryTile label="Pending KYC" value={String(PENDING_KYC)} warn={PENDING_KYC > 0} width={tileWidth} />
-                <SummaryTile label="Pending Reviews" value={String(PENDING_REVIEWS)} warn={PENDING_REVIEWS > 0} width={tileWidth} />
+                <SummaryTile label="Total Users" value={String(summary.total_users)} width={tileWidth} />
+                <SummaryTile label="Active Subscriptions" value={String(summary.active_subscriptions)} width={tileWidth} />
+                <SummaryTile label="Pending KYC" value={String(summary.pending_kyc)} warn={summary.pending_kyc > 0} width={tileWidth} />
+                <SummaryTile label="Pending Reviews" value={String(summary.pending_reviews)} warn={summary.pending_reviews > 0} width={tileWidth} />
               </>
             )}
           </View>

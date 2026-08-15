@@ -10,19 +10,57 @@ import Animated, {
 import { Warning } from 'phosphor-react-native';
 import { PrimaryButton, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getAttemptReview, startAttempt, submitAttempt } from '@/src/api/attempts';
+import type { StudentAttempt, AttemptAnswer, ReviewItem } from '@/src/api/attempts';
 
 export default function TestSubmitConfirmRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { expired } = useLocalSearchParams<{ expired?: string }>();
+  const { id, testId, expired } = useLocalSearchParams<{ id: string; testId?: string; expired?: string }>();
   const isExpired = expired === '1';
 
-  const answered = 18;
-  const unanswered: number = 2;
-  const total = 20;
-  const timed = true;
-  const timeLeft = '6:18';
+  const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
+  const [answeredCount, setAnsweredCount] = useState(0);
+
+  useEffect(() => {
+    if (!id && !testId) return;
+    async function load() {
+      try {
+        if (testId) {
+          const res = await startAttempt(testId);
+          setAttempt(res.attempt);
+          const count = res.answers.filter((a: AttemptAnswer) => !!a.selected_option).length;
+          setAnsweredCount(count);
+        } else {
+          const res = await getAttemptReview(id);
+          const count = res.review.filter((r: ReviewItem) => !!r.selected_option).length;
+          setAnsweredCount(count);
+        }
+      } catch (e) {
+        console.error('Failed to load attempt', e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [id, testId]);
+
+  const total = attempt?.test?.total_questions || 0;
+  const answered = answeredCount;
+  const unanswered = Math.max(0, total - answered);
+  
+  const timed = attempt?.test?.duration_minutes && attempt.test.duration_minutes > 0;
+  
+  const [timeLeft, setTimeLeft] = useState('0:00');
+  useEffect(() => {
+    if (timed && attempt) {
+      const elapsed = Math.floor((Date.now() - new Date(attempt.started_at).getTime()) / 1000);
+      const left = Math.max(0, attempt.test!.duration_minutes! * 60 - elapsed);
+      setTimeLeft(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`);
+    }
+  }, [timed, attempt]);
 
   const [submitting, setSubmitting] = useState(false);
   const rise = useSharedValue(0);
@@ -41,11 +79,16 @@ export default function TestSubmitConfirmRoute() {
       ? 'All done \u2014 ready to submit?'
       : 'Ready to submit?';
 
-  const confirm = () => {
+  const confirm = async () => {
+    if (!id) return;
     setSubmitting(true);
-    setTimeout(() => {
-      router.replace('/(student)/(practice)/test-result');
-    }, 700);
+    try {
+      await submitAttempt(id);
+      router.replace({ pathname: '/(student)/(practice)/test-result', params: { id } });
+    } catch (e) {
+      console.error('Failed to submit', e);
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -68,7 +111,7 @@ export default function TestSubmitConfirmRoute() {
       >
         <View style={styles.handle} />
         <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.md }]}>
-          {title}
+          {loading ? 'Loading...' : title}
         </Text>
 
         <View style={[styles.tileRow, { gap: space.sm, marginTop: space.lg }]}>

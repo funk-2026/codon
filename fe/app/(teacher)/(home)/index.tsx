@@ -14,6 +14,8 @@ import {
 } from 'phosphor-react-native';
 import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { listTeacherTests, listTeacherContent } from '@/src/api/teacher';
+import { useAuth } from '@/src/auth/AuthContext';
 
 type Activity = {
   id: string;
@@ -22,18 +24,7 @@ type Activity = {
   time: string;
 };
 
-const RECENT_ACTIVITY: Activity[] = [
-  { id: 'a1', status: 'approved', text: 'Thermodynamics Full Test was approved', time: '2 hours ago' },
-  { id: 'a2', status: 'rejected', text: 'Cell Biology — Intro Video needs changes', time: '5 hours ago' },
-  { id: 'a3', status: 'published', text: 'The 2-minute recall trick is now live', time: '1 day ago' },
-  { id: 'a4', status: 'approved', text: 'Optics Concept Check was approved', time: '2 days ago' },
-  { id: 'a5', status: 'rejected', text: '[new] Zoology needs changes', time: '3 days ago' },
-];
 
-const IN_REVIEW = 3;
-const APPROVED = 2;
-const LIVE = 18;
-const CHANGES_NEEDED = 2;
 
 function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
   const shown = useSharedValue(0);
@@ -85,14 +76,46 @@ export default function TeacherHomeRoute() {
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
   const tileWidth = (screenWidth - space.md * 2 - space.xs) / 2;
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ inReview: 0, approved: 0, live: 0, changesNeeded: 0 });
+  const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
+    Promise.all([listTeacherTests(), listTeacherContent()])
+      .then(([testsRes, contentRes]) => {
+        let inReview = 0, approved = 0, live = 0, changesNeeded = 0;
+        const acts: Activity[] = [];
+        
+        const processItem = (item: any) => {
+          if (item.status === 'in_review') inReview++;
+          if (item.status === 'approved') approved++;
+          if (item.status === 'published') live++;
+          if (item.status === 'rejected') changesNeeded++;
+          
+          if (item.status === 'approved' || item.status === 'published' || item.status === 'rejected') {
+            let text = `${item.title} was ${item.status}`;
+            if (item.status === 'rejected') text = `${item.title} needs changes`;
+            acts.push({
+              id: item.id,
+              status: item.status as Activity['status'],
+              text,
+              time: new Date(item.updated_at || Date.now()).toLocaleDateString(),
+            });
+          }
+        };
+        
+        (testsRes.tests || []).forEach(t => processItem(t));
+        (contentRes.content || []).forEach(c => processItem(c));
+        
+        setStats({ inReview, approved, live, changesNeeded });
+        setRecentActivity(acts.slice(0, 5));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const attentionCount = CHANGES_NEEDED;
+  const attentionCount = stats.changesNeeded;
 
   const activityIcon = (status: Activity['status']) => {
     if (status === 'approved') return <CheckCircle size={18} color={color('semantic/success')} weight="regular" />;
@@ -110,7 +133,7 @@ export default function TeacherHomeRoute() {
         <Stagger delayMs={0}>
           <View style={{ marginTop: space.lg }}>
             <Text style={[type['type/h1'], { color: color('text/primary') }]}>
-              {greeting()}, Kavya Iyer.
+              {greeting()}, {user?.name || 'Teacher'}.
             </Text>
             {attentionCount > 0 ? (
               <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
@@ -131,11 +154,11 @@ export default function TeacherHomeRoute() {
               </>
             ) : (
               <>
-                <StatusTile label="In Review" value={IN_REVIEW} token="semantic/warning" width={tileWidth} />
-                <StatusTile label="Approved" value={APPROVED} token="semantic/success" outline width={tileWidth} />
-                <StatusTile label="Live" value={LIVE} token="semantic/success" filled width={tileWidth} />
-                <PulsingTile pulse={CHANGES_NEEDED > 0}>
-                  <StatusTile label="Changes Needed" value={CHANGES_NEEDED} token="semantic/danger" width={tileWidth} />
+                <StatusTile label="In Review" value={stats.inReview} token="semantic/warning" width={tileWidth} />
+                <StatusTile label="Approved" value={stats.approved} token="semantic/success" outline width={tileWidth} />
+                <StatusTile label="Live" value={stats.live} token="semantic/success" filled width={tileWidth} />
+                <PulsingTile pulse={stats.changesNeeded > 0}>
+                  <StatusTile label="Changes Needed" value={stats.changesNeeded} token="semantic/danger" width={tileWidth} />
                 </PulsingTile>
               </>
             )}
@@ -193,7 +216,7 @@ export default function TeacherHomeRoute() {
             </View>
           ) : (
             <View style={{ gap: space.sm }}>
-              {RECENT_ACTIVITY.map((a) => (
+              {recentActivity.map((a) => (
                 <Pressable
                   key={a.id}
                   onPress={() =>

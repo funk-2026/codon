@@ -1,32 +1,33 @@
-
+import Constants from 'expo-constants';
+import { getAccessToken } from '../auth/tokenStore';
 
 /**
- * Resolve the API base URL.
+ * Resolve the API base URL dynamically.
  *
- * When testing on a physical device via Expo, use your machine's LAN IP
- * so the phone (on the same WiFi) can reach the Docker backend.
- *
- * • Physical device:   Use LAN IP (e.g. 192.168.x.x)
- * • Android emulator:  `10.0.2.2` maps to host machine's localhost
- * • iOS simulator:     plain `localhost` works
+ * `Constants.expoConfig?.hostUri` automatically gets your dev machine's LAN IP
+ * (e.g. 192.168.x.x) when running Expo Go / physical device.
  */
-const DEV_HOST = '192.168.0.6'; // ← your machine's LAN IP
+const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
+const DEV_HOST = debuggerHost ? debuggerHost.split(':')[0] : '192.168.0.7';
 
 export const API_BASE = __DEV__
   ? `http://${DEV_HOST}:8080/api/v1`
-  : 'https://api.codon.app/api/v1';     // TODO: replace with production URL
+  : 'https://api.codon.app/api/v1';
 
 /**
  * Thin wrapper around `fetch` that sets common defaults.
+ * Automatically attaches the Bearer token from secure storage.
  */
 export async function apiFetch<T = unknown>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const token = await getAccessToken();
   const res = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers as Record<string, string> | undefined),
     },
     ...options,

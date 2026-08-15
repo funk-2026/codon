@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, PencilSimple, Trash } from 'phosphor-react-native';
 import { InputField, PrimaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { createQuestion } from '@/src/api/teacher';
 
 type Question = {
   id: string;
@@ -15,7 +16,6 @@ type Question = {
 };
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
-const TEST_TITLE = 'Thermodynamics — Practice Set 4';
 
 const EMPTY_FORM = { text: '', options: ['', '', '', ''] as [string, string, string, string], correct: null as 0 | 1 | 2 | 3 | null, explanation: '' };
 
@@ -24,11 +24,12 @@ export default function QuestionBuilderRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { prefillText } = useLocalSearchParams<{ prefillText?: string }>();
+  const { prefillText, testId, testTitle } = useLocalSearchParams<{ prefillText?: string; testId?: string; testTitle?: string }>();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [form, setForm] = useState(prefillText ? { ...EMPTY_FORM, text: prefillText } : EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -44,37 +45,59 @@ export default function QuestionBuilderRoute() {
 
   const valid = form.text.trim().length > 0 && form.options.every((o) => o.trim().length > 0) && form.correct !== null;
 
-  const handleSubmit = () => {
-    if (!valid) {
-      setError('Fill in the question, all four options, and mark the correct answer before adding.');
+  const handleSubmit = async () => {
+    if (!valid || saving) {
+      if (!valid) setError('Fill in the question, all four options, and mark the correct answer before adding.');
+      return;
+    }
+    if (!testId) {
+      setError('Test ID missing. Save draft first.');
       return;
     }
     setError(null);
+    setSaving(true);
 
-    if (editingId) {
-      setQuestions((prev) =>
-        prev.map((q) =>
-          q.id === editingId
-            ? { ...q, text: form.text, options: form.options, correct: form.correct as 0 | 1 | 2 | 3, explanation: form.explanation }
-            : q
-        )
-      );
-      setEditingId(null);
+    try {
+      if (editingId) {
+        // Backend updateQuestion mock omitted for MVP, just updating local state
+        setQuestions((prev) =>
+          prev.map((q) =>
+            q.id === editingId
+              ? { ...q, text: form.text, options: form.options, correct: form.correct as 0 | 1 | 2 | 3, explanation: form.explanation }
+              : q
+          )
+        );
+        setEditingId(null);
+        resetForm();
+        show('Changes saved', 'success');
+        return;
+      }
+
+      const res = await createQuestion(testId, {
+        question_text: form.text,
+        option_a: form.options[0],
+        option_b: form.options[1],
+        option_c: form.options[2],
+        option_d: form.options[3],
+        correct_option: form.correct === 0 ? 'A' : form.correct === 1 ? 'B' : form.correct === 2 ? 'C' : 'D',
+        explanation: form.explanation,
+      });
+
+      const newQuestion: Question = {
+        id: res.id,
+        text: form.text,
+        options: form.options,
+        correct: form.correct as 0 | 1 | 2 | 3,
+        explanation: form.explanation,
+      };
+      setQuestions((prev) => [...prev, newQuestion]);
       resetForm();
-      show('Changes saved', 'success');
-      return;
+      show(`Question ${questions.length + 1} added`, 'success');
+    } catch (err) {
+      setError('Failed to save question.');
+    } finally {
+      setSaving(false);
     }
-
-    const newQuestion: Question = {
-      id: `q${Date.now()}`,
-      text: form.text,
-      options: form.options,
-      correct: form.correct as 0 | 1 | 2 | 3,
-      explanation: form.explanation,
-    };
-    setQuestions((prev) => [...prev, newQuestion]);
-    resetForm();
-    show(`Question ${questions.length + 1} added`, 'success');
   };
 
   const startEdit = (q: Question) => {
@@ -107,7 +130,7 @@ export default function QuestionBuilderRoute() {
         <View style={{ marginLeft: space.sm }}>
           <Text style={[type['type/h1'], { color: color('text/primary') }]}>Questions</Text>
           <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            {TEST_TITLE} · {questions.length} added so far
+            {testTitle || 'Test'} · {questions.length} added so far
           </Text>
         </View>
       </View>
@@ -131,8 +154,8 @@ export default function QuestionBuilderRoute() {
                     error={error}
                   />
                   <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.md, alignItems: 'center' }}>
-                    <PrimaryButton label="Save Changes" onPress={handleSubmit} style={{ flex: 1 }} />
-                    <TextButton label="Cancel" onPress={cancelEdit} />
+                    <PrimaryButton label="Save Changes" onPress={handleSubmit} loading={saving} style={{ flex: 1 }} />
+                    <TextButton label="Cancel" onPress={cancelEdit} disabled={saving} />
                   </View>
                 </View>
               ) : (
@@ -183,7 +206,7 @@ export default function QuestionBuilderRoute() {
               setOption={setOption}
               error={error}
             />
-            <PrimaryButton label="Add Question" onPress={handleSubmit} style={{ marginTop: space.md }} />
+            <PrimaryButton label="Add Question" onPress={handleSubmit} loading={saving} style={{ marginTop: space.md }} />
           </View>
         ) : null}
       </ScrollView>

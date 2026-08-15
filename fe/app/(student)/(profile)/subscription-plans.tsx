@@ -6,6 +6,8 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { CaretLeft, CheckCircle, Shield } from 'phosphor-react-native';
 import { PrimaryButton, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { listPlans } from '@/src/api/subscriptions';
+import { getMe } from '@/src/api/profile';
 
 type Plan = {
   id: string;
@@ -17,32 +19,7 @@ type Plan = {
   current?: boolean;
 };
 
-const PLANS: Plan[] = [
-  {
-    id: 'p3',
-    name: '3 Months',
-    price: 2999,
-    durationMonths: 3,
-    durationLabel: '3 months',
-    benefits: ['Full Test Series access', 'Complete Q Bank', 'All Video Classes', 'Priority doubt support'],
-  },
-  {
-    id: 'p12',
-    name: '12 Months',
-    price: 8999,
-    durationMonths: 12,
-    durationLabel: '12 months',
-    benefits: [
-      'Full Test Series access',
-      'Complete Q Bank',
-      'All Video Classes',
-      'Priority doubt support',
-      '2 months free vs. quarterly',
-    ],
-  },
-];
 
-const KYC_REQUIRED = true;
 
 function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
   const shown = useSharedValue(0);
@@ -74,17 +51,45 @@ export default function SubscriptionPlansRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [kycRequired, setKycRequired] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(t);
+    async function load() {
+      try {
+        const [{ plans: apiPlans }, meRes] = await Promise.all([
+          listPlans(),
+          getMe()
+        ]);
+        
+        const activeSub = meRes.active_subscription;
+        
+        const mapped: Plan[] = apiPlans.map(p => ({
+          id: p.id,
+          name: p.name,
+          price: p.price_paise / 100,
+          durationMonths: Math.round(p.duration_days / 30),
+          durationLabel: `${Math.round(p.duration_days / 30)} months`,
+          benefits: p.benefits || [],
+          current: activeSub?.plan_id === p.id
+        }));
+        
+        setPlans(mapped);
+        setKycRequired(meRes.kyc_required);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
-  const bestValueId = PLANS.reduce((best, p) => {
+  const bestValueId = plans.length > 0 ? plans.reduce((best, p) => {
     const costPerDay = p.price / (p.durationMonths * 30);
     const bestCostPerDay = best.price / (best.durationMonths * 30);
     return costPerDay < bestCostPerDay ? p : best;
-  }, PLANS[0]).id;
+  }, plans[0]).id : null;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -120,7 +125,7 @@ export default function SubscriptionPlansRoute() {
           </View>
         ) : (
           <View style={{ gap: space.md }}>
-            {PLANS.map((p, i) => {
+            {plans.map((p, i) => {
               const bestValue = p.id === bestValueId;
               return (
                 <Stagger key={p.id} delayMs={i * 80}>
@@ -192,7 +197,7 @@ export default function SubscriptionPlansRoute() {
           </View>
         )}
 
-        {KYC_REQUIRED ? (
+        {kycRequired ? (
           <View
             style={[
               styles.kycNote,

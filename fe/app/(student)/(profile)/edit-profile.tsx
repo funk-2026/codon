@@ -5,6 +5,8 @@ import { useRouter } from 'expo-router';
 import { CaretLeft, Camera, Lock, CaretRight } from 'phosphor-react-native';
 import { InputField, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { useAuth } from '@/src/auth/AuthContext';
+import { updateMe } from '@/src/api/profile';
 
 export default function EditProfileRoute() {
   const { color, type, space, radius } = useTheme();
@@ -12,12 +14,15 @@ export default function EditProfileRoute() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
 
-  const [name, setName] = useState('Aarav Sharma');
+  const { user, refreshUser } = useAuth();
+  
+  const initialName = user?.name || '';
+  const [name, setName] = useState(initialName);
   const [error, setError] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
-  const dirty = name.trim() !== 'Aarav Sharma';
+  const dirty = name.trim() !== initialName;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!dirty || saving) return;
     if (name.trim().length === 0) {
       setError('Name cannot be empty.');
@@ -25,11 +30,16 @@ export default function EditProfileRoute() {
     }
     setError(undefined);
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      await updateMe({ name: name.trim() });
+      await refreshUser();
       show('Profile updated', 'success');
       router.back();
-    }, 700);
+    } catch (err) {
+      show('Failed to update profile.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -125,7 +135,7 @@ export default function EditProfileRoute() {
           </View>
 
           <Pressable
-            onPress={() => router.push({ pathname: '/course-selection', params: { edit: '1' } })}
+            onPress={() => router.push({ pathname: '/profile-setup' as any, params: { edit: '1' } })}
             style={({ pressed }) => [
               styles.readOnlyRow,
               {

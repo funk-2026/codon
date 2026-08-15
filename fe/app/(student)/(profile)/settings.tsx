@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { CaretLeft, CaretRight } from 'phosphor-react-native';
 import { SecondaryButton } from '@/src/components';
 import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
+import { useAuth } from '@/src/auth/AuthContext';
 
 function GroupLabel({ label }: { label: string }) {
   const { color, type, space } = useTheme();
@@ -62,6 +63,7 @@ export default function SettingsRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  const auth = useAuth();
   const [soundEffects, setSoundEffects] = useState(true);
   const [notifications, setNotifications] = useState(true);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -72,8 +74,9 @@ export default function SettingsRoute() {
     { key: 'dark', label: 'Dark' },
   ];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setLogoutConfirmOpen(false);
+    await auth.signOut();
     router.replace('/phone-entry');
   };
 
@@ -177,7 +180,7 @@ export default function SettingsRoute() {
           <View style={{ gap: space.xs }}>
             <Row
               label="Change Course"
-              onPress={() => router.push({ pathname: '/course-selection', params: { edit: '1' } })}
+              onPress={() => router.push({ pathname: '/profile-setup' as any, params: { edit: '1' } })}
             />
             <Row
               label="Manage Devices"
@@ -191,8 +194,8 @@ export default function SettingsRoute() {
           <GroupLabel label="Support & Legal" />
           <View style={{ gap: space.xs }}>
             <Row label="Give Feedback" onPress={() => router.push('/(student)/(profile)/give-feedback')} />
-            <Row label="Terms of Service" onPress={() => {}} />
-            <Row label="Privacy Policy" onPress={() => {}} />
+            <Row label="Terms of Service" onPress={() => { }} />
+            <Row label="Privacy Policy" onPress={() => { }} />
           </View>
         </View>
 

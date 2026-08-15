@@ -3,8 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CaretLeft, Camera } from 'phosphor-react-native';
-import { InputField, PrimaryButton, TextButton } from '@/src/components';
+import { InputField, PrimaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { submitKYC } from '@/src/api/kyc';
 
 type IdType = 'Aadhaar' | 'PAN';
 
@@ -12,6 +13,7 @@ export default function KycSubmissionRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { show } = useToast();
 
   const [idType, setIdType] = useState<IdType | null>(null);
   const [idNumber, setIdNumber] = useState('');
@@ -20,13 +22,21 @@ export default function KycSubmissionRoute() {
 
   const valid = !!idType && idNumber.trim().length > 0 && document;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!valid || submitting) return;
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await submitKYC({
+        id_type: idType.toLowerCase() as 'aadhaar' | 'pan',
+        id_number: idNumber,
+        document_file_key: 'mock/document_file_key.jpg', // mocked upload
+      });
       router.replace('/(student)/(profile)/kyc-status');
-    }, 800);
+    } catch (err) {
+      show('Failed to submit KYC. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const numberLabel = idType === 'PAN' ? 'PAN Number' : 'Aadhaar Number';

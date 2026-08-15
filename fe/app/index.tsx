@@ -14,7 +14,7 @@ import Animated, {
 import Svg, { Circle, Ellipse, G } from 'react-native-svg';
 import { Text } from 'react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { useRole, type Role } from '@/src/context/RoleContext';
+import { useAuth, type Role } from '@/src/auth/AuthContext';
 
 const ROLE_HOME: Record<Role, Href> = {
   student: '/(student)/(home)',
@@ -63,7 +63,7 @@ function PulseDot({ delay, color }: { delay: number; color: string }) {
 
 export default function SplashRoute() {
   const { color, type, space } = useTheme();
-  const { currentRole } = useRole();
+  const auth = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -74,11 +74,16 @@ export default function SplashRoute() {
   }, [enter]);
 
   useEffect(() => {
+    if (auth.status === 'loading') return; // still reading keychain
     const timer = setTimeout(() => {
-      router.replace(currentRole ? ROLE_HOME[currentRole] : '/onboarding');
+      if (auth.status === 'authenticated') {
+        router.replace(ROLE_HOME[auth.user.role]);
+      } else {
+        router.replace('/onboarding');
+      }
     }, MIN_DISPLAY_MS);
     return () => clearTimeout(timer);
-  }, [currentRole, router]);
+  }, [auth, router]);
 
   const enterStyle = useAnimatedStyle(() => ({
     opacity: enter.value,

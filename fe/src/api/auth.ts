@@ -14,7 +14,8 @@ export type VerifyOTPResponse = {
     id: string;
     phone_number: string;
     role: 'student' | 'teacher' | 'admin';
-    name: string;
+    name: string | null;
+    selected_course_id?: string | null;
     kyc_status: string;
   };
 };

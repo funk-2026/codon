@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretDown, CaretUp, Play, Pause, CheckCircle, Clock, Exam } from 'phosphor-react-native';
 import { PrimaryButton, StatusBadge, type BadgeStatus, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { submitTestForReview, submitContentForReview, publishContent } from '@/src/api/teacher';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 type Status = 'draft' | 'pending' | 'approved' | 'published';
@@ -39,7 +40,7 @@ export default function ContentPreviewRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { type: rawType, status: rawStatus } = useLocalSearchParams<{ type?: string; status?: string }>();
+  const { type: rawType, status: rawStatus, id } = useLocalSearchParams<{ type?: string; status?: string; id?: string }>();
   const contentType = (rawType as ContentType) ?? 'Test';
   const [status, setStatus] = useState<Status>((rawStatus as Status) ?? 'draft');
   const [questionsExpanded, setQuestionsExpanded] = useState(false);
@@ -48,22 +49,41 @@ export default function ContentPreviewRoute() {
 
   const badge = taxonomyBadge(status);
 
-  const handleSubmitForReview = () => {
+  const handleSubmitForReview = async () => {
+    if (!id) return;
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      if (contentType === 'Test') {
+        await submitTestForReview(id);
+      } else {
+        await submitContentForReview(id);
+      }
       setStatus('pending');
       show('Sent for review', 'success');
-    }, 600);
+    } catch (err) {
+      show('Failed to submit', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
+    if (!id) return;
     setSubmitting(true);
-    setTimeout(() => {
+    try {
+      if (contentType === 'Test') {
+        show('Test published (mock)', 'success');
+        setStatus('published');
+      } else {
+        await publishContent(id);
+        setStatus('published');
+        show('Now live for students', 'success');
+      }
+    } catch (err) {
+      show('Failed to publish', 'error');
+    } finally {
       setSubmitting(false);
-      setStatus('published');
-      show('Now live for students', 'success');
-    }, 600);
+    }
   };
 
   return (

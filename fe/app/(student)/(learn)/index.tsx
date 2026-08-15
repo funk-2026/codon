@@ -9,6 +9,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PlayCircle, FileText, CaretRight } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getRecentContent } from '@/src/api/profile';
+import { SkeletonBlock } from '@/src/components';
 
 type Category = {
   id: 'video' | 'document';
@@ -26,12 +28,7 @@ type RecentItem = {
   pct: number;
 };
 
-const RECENT: RecentItem[] = [
-  { id: '1', title: 'Thermodynamics — Lecture 3', breadcrumb: 'Physics › Thermodynamics', kind: 'video', pct: 72 },
-  { id: '2', title: 'Laws of Motion — Notes', breadcrumb: 'Physics › Mechanics', kind: 'document', pct: 100 },
-  { id: '3', title: 'Optics — Ray Diagrams', breadcrumb: 'Physics › Optics', kind: 'video', pct: 35 },
-  { id: '4', title: 'Modern Physics — Quick Notes', breadcrumb: 'Physics › Modern Physics', kind: 'document', pct: 100 },
-];
+
 
 function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
   const shown = useSharedValue(0);
@@ -52,7 +49,16 @@ export default function LearnHubRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const isNewUser = false;
+  const [recent, setRecent] = useState<RecentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const isNewUser = !loading && recent.length === 0;
+
+  useEffect(() => {
+    getRecentContent()
+      .then((res) => setRecent(res.recent))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const categories: Category[] = [
     {
@@ -254,7 +260,7 @@ export default function LearnHubRoute() {
             </View>
           ) : (
             <View style={{ gap: space.xs }}>
-              {RECENT.map((item) => (
+              {recent.map((item) => (
                 <Pressable
                   key={item.id}
                   onPress={() =>

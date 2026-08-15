@@ -1,35 +1,57 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, DeviceMobile, CreditCard, Wallet, Lock } from 'phosphor-react-native';
-import { PrimaryButton } from '@/src/components';
+import { PrimaryButton, SkeletonBlock, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { listPlans, checkout, verifyPayment } from '@/src/api/subscriptions';
+import { SubscriptionPlan } from '@/src/api/profile';
 
-const PLANS: Record<string, { name: string; price: number; durationLabel: string }> = {
-  p3: { name: '3 Months', price: 2999, durationLabel: '3 months' },
-  p12: { name: '12 Months', price: 8999, durationLabel: '12 months' },
-};
+
 
 export default function CheckoutRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const { planId } = useLocalSearchParams<{ planId?: string }>();
-  const plan = (planId && PLANS[planId]) || PLANS.p3;
-
+  const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
+  const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState<'summary' | 'launching' | 'verifying'>('summary');
+  const { show } = useToast();
 
-  const handlePay = () => {
+  useEffect(() => {
+    listPlans()
+      .then((res) => {
+        const found = res.plans.find((p) => p.id === planId) || res.plans[0];
+        setPlan(found);
+      })
+      .catch(() => show('Failed to load plan details.', 'error'))
+      .finally(() => setLoading(false));
+  }, [planId, show]);
+
+  const handlePay = async () => {
+    if (!plan) return;
     setStage('launching');
-    setTimeout(() => {
+    
+    try {
+      const order = await checkout({ plan_id: plan.id });
       setStage('verifying');
-      setTimeout(() => {
-        router.replace({
-          pathname: '/(student)/(profile)/payment-success',
-          params: { planName: plan.name, amount: String(plan.price) },
-        });
-      }, 1000);
-    }, 600);
+      
+      // Simulate Razorpay SDK UI flow and success callback
+      await verifyPayment({
+        razorpay_order_id: order.razorpay_order_id,
+        razorpay_payment_id: 'mock_pay_' + Math.floor(Math.random() * 100000),
+        razorpay_signature: 'mock_signature',
+      });
+      
+      router.replace({
+        pathname: '/(student)/(profile)/payment-success',
+        params: { planName: plan.name, amount: String(plan.price_paise / 100) },
+      });
+    } catch (err) {
+      setStage('summary');
+      show('Payment failed or cancelled', 'error');
+    }
   };
 
   if (stage === 'verifying') {
@@ -61,27 +83,31 @@ export default function CheckoutRoute() {
       </View>
 
       <View style={{ paddingHorizontal: space.md, flex: 1 }}>
-        <View
-          style={[
-            { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, marginTop: space.xl },
-            shadow(),
-          ]}
-        >
-          <Text style={[type['type/h3'], { color: color('text/primary') }]}>{plan.name}</Text>
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            {plan.durationLabel} · NEET UG Pro
-          </Text>
-          <View style={{ height: 1, backgroundColor: color('border/subtle'), marginVertical: space.md }} />
-          <View style={styles.totalRow}>
-            <Text style={[type['type/body-l'], { color: color('text/primary') }]}>Total</Text>
-            <Text style={[type['type/h2'], { color: color('text/primary') }]}>
-              ₹{plan.price.toLocaleString('en-IN')}
+        {loading || !plan ? (
+          <SkeletonBlock height={200} radius={radius.lg} style={{ marginTop: space.xl }} />
+        ) : (
+          <View
+            style={[
+              { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, marginTop: space.xl },
+              shadow(),
+            ]}
+          >
+            <Text style={[type['type/h3'], { color: color('text/primary') }]}>{plan.name}</Text>
+            <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
+              {Math.round(plan.duration_days / 30)} months · NEET UG Pro
+            </Text>
+            <View style={{ height: 1, backgroundColor: color('border/subtle'), marginVertical: space.md }} />
+            <View style={styles.totalRow}>
+              <Text style={[type['type/body-l'], { color: color('text/primary') }]}>Total</Text>
+              <Text style={[type['type/h2'], { color: color('text/primary') }]}>
+                ₹{(plan.price_paise / 100).toLocaleString('en-IN')}
+              </Text>
+            </View>
+            <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space['2xs'], textAlign: 'right' }]}>
+              Inclusive of all taxes
             </Text>
           </View>
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space['2xs'], textAlign: 'right' }]}>
-            Inclusive of all taxes
-          </Text>
-        </View>
+        )}
 
         <View style={{ marginTop: space.lg }}>
           <Text style={[type['type/caption'], { color: color('text/secondary'), marginBottom: space.xs }]}>
@@ -104,9 +130,9 @@ export default function CheckoutRoute() {
 
       <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
         <PrimaryButton
-          label={`Pay ₹${plan.price.toLocaleString('en-IN')}`}
+          label={`Pay ₹${plan ? (plan.price_paise / 100).toLocaleString('en-IN') : '...'}`}
           onPress={handlePay}
-          loading={stage === 'launching'}
+          loading={stage === 'launching' || loading}
         />
       </View>
     </SafeAreaView>

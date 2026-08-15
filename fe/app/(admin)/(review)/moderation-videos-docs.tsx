@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { CaretLeft, CaretRight, PlayCircle, FileText, Lightbulb } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { adminListContent } from '@/src/api/admin';
 
 type ContentType = 'All' | 'Videos' | 'Documents' | 'Brain Hacks';
 type ContentItem = {
@@ -16,11 +17,7 @@ type ContentItem = {
   submitted: string;
 };
 
-const ITEMS: ContentItem[] = [
-  { id: 'c1', title: 'Laws of Thermodynamics — Explained', breadcrumb: 'NEET UG · Physics · Thermodynamics', type: 'Videos', teacher: 'Kavya Iyer', submitted: '1 day ago' },
-  { id: 'c2', title: 'Entropy — Chapter Notes', breadcrumb: 'NEET UG · Physics · Thermodynamics', type: 'Documents', teacher: 'Devika Rao', submitted: '4 hours ago' },
-  { id: 'c3', title: "The 2-minute recall trick", breadcrumb: null, type: 'Brain Hacks', teacher: 'Kavya Iyer', submitted: '2 hours ago' },
-];
+
 
 const FILTERS: ContentType[] = ['All', 'Videos', 'Documents', 'Brain Hacks'];
 
@@ -47,12 +44,24 @@ export default function ModerationVideosDocsRoute() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ContentType>('All');
 
+  const [items, setItems] = useState<ContentItem[]>([]);
+
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
+    adminListContent('pending').then(res => {
+       const mapped: ContentItem[] = res.content.map(c => ({
+          id: c.id,
+          title: c.title,
+          breadcrumb: 'NEET UG · Physics', 
+          type: c.content_type === 'video' ? 'Videos' : 'Documents', 
+          teacher: 'Kavya Iyer', 
+          submitted: 'Just now',
+       }));
+       setItems(mapped);
+    }).catch(() => {})
+    .finally(() => setLoading(false));
   }, []);
 
-  const filtered = ITEMS.filter((i) => filter === 'All' || i.type === filter);
+  const filtered = items.filter((i) => filter === 'All' || i.type === filter);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>

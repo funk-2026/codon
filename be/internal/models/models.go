@@ -447,6 +447,17 @@ type BackgroundJob struct {
 	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
+type UserFeedback struct {
+	ID         uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	UserID     uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	User       User      `gorm:"foreignKey:UserID" json:"-"`
+	Category   string    `gorm:"type:text;not null" json:"category"`
+	Message    string    `gorm:"type:text;not null" json:"message"`
+	AppVersion *string   `gorm:"type:text" json:"app_version,omitempty"`
+	DeviceOS   *string   `gorm:"type:text" json:"device_os,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 // Validate UserRole
 func ValidateUserRole(r string) error {
 	switch UserRole(r) {

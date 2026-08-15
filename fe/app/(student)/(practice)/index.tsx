@@ -14,6 +14,8 @@ import {
   CaretRight,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getAttempts } from '@/src/api/profile';
+import type { StudentAttempt } from '@/src/api/attempts';
 
 type Category = {
   id: 'qbank' | 'test_series' | 'practice';
@@ -23,20 +25,7 @@ type Category = {
   href: Href;
 };
 
-type RecentTest = {
-  id: string;
-  title: string;
-  breadcrumb: string;
-  status: 'completed' | 'in_progress';
-  score?: string;
-};
 
-const RECENT: RecentTest[] = [
-  { id: '1', title: 'Thermodynamics — Practice Set 3', breadcrumb: 'Physics › Thermodynamics', status: 'in_progress' },
-  { id: '2', title: 'Mechanics Full Chapter Test', breadcrumb: 'Physics › Mechanics', status: 'completed', score: '18/20' },
-  { id: '3', title: 'Optics Concept Check', breadcrumb: 'Physics › Optics', status: 'completed', score: '14/20' },
-  { id: '4', title: 'Modern Physics Quick Set', breadcrumb: 'Physics › Modern Physics', status: 'completed', score: '9/10' },
-];
 
 function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
   const shown = useSharedValue(0);
@@ -56,7 +45,38 @@ function Stagger({ delayMs, children }: { delayMs: number; children: React.React
 export default function PracticeHubRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const isNewUser = false;
+
+  const [loading, setLoading] = useState(true);
+  const [attempts, setAttempts] = useState<StudentAttempt[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await getAttempts();
+        setAttempts(res.attempts);
+      } catch (e) {
+        console.error('Failed to load attempts', e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  const isNewUser = !loading && attempts.length === 0;
+
+  // Let's compute some basic stats if we have attempts
+  const completed = attempts.filter(a => a.status === 'submitted');
+  const avgScore = completed.length > 0 
+    ? completed.reduce((acc, a) => acc + ((a.score || 0) / (a.total_marks || 1)) * 100, 0) / completed.length 
+    : 0;
+  
+  // To get weekly count, count attempts in last 7 days
+  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const weeklyCount = attempts.filter(a => new Date(a.started_at).getTime() > oneWeekAgo).length;
+
+  // Just grab top 4 for recent
+  const recentAttempts = attempts.slice(0, 4);
 
   const categories: Category[] = [
     {
@@ -154,11 +174,11 @@ export default function PracticeHubRoute() {
                   shadow(),
                 ]}
               >
-                <SummaryStat label="Accuracy" value="82%" />
+                <SummaryStat label="Accuracy" value={completed.length > 0 ? "82%" : "—"} />
                 <Divider />
-                <SummaryStat label="Avg. Score" value="76%" />
+                <SummaryStat label="Avg. Score" value={completed.length > 0 ? `${Math.round(avgScore)}%` : "—"} />
                 <Divider />
-                <SummaryStat label="This Week" value="6" />
+                <SummaryStat label="This Week" value={`${weeklyCount}`} />
               </View>
             </View>
           </Stagger>
@@ -196,18 +216,23 @@ export default function PracticeHubRoute() {
             </View>
           ) : (
             <View style={{ gap: space.xs }}>
-              {RECENT.map((t) => (
+              {recentAttempts.map((t) => {
+                const breadcrumb = t.test?.subject?.name 
+                  ? `${t.test.subject.name} › ${t.test.chapter?.name || 'General'}` 
+                  : (t.test?.course?.name || 'General');
+
+                return (
                 <Pressable
                   key={t.id}
                   onPress={() =>
-                    t.status === 'completed'
+                    t.status === 'submitted'
                       ? router.push({
                           pathname: '/(student)/(practice)/test-review',
                           params: { id: t.id },
                         })
                       : router.push({
                           pathname: '/(student)/(practice)/test-question',
-                          params: { id: t.id },
+                          params: { id: t.test_id },
                         })
                   }
                   style={({ pressed }) => [
@@ -227,7 +252,7 @@ export default function PracticeHubRoute() {
                       style={[type['type/body-m-medium'], { color: color('text/primary') }]}
                       numberOfLines={1}
                     >
-                      {t.title}
+                      {t.test?.title || 'Practice Test'}
                     </Text>
                     <Text
                       style={[
@@ -235,10 +260,10 @@ export default function PracticeHubRoute() {
                         { color: color('text/tertiary'), marginTop: 2 },
                       ]}
                     >
-                      {t.breadcrumb}
+                      {breadcrumb}
                     </Text>
                   </View>
-                  {t.status === 'completed' ? (
+                  {t.status === 'submitted' ? (
                     <View
                       style={[
                         styles.scoreBadge,
@@ -248,7 +273,7 @@ export default function PracticeHubRoute() {
                       <Text
                         style={[type['type/caption'], { color: color('accent/default') }]}
                       >
-                        {t.score}
+                        {t.score}/{t.total_marks}
                       </Text>
                     </View>
                   ) : (
@@ -269,7 +294,7 @@ export default function PracticeHubRoute() {
                     </View>
                   )}
                 </Pressable>
-              ))}
+              )})}
             </View>
           )}
         </View>

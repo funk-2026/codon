@@ -1,19 +1,19 @@
-// MOCK — remove when real auth exists
+// DEV ONLY — remove when real auth exists
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { useRole, type Role } from '@/src/context/RoleContext';
+import { useAuth, type Role } from '@/src/auth/AuthContext';
 
 const OPTIONS: { role: Role; label: string; href: Href }[] = [
-  { role: 'student', label: 'Student', href: '/course-selection' },
+  { role: 'student', label: 'Student', href: '/profile-setup' as Href },
   { role: 'teacher', label: 'Teacher', href: '/(teacher)/(home)' },
   { role: 'admin', label: 'Admin', href: '/(admin)/(home)' },
 ];
 
 export default function PreviewModeRoute() {
   const { color, type, space, radius } = useTheme();
-  const { setCurrentRole } = useRole();
+  const { signIn } = useAuth();
   const router = useRouter();
 
   return (
@@ -30,8 +30,14 @@ export default function PreviewModeRoute() {
         {OPTIONS.map((opt) => (
           <Pressable
             key={opt.role}
-            onPress={() => {
-              setCurrentRole(opt.role);
+            onPress={async () => {
+              await signIn('preview-token', {
+                id: 'preview',
+                phone_number: '',
+                role: opt.role,
+                name: 'Preview User',
+                kyc_status: 'none',
+              });
               router.replace(opt.href);
             }}
             style={({ pressed }) => [

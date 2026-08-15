@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,19 +9,39 @@ import Animated, {
 } from 'react-native-reanimated';
 import { CaretLeft, Play, Pause, X, GridFour } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getContentItem, getChapterContent, ContentItem } from '@/src/api/content';
+import { SkeletonBlock } from '@/src/components';
 
-const SIBLINGS = [
-  { id: 's1', title: 'Thermodynamics — Lecture 4', meta: '22 min' },
-  { id: 's2', title: 'Heat Engines — Lecture 1', meta: '18 min' },
-  { id: 's3', title: 'Entropy — Notes', meta: '6 min read' },
-];
+
 
 const SPEEDS = ['0.5x', '0.75x', '1x', '1.25x', '1.5x', '2x'];
 
 export default function VideoPlayerRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
+
+  const [content, setContent] = useState<ContentItem | null>(null);
+  const [siblings, setSiblings] = useState<ContentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    getContentItem(id)
+      .then((res) => {
+        setContent(res.content);
+        return getChapterContent(res.content.chapter_id);
+      })
+      .then((chRes) => {
+        setSiblings(chRes.content.filter(c => c.id !== id));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id]);
 
   const [playing, setPlaying] = useState(true);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -111,7 +131,7 @@ export default function VideoPlayerRoute() {
                     style={[type['type/body-m-medium'], { color: '#fff', flex: 1, marginLeft: space.sm }]}
                     numberOfLines={1}
                   >
-                    Thermodynamics — Lecture 3
+                    {content?.title || 'Loading...'}
                   </Text>
                 </View>
 
@@ -187,14 +207,14 @@ export default function VideoPlayerRoute() {
         {/* Below-canvas panel */}
         <View style={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}>
           <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.md }]}>
-            Thermodynamics — Lecture 3
+            {content?.title || 'Loading...'}
           </Text>
           <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            Physics › Thermodynamics
+            Video Lesson
           </Text>
           <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.md }]}>
-            A walkthrough of the first law, worked examples on isothermal and adiabatic processes, and
-            how to spot the difference in exam questions.
+            {/* We don't have a description on content item currently */}
+            This is a video lesson.
           </Text>
           <Text
             style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.lg, marginBottom: space.sm }]}
@@ -202,7 +222,7 @@ export default function VideoPlayerRoute() {
             MORE IN THIS CHAPTER
           </Text>
           <View style={{ gap: space.xs }}>
-            {SIBLINGS.map((s) => (
+            {siblings.map((s) => (
               <Pressable
                 key={s.id}
                 onPress={() => router.push({ pathname: '/(student)/(learn)/video-player', params: { id: s.id } })}
@@ -225,7 +245,7 @@ export default function VideoPlayerRoute() {
                     {s.title}
                   </Text>
                   <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                    {s.meta}
+                    {s.content_type === 'video' ? 'Video' : 'Document'}
                   </Text>
                 </View>
                 <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />

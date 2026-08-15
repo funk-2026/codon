@@ -13,6 +13,8 @@ import {
 } from 'phosphor-react-native';
 import { InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { createContent } from '@/src/api/teacher';
+import { listCourses, getCurriculum } from '@/src/api/courses';
 
 type ContentType = 'Video' | 'Document';
 type VideoState = 'idle' | 'uploading' | 'processing' | 'ready' | 'failed';
@@ -36,7 +38,21 @@ export default function CreateContentRoute() {
   const [docBody, setDocBody] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [courseId, setCourseId] = useState<string | null>(null);
+  const [chapterId, setChapterId] = useState<string | null>(null);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    listCourses().then(res => {
+      if (res.courses.length > 0) {
+        setCourseId(res.courses[0].id);
+        getCurriculum(res.courses[0].id).then(cRes => {
+          const chaps = cRes.subjects.flatMap(s => s.chapters);
+          if (chaps.length > 0) setChapterId(chaps[0].id);
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (locationLabel) setLocation(locationLabel);
@@ -108,8 +124,28 @@ export default function CreateContentRoute() {
 
   const canSubmit =
     title.trim().length > 0 &&
-    !!location &&
+    !!courseId && !!chapterId &&
     (contentType === 'Video' ? videoState === 'ready' : docBody.trim().length > 0);
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    try {
+      const res = await createContent({
+        title,
+        course_id: courseId!,
+        content_type: contentType === 'Video' ? 'video' : 'document',
+        chapter_id: chapterId!,
+        file_key: contentType === 'Video' ? 'mock-video-key' : 'mock-doc-key',
+      });
+      show('Content saved', 'success');
+      router.push({ pathname: '/(teacher)/(content)/content-preview', params: { type: contentType, id: res.id } });
+    } catch (err) {
+      show('Failed to save content', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -257,8 +293,9 @@ export default function CreateContentRoute() {
       <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
         <PrimaryButton
           label="Preview & Submit"
-          onPress={() => router.push({ pathname: '/(teacher)/(content)/content-preview', params: { type: contentType } })}
-          disabled={!canSubmit}
+          onPress={handleSubmit}
+          loading={saving}
+          disabled={!canSubmit || saving}
         />
       </View>
 

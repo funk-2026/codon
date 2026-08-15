@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { CaretLeft, CaretRight } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { adminListTests } from '@/src/api/admin';
 
 type ModuleType = 'All' | 'Q Bank' | 'Test Series' | 'Practice';
 type TestItem = {
@@ -17,11 +18,6 @@ type TestItem = {
   submitted: string;
 };
 
-const ITEMS: TestItem[] = [
-  { id: 't1', title: 'Thermodynamics — Practice Set 4', breadcrumb: 'NEET UG · Physics · Thermodynamics', questionCount: 20, module: 'Practice', teacher: 'Kavya Iyer', submitted: '2 days ago' },
-  { id: 't2', title: 'Organic Chemistry Full Test', breadcrumb: 'NEET UG · Chemistry · Organic', questionCount: 45, module: 'Test Series', teacher: 'Devika Rao', submitted: '1 day ago' },
-  { id: 't3', title: 'Cell Biology Q Bank — Set 2', breadcrumb: 'NEET UG · Botany · Cell Biology', questionCount: 30, module: 'Q Bank', teacher: 'Kavya Iyer', submitted: '5 hours ago' },
-];
 
 const FILTERS: ModuleType[] = ['All', 'Q Bank', 'Test Series', 'Practice'];
 
@@ -41,13 +37,25 @@ export default function ModerationTestsRoute() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ModuleType>('All');
+  const [items, setItems] = useState<TestItem[]>([]);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
+    adminListTests('pending').then(res => {
+       const mapped: TestItem[] = res.tests.map(t => ({
+          id: t.id,
+          title: t.title,
+          breadcrumb: 'NEET UG · Physics', 
+          questionCount: 0, 
+          module: 'Practice', 
+          teacher: 'Kavya Iyer', 
+          submitted: 'Just now',
+       }));
+       setItems(mapped);
+    }).catch(() => {})
+    .finally(() => setLoading(false));
   }, []);
 
-  const filtered = ITEMS.filter((i) => filter === 'All' || i.module === filter);
+  const filtered = items.filter((i) => filter === 'All' || i.module === filter);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>

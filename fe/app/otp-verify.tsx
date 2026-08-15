@@ -19,7 +19,7 @@ import { ChevronLeft } from 'lucide-react-native';
 import { maskPhone } from './phone-entry';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useToast } from '@/src/components';
-import { useRole } from '@/src/context/RoleContext';
+import { useAuth } from '@/src/auth/AuthContext';
 import { verifyOTP, sendOTP } from '@/src/api/auth';
 import { ApiError } from '@/src/api/client';
 
@@ -35,7 +35,7 @@ export default function OtpVerifyRoute() {
   const router = useRouter();
   const { phone } = useLocalSearchParams<{ phone?: string }>();
   const { show } = useToast();
-  const { setCurrentRole } = useRole();
+  const { signIn } = useAuth();
   const insets = useSafeAreaInsets();
 
   const phoneDisplay = maskPhone(typeof phone === 'string' ? phone : '');
@@ -84,17 +84,19 @@ export default function OtpVerifyRoute() {
 
     try {
       const res = await verifyOTP(cleanPhone, code, deviceId, deviceInfo);
+      await signIn(res.access_token, res.user);
       const role = res.user.role;
-      setCurrentRole(role);
 
-      // TODO: persist res.access_token for authenticated requests
+      const isProfileComplete = res.user.name && res.user.selected_course_id;
 
-      if (role === 'admin') {
+      if (!isProfileComplete) {
+        router.replace('/profile-setup');
+      } else if (role === 'admin') {
         router.replace('/(admin)/(home)');
       } else if (role === 'teacher') {
         router.replace('/(teacher)/(home)');
       } else {
-        router.replace('/course-selection');
+        router.replace('/(student)/(home)');
       }
     } catch (err) {
       setVerifying(false);

@@ -28,6 +28,11 @@ import {
   Exam,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { useAuth } from '@/src/auth/AuthContext';
+import { getCurriculum } from '@/src/api/courses';
+import { listTests } from '@/src/api/tests';
+import type { Subject, Chapter } from '@/src/api/courses';
+import type { Test } from '@/src/api/tests';
 
 type Level = 'subject' | 'chapter' | 'subchapter' | 'leaf';
 
@@ -42,80 +47,7 @@ type Row = {
   children?: Row[];
 };
 
-const COURSE_NAME = 'NEET UG';
-
-const TREE: Row[] = [
-  {
-    id: 'physics',
-    title: 'Physics',
-    level: 'subject',
-    count: 4,
-    children: [
-      {
-        id: 'mechanics',
-        title: 'Mechanics',
-        level: 'chapter',
-        count: 3,
-        children: [
-          {
-            id: 'laws-motion',
-            title: 'Laws of Motion',
-            level: 'subchapter',
-            count: 2,
-            children: [
-              { id: 't1', title: 'Newton\u2019s Laws — Concept Check', level: 'leaf', leafKind: 'test', meta: '10 questions · 12 min' },
-              { id: 't2', title: 'Laws of Motion Quick Set', level: 'leaf', leafKind: 'test', meta: '8 questions · 10 min' },
-            ],
-          },
-          { id: 'kinematics', title: 'Kinematics', level: 'subchapter', count: 3, children: [] },
-        ],
-      },
-      {
-        id: 'thermo',
-        title: 'Thermodynamics',
-        level: 'chapter',
-        count: 3,
-        children: [
-          {
-            id: 'laws-th',
-            title: 'Laws of Thermodynamics',
-            level: 'subchapter',
-            count: 2,
-            children: [
-              { id: 'tt1', title: 'First Law — Concept Check (Q Bank)', level: 'leaf', leafKind: 'test', meta: '12 questions · 15 min' },
-              { id: 'tt2', title: 'Thermodynamics Full Chapter Test (Test Series)', level: 'leaf', leafKind: 'test', meta: '20 questions · 25 min', locked: true },
-            ],
-          },
-          { id: 'heat-engines', title: 'Heat Engines', level: 'subchapter', count: 4, children: [] },
-          { id: 'entropy', title: 'Entropy', level: 'subchapter', count: 5, children: [] },
-        ],
-      },
-      { id: 'optics', title: 'Optics', level: 'chapter', count: 6, children: [] },
-      { id: 'modern', title: 'Modern Physics', level: 'chapter', count: 9, children: [] },
-    ],
-  },
-  {
-    id: 'chemistry',
-    title: 'Chemistry',
-    level: 'subject',
-    count: 7,
-    children: [],
-  },
-  {
-    id: 'botany',
-    title: 'Botany',
-    level: 'subject',
-    count: 5,
-    children: [],
-  },
-  {
-    id: 'zoology',
-    title: 'Zoology',
-    level: 'subject',
-    count: 6,
-    children: [],
-  },
-];
+const COURSE_NAME = 'Course';
 
 function pluralize(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
@@ -162,36 +94,103 @@ export default function HierarchyBrowserRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ path?: string; kind?: string }>();
+  const { user } = useAuth();
 
-  // path is a "/"-joined ids string indicating the drilled route, e.g. "physics/thermo"
+  const [loading, setLoading] = useState(true);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [courseName, setCourseName] = useState('Course');
+  
+  // Tests fetched dynamically when viewing a chapter
+  const [leafTests, setLeafTests] = useState<Test[]>([]);
+  const [loadingTests, setLoadingTests] = useState(false);
+
   const pathIds = useMemo(
     () => (params.path ? params.path.split('/').filter(Boolean) : []),
     [params.path],
   );
 
+  useEffect(() => {
+    async function init() {
+      if (!user?.selected_course_id) return;
+      try {
+        const res = await getCurriculum(user.selected_course_id);
+        setSubjects(res.subjects || []);
+        setCourseName(res.course.name);
+      } catch (err) {
+        console.error('Failed to load curriculum', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    init();
+  }, [user?.selected_course_id]);
+
+  useEffect(() => {
+    if (pathIds.length === 2) {
+      setLoadingTests(true);
+      listTests({ chapter_id: pathIds[1], module_type: params.kind })
+        .then(res => setLeafTests(res.tests || []))
+        .catch(console.error)
+        .finally(() => setLoadingTests(false));
+    } else {
+      setLeafTests([]);
+    }
+  }, [pathIds.length, pathIds[1], params.kind]);
+
   const crumbs = useMemo(() => {
     const out: { id: string; title: string; path: string }[] = [];
-    let layer: Row[] = TREE;
+    let currentLayerRows: Row[] = subjects.map(s => ({
+      id: s.id,
+      title: s.name,
+      level: 'subject',
+      count: s.chapters?.length || 0,
+      children: (s.chapters || []).map(c => ({
+        id: c.id,
+        title: c.name,
+        level: 'chapter',
+      })),
+    }));
+
     let acc = '';
-    for (const id of pathIds) {
-      const found = layer.find((r) => r.id === id);
+    for (let i = 0; i < pathIds.length; i++) {
+      const id = pathIds[i];
+      const found = currentLayerRows.find((r) => r.id === id);
       if (!found) break;
       acc = acc ? `${acc}/${id}` : id;
       out.push({ id: found.id, title: found.title, path: acc });
-      layer = found.children ?? [];
+      
+      // If we are at the chapter level (pathIds.length === 2), the currentLayerRows will be the dynamically loaded tests
+      if (i === 0) {
+        currentLayerRows = found.children ?? [];
+      } else if (i === 1) {
+        currentLayerRows = leafTests.map(t => ({
+          id: t.id,
+          title: t.title,
+          level: 'leaf',
+          leafKind: 'test',
+          meta: `${t.total_questions} questions · ${t.duration_minutes || 0} min`,
+          locked: t.requires_subscription,
+        }));
+      }
     }
-    return { crumbs: out, currentLayer: layer };
-  }, [pathIds]);
+    
+    // If we're at the leaf level but tests haven't loaded yet, return empty for now
+    if (pathIds.length === 2 && leafTests.length === 0) {
+       currentLayerRows = [];
+    }
+
+    return { crumbs: out, currentLayer: currentLayerRows };
+  }, [pathIds, subjects, leafTests]);
 
   const currentLevel: Level = crumbs.crumbs.length === 0
     ? 'subject'
-    : crumbs.currentLayer[0]?.level === 'leaf'
-      ? 'leaf'
-      : (crumbs.currentLayer[0]?.level ?? 'subject');
+    : crumbs.crumbs.length === 1 
+      ? 'chapter' 
+      : 'leaf';
 
   const currentTitle = crumbs.crumbs.length
     ? crumbs.crumbs[crumbs.crumbs.length - 1].title
-    : 'Subjects';
+    : (params.kind === 'test_series' ? 'Test Series' : params.kind === 'qbank' ? 'Q Bank' : 'Practice');
 
   const [query, setQuery] = useState('');
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -254,7 +253,7 @@ export default function HierarchyBrowserRoute() {
           <View style={{ flex: 1, marginLeft: space.sm }}>
             <View style={[styles.crumbRow, { gap: space['2xs'] }]}>
               <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
-                {COURSE_NAME}
+                {courseName}
               </Text>
               <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>›</Text>
               {crumbs.crumbs.map((c, i) => (
@@ -309,7 +308,11 @@ export default function HierarchyBrowserRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, marginTop: space.md }}
         showsVerticalScrollIndicator={false}
       >
-        {crumbs.currentLayer.length === 0 ? (
+        {loading || loadingTests ? (
+          <View style={{ alignItems: 'center', paddingVertical: space['2xl'] }}>
+            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Loading...</Text>
+          </View>
+        ) : crumbs.currentLayer.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: space['2xl'], gap: space.xs }}>
             <Folder size={28} color={color('text/tertiary')} weight="duotone" />
             <Text style={[type['type/h3'], { color: color('text/primary'), textAlign: 'center' }]}>

@@ -14,6 +14,7 @@ import {
 } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock, StatusBadge, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { listTeacherContent, listTeacherTests } from '@/src/api/teacher';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 type TypeFilter = 'All' | 'Tests' | 'Videos & Docs' | 'Brain Hacks';
@@ -28,15 +29,7 @@ type ContentItem = {
   status: Status;
 };
 
-const ITEMS: ContentItem[] = [
-  { id: 'i1', title: 'Thermodynamics — Practice Set 4', breadcrumb: 'NEET UG · Physics · Thermodynamics', type: 'Test', status: 'draft' },
-  { id: 'i2', title: 'Organic Chemistry Full Test', breadcrumb: 'NEET UG · Chemistry · Organic', type: 'Test', status: 'pending' },
-  { id: 'i3', title: 'Laws of Thermodynamics — Explained', breadcrumb: 'NEET UG · Physics · Thermodynamics', type: 'Video', status: 'approved' },
-  { id: 'i4', title: 'Entropy — Chapter Notes', breadcrumb: 'NEET UG · Physics · Thermodynamics', type: 'Document', status: 'published' },
-  { id: 'i5', title: 'Cell Biology — Intro Video', breadcrumb: 'NEET UG · Botany · Cell Biology', type: 'Video', status: 'rejected' },
-  { id: 'i6', title: 'The 2-minute recall trick', breadcrumb: null, type: 'Brain Hack', status: 'published' },
-  { id: 'i7', title: 'Beat exam-day anxiety in 5 minutes', breadcrumb: null, type: 'Brain Hack', status: 'pending' },
-];
+
 
 const TYPE_FILTERS: TypeFilter[] = ['All', 'Tests', 'Videos & Docs', 'Brain Hacks'];
 const STATUS_FILTERS: StatusFilter[] = ['All Statuses', 'Draft', 'In Review', 'Approved', 'Live', 'Changes Needed'];
@@ -95,9 +88,34 @@ export default function MyContentListRoute() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
 
+  const [items, setItems] = useState<ContentItem[]>([]);
+
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
+    Promise.all([listTeacherContent(), listTeacherTests()])
+      .then(([cRes, tRes]) => {
+         const out: ContentItem[] = [];
+         (tRes.tests || []).forEach(t => {
+            out.push({
+               id: t.id,
+               title: t.title,
+               breadcrumb: 'Test',
+               type: 'Test',
+               status: t.status as Status,
+            });
+         });
+         (cRes.content || []).forEach(c => {
+            out.push({
+               id: c.id,
+               title: c.title,
+               breadcrumb: 'Content',
+               type: c.content_type === 'video' ? 'Video' : 'Document',
+               status: c.status as Status,
+            });
+         });
+         setItems(out);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const fabProgress = useSharedValue(0);
@@ -105,7 +123,7 @@ export default function MyContentListRoute() {
     fabProgress.value = withTiming(fabOpen ? 1 : 0, { duration: 220 });
   }, [fabOpen, fabProgress]);
 
-  const filtered = ITEMS.filter((item) => {
+  const filtered = items.filter((item) => {
     const types = TYPE_FILTER_TO_TYPES[typeFilter];
     if (types && !types.includes(item.type)) return false;
     const status = STATUS_FILTER_TO_STATUS[statusFilter];
@@ -114,7 +132,7 @@ export default function MyContentListRoute() {
     return true;
   });
 
-  const isEmptyOverall = ITEMS.length === 0;
+  const isEmptyOverall = items.length === 0;
 
   const openItem = (item: ContentItem) => {
     if (item.status === 'rejected') {

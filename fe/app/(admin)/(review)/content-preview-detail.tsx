@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretDown, CaretUp, Play, PlayCircle } from 'phosphor-react-native';
 import { InputField, PrimaryButton, SecondaryButton, StatusBadge, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { adminApproveContent, adminRejectContent, adminApproveTest, adminRejectTest } from '@/src/api/admin';
 
 type ItemType = 'test' | 'Videos' | 'Documents' | 'Brain Hacks' | 'Subject' | 'Chapter' | 'Sub-chapter';
 
@@ -83,25 +84,42 @@ export default function ContentPreviewDetailRoute() {
     }
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
+    if (!id) return;
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      if (itemType === 'test') {
+        await adminApproveTest(id);
+      } else if (itemType === 'Videos' || itemType === 'Documents') {
+        await adminApproveContent(id);
+      }
       show('Approved', 'success');
       advance();
-    }, 500);
+    } catch (err) {
+      show('Failed to approve', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const confirmReject = () => {
-    if (reason.trim().length === 0) return;
+  const confirmReject = async () => {
+    if (reason.trim().length === 0 || !id) return;
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      if (itemType === 'test') {
+        await adminRejectTest(id, reason);
+      } else if (itemType === 'Videos' || itemType === 'Documents') {
+        await adminRejectContent(id, reason);
+      }
       setRejectOpen(false);
       setReason('');
       show('Rejected — teacher has been notified.', 'success');
       advance();
-    }, 500);
+    } catch (err) {
+      show('Failed to reject', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const title =

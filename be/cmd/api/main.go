@@ -98,6 +98,7 @@ func main() {
 	wellnessH := handlers.NewWellnessHandler(db.DB)
 	adminH := handlers.NewAdminHandler(db.DB)
 	curriculumH := handlers.NewCurriculumHandler(db.DB)
+	feedbackH := handlers.NewFeedbackHandler(db.DB)
 
 	// ─── Gin Engine ──────────────────────────────────────────────────────────
 	if config.AppConfig.Env == "production" {
@@ -147,11 +148,16 @@ func main() {
 		me.GET("", profileH.GetMe)
 		me.PATCH("", profileH.UpdateMe)
 		me.GET("/progress", profileH.GetProgress)
+		me.GET("/progress/breakdown", profileH.GetProgressBreakdown)
+		me.GET("/recent-content", profileH.GetRecentContent)
 		me.GET("/attempts", profileH.GetAttempts)
 		me.GET("/subscription", profileH.GetMySubscription)
 		me.POST("/kyc", kycH.SubmitKYC)
 		me.GET("/kyc", kycH.GetMyKYC)
 	}
+
+	// Feedback
+	api.POST("/feedback", auth, feedbackH.Submit)
 
 	// Courses (public)
 	courses := api.Group("/courses")
@@ -212,6 +218,13 @@ func main() {
 		attempts.POST("/:id/submit", attemptH.SubmitAttempt)
 		attempts.GET("/:id/result", attemptH.GetResult)
 		attempts.GET("/:id/review", attemptH.GetReview)
+	}
+
+	// Content (student)
+	studentContent := api.Group("").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	{
+		studentContent.GET("/chapters/:chapter_id/content", contentH.GetChapterContent)
+		studentContent.GET("/content/:id", contentH.GetContentItem)
 	}
 
 	// ─── Teacher routes ────────────────────────────────────────────────────────

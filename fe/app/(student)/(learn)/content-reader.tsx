@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,52 +9,53 @@ import Animated, {
 } from 'react-native-reanimated';
 import { CaretLeft } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getContentItem, getChapterContent } from '@/src/api/content';
+import type { ContentItem } from '@/src/api/content';
 
-const SIBLINGS = [
-  { id: 's1', title: 'Laws of Thermodynamics — Notes', meta: '8 min read' },
-  { id: 's2', title: 'Heat Engines — Notes', meta: '5 min read' },
-  { id: 's3', title: 'Entropy — Notes', meta: '6 min read' },
-];
 
-const BODY = `Thermodynamics is the branch of physics that deals with heat, work, and temperature, and their relation to energy and the properties of matter. For NEET, you need a clear grip on three laws and a handful of standard processes — nothing more, but nothing less either.
-
-## The Zeroth Law
-
-If two systems are each in thermal equilibrium with a third, they are in thermal equilibrium with each other. This is the basis of temperature measurement — it's why a thermometer works.
-
-## The First Law
-
-Energy is conserved. Mathematically: ΔU = Q - W, where ΔU is the change in internal energy, Q is heat added to the system, and W is work done by the system. The sign convention matters: heat added is positive, work done by the gas is positive.
-
-## The Second Law
-
-The entropy of an isolated system never decreases. Practically: heat flows spontaneously from hot to cold, never the reverse without external work. This is why no engine can be 100% efficient.
-
-## Key Processes
-
-- Isothermal: T constant, ΔU = 0, so Q = W.
-- Adiabatic: Q = 0, so ΔU = -W.
-- Isochoric: V constant, W = 0, so ΔU = Q.
-- Isobaric: P constant, W = PΔV.
-
-Master these four and you can decode almost any thermodynamics question NEET throws at you.`;
 
 export default function ContentReaderRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const scrollRef = useRef<ScrollView>(null);
+  
+  const [loading, setLoading] = useState(true);
+  const [content, setContent] = useState<{ item: ContentItem; url?: string } | null>(null);
+  const [siblings, setSiblings] = useState<ContentItem[]>([]);
+
   const [progress, setProgress] = useState(0);
   const [scrolled, setScrolled] = useState(false);
 
+  useEffect(() => {
+    if (!id) return;
+    async function load() {
+      try {
+        const res = await getContentItem(id as string);
+        setContent({ item: res.content, url: res.url });
+        if (res.content.chapter_id) {
+          const chapRes = await getChapterContent(res.content.chapter_id);
+          setSiblings(chapRes.content.filter(c => c.id !== id));
+        }
+      } catch (err) {
+        console.error('Failed to load content', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [id]);
+
   const topBarBg = useSharedValue(0);
+  const bgSurface = color('bg/surface');
 
   useEffect(() => {
     topBarBg.value = withTiming(scrolled ? 1 : 0, { duration: 200 });
   }, [scrolled, topBarBg]);
 
   const topBarStyle = useAnimatedStyle(() => ({
-    backgroundColor: topBarBg.value === 1 ? color('bg/surface') : 'transparent',
+    backgroundColor: topBarBg.value === 1 ? bgSurface : 'transparent',
     borderBottomWidth: topBarBg.value === 1 ? 1 : 0,
   }));
 
@@ -66,7 +67,7 @@ export default function ContentReaderRoute() {
     setScrolled(y > 40);
   };
 
-  const paragraphs = BODY.split('\n\n');
+  const paragraphs = content?.url ? [`Document URL: ${content.url}`, '(In a real app, this would be a PDF viewer)'] : ['No content available'];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -118,10 +119,10 @@ export default function ContentReaderRoute() {
       >
         {/* Content header */}
         <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
-          Physics › Thermodynamics
+          {content?.item?.content_type === 'video' ? 'Video Class' : 'Document'}
         </Text>
         <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space['2xs'] }]}>
-          Thermodynamics — Chapter Notes
+          {content?.item?.title || 'Loading...'}
         </Text>
         <Text
           style={[
@@ -129,7 +130,7 @@ export default function ContentReaderRoute() {
             { color: color('text/tertiary'), marginTop: space['2xs'] },
           ]}
         >
-          6 min read
+          {loading ? '...' : ''}
         </Text>
 
         {/* Body */}
@@ -177,7 +178,7 @@ export default function ContentReaderRoute() {
             MORE IN THIS CHAPTER
           </Text>
           <View style={{ gap: space.xs }}>
-            {SIBLINGS.map((s) => (
+            {siblings.map((s) => (
               <Pressable
                 key={s.id}
                 onPress={() => router.push({ pathname: '/(student)/(learn)/content-reader', params: { id: s.id } })}
@@ -200,7 +201,7 @@ export default function ContentReaderRoute() {
                     {s.title}
                   </Text>
                   <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                    {s.meta}
+                    {s.content_type === 'video' ? 'Video' : 'Document'}
                   </Text>
                 </View>
                 <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />

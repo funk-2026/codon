@@ -11,15 +11,7 @@ import { CaretLeft, Flame } from 'phosphor-react-native';
 import RNSvg, { Line, Polygon, Polyline } from 'react-native-svg';
 import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-
-const TREND = [42, 55, 48, 61, 58, 70, 65, 74, 71, 78];
-const SUBJECTS = [
-  { name: 'Physics', accuracy: 78 },
-  { name: 'Chemistry', accuracy: 71 },
-  { name: 'Botany', accuracy: 84 },
-  { name: 'Zoology', accuracy: 66 },
-];
-const LAST_7_DAYS = [true, true, false, true, true, true, true];
+import { getProgress, getProgressBreakdown, ProgressResponse, ProgressBreakdownResponse } from '@/src/api/profile';
 
 function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
   const shown = useSharedValue(0);
@@ -51,17 +43,26 @@ export default function ProgressDetailRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<ProgressResponse | null>(null);
+  const [breakdown, setBreakdown] = useState<ProgressBreakdownResponse | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(t);
+    Promise.all([getProgress(), getProgressBreakdown()])
+      .then(([statsRes, breakdownRes]) => {
+        setStats(statsRes);
+        setBreakdown(breakdownRes);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const chartWidth = 320;
   const chartHeight = 100;
   const max = 100;
-  const points = TREND.map((v, i) => {
-    const x = (i / (TREND.length - 1)) * chartWidth;
+  
+  const trend = breakdown?.trend || [0,0,0,0,0,0,0,0,0,0];
+  const points = trend.map((v, i) => {
+    const x = (i / Math.max(1, trend.length - 1)) * chartWidth;
     const y = chartHeight - (v / max) * chartHeight;
     return `${x},${y}`;
   }).join(' ');
@@ -95,9 +96,9 @@ export default function ProgressDetailRoute() {
               </>
             ) : (
               <>
-                <StatTile label="Tests Taken" value="24" />
-                <StatTile label="Avg. Score" value="78%" />
-                <StatTile label="Day Streak" value="12" />
+                <StatTile label="Tests Taken" value={String(stats?.attempted_count || 0)} />
+                <StatTile label="Avg. Score" value={`${Math.round(stats?.avg_score || 0)}%`} />
+                <StatTile label="Day Streak" value={String(breakdown?.day_streak || 0)} />
               </>
             )}
           </View>
@@ -129,7 +130,7 @@ export default function ProgressDetailRoute() {
               BY SUBJECT
             </Text>
             <View style={{ gap: space.xs }}>
-              {SUBJECTS.map((s) => (
+              {(breakdown?.subjects || []).map((s) => (
                 <View
                   key={s.name}
                   style={[
@@ -179,14 +180,14 @@ export default function ProgressDetailRoute() {
                 <Text
                   style={[type['type/numeral-display'], { color: color('text/primary'), marginLeft: space.sm }]}
                 >
-                  12
+                  {breakdown?.day_streak || 0}
                 </Text>
                 <Text style={[type['type/body-m'], { color: color('text/secondary'), marginLeft: space.xs }]}>
                   day streak
                 </Text>
               </View>
               <View style={[styles.dotsRow, { gap: space.xs, marginTop: space.md }]}>
-                {LAST_7_DAYS.map((active, i) => (
+                {(breakdown?.last_7_days || []).map((active, i) => (
                   <View
                     key={i}
                     style={{

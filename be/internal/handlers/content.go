@@ -228,6 +228,61 @@ func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 	c.JSON(http.StatusOK, listContentResponse{Content: items})
 }
 
+// ─── Student Content Access ───────────────────────────────────────────────────
+
+// GetChapterContent godoc
+//
+//	@Summary		List published content items for a chapter (Student)
+//	@Description	Returns all published content items (videos, documents) for a specific chapter.
+//	@Tags			Content
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			chapter_id	path		string	true	"Chapter UUID"
+//	@Success		200	{object}	listContentResponse
+//	@Failure		401	{object}	errorResponse
+//	@Router			/api/v1/chapters/{chapter_id}/content [get]
+func (h *ContentHandler) GetChapterContent(c *gin.Context) {
+	chapterID := c.Param("chapter_id")
+	var items []models.ContentItem
+	h.DB.WithContext(c.Request.Context()).
+		Where("chapter_id = ? AND status = ?", chapterID, models.StatusPublished).
+		Order("created_at ASC").
+		Find(&items)
+	c.JSON(http.StatusOK, listContentResponse{Content: items})
+}
+
+// GetContentItem godoc
+//
+//	@Summary		Get a single published content item (Student)
+//	@Description	Returns the details of a published content item. For videos, the frontend can use the HLS URL directly.
+//	@Tags			Content
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Content item UUID"
+//	@Success		200	{object}	getContentResponse
+//	@Failure		404	{object}	errorResponse
+//	@Router			/api/v1/content/{id} [get]
+func (h *ContentHandler) GetContentItem(c *gin.Context) {
+	id := c.Param("id")
+	var item models.ContentItem
+	if err := h.DB.WithContext(c.Request.Context()).
+		Where("id = ? AND status = ?", id, models.StatusPublished).
+		First(&item).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "content not found"})
+		return
+	}
+
+	url := ""
+	if item.ContentType == models.ContentVideo && item.HLSPlaylistURL != nil {
+		url = *item.HLSPlaylistURL
+	} else if item.ContentType == models.ContentDocument {
+		// Mock a pre-signed URL for document downloads for now
+		url = "https://s3.amazonaws.com/codon-files/" + item.FileKey
+	}
+
+	c.JSON(http.StatusOK, getContentResponse{Content: item, URL: url})
+}
+
 // ─── Admin Content Moderation ─────────────────────────────────────────────────
 
 // AdminListContent godoc
@@ -339,4 +394,9 @@ type updateContentRequest struct {
 	ChapterID            *string `json:"chapter_id"`
 	FileKey              *string `json:"file_key"`
 	RequiresSubscription *bool   `json:"requires_subscription"`
+}
+
+type getContentResponse struct {
+	Content models.ContentItem `json:"content"`
+	URL     string             `json:"url,omitempty"`
 }
