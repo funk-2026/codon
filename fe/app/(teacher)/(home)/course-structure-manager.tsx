@@ -121,21 +121,16 @@ export default function CourseStructureManagerRoute() {
   };
 
   const jumpTo = (path: string) => {
-    router.replace({ pathname: '/(teacher)/(home)/course-structure-manager', params: { path, ...extraParams } });
+    router.dismissTo({ pathname: '/(teacher)/(home)/course-structure-manager', params: { path, ...extraParams } });
   };
 
   const goBack = () => {
-    if (pathIds.length === 0) {
-      router.back();
-      return;
-    }
-    const parent = pathIds.slice(0, -1).join('/');
-    router.replace({ pathname: '/(teacher)/(home)/course-structure-manager', params: { path: parent, ...extraParams } });
+    router.back();
   };
 
   const useThisLocation = () => {
     const label = crumbs.length ? `${COURSE_NAME} · ${crumbs.map((c) => c.title).join(' · ')}` : COURSE_NAME;
-    router.replace({ pathname: returnTo, params: { locationLabel: label } });
+    router.dismissTo({ pathname: returnTo, params: { locationLabel: label } });
   };
 
   const submitNewNode = () => {
