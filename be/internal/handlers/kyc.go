@@ -167,7 +167,7 @@ func (h *KYCHandler) GetMyKYC(c *gin.Context) {
 func (h *KYCHandler) ListKYC(c *gin.Context) {
 	status := c.DefaultQuery("status", "pending")
 	var records []models.KYCRecord
-	h.DB.Where("status = ?", status).Order("submitted_at ASC").Find(&records)
+	h.DB.Preload("User").Where("status = ?", status).Order("submitted_at ASC").Find(&records)
 	c.JSON(http.StatusOK, listKYCResponse{Records: records})
 }
 

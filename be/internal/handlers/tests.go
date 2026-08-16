@@ -531,7 +531,7 @@ func (h *TestHandler) AdminListTests(c *gin.Context) {
 	var tests []models.Test
 	h.DB.WithContext(c.Request.Context()).
 		Where("status = ?", status).
-		Preload("Course").
+		Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator").
 		Order("created_at DESC").
 		Find(&tests)
 	c.JSON(http.StatusOK, listTestsResponse{Tests: tests})

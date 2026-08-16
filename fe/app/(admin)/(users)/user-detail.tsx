@@ -1,34 +1,75 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { CaretLeft, CaretRight, Shield } from 'phosphor-react-native';
-import { PrimaryButton, SecondaryButton, StatusBadge, useToast } from '@/src/components';
+import { PrimaryButton, SecondaryButton, StatusBadge, useToast, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getUser, updateUserRole } from '@/src/api/admin';
+import type { UserProfile } from '@/src/api/profile';
 
-type Role = 'Student' | 'Teacher' | 'Admin';
+type Role = 'student' | 'teacher' | 'admin';
 
-const SEGMENTS: Role[] = ['Student', 'Teacher', 'Admin'];
+const SEGMENTS: Role[] = ['student', 'teacher', 'admin'];
 
 export default function UserDetailRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
+  const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [role, setRole] = useState<Role>('Student');
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [pendingRole, setPendingRole] = useState<Role | null>(null);
+  const [roleUpdating, setRoleUpdating] = useState(false);
   const [canManageAllContent, setCanManageAllContent] = useState(false);
 
-  const name = 'Aarav Sharma';
-  const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2);
+  useEffect(() => {
+    if (!id) return;
+    getUser(id)
+      .then(res => {
+        setUser(res.user);
+        // Note: can_manage_all_content would need to be fetched/handled similarly if exposed
+      })
+      .catch(() => show('Failed to load user', 'error'))
+      .finally(() => setLoading(false));
+  }, [id]);
 
-  const confirmRoleChange = () => {
-    if (!pendingRole) return;
-    setRole(pendingRole);
-    setPendingRole(null);
-    show('Role updated', 'success');
+  const confirmRoleChange = async () => {
+    if (!pendingRole || !user) return;
+    setRoleUpdating(true);
+    try {
+      await updateUserRole(user.id, pendingRole);
+      setUser({ ...user, role: pendingRole });
+      show('Role updated', 'success');
+    } catch (e) {
+      show('Failed to update role', 'error');
+    } finally {
+      setRoleUpdating(false);
+      setPendingRole(null);
+    }
   };
+
+  if (loading || !user) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+        <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
+          <Pressable onPress={() => router.back()} hitSlop={space.xs}>
+            <CaretLeft size={24} color={color('text/primary')} />
+          </Pressable>
+        </View>
+        <View style={{ padding: space.md, alignItems: 'center' }}>
+          <SkeletonBlock height={72} radius={36} style={{ width: 72 }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const displayName = user.name || 'Unknown User';
+  const initials = displayName.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
+
+  const memberSince = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -53,12 +94,12 @@ export default function UserDetailRoute() {
           <View style={[styles.avatar, { width: 72, height: 72, borderRadius: 36, backgroundColor: color('accent/tint') }]}>
             <Text style={[type['type/h1'], { color: color('accent/default') }]}>{initials}</Text>
           </View>
-          <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.sm }]}>{name}</Text>
+          <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.sm }]}>{displayName}</Text>
           <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: 2 }]}>
-            +91 98XXXXXX10
+            {user.phone_number}
           </Text>
           <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            Member since Jan 2026
+            Member since {memberSince}
           </Text>
         </View>
 
@@ -73,12 +114,12 @@ export default function UserDetailRoute() {
           </Text>
           <View style={[styles.segmented, { backgroundColor: color('bg/sunken'), borderRadius: radius.pill, padding: 3 }]}>
             {SEGMENTS.map((seg) => {
-              const active = role === seg;
+              const active = user.role === seg;
               return (
                 <Pressable
                   key={seg}
                   onPress={() => {
-                    if (seg !== role) setPendingRole(seg);
+                    if (seg !== user.role) setPendingRole(seg);
                   }}
                   style={[
                     styles.segment,
@@ -88,7 +129,7 @@ export default function UserDetailRoute() {
                   <Text
                     style={[
                       type['type/body-m-medium'],
-                      { color: active ? color('accent/on-accent') : color('text/secondary') },
+                      { color: active ? color('accent/on-accent') : color('text/secondary'), textTransform: 'capitalize' },
                     ]}
                   >
                     {seg}
@@ -99,7 +140,7 @@ export default function UserDetailRoute() {
           </View>
         </View>
 
-        {role === 'Teacher' ? (
+        {user.role === 'teacher' ? (
           <View
             style={[
               styles.row,
@@ -123,7 +164,7 @@ export default function UserDetailRoute() {
           </View>
         ) : null}
 
-        {role === 'Student' ? (
+        {user.role === 'student' ? (
           <View
             style={[
               { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
@@ -139,7 +180,7 @@ export default function UserDetailRoute() {
           </View>
         ) : null}
 
-        {role === 'Student' ? (
+        {user.role === 'student' ? (
           <Pressable
             onPress={() => router.push('/(admin)/(review)/kyc-review-detail')}
             style={({ pressed }) => [
@@ -151,7 +192,9 @@ export default function UserDetailRoute() {
             <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
               Identity Verification
             </Text>
-            <StatusBadge status="pending" label="Pending" />
+            {user.kyc_status && user.kyc_status !== 'not_required' ? (
+              <StatusBadge status={user.kyc_status === 'verified' ? 'success' : user.kyc_status === 'action_needed' ? 'error' : 'pending'} label={user.kyc_status.replace('_', ' ')} />
+            ) : null}
             <CaretRight size={18} color={color('text/tertiary')} style={{ marginLeft: space.xs }} />
           </Pressable>
         ) : null}
@@ -161,9 +204,9 @@ export default function UserDetailRoute() {
             { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
           ]}
         >
-          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>2 active devices</Text>
+          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>1 active device</Text>
           <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            Last active 2 hours ago
+            Last active recently
           </Text>
         </View>
       </ScrollView>
@@ -172,10 +215,10 @@ export default function UserDetailRoute() {
         <View style={[styles.scrim, { padding: space.lg }]}>
           <View style={[styles.modalCard, { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }]}>
             <Text style={[type['type/h3'], { color: color('text/primary') }]}>
-              Change {name}&apos;s role to {pendingRole}?
+              Change {displayName}&apos;s role to {pendingRole}?
             </Text>
             <View style={{ gap: space.sm, marginTop: space.lg }}>
-              <PrimaryButton label="Confirm" onPress={confirmRoleChange} />
+              <PrimaryButton label="Confirm" onPress={confirmRoleChange} loading={roleUpdating} />
               <SecondaryButton label="Cancel" onPress={() => setPendingRole(null)} />
             </View>
           </View>

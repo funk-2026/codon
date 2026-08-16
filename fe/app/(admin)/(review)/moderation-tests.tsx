@@ -40,16 +40,25 @@ export default function ModerationTestsRoute() {
   const [items, setItems] = useState<TestItem[]>([]);
 
   useEffect(() => {
-    adminListTests('pending').then(res => {
-       const mapped: TestItem[] = res.tests.map(t => ({
-          id: t.id,
-          title: t.title,
-          breadcrumb: 'NEET UG · Physics', 
-          questionCount: 0, 
-          module: 'Practice', 
-          teacher: 'Kavya Iyer', 
-          submitted: 'Just now',
-       }));
+    adminListTests('pending_review').then(res => {
+       const mapped: TestItem[] = res.tests.map(t => {
+          const moduleMap: Record<string, Exclude<ModuleType, 'All'>> = {
+            'qbank': 'Q Bank',
+            'test_series': 'Test Series',
+            'practice': 'Practice'
+          };
+          const b = [t.course?.title, t.subject?.title].filter(Boolean).join(' · ');
+          
+          return {
+            id: t.id,
+            title: t.title,
+            breadcrumb: b || 'Unknown', 
+            questionCount: t.total_questions || 0, 
+            module: moduleMap[t.module_type] || 'Practice', 
+            teacher: t.creator?.name || t.creator?.phone_number || 'Unknown Teacher', 
+            submitted: new Date(t.created_at || Date.now()).toLocaleDateString(),
+          };
+       });
        setItems(mapped);
     }).catch(() => {})
     .finally(() => setLoading(false));

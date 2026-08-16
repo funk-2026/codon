@@ -1,35 +1,35 @@
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretRight } from 'phosphor-react-native';
+import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getPayment } from '@/src/api/admin';
+import type { UserProfile } from '@/src/api/profile';
 
-type Status = 'Captured' | 'Created' | 'Failed' | 'Refunded';
+type Status = 'created' | 'captured' | 'failed' | 'refunded';
 
-const PAYMENTS: Record<string, {
-  user: string;
-  phone: string;
-  plan: string;
-  amount: number;
+type PaymentRecord = {
+  id: string;
+  user_id: string;
+  user?: UserProfile;
+  subscription?: { plan?: { title: string } };
+  amount_paise: number;
   status: Status;
-  orderId: string;
-  paymentId?: string;
-  date: string;
-  failureReason?: string;
-  refundReason?: string;
-  refundedOn?: string;
-}> = {
-  p1: { user: 'Aarav Sharma', phone: '+91 98XXXXXX10', plan: '3 Months', amount: 2999, status: 'Captured', orderId: 'order_NKj29fPz8x', paymentId: 'pay_NKj2AqR3Lm', date: '18 Jul 2026, 10:24 AM' },
-  p3: { user: 'Rohan Mehta', phone: '+91 99XXXXXX41', plan: '3 Months', amount: 2999, status: 'Failed', orderId: 'order_NKh81gQa2w', date: '17 Jul 2026, 8:44 PM', failureReason: 'Your card issuer declined this transaction. Please try another payment method.' },
-  p4: { user: 'Meera Pillai', phone: '+91 90XXXXXX15', plan: '3 Months', amount: 2999, status: 'Refunded', orderId: 'order_NKf03bXn7v', paymentId: 'pay_NKf04sTz9q', date: '15 Jul 2026, 2:10 PM', refundReason: 'Failed or duplicate transaction', refundedOn: '16 Jul 2026' },
-  p5: { user: 'Arjun Das', phone: '+91 91XXXXXX32', plan: '12 Months', amount: 8999, status: 'Created', orderId: 'order_NKk92mLp4d', date: '18 Jul 2026, 11:01 AM' },
+  created_at: string;
+  razorpay_order_id: string;
+  razorpay_payment_id?: string;
+  failure_reason?: string;
+  refund_reason?: string;
+  refunded_at?: string;
 };
 
 const STATUS_TOKEN: Record<Status, 'semantic/success' | 'text/tertiary' | 'semantic/danger' | 'semantic/warning'> = {
-  Captured: 'semantic/success',
-  Created: 'text/tertiary',
-  Failed: 'semantic/danger',
-  Refunded: 'semantic/warning',
+  captured: 'semantic/success',
+  created: 'text/tertiary',
+  failed: 'semantic/danger',
+  refunded: 'semantic/warning',
 };
 
 export default function PaymentDetailRoute() {
@@ -37,7 +37,33 @@ export default function PaymentDetailRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const p = (id && PAYMENTS[id]) || PAYMENTS.p1;
+  
+  const [loading, setLoading] = useState(true);
+  const [p, setPayment] = useState<PaymentRecord | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    getPayment(id)
+      .then(res => setPayment(res))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading || !p) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+        <View style={{ padding: space.md, alignItems: 'center' }}>
+          <SkeletonBlock height={72} radius={36} style={{ width: 72 }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const displayAmount = `₹${(p.amount_paise / 100).toLocaleString('en-IN')}`;
+  const userName = p.user?.name || 'Unknown User';
+  const userPhone = p.user?.phone_number || 'No Phone';
+  const planName = p.subscription?.plan?.title || 'Unknown Plan';
+  const displayDate = new Date(p.created_at).toLocaleDateString();
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -55,10 +81,10 @@ export default function PaymentDetailRoute() {
         <View
           style={[
             styles.statusBadge,
-            { borderColor: color(STATUS_TOKEN[p.status]), borderRadius: radius.pill, paddingHorizontal: space.xs },
+            { borderColor: color(STATUS_TOKEN[p.status] || 'text/tertiary'), borderRadius: radius.pill, paddingHorizontal: space.xs },
           ]}
         >
-          <Text style={[type['type/caption'], { color: color(STATUS_TOKEN[p.status]) }]}>{p.status}</Text>
+          <Text style={[type['type/caption'], { color: color(STATUS_TOKEN[p.status] || 'text/tertiary'), textTransform: 'capitalize' }]}>{p.status}</Text>
         </View>
       </View>
 
@@ -68,7 +94,7 @@ export default function PaymentDetailRoute() {
       >
         <View style={{ alignItems: 'center', marginTop: space.xl }}>
           <Text style={[type['type/numeral-display'], { color: color('text/primary') }]}>
-            ₹{p.amount.toLocaleString('en-IN')}
+            {displayAmount}
           </Text>
           <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>INR</Text>
         </View>
@@ -80,48 +106,48 @@ export default function PaymentDetailRoute() {
           ]}
         >
           <Pressable
-            onPress={() => router.push('/(admin)/(users)/user-detail')}
+            onPress={() => router.push({ pathname: '/(admin)/(users)/user-detail', params: { id: p.user_id } })}
             style={styles.userRow}
           >
             <View style={{ flex: 1 }}>
               <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>User</Text>
               <Text style={[type['type/body-m-medium'], { color: color('text/primary'), marginTop: 2 }]}>
-                {p.user} · {p.phone}
+                {userName} · {userPhone}
               </Text>
             </View>
             <CaretRight size={18} color={color('text/tertiary')} />
           </Pressable>
           <Divider />
-          <DetailRow label="Plan" value={p.plan} />
+          <DetailRow label="Plan" value={planName} />
           <Divider />
-          <DetailRow label="Razorpay Order ID" value={p.orderId} />
-          {p.paymentId ? (
+          <DetailRow label="Razorpay Order ID" value={p.razorpay_order_id} />
+          {p.razorpay_payment_id ? (
             <>
               <Divider />
-              <DetailRow label="Razorpay Payment ID" value={p.paymentId} />
+              <DetailRow label="Razorpay Payment ID" value={p.razorpay_payment_id} />
             </>
           ) : null}
           <Divider />
-          <DetailRow label="Status" value={p.status} />
+          <DetailRow label="Status" value={p.status.toUpperCase()} />
           <Divider />
-          <DetailRow label="Date & Time" value={p.date} />
-          {p.status === 'Refunded' ? (
+          <DetailRow label="Date & Time" value={displayDate} />
+          {p.status === 'refunded' ? (
             <>
               <Divider />
-              <DetailRow label="Refund Reason" value={p.refundReason ?? '—'} />
+              <DetailRow label="Refund Reason" value={p.refund_reason ?? '—'} />
               <Divider />
-              <DetailRow label="Refunded On" value={p.refundedOn ?? '—'} />
+              <DetailRow label="Refunded On" value={p.refunded_at ? new Date(p.refunded_at).toLocaleDateString() : '—'} />
             </>
           ) : null}
         </View>
 
-        {p.status === 'Failed' ? (
+        {p.status === 'failed' ? (
           <View style={[styles.failureCallout, { borderRadius: radius.md, marginTop: space.lg }]}>
             <View style={[StyleSheet.absoluteFill, { backgroundColor: color('semantic/danger'), opacity: 0.12, borderRadius: radius.md }]} />
             <View style={{ padding: space.md }}>
               <Text style={[type['type/overline'], { color: color('semantic/danger') }]}>FAILURE REASON</Text>
               <Text style={[type['type/body-m'], { color: color('text/primary'), marginTop: 4 }]}>
-                {p.failureReason}
+                {p.failure_reason}
               </Text>
             </View>
           </View>

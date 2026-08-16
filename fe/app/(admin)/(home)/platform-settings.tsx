@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CaretLeft } from 'phosphor-react-native';
 import { PrimaryButton, SecondaryButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getPlatformSettingsKYC, setKYCRequired } from '@/src/api/admin';
 
 export default function PlatformSettingsRoute() {
   const { color, type, space, radius } = useTheme();
@@ -12,22 +13,35 @@ export default function PlatformSettingsRoute() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
 
-  const [kycRequired, setKycRequired] = useState(false);
+  const [kycRequired, setKycRequiredState] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    getPlatformSettingsKYC()
+      .then(res => setKycRequiredState(res.required))
+      .catch(() => {});
+  }, []);
 
   const handleToggle = (value: boolean) => {
     if (value) {
       setConfirmOpen(true);
     } else {
-      setKycRequired(false);
-      show('Setting updated', 'success');
+      setKYCRequired(false).then(() => {
+        setKycRequiredState(false);
+        show('Setting updated', 'success');
+      }).catch(() => show('Failed to update setting', 'error'));
     }
   };
 
   const confirmEnable = () => {
-    setKycRequired(true);
-    setConfirmOpen(false);
-    show('Setting updated', 'success');
+    setKYCRequired(true).then(() => {
+      setKycRequiredState(true);
+      setConfirmOpen(false);
+      show('Setting updated', 'success');
+    }).catch(() => {
+      setConfirmOpen(false);
+      show('Failed to update setting', 'error');
+    });
   };
 
   return (

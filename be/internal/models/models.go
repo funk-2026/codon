@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -228,19 +229,19 @@ type Chapter struct {
 }
 
 type SubscriptionPlan struct {
-	ID           uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	Name         string     `gorm:"type:text;not null" json:"name"`
-	CourseID     uuid.UUID  `gorm:"type:uuid;not null" json:"course_id"`
-	Course       Course     `gorm:"foreignKey:CourseID" json:"course,omitempty"`
-	DurationDays int        `gorm:"not null" json:"duration_days"`
-	PricePaise   int64      `gorm:"not null" json:"price_paise"`
-	Currency     string     `gorm:"type:text;not null;default:'INR'" json:"currency"`
-	Benefits     []string   `gorm:"type:text[];serializer:json" json:"benefits,omitempty"`
-	IsActive     bool       `gorm:"not null;default:true" json:"is_active"`
-	CreatedBy    uuid.UUID  `gorm:"type:uuid;not null" json:"created_by"`
-	Creator      User       `gorm:"foreignKey:CreatedBy" json:"-"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID           uuid.UUID      `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	Name         string         `gorm:"type:text;not null" json:"name"`
+	CourseID     uuid.UUID      `gorm:"type:uuid;not null" json:"course_id"`
+	Course       Course         `gorm:"foreignKey:CourseID" json:"course,omitempty"`
+	DurationDays int            `gorm:"not null" json:"duration_days"`
+	PricePaise   int64          `gorm:"not null" json:"price_paise"`
+	Currency     string         `gorm:"type:text;not null;default:'INR'" json:"currency"`
+	Benefits     pq.StringArray `gorm:"type:text[]" json:"benefits,omitempty"`
+	IsActive     bool           `gorm:"not null;default:true" json:"is_active"`
+	CreatedBy    uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
+	Creator      User           `gorm:"foreignKey:CreatedBy" json:"-"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
 }
 
 type Subscription struct {
@@ -262,9 +263,9 @@ type Subscription struct {
 type PaymentRecord struct {
 	ID                 uuid.UUID     `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	UserID             uuid.UUID     `gorm:"type:uuid;not null;index" json:"user_id"`
-	User               User          `gorm:"foreignKey:UserID" json:"-"`
+	User               User          `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	SubscriptionID     *uuid.UUID    `gorm:"type:uuid" json:"subscription_id,omitempty"`
-	Subscription       *Subscription `gorm:"foreignKey:SubscriptionID" json:"-"`
+	Subscription       *Subscription `gorm:"foreignKey:SubscriptionID" json:"subscription,omitempty"`
 	RazorpayOrderID    string        `gorm:"type:text;uniqueIndex;not null" json:"razorpay_order_id"`
 	RazorpayPaymentID  *string       `gorm:"type:text" json:"razorpay_payment_id,omitempty"`
 	RazorpaySignature  *string       `gorm:"type:text" json:"-"`
@@ -290,7 +291,7 @@ type Test struct {
 	ChapterID           *uuid.UUID    `gorm:"type:uuid;index" json:"chapter_id,omitempty"`
 	Chapter             *Chapter      `gorm:"foreignKey:ChapterID" json:"chapter,omitempty"`
 	CreatedBy           uuid.UUID     `gorm:"type:uuid;not null" json:"created_by"`
-	Creator             User          `gorm:"foreignKey:CreatedBy" json:"-"`
+	Creator             User          `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
 	TotalQuestions      int           `gorm:"not null;default:0" json:"total_questions"`
 	DurationMinutes     *int          `json:"duration_minutes,omitempty"`
 	MarksPerCorrect     float64       `gorm:"type:numeric(5,2);not null;default:4" json:"marks_per_correct"`
@@ -360,7 +361,7 @@ type ContentItem struct {
 	ChapterID            uuid.UUID     `gorm:"type:uuid;not null;index" json:"chapter_id"`
 	Chapter              Chapter       `gorm:"foreignKey:ChapterID" json:"chapter,omitempty"`
 	UploadedBy           uuid.UUID     `gorm:"type:uuid;not null" json:"uploaded_by"`
-	Uploader             User          `gorm:"foreignKey:UploadedBy" json:"-"`
+	Uploader             User          `gorm:"foreignKey:UploadedBy" json:"uploader,omitempty"`
 	FileKey              string        `gorm:"type:text;not null" json:"file_key"`
 	VideoStatus          *VideoStatus  `gorm:"type:text" json:"video_status,omitempty"`
 	HLSPlaylistURL       *string       `gorm:"type:text" json:"hls_playlist_url,omitempty"`
@@ -400,7 +401,7 @@ type CSVImportRowError struct {
 type KYCRecord struct {
 	ID              uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	UserID          uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
-	User            User       `gorm:"foreignKey:UserID" json:"-"`
+	User            User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	IDType          IDType     `gorm:"type:text;not null" json:"id_type"`
 	IDNumber        string     `gorm:"type:text;not null" json:"id_number"`
 	DocumentFileKey string     `gorm:"type:text;not null" json:"document_file_key"`

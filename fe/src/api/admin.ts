@@ -11,6 +11,11 @@ export function getAdminDashboardSummary(): Promise<any> {
   return apiFetch<any>('/admin/dashboard/summary', { method: 'GET' });
 }
 
+/** GET /api/v1/admin/analytics */
+export function adminAnalyticsOverview(): Promise<any> {
+  return apiFetch<any>('/admin/analytics', { method: 'GET' });
+}
+
 /** GET /api/v1/admin/users */
 export function listUsers(): Promise<{ users: UserProfile[] }> {
   return apiFetch<{ users: UserProfile[] }>('/admin/users', { method: 'GET' });
@@ -53,6 +58,11 @@ export function updateSubscriptionPlan(id: string, data: Partial<SubscriptionPla
     method: 'PATCH',
     body: JSON.stringify(data),
   });
+}
+
+/** GET /api/v1/admin/subscription-plans */
+export function adminListSubscriptionPlans(): Promise<{ plans: SubscriptionPlan[] }> {
+  return apiFetch<{ plans: SubscriptionPlan[] }>('/admin/subscription-plans', { method: 'GET' });
 }
 
 /** DELETE /api/v1/admin/subscription-plans/:id */
@@ -146,6 +156,11 @@ export function setKYCRequired(required: boolean): Promise<{ message: string }> 
     method: 'PATCH',
     body: JSON.stringify({ required }),
   });
+}
+
+/** GET /api/v1/platform-settings/kyc-required */
+export function getPlatformSettingsKYC(): Promise<{ required: boolean }> {
+  return apiFetch<{ required: boolean }>('/platform-settings/kyc-required', { method: 'GET' });
 }
 
 /** POST /api/v1/admin/courses/:course_id/subjects */

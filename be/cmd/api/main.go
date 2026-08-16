@@ -264,6 +264,7 @@ func main() {
 		admin.PATCH("/chapters/:id", curriculumH.UpdateChapter)
 
 		// Subscription plans
+		admin.GET("/subscription-plans", planH.AdminListPlans)
 		admin.POST("/subscription-plans", planH.CreatePlan)
 		admin.PATCH("/subscription-plans/:id", planH.UpdatePlan)
 		admin.DELETE("/subscription-plans/:id", planH.DeletePlan)
@@ -296,6 +297,7 @@ func main() {
 
 		// Dashboard
 		admin.GET("/dashboard/summary", adminH.DashboardSummary)
+		admin.GET("/analytics", adminH.AnalyticsOverview)
 
 		// Wellness
 		admin.POST("/wellness-content", wellnessH.CreateWellnessContent)

@@ -5,22 +5,8 @@ import { useRouter } from 'expo-router';
 import { Plus } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-
-type Plan = {
-  id: string;
-  name: string;
-  course: string;
-  duration: string;
-  price: number;
-  subscribers: number;
-  active: boolean;
-};
-
-const INITIAL: Plan[] = [
-  { id: 'p3', name: '3 Months', course: 'NEET UG', duration: '3 Months', price: 2999, subscribers: 214, active: true },
-  { id: 'p12', name: '12 Months', course: 'NEET UG', duration: '12 Months', price: 8999, subscribers: 128, active: true },
-  { id: 'p1', name: '1 Month — Trial', course: 'NEET UG', duration: '1 Month', price: 999, subscribers: 12, active: false },
-];
+import { adminListSubscriptionPlans, updateSubscriptionPlan } from '@/src/api/admin';
+import type { SubscriptionPlan } from '@/src/api/profile';
 
 function shadow(): {} {
   return {
@@ -37,22 +23,33 @@ export default function SubscriptionPlanListRoute() {
   const router = useRouter();
   const { show } = useToast();
   const [loading, setLoading] = useState(true);
-  const [plans, setPlans] = useState<Plan[]>(INITIAL);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [tab, setTab] = useState<'Active' | 'Inactive'>('Active');
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
+    adminListSubscriptionPlans()
+      .then(res => setPlans(res.plans || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const filtered = plans.filter((p) => (tab === 'Active' ? p.active : !p.active));
+  const filtered = plans.filter((p) => (tab === 'Active' ? p.is_active : !p.is_active));
 
-  const toggleActive = (id: string) => {
+  const toggleActive = (id: string, currentActive: boolean) => {
     setPlans((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, active: !p.active } : p))
+      prev.map((p) => (p.id === id ? { ...p, is_active: !currentActive } : p))
     );
-    const plan = plans.find((p) => p.id === id);
-    show(plan?.active ? 'Plan deactivated' : 'Plan activated', 'success');
+    updateSubscriptionPlan(id, { is_active: !currentActive })
+      .then(() => {
+        show(!currentActive ? 'Plan activated' : 'Plan deactivated', 'success');
+      })
+      .catch(() => {
+        // revert on failure
+        setPlans((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, is_active: currentActive } : p))
+        );
+        show('Failed to update plan', 'error');
+      });
   };
 
   return (
@@ -106,7 +103,7 @@ export default function SubscriptionPlanListRoute() {
                   backgroundColor: color('bg/surface'),
                   borderRadius: radius.md,
                   padding: space.md,
-                  opacity: p.active ? (pressed ? 0.94 : 1) : 0.7,
+                  opacity: p.is_active ? (pressed ? 0.94 : 1) : 0.7,
                 },
                 shadow(),
               ]}
@@ -114,15 +111,15 @@ export default function SubscriptionPlanListRoute() {
               <View style={{ flex: 1 }}>
                 <Text style={[type['type/h3'], { color: color('text/primary') }]}>{p.name}</Text>
                 <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                  {p.course} · {p.duration} · ₹{p.price.toLocaleString('en-IN')}
+                  {p.duration_days} Days · ₹{(p.price_paise / 100).toLocaleString('en-IN')}
                 </Text>
                 <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
-                  {p.subscribers} active subscribers
+                  — active subscribers
                 </Text>
               </View>
               <Switch
-                value={p.active}
-                onValueChange={() => toggleActive(p.id)}
+                value={p.is_active}
+                onValueChange={() => toggleActive(p.id, p.is_active)}
                 trackColor={{ false: color('border/strong'), true: color('accent/default') }}
                 thumbColor={color('bg/surface')}
               />

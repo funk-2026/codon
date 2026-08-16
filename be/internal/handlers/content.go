@@ -302,7 +302,7 @@ func (h *ContentHandler) AdminListContent(c *gin.Context) {
 	var items []models.ContentItem
 	h.DB.WithContext(c.Request.Context()).
 		Where("status = ?", status).
-		Preload("Course").
+		Preload("Course").Preload("Chapter").Preload("Uploader").
 		Order("created_at DESC").
 		Find(&items)
 	c.JSON(http.StatusOK, listContentResponse{Content: items})

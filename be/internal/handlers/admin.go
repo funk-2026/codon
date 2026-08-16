@@ -178,6 +178,55 @@ func (h *AdminHandler) DashboardSummary(c *gin.Context) {
 	})
 }
 
+// AnalyticsOverview godoc
+//
+//	@Summary		Get admin analytics overview
+//	@Description	Returns analytics data for charts and stats
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{object}	analyticsOverviewResponse
+//	@Failure		401	{object}	errorResponse
+//	@Failure		403	{object}	errorResponse
+//	@Router			/api/v1/admin/analytics [get]
+func (h *AdminHandler) AnalyticsOverview(c *gin.Context) {
+	var userCount, activeSubCount, testsAttempted int64
+	var revenue int64
+
+	h.DB.Model(&models.User{}).Count(&userCount)
+	h.DB.Model(&models.Subscription{}).
+		Where("status = ? AND end_date >= NOW()", models.SubActive).
+		Count(&activeSubCount)
+	
+	// Mock some analytics for now, but in a real app this would query logs/metrics tables
+	testsAttempted = 1204
+	revenue = 42986
+	
+	var publishedTests, publishedContent, publishedBrainHacks, pendingReviews int64
+	h.DB.Model(&models.Test{}).Where("status = ?", models.StatusPublished).Count(&publishedTests)
+	h.DB.Model(&models.ContentItem{}).Where("status = ? AND content_type != ?", models.StatusPublished, "brain_hack").Count(&publishedContent)
+	h.DB.Model(&models.ContentItem{}).Where("status = ? AND content_type = ?", models.StatusPublished, "brain_hack").Count(&publishedBrainHacks)
+	
+	var pt, pc int64
+	h.DB.Model(&models.Test{}).Where("status = ?", models.StatusPendingReview).Count(&pt)
+	h.DB.Model(&models.ContentItem{}).Where("status = ?", models.StatusPendingReview).Count(&pc)
+	pendingReviews = pt + pc
+
+	c.JSON(http.StatusOK, analyticsOverviewResponse{
+		NewUsers:             userCount,
+		Revenue:              revenue,
+		ActiveSubscriptions:  activeSubCount,
+		TestsAttempted:       testsAttempted,
+		RevenueBars:          []int{4, 6, 5, 8, 7, 9, 6},
+		StudentBars:          []int{5, 6, 6, 8, 7, 9, 8},
+		TeacherBars:          []int{1, 1, 0, 1, 0, 1, 1},
+		PublishedTests:       publishedTests,
+		PublishedContent:     publishedContent,
+		PublishedBrainHacks:  publishedBrainHacks,
+		PendingReviews:       pendingReviews,
+	})
+}
+
 // ── Request / Response types ──────────────────────────────────────────────────
 
 type listUsersResponse struct {
@@ -198,4 +247,18 @@ type dashboardSummaryResponse struct {
 	PendingKYC            int64 `json:"pending_kyc"             example:"12"`
 	PendingTestReviews    int64 `json:"pending_test_reviews"    example:"5"`
 	PendingContentReviews int64 `json:"pending_content_reviews" example:"3"`
+}
+
+type analyticsOverviewResponse struct {
+	NewUsers            int64   `json:"new_users"`
+	Revenue             int64   `json:"revenue"`
+	ActiveSubscriptions int64   `json:"active_subscriptions"`
+	TestsAttempted      int64   `json:"tests_attempted"`
+	RevenueBars         []int   `json:"revenue_bars"`
+	StudentBars         []int   `json:"student_bars"`
+	TeacherBars         []int   `json:"teacher_bars"`
+	PublishedTests      int64   `json:"published_tests"`
+	PublishedContent    int64   `json:"published_content"`
+	PublishedBrainHacks int64   `json:"published_brain_hacks"`
+	PendingReviews      int64   `json:"pending_reviews"`
 }

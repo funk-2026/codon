@@ -6,14 +6,11 @@ import RNSvg, { G, Rect } from 'react-native-svg';
 import { CaretLeft } from 'phosphor-react-native';
 import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { adminAnalyticsOverview } from '@/src/api/admin';
 
 type Range = '7D' | '30D' | 'All Time';
 
 const RANGES: Range[] = ['7D', '30D', 'All Time'];
-
-const REVENUE_BARS = [4, 6, 5, 8, 7, 9, 6];
-const STUDENT_BARS = [5, 6, 6, 8, 7, 9, 8];
-const TEACHER_BARS = [1, 1, 0, 1, 0, 1, 1];
 
 function shadow(): {} {
   return {
@@ -59,15 +56,15 @@ function BarChart({
   );
 }
 
-function StackedBarChart({ width, height }: { width: number; height: number }) {
+function StackedBarChart({ width, height, studentBars, teacherBars }: { width: number; height: number; studentBars: number[], teacherBars: number[] }) {
   const { color } = useTheme();
-  const max = Math.max(...STUDENT_BARS.map((s, i) => s + TEACHER_BARS[i]), 1);
+  const max = Math.max(...studentBars.map((s, i) => s + teacherBars[i]), 1);
   const gap = 6;
-  const barWidth = (width - gap * (STUDENT_BARS.length - 1)) / STUDENT_BARS.length;
+  const barWidth = (width - gap * (studentBars.length - 1)) / studentBars.length;
   return (
     <RNSvg width={width} height={height}>
-      {STUDENT_BARS.map((s, i) => {
-        const t = TEACHER_BARS[i];
+      {studentBars.map((s, i) => {
+        const t = teacherBars[i];
         const studentHeight = (s / max) * height;
         const teacherHeight = (t / max) * height;
         const x = i * (barWidth + gap);
@@ -88,11 +85,15 @@ export default function AnalyticsOverviewRoute() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<Range>('7D');
+  const [data, setData] = useState<any>({});
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
-  }, []);
+    setLoading(true);
+    adminAnalyticsOverview()
+      .then(res => setData(res))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [range]);
 
   const chartWidth = 320;
 
@@ -151,10 +152,10 @@ export default function AnalyticsOverviewRoute() {
             </>
           ) : (
             <>
-              <StatTile label="New Users" value="186" delta="+12%" positive />
-              <StatTile label="Revenue" value="₹42,986" delta="+8%" positive />
-              <StatTile label="Active Subscriptions" value="342" delta="+3%" positive />
-              <StatTile label="Tests Attempted" value="1,204" delta="-4%" positive={false} />
+              <StatTile label="New Users" value={String(data?.new_users || 0)} delta="+12%" positive />
+              <StatTile label="Revenue" value={`₹${data?.revenue?.toLocaleString('en-IN') || 0}`} delta="+8%" positive />
+              <StatTile label="Active Subscriptions" value={String(data?.active_subscriptions || 0)} delta="+3%" positive />
+              <StatTile label="Tests Attempted" value={String(data?.tests_attempted || 0)} delta="-4%" positive={false} />
             </>
           )}
         </View>
@@ -167,7 +168,7 @@ export default function AnalyticsOverviewRoute() {
             <SkeletonBlock height={140} radius={radius.lg} />
           ) : (
             <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md }, shadow()]}>
-              <BarChart series={REVENUE_BARS} color={color('accent/default')} width={chartWidth} height={100} />
+              <BarChart series={data?.revenue_bars || [0]} color={color('accent/default')} width={chartWidth} height={100} />
             </View>
           )}
         </View>
@@ -180,7 +181,7 @@ export default function AnalyticsOverviewRoute() {
             <SkeletonBlock height={140} radius={radius.lg} />
           ) : (
             <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md }, shadow()]}>
-              <StackedBarChart width={chartWidth} height={100} />
+              <StackedBarChart width={chartWidth} height={100} studentBars={data?.student_bars || [0]} teacherBars={data?.teacher_bars || [0]} />
               <View style={[styles.legendRow, { gap: space.md, marginTop: space.sm }]}>
                 <LegendItem label="Students" swatch={color('accent/default')} />
                 <LegendItem label="Teachers" swatch={color('semantic/warning')} />
@@ -197,13 +198,13 @@ export default function AnalyticsOverviewRoute() {
             <SkeletonBlock height={92} radius={radius.md} />
           ) : (
             <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}>
-              <ContentStatRow label="Published Tests" value="86" />
+              <ContentStatRow label="Published Tests" value={String(data?.published_tests || 0)} />
               <Divider />
-              <ContentStatRow label="Published Videos & Docs" value="142" />
+              <ContentStatRow label="Published Videos & Docs" value={String(data?.published_content || 0)} />
               <Divider />
-              <ContentStatRow label="Published Brain Hacks" value="34" />
+              <ContentStatRow label="Published Brain Hacks" value={String(data?.published_brain_hacks || 0)} />
               <Divider />
-              <ContentStatRow label="Pending Review" value="6" warn />
+              <ContentStatRow label="Pending Review" value={String(data?.pending_reviews || 0)} warn={data?.pending_reviews > 0} />
             </View>
           )}
         </View>

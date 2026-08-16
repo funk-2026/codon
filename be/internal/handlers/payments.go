@@ -188,7 +188,7 @@ func (h *PaymentHandler) ListPayments(c *gin.Context) {
 	}
 
 	var payments []models.PaymentRecord
-	query.Order("created_at DESC").Find(&payments)
+	query.Preload("User").Preload("Subscription.Plan").Order("created_at DESC").Find(&payments)
 	c.JSON(http.StatusOK, listPaymentsResponse{Payments: payments})
 }
 
@@ -206,7 +206,7 @@ func (h *PaymentHandler) ListPayments(c *gin.Context) {
 func (h *PaymentHandler) GetPayment(c *gin.Context) {
 	id := c.Param("id")
 	var payment models.PaymentRecord
-	if err := h.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&payment).Error; err != nil {
+	if err := h.DB.WithContext(c.Request.Context()).Preload("User").Preload("Subscription.Plan").Where("id = ?", id).First(&payment).Error; err != nil {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "payment not found"})
 		return
 	}

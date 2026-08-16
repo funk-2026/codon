@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -68,6 +69,25 @@ func (h *PlanHandler) ListPlans(c *gin.Context) {
 	h.DB.WithContext(c.Request.Context()).
 		Where("is_active = ?", true).
 		Preload("Course").
+		Order("price_paise ASC").
+		Find(&plans)
+	c.JSON(http.StatusOK, listPlansResponse{Plans: plans})
+}
+
+// AdminListPlans godoc
+//
+//	@Summary		List all subscription plans (Admin)
+//	@Description	Returns all subscription plans, including inactive ones.
+//	@Tags			Subscription Plans
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{object}	listPlansResponse
+//	@Router			/api/v1/admin/subscription-plans [get]
+func (h *PlanHandler) AdminListPlans(c *gin.Context) {
+	var plans []models.SubscriptionPlan
+	h.DB.WithContext(c.Request.Context()).
+		Preload("Course").
+		Order("price_paise ASC").
 		Find(&plans)
 	c.JSON(http.StatusOK, listPlansResponse{Plans: plans})
 }
@@ -105,14 +125,19 @@ func (h *PlanHandler) CreatePlan(c *gin.Context) {
 		currency = "INR"
 	}
 
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
+
 	plan := models.SubscriptionPlan{
 		Name:         req.Name,
 		CourseID:     courseID,
 		DurationDays: req.DurationDays,
 		PricePaise:   req.PricePaise,
 		Currency:     currency,
-		Benefits:     req.Benefits,
-		IsActive:     true,
+		Benefits:     pq.StringArray(req.Benefits),
+		IsActive:     isActive,
 		CreatedBy:    admin.ID,
 	}
 	if err := h.DB.WithContext(c.Request.Context()).Create(&plan).Error; err != nil {
@@ -164,7 +189,7 @@ func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 		updates["currency"] = *req.Currency
 	}
 	if req.Benefits != nil {
-		updates["benefits"] = req.Benefits
+		updates["benefits"] = pq.StringArray(req.Benefits)
 	}
 	if req.IsActive != nil {
 		updates["is_active"] = *req.IsActive
@@ -214,6 +239,7 @@ type createPlanRequest struct {
 	PricePaise   int64    `json:"price_paise"   example:"299900"`
 	Currency     string   `json:"currency"      example:"INR"`
 	Benefits     []string `json:"benefits"      example:"Unlimited Q Bank,Full Test Series,Video Classes"`
+	IsActive     *bool    `json:"is_active"     example:"true"`
 }
 
 type updatePlanRequest struct {

@@ -6,21 +6,8 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { Check, X, CheckCircle } from 'phosphor-react-native';
 import { EmptyState, InputField, PrimaryButton, SkeletonBlock, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-
-type KycEntry = {
-  id: string;
-  name: string;
-  phone: string;
-  idType: 'Aadhaar' | 'PAN';
-  submitted: string;
-};
-
-const INITIAL: KycEntry[] = [
-  { id: 'k1', name: 'Meera Pillai', phone: '+91 90XXXXXX15', idType: 'Aadhaar', submitted: '2 days ago' },
-  { id: 'k2', name: 'Arjun Das', phone: '+91 91XXXXXX32', idType: 'PAN', submitted: '1 day ago' },
-  { id: 'k3', name: 'Nisha Kumar', phone: '+91 92XXXXXX54', idType: 'Aadhaar', submitted: '6 hours ago' },
-  { id: 'k4', name: 'Vikram Singh', phone: '+91 93XXXXXX67', idType: 'Aadhaar', submitted: '2 hours ago' },
-];
+import { adminListKYC, adminApproveKYC, adminRejectKYC } from '@/src/api/admin';
+import type { KYCRecord } from '@/src/api/kyc';
 
 function shadow(): {} {
   return {
@@ -38,7 +25,7 @@ function QueueRow({
   onApprove,
   onReject,
 }: {
-  entry: KycEntry;
+  entry: KYCRecord;
   onOpen: () => void;
   onApprove: () => void;
   onReject: () => void;
@@ -46,6 +33,10 @@ function QueueRow({
   const { color, type, space, radius } = useTheme();
   const opacity = useSharedValue(1);
   const flashStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  const displayName = entry.user?.name || 'Unknown User';
+  const displayPhone = entry.user?.phone_number || 'No Phone';
+  const displayDate = new Date(entry.submitted_at).toLocaleDateString();
 
   return (
     <Animated.View style={flashStyle}>
@@ -58,18 +49,18 @@ function QueueRow({
         ]}
       >
         <View style={{ flex: 1 }}>
-          <Text style={[type['type/h3'], { color: color('text/primary') }]}>{entry.name}</Text>
+          <Text style={[type['type/h3'], { color: color('text/primary') }]}>{displayName}</Text>
           <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            {entry.phone}
+            {displayPhone}
           </Text>
           <View style={styles.metaRow}>
             <View
               style={[styles.idBadge, { backgroundColor: color('bg/sunken'), borderRadius: radius.pill, paddingHorizontal: space.xs }]}
             >
-              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{entry.idType}</Text>
+              <Text style={[type['type/caption'], { color: color('text/secondary'), textTransform: 'capitalize' }]}>{entry.id_type}</Text>
             </View>
             <Text style={[type['type/caption'], { color: color('text/tertiary'), marginLeft: space.xs }]}>
-              {entry.submitted}
+              {displayDate}
             </Text>
           </View>
         </View>
@@ -108,26 +99,43 @@ export default function KycReviewQueueRoute() {
   const { show } = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [entries, setEntries] = useState<KycEntry[]>(INITIAL);
-  const [rejectTarget, setRejectTarget] = useState<KycEntry | null>(null);
+  const [entries, setEntries] = useState<KYCRecord[]>([]);
+  const [rejectTarget, setRejectTarget] = useState<KYCRecord | null>(null);
   const [reason, setReason] = useState('');
 
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
-  }, []);
-
-  const approve = (id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-    show('Approved', 'success');
+  const fetchRecords = () => {
+    adminListKYC('pending')
+      .then(res => setEntries(res.records || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   };
 
-  const confirmReject = () => {
+  useEffect(() => {
+    fetchRecords();
+  }, []);
+
+  const approve = async (id: string) => {
+    try {
+      await adminApproveKYC(id);
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+      show('Approved', 'success');
+    } catch (e) {
+      show('Failed to approve', 'error');
+    }
+  };
+
+  const confirmReject = async () => {
     if (!rejectTarget || reason.trim().length === 0) return;
-    setEntries((prev) => prev.filter((e) => e.id !== rejectTarget.id));
-    setRejectTarget(null);
-    setReason('');
-    show('Rejected', 'success');
+    try {
+      await adminRejectKYC(rejectTarget.id, reason.trim());
+      setEntries((prev) => prev.filter((e) => e.id !== rejectTarget.id));
+      show('Rejected', 'success');
+    } catch (e) {
+      show('Failed to reject', 'error');
+    } finally {
+      setRejectTarget(null);
+      setReason('');
+    }
   };
 
   return (

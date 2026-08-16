@@ -1,19 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CheckCircle, X } from 'phosphor-react-native';
 import { InputField, PrimaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-
-type Course = 'NEET UG' | '9th Standard' | '10th Standard';
-
-const COURSES: Course[] = ['NEET UG', '9th Standard', '10th Standard'];
-
-const EXISTING: Record<string, { name: string; course: Course; days: string; price: string; benefits: string[]; active: boolean }> = {
-  p3: { name: '3 Months', course: 'NEET UG', days: '90', price: '2999', benefits: ['Full Test Series access', 'Complete Q Bank', 'All Video Classes', 'Priority doubt support'], active: true },
-  p12: { name: '12 Months', course: 'NEET UG', days: '365', price: '8999', benefits: ['Full Test Series access', 'Complete Q Bank', 'All Video Classes', 'Priority doubt support', '2 months free vs. quarterly'], active: true },
-};
+import { adminListSubscriptionPlans, createSubscriptionPlan, updateSubscriptionPlan } from '@/src/api/admin';
+import { listCourses } from '@/src/api/courses';
+import type { Course } from '@/src/api/courses';
 
 export default function SubscriptionPlanEditRoute() {
   const { color, type, space, radius } = useTheme();
@@ -21,27 +15,74 @@ export default function SubscriptionPlanEditRoute() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const isEditing = !!id && !!EXISTING[id];
-  const seed = (id && EXISTING[id]) || { name: '', course: 'NEET UG' as Course, days: '', price: '', benefits: [''], active: true };
+  const isEditing = !!id;
 
-  const [name, setName] = useState(seed.name);
-  const [course, setCourse] = useState<Course>(seed.course);
-  const [days, setDays] = useState(seed.days);
-  const [price, setPrice] = useState(seed.price);
-  const [benefits, setBenefits] = useState<string[]>(seed.benefits);
-  const [active, setActive] = useState(seed.active);
+  const [loading, setLoading] = useState(true);
+  const [courses, setCourses] = useState<Course[]>([]);
+  
+  const [name, setName] = useState('');
+  const [courseId, setCourseId] = useState<string>('');
+  const [days, setDays] = useState('');
+  const [price, setPrice] = useState('');
+  const [benefits, setBenefits] = useState<string[]>(['']);
+  const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const valid = name.trim().length > 0 && days.trim().length > 0 && price.trim().length > 0;
+  useEffect(() => {
+    // Fetch courses first
+    listCourses()
+      .then(res => {
+        setCourses(res.courses || []);
+        if (res.courses && res.courses.length > 0 && !isEditing) {
+          setCourseId(res.courses[0].id);
+        }
+      })
+      .then(() => {
+        if (isEditing) {
+          return adminListSubscriptionPlans().then((res) => {
+            const plan = res.plans.find((p) => p.id === id);
+            if (plan) {
+              setName(plan.name);
+              setDays(plan.duration_days.toString());
+              setPrice((plan.price_paise / 100).toString());
+              setBenefits(plan.benefits && plan.benefits.length > 0 ? plan.benefits : ['']);
+              setActive(plan.is_active);
+              setCourseId(plan.course_id);
+            }
+          });
+        }
+      })
+      .catch(() => show('Failed to load data', 'error'))
+      .finally(() => setLoading(false));
+  }, [id, isEditing]);
+
+  const valid = name.trim().length > 0 && days.trim().length > 0 && price.trim().length > 0 && !!courseId && !loading;
 
   const handleSave = () => {
     if (!valid || saving) return;
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      show('Plan saved', 'success');
-      router.replace('/(admin)/(payments)/subscription-plan-list');
-    }, 700);
+    
+    const payload = {
+      name,
+      course_id: courseId,
+      duration_days: parseInt(days, 10),
+      price_paise: parseFloat(price) * 100,
+      currency: 'INR',
+      benefits: benefits.filter((b) => b.trim().length > 0),
+      is_active: active,
+    };
+
+    const req = isEditing ? updateSubscriptionPlan(id!, payload) : createSubscriptionPlan(payload);
+
+    req
+      .then(() => {
+        show('Plan saved', 'success');
+        router.replace('/(admin)/(payments)/subscription-plan-list');
+      })
+      .catch((e) => {
+        show(e.message || 'Failed to save', 'error');
+      })
+      .finally(() => setSaving(false));
   };
 
   const updateBenefit = (i: number, value: string) => {
@@ -88,12 +129,12 @@ export default function SubscriptionPlanEditRoute() {
               Course
             </Text>
             <View style={[styles.chipRow, { gap: space.xs }]}>
-              {COURSES.map((c) => {
-                const activeChip = course === c;
+              {courses.map((c) => {
+                const activeChip = courseId === c.id;
                 return (
                   <Pressable
-                    key={c}
-                    onPress={() => setCourse(c)}
+                    key={c.id}
+                    onPress={() => setCourseId(c.id)}
                     style={[
                       styles.chip,
                       {
@@ -108,7 +149,7 @@ export default function SubscriptionPlanEditRoute() {
                     <Text
                       style={[type['type/body-m-medium'], { color: activeChip ? color('accent/default') : color('text/primary') }]}
                     >
-                      {c}
+                      {c.name}
                     </Text>
                   </Pressable>
                 );

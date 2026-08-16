@@ -1,24 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { PencilSimple, CaretRight } from 'phosphor-react-native';
 import { SecondaryButton, useToast } from '@/src/components';
 import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
+import { useAuth } from '@/src/auth/AuthContext';
+import { updateMe } from '@/src/api/profile';
 
 export default function AdminProfileRoute() {
   const { color, type, space, radius, preference, setPreference } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
+  const auth = useAuth();
+  const user = auth.user;
 
-  const [name, setName] = useState('Sanjay Gupta');
+  const [name, setName] = useState(user?.name || 'Admin');
   const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState(name);
+  const [draftName, setDraftName] = useState(user?.name || 'Admin');
   const [soundEffects, setSoundEffects] = useState(true);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
-  const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2);
+  useEffect(() => {
+    if (user?.name) {
+      setName(user.name);
+      setDraftName(user.name);
+    }
+  }, [user?.name]);
+
+  const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'A';
 
   const segments: { key: ThemePreference; label: string }[] = [
     { key: 'system', label: 'System' },
@@ -26,19 +37,27 @@ export default function AdminProfileRoute() {
     { key: 'dark', label: 'Dark' },
   ];
 
-  const commitName = () => {
+  const commitName = async () => {
     const trimmed = draftName.trim();
     if (trimmed.length > 0 && trimmed !== name) {
       setName(trimmed);
-      show('Profile updated', 'success');
+      try {
+        await updateMe({ name: trimmed });
+        await auth.refreshUser();
+        show('Profile updated', 'success');
+      } catch (e) {
+        show('Failed to update profile', 'error');
+        setName(name);
+      }
     } else {
       setDraftName(name);
     }
     setEditingName(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setLogoutConfirmOpen(false);
+    await auth.signOut();
     router.replace('/phone-entry');
   };
 

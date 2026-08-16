@@ -47,15 +47,24 @@ export default function ModerationVideosDocsRoute() {
   const [items, setItems] = useState<ContentItem[]>([]);
 
   useEffect(() => {
-    adminListContent('pending').then(res => {
-       const mapped: ContentItem[] = res.content.map(c => ({
-          id: c.id,
-          title: c.title,
-          breadcrumb: 'NEET UG · Physics', 
-          type: c.content_type === 'video' ? 'Videos' : 'Documents', 
-          teacher: 'Kavya Iyer', 
-          submitted: 'Just now',
-       }));
+    adminListContent('pending_review').then(res => {
+       const mapped: ContentItem[] = res.content.map(c => {
+          const typeMap: Record<string, Exclude<ContentType, 'All'>> = {
+            'video': 'Videos',
+            'document': 'Documents',
+            'brain_hack': 'Brain Hacks'
+          };
+          const b = [c.course?.title, c.chapter?.title].filter(Boolean).join(' · ');
+          
+          return {
+            id: c.id,
+            title: c.title,
+            breadcrumb: b || null, 
+            type: typeMap[c.content_type] || 'Documents', 
+            teacher: c.uploader?.name || c.uploader?.phone_number || 'Unknown Teacher', 
+            submitted: new Date(c.created_at || Date.now()).toLocaleDateString(),
+          };
+       });
        setItems(mapped);
     }).catch(() => {})
     .finally(() => setLoading(false));

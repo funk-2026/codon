@@ -5,35 +5,19 @@ import { useRouter } from 'expo-router';
 import { MagnifyingGlass } from 'phosphor-react-native';
 import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { listUsers } from '@/src/api/admin';
+import type { UserProfile } from '@/src/api/profile';
 
-type Role = 'Student' | 'Teacher' | 'Admin';
-type KycState = 'pending' | 'verified' | 'action_needed' | null;
-type UserRow = {
-  id: string;
-  name: string;
-  phone: string;
-  role: Role;
-  kyc: KycState;
-};
+type RoleFilter = 'All' | 'student' | 'teacher' | 'admin';
 
-const USERS: UserRow[] = [
-  { id: 'u1', name: 'Aarav Sharma', phone: '+91 98XXXXXX10', role: 'Student', kyc: 'pending' },
-  { id: 'u2', name: 'Priya Nair', phone: '+91 97XXXXXX22', role: 'Student', kyc: 'verified' },
-  { id: 'u3', name: 'Rohan Mehta', phone: '+91 99XXXXXX41', role: 'Student', kyc: null },
-  { id: 'u4', name: 'Kavya Iyer', phone: '+91 96XXXXXX78', role: 'Teacher', kyc: null },
-  { id: 'u5', name: 'Devika Rao', phone: '+91 95XXXXXX63', role: 'Teacher', kyc: null },
-  { id: 'u6', name: 'Sanjay Gupta', phone: '+91 99XXXXXX99', role: 'Admin', kyc: null },
-  { id: 'u7', name: 'Meera Pillai', phone: '+91 90XXXXXX15', role: 'Student', kyc: 'action_needed' },
-];
-
-const FILTERS: { key: 'All' | Role; label: string }[] = [
+const FILTERS: { key: RoleFilter; label: string }[] = [
   { key: 'All', label: 'All' },
-  { key: 'Student', label: 'Students' },
-  { key: 'Teacher', label: 'Teachers' },
-  { key: 'Admin', label: 'Admins' },
+  { key: 'student', label: 'Students' },
+  { key: 'teacher', label: 'Teachers' },
+  { key: 'admin', label: 'Admins' },
 ];
 
-const KYC_DOT_COLOR: Record<Exclude<KycState, null>, 'semantic/warning' | 'semantic/success' | 'semantic/danger'> = {
+const KYC_DOT_COLOR: Record<string, 'semantic/warning' | 'semantic/success' | 'semantic/danger'> = {
   pending: 'semantic/warning',
   verified: 'semantic/success',
   action_needed: 'semantic/danger',
@@ -43,17 +27,22 @@ export default function UserManagementListRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [query, setQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'All' | Role>('All');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('All');
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
+    listUsers()
+      .then(res => setUsers(res.users || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const filtered = USERS.filter((u) => {
+  const filtered = users.filter((u) => {
     if (roleFilter !== 'All' && u.role !== roleFilter) return false;
-    if (query.trim() && !u.name.toLowerCase().includes(query.trim().toLowerCase()) && !u.phone.includes(query.trim())) {
+    const nameMatch = u.name ? u.name.toLowerCase().includes(query.trim().toLowerCase()) : false;
+    const phoneMatch = u.phone_number.includes(query.trim());
+    if (query.trim() && !nameMatch && !phoneMatch) {
       return false;
     }
     return true;
@@ -126,8 +115,10 @@ export default function UserManagementListRoute() {
           </Text>
         ) : (
           filtered.map((u) => {
-            const initials = u.name.split(' ').map((p) => p[0]).join('').slice(0, 2);
-            const isAdmin = u.role === 'Admin';
+            const displayName = u.name || 'Unknown User';
+            const initials = displayName.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
+            const isAdmin = u.role === 'admin';
+            const kycColor = KYC_DOT_COLOR[u.kyc_status] || 'semantic/warning';
             return (
               <Pressable
                 key={u.id}
@@ -147,19 +138,19 @@ export default function UserManagementListRoute() {
                   >
                     <Text style={[type['type/caption'], { color: color('accent/default') }]}>{initials}</Text>
                   </View>
-                  {u.kyc ? (
+                  {u.kyc_status && u.kyc_status !== 'not_required' ? (
                     <View
                       style={[
                         styles.kycDot,
-                        { backgroundColor: color(KYC_DOT_COLOR[u.kyc]), borderColor: color('bg/surface') },
+                        { backgroundColor: color(kycColor), borderColor: color('bg/surface') },
                       ]}
                     />
                   ) : null}
                 </View>
                 <View style={{ flex: 1, marginLeft: space.sm }}>
-                  <Text style={[type['type/h3'], { color: color('text/primary') }]}>{u.name}</Text>
+                  <Text style={[type['type/h3'], { color: color('text/primary') }]}>{displayName}</Text>
                   <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                    {u.phone}
+                    {u.phone_number}
                   </Text>
                 </View>
                 <View
@@ -173,7 +164,7 @@ export default function UserManagementListRoute() {
                   ]}
                 >
                   <Text
-                    style={[type['type/caption'], { color: isAdmin ? color('accent/default') : color('text/secondary') }]}
+                    style={[type['type/caption'], { color: isAdmin ? color('accent/default') : color('text/secondary'), textTransform: 'capitalize' }]}
                   >
                     {u.role}
                   </Text>

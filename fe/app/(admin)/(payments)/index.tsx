@@ -5,33 +5,29 @@ import { useRouter } from 'expo-router';
 import { MagnifyingGlass } from 'phosphor-react-native';
 import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { listPayments } from '@/src/api/admin';
+import type { UserProfile } from '@/src/api/profile';
 
-type Status = 'Captured' | 'Created' | 'Failed' | 'Refunded';
-type StatusFilter = 'All' | 'Captured' | 'Failed' | 'Refunded';
-type Payment = {
+type Status = 'created' | 'captured' | 'failed' | 'refunded';
+type StatusFilter = 'All' | 'created' | 'captured' | 'failed' | 'refunded';
+
+type PaymentRecord = {
   id: string;
-  user: string;
-  plan: string;
-  amount: number;
+  user_id: string;
+  user?: UserProfile;
+  subscription?: { plan?: { title: string } };
+  amount_paise: number;
   status: Status;
-  date: string;
+  created_at: string;
 };
 
-const PAYMENTS: Payment[] = [
-  { id: 'p1', user: 'Aarav Sharma', plan: '3 Months', amount: 2999, status: 'Captured', date: '18 Jul, 10:24 AM' },
-  { id: 'p2', user: 'Priya Nair', plan: '12 Months', amount: 8999, status: 'Captured', date: '18 Jul, 9:02 AM' },
-  { id: 'p3', user: 'Rohan Mehta', plan: '3 Months', amount: 2999, status: 'Failed', date: '17 Jul, 8:44 PM' },
-  { id: 'p4', user: 'Meera Pillai', plan: '3 Months', amount: 2999, status: 'Refunded', date: '15 Jul, 2:10 PM' },
-  { id: 'p5', user: 'Arjun Das', plan: '12 Months', amount: 8999, status: 'Created', date: '18 Jul, 11:01 AM' },
-];
-
-const FILTERS: StatusFilter[] = ['All', 'Captured', 'Failed', 'Refunded'];
+const FILTERS: StatusFilter[] = ['All', 'captured', 'created', 'failed', 'refunded'];
 
 const STATUS_TOKEN: Record<Status, 'semantic/success' | 'text/tertiary' | 'semantic/danger' | 'semantic/warning'> = {
-  Captured: 'semantic/success',
-  Created: 'text/tertiary',
-  Failed: 'semantic/danger',
-  Refunded: 'semantic/warning',
+  captured: 'semantic/success',
+  created: 'text/tertiary',
+  failed: 'semantic/danger',
+  refunded: 'semantic/warning',
 };
 
 function shadow(): {} {
@@ -50,17 +46,25 @@ export default function PaymentRecordsListRoute() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('All');
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
-    return () => clearTimeout(t);
+    listPayments()
+      .then(res => setPayments(res.payments || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const filtered = PAYMENTS.filter((p) => {
+  const filtered = payments.filter((p) => {
     if (filter !== 'All' && p.status !== filter) return false;
-    if (query.trim() && !p.user.toLowerCase().includes(query.trim().toLowerCase())) return false;
+    const userName = p.user?.name?.toLowerCase() || '';
+    if (query.trim() && !userName.includes(query.trim().toLowerCase())) return false;
     return true;
   });
+
+  // Basic totals
+  const totalCaptured = payments.filter(p => p.status === 'captured').reduce((acc, p) => acc + (p.amount_paise / 100), 0);
+  const totalAmount = `₹${totalCaptured.toLocaleString('en-IN')}`;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -126,11 +130,9 @@ export default function PaymentRecordsListRoute() {
             shadow(),
           ]}
         >
-          <SummaryStat label="Today" value="₹5,998" />
+          <SummaryStat label="Captured" value={totalAmount} />
           <View style={[styles.divider, { backgroundColor: color('border/subtle') }]} />
-          <SummaryStat label="This Week" value="₹42,986" />
-          <View style={[styles.divider, { backgroundColor: color('border/subtle') }]} />
-          <SummaryStat label="This Month" value="₹1,68,940" />
+          <SummaryStat label="All Time" value={totalAmount} />
         </View>
       )}
 
@@ -146,39 +148,46 @@ export default function PaymentRecordsListRoute() {
             No payments match &apos;{query}&apos;.
           </Text>
         ) : (
-          filtered.map((p) => (
-            <Pressable
-              key={p.id}
-              onPress={() => router.push({ pathname: '/(admin)/(payments)/payment-detail', params: { id: p.id } })}
-              style={({ pressed }) => [
-                styles.row,
-                { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
-                shadow(),
-              ]}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={[type['type/h3'], { color: color('text/primary') }]}>{p.user}</Text>
-                <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                  {p.plan} · ₹{p.amount.toLocaleString('en-IN')}
-                </Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      borderColor: color(STATUS_TOKEN[p.status]),
-                      borderRadius: radius.pill,
-                      paddingHorizontal: space.xs,
-                    },
-                  ]}
-                >
-                  <Text style={[type['type/caption'], { color: color(STATUS_TOKEN[p.status]) }]}>{p.status}</Text>
+          filtered.map((p) => {
+            const userName = p.user?.name || 'Unknown User';
+            const planName = p.subscription?.plan?.title || 'Unknown Plan';
+            const displayAmount = `₹${(p.amount_paise / 100).toLocaleString('en-IN')}`;
+            const displayDate = new Date(p.created_at).toLocaleDateString();
+
+            return (
+              <Pressable
+                key={p.id}
+                onPress={() => router.push({ pathname: '/(admin)/(payments)/payment-detail', params: { id: p.id } })}
+                style={({ pressed }) => [
+                  styles.row,
+                  { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
+                  shadow(),
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[type['type/h3'], { color: color('text/primary') }]}>{userName}</Text>
+                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
+                    {planName} · {displayAmount}
+                  </Text>
                 </View>
-                <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 4 }]}>{p.date}</Text>
-              </View>
-            </Pressable>
-          ))
+                <View style={{ alignItems: 'flex-end' }}>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {
+                        borderColor: color(STATUS_TOKEN[p.status] || 'text/tertiary'),
+                        borderRadius: radius.pill,
+                        paddingHorizontal: space.xs,
+                      },
+                    ]}
+                  >
+                    <Text style={[type['type/caption'], { color: color(STATUS_TOKEN[p.status] || 'text/tertiary'), textTransform: 'capitalize' }]}>{p.status}</Text>
+                  </View>
+                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 4 }]}>{displayDate}</Text>
+                </View>
+              </Pressable>
+            );
+          })
         )}
       </ScrollView>
     </SafeAreaView>

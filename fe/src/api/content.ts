@@ -1,17 +1,23 @@
 import { apiFetch } from './client';
+import type { UserProfile } from './profile';
+import type { Course, Chapter } from './courses';
 
 export type ContentItem = {
   id: string;
   title: string;
   course_id: string;
+  course?: Course;
   content_type: 'video' | 'document';
   requires_subscription: boolean;
   chapter_id: string;
+  chapter?: Chapter;
   file_key: string;
   video_status?: string;
   hls_playlist_url?: string;
   status: string;
   rejection_reason?: string;
+  uploader?: UserProfile;
+  created_at?: string;
 };
 
 export type ListContentResponse = {

@@ -1,8 +1,10 @@
 import { apiFetch } from './client';
+import type { UserProfile } from './profile';
 
 export type KYCRecord = {
   id: string;
   user_id: string;
+  user?: UserProfile;
   id_type: 'aadhaar' | 'pan';
   id_number: string;
   document_file_key: string;

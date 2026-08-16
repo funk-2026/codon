@@ -1,5 +1,6 @@
 import { apiFetch } from './client';
 import { Course, Subject, Chapter } from './courses';
+import type { UserProfile } from './profile';
 
 export type Test = {
   id: string;
@@ -17,6 +18,8 @@ export type Test = {
   marks_per_correct: number;
   marks_per_wrong: number;
   status: string;
+  creator?: UserProfile;
+  created_at?: string;
 };
 
 export type ListTestsResponse = {
