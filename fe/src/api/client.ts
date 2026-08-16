@@ -8,8 +8,9 @@ import { DeviceEventEmitter } from 'react-native';
  * `Constants.expoConfig?.hostUri` automatically gets your dev machine's LAN IP
  * (e.g. 192.168.x.x) when running Expo Go / physical device.
  */
-const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
-const DEV_HOST = debuggerHost ? debuggerHost.split(':')[0] : '192.168.0.7';
+// const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
+// const DEV_HOST = debuggerHost ? debuggerHost.split(':')[0] : '192.168.0.7';
+const DEV_HOST = '192.168.0.7';
 
 export const API_BASE = __DEV__
   ? `http://${DEV_HOST}:8080/api/v1`

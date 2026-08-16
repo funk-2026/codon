@@ -245,6 +245,10 @@ func main() {
 		teacher.POST("/content/:id/submit-for-review", contentH.SubmitContentForReview)
 		teacher.POST("/content/:id/publish", contentH.PublishContent)
 		teacher.GET("/content", contentH.ListTeacherContent)
+
+		// Curriculum: teachers create chapters (topics) under an existing subject
+		teacher.POST("/subjects/:subject_id/chapters", curriculumH.CreateChapter)
+		teacher.PATCH("/chapters/:id", curriculumH.UpdateChapter)
 	}
 
 	// ─── Wellness (student) ────────────────────────────────────────────────────
@@ -257,11 +261,9 @@ func main() {
 	// ─── Admin routes ─────────────────────────────────────────────────────────
 	admin := api.Group("/admin").Use(auth).Use(middleware.RequireRole(models.RoleAdmin))
 	{
-		// Curriculum
+		// Curriculum: admins create subjects under a course (chapters are teacher-owned, see /teacher group)
 		admin.POST("/courses/:course_id/subjects", curriculumH.CreateSubject)
 		admin.PATCH("/subjects/:id", curriculumH.UpdateSubject)
-		admin.POST("/subjects/:subject_id/chapters", curriculumH.CreateChapter)
-		admin.PATCH("/chapters/:id", curriculumH.UpdateChapter)
 
 		// Subscription plans
 		admin.GET("/subscription-plans", planH.AdminListPlans)

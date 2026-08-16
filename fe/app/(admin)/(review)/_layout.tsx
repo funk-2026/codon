@@ -12,10 +12,6 @@ export default function AdminReviewStack() {
         name="moderation-videos-docs"
         options={{ title: 'Moderation — Videos/Docs' }}
       />
-      <Stack.Screen
-        name="course-structure-approval"
-        options={{ title: 'Course Structure Approval' }}
-      />
       <Stack.Screen name="content-preview-detail" options={{ title: 'Content Preview' }} />
     </Stack>
   );

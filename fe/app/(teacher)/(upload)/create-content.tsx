@@ -24,7 +24,7 @@ export default function CreateContentRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { locationLabel } = useLocalSearchParams<{ locationLabel?: string }>();
+  const { locationLabel, chapterId: pickedChapterId } = useLocalSearchParams<{ locationLabel?: string; chapterId?: string }>();
 
   const [contentType, setContentType] = useState<ContentType>('Video');
   const [pendingTypeSwitch, setPendingTypeSwitch] = useState<ContentType | null>(null);
@@ -56,7 +56,8 @@ export default function CreateContentRoute() {
 
   useEffect(() => {
     if (locationLabel) setLocation(locationLabel);
-  }, [locationLabel]);
+    if (pickedChapterId) setChapterId(pickedChapterId);
+  }, [locationLabel, pickedChapterId]);
 
   useEffect(() => {
     if (contentType !== 'Document' || docBody.trim().length === 0) return;

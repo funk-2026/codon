@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:8080/healthz)",
+      "Bash(grep -rn \"EXPO_PUBLIC\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.json\" -not -path \"*/node_modules/*\" .)",
+      "Bash(ps -p 146701 -o pid,etime,cmd)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8081)",
+      "Bash(curl -s http://localhost:8081)",
+      "Bash(apt-cache policy *)",
+      "Bash(sudo -n true)",
+      "Bash(curl -sI https://go.dev/dl/go1.22.5.linux-amd64.tar.gz)",
+      "Bash(curl -s https://go.dev/dl/?mode=json)",
+      "Bash(curl -s \"https://go.dev/dl/?mode=json\")",
+      "Bash(mkdir -p /tmp/claude-1000/-home-madhu-Downloads-codon-main/a6c9f8e5-fbb9-4202-843e-64473bf7fda9/scratchpad/goroot)",
+      "Bash(curl -sL -o go.tar.gz https://dl.google.com/go/go1.26.6.linux-amd64.tar.gz)",
+      "Bash(tar -xzf go.tar.gz -C goroot --strip-components=1)",
+      "Bash(/tmp/claude-1000/-home-madhu-Downloads-codon-main/a6c9f8e5-fbb9-4202-843e-64473bf7fda9/scratchpad/goroot/bin/go version *)",
+      "Bash(pkill -f \"\\\\./api$\")",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST http://localhost:8080/api/v1/teacher/subjects/__TRACKED_VAR__/chapters -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{\"name\":\"Thermodynamics\",\"description\":\"test chapter\",\"order_index\":1}')",
+      "Bash(curl -s -o /dev/null -w '%{http_code}\\\\n' -X POST http://localhost:8080/api/v1/admin/subjects/__TRACKED_VAR__/chapters -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{\"name\":\"X\",\"description\":\"y\",\"order_index\":1}')",
+      "Bash(curl -s -o /dev/null -w \"web bundle http: %{http_code}\\\\n\" http://localhost:8081)",
+      "Bash(curl -s \"http://localhost:8081/_expo/loading\" -o /dev/null -w \"expo loading: %{http_code}\\\\n\")",
+      "Bash(node -e \"const p = require\\('phosphor-react-native'\\); console.log\\(typeof p.Books, typeof p.TreeStructure\\)\")"
+    ]
+  }
+}

@@ -17,7 +17,11 @@ export default function CreateTestRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { locationLabel, rejected } = useLocalSearchParams<{ locationLabel?: string; rejected?: string }>();
+  const { locationLabel, chapterId: pickedChapterId, rejected } = useLocalSearchParams<{
+    locationLabel?: string;
+    chapterId?: string;
+    rejected?: string;
+  }>();
   const isRejectedEdit = rejected === '1';
 
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -31,6 +35,7 @@ export default function CreateTestRoute() {
   const [marksWrong, setMarksWrong] = useState('-1');
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
+  const [chapterId, setChapterId] = useState<string | null>(null);
   const questionCount = isRejectedEdit ? 20 : 0;
 
   useEffect(() => {
@@ -41,7 +46,8 @@ export default function CreateTestRoute() {
 
   useEffect(() => {
     if (locationLabel) setLocation(locationLabel);
-  }, [locationLabel]);
+    if (pickedChapterId) setChapterId(pickedChapterId);
+  }, [locationLabel, pickedChapterId]);
 
   useEffect(() => {
     if (isRejectedEdit) {
@@ -62,6 +68,7 @@ export default function CreateTestRoute() {
         title,
         course_id: courseId,
         module_type: moduleType === 'Q Bank' ? 'qbank' : moduleType === 'Test Series' ? 'test_series' : 'practice',
+        ...(chapterId ? { chapter_id: chapterId } : {}),
       });
       show('Draft saved', 'success');
       // For MVP, proceed to question builder

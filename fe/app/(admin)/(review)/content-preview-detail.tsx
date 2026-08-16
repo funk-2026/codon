@@ -7,24 +7,21 @@ import { InputField, PrimaryButton, SecondaryButton, StatusBadge, useToast } fro
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminApproveContent, adminRejectContent, adminApproveTest, adminRejectTest } from '@/src/api/admin';
 
-type ItemType = 'test' | 'Videos' | 'Documents' | 'Brain Hacks' | 'Subject' | 'Chapter' | 'Sub-chapter';
+type ItemType = 'test' | 'Videos' | 'Documents' | 'Brain Hacks';
 
-const QUEUES: Record<'test' | 'content' | 'structure', string[]> = {
+const QUEUES: Record<'test' | 'content', string[]> = {
   test: ['t1', 't2', 't3'],
   content: ['c1', 'c2', 'c3'],
-  structure: ['s1', 's2', 's3'],
 };
 
-function queueKindFor(type: ItemType): 'test' | 'content' | 'structure' {
+function queueKindFor(type: ItemType): 'test' | 'content' {
   if (type === 'test') return 'test';
-  if (type === 'Subject' || type === 'Chapter' || type === 'Sub-chapter') return 'structure';
   return 'content';
 }
 
-function originRoute(kind: 'test' | 'content' | 'structure') {
+function originRoute(kind: 'test' | 'content') {
   if (kind === 'test') return '/(admin)/(review)/moderation-tests' as const;
-  if (kind === 'content') return '/(admin)/(review)/moderation-videos-docs' as const;
-  return '/(admin)/(review)/course-structure-approval' as const;
+  return '/(admin)/(review)/moderation-videos-docs' as const;
 }
 
 const SAMPLE_QUESTIONS = [
@@ -129,26 +126,10 @@ export default function ContentPreviewDetailRoute() {
         ? 'Laws of Thermodynamics — Explained'
         : itemType === 'Documents'
           ? 'Entropy — Chapter Notes'
-          : itemType === 'Brain Hacks'
-            ? 'The 2-minute recall trick'
-            : itemType === 'Subject'
-              ? '[new] Zoology'
-              : itemType === 'Chapter'
-                ? '[new] Thermodynamics'
-                : '[new] First Law of Thermodynamics';
+          : 'The 2-minute recall trick';
 
   const breadcrumb =
-    itemType === 'Brain Hacks'
-      ? 'Untethered — Brain Hack'
-      : itemType === 'Subject'
-        ? 'NEET UG'
-        : itemType === 'Chapter'
-          ? 'NEET UG · Physics'
-          : itemType === 'Sub-chapter'
-            ? 'NEET UG · Physics · Thermodynamics'
-            : 'NEET UG · Physics · Thermodynamics';
-
-  const isStructure = kind === 'structure';
+    itemType === 'Brain Hacks' ? 'Untethered — Brain Hack' : 'NEET UG · Physics · Thermodynamics';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -197,7 +178,6 @@ export default function ContentPreviewDetailRoute() {
           {itemType === 'Videos' ? <DetailRow label="Duration" value="12:40" /> : null}
           {itemType === 'Documents' ? <DetailRow label="Length" value="~6 min read" /> : null}
           {itemType === 'Brain Hacks' ? <DetailRow label="Length" value="~2 min read" /> : null}
-          {isStructure ? <DetailRow label="Proposed Level" value={itemType} /> : null}
         </View>
 
         {itemType === 'test' ? (

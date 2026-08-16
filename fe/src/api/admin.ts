@@ -5,6 +5,7 @@ import { ContentItem } from './content';
 import { SubscriptionPlan } from './profile';
 import { KYCRecord } from './kyc';
 import { WellnessContent } from './wellness';
+import { Subject } from './courses';
 
 /** GET /api/v1/admin/dashboard/summary */
 export function getAdminDashboardSummary(): Promise<any> {
@@ -164,17 +165,20 @@ export function getPlatformSettingsKYC(): Promise<{ required: boolean }> {
 }
 
 /** POST /api/v1/admin/courses/:course_id/subjects */
-export function createSubject(courseId: string, name: string, description: string): Promise<any> {
-  return apiFetch<any>(`/admin/courses/${courseId}/subjects`, {
+export function createSubject(courseId: string, name: string, description: string): Promise<Subject> {
+  return apiFetch<Subject>(`/admin/courses/${courseId}/subjects`, {
     method: 'POST',
     body: JSON.stringify({ name, description }),
   });
 }
 
-/** POST /api/v1/admin/subjects/:subject_id/chapters */
-export function createChapter(subjectId: string, name: string, description: string): Promise<any> {
-  return apiFetch<any>(`/admin/subjects/${subjectId}/chapters`, {
-    method: 'POST',
-    body: JSON.stringify({ name, description }),
+/** PATCH /api/v1/admin/subjects/:id */
+export function updateSubject(
+  id: string,
+  fields: Partial<Pick<Subject, 'name' | 'description' | 'order_index'>>
+): Promise<Subject> {
+  return apiFetch<Subject>(`/admin/subjects/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(fields),
   });
 }

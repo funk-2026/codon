@@ -3,18 +3,15 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { CaretLeft, CaretRight, Folder, Plus } from 'phosphor-react-native';
-import { PrimaryButton, SecondaryButton, StatusBadge, type BadgeStatus } from '@/src/components';
+import { PrimaryButton, SecondaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 
 type Level = 'subject' | 'chapter';
-type Status = 'approved' | 'pending' | 'rejected';
 
 type Node = {
   id: string;
   title: string;
   level: Level;
-  status: Status;
-  rejectReason?: string;
   children?: Node[];
 };
 
@@ -27,15 +24,6 @@ function levelNoun(level: Level | 'root'): 'chapter' | 'subject' {
 
 function pluralize(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
-}
-
-function taxonomyBadge(status: Status): { badgeStatus: BadgeStatus; label: string } {
-  const map: Record<Status, { badgeStatus: BadgeStatus; label: string }> = {
-    approved: { badgeStatus: 'published', label: 'Approved' },
-    pending: { badgeStatus: 'pending', label: 'In Review' },
-    rejected: { badgeStatus: 'rejected', label: 'Changes Needed' },
-  };
-  return map[status];
 }
 
 function shadow(): {} {
@@ -74,12 +62,10 @@ export default function CourseStructureManagerRoute() {
               id: sub.id,
               title: sub.name,
               level: 'subject',
-              status: 'approved',
               children: sub.chapters.map((chap: any) => ({
                 id: chap.id,
                 title: chap.name,
                 level: 'chapter',
-                status: 'approved',
                 children: [],
               })),
             }));
@@ -93,7 +79,6 @@ export default function CourseStructureManagerRoute() {
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [rejectedTarget, setRejectedTarget] = useState<Node | null>(null);
 
   const pathIds = useMemo(() => (params.path ? params.path.split('/').filter(Boolean) : []), [params.path]);
 
@@ -113,17 +98,13 @@ export default function CourseStructureManagerRoute() {
 
   const currentLevel: Level | 'root' =
     crumbs.length === 0 ? 'root' : crumbs.length === 1 ? 'subject' : 'chapter';
-  const nextLevel: Level | null =
-    currentLevel === 'root' ? 'subject' : currentLevel === 'subject' ? 'chapter' : null;
-  const addLabel = nextLevel === 'subject' ? 'Add Subject' : 'Add Chapter';
+  // Teachers can only add chapters under an existing subject — subjects are admin-owned.
+  const nextLevel: Level | null = currentLevel === 'subject' ? 'chapter' : null;
+  const addLabel = 'Add Chapter';
   const currentTitle = crumbs.length ? crumbs[crumbs.length - 1].title : 'Subjects';
   const canAddDeeper = nextLevel !== null;
 
   const goDeeper = (node: Node) => {
-    if (node.status === 'rejected') {
-      setRejectedTarget(node);
-      return;
-    }
     const nextPath = pathIds.length ? `${pathIds.join('/')}/${node.id}` : node.id;
     router.push({ pathname: '/(teacher)/(home)/course-structure-manager', params: { path: nextPath, ...extraParams } });
   };
@@ -136,28 +117,27 @@ export default function CourseStructureManagerRoute() {
     router.back();
   };
 
+  // A location is only usable once a specific chapter has been picked — that's
+  // the id content/tests actually attach to. Subject/root level has no chapter id yet.
+  const canUseLocation = pickerMode && currentLevel === 'chapter';
+
   const useThisLocation = () => {
-    const label = crumbs.length ? `${COURSE_NAME} · ${crumbs.map((c) => c.title).join(' · ')}` : COURSE_NAME;
-    router.dismissTo({ pathname: returnTo, params: { locationLabel: label } });
+    if (!canUseLocation) return;
+    const chapterCrumb = crumbs[crumbs.length - 1];
+    const label = `${COURSE_NAME} · ${crumbs.map((c) => c.title).join(' · ')}`;
+    router.dismissTo({ pathname: returnTo, params: { locationLabel: label, chapterId: chapterCrumb.id } });
   };
 
   const submitNewNode = async () => {
-    if (newName.trim().length === 0 || submitting || !nextLevel || !courseId) return;
+    if (newName.trim().length === 0 || submitting || nextLevel !== 'chapter' || !courseId) return;
     setSubmitting(true);
-    
-    try {
-      const adminApi = await import('@/src/api/admin');
-      let newId = '';
-      if (nextLevel === 'subject') {
-        const res = await adminApi.createSubject(courseId, newName.trim(), 'Subject for ' + COURSE_NAME);
-        newId = res.id;
-      } else if (nextLevel === 'chapter') {
-        const subjectId = pathIds[0];
-        const res = await adminApi.createChapter(subjectId, newName.trim(), 'Chapter for ' + newName.trim());
-        newId = res.id;
-      }
 
-      const newNode: Node = { id: newId, title: newName.trim(), level: nextLevel, status: 'approved', children: [] };
+    try {
+      const { createChapter } = await import('@/src/api/courses');
+      const subjectId = pathIds[0];
+      const res = await createChapter(subjectId, newName.trim(), 'Chapter for ' + newName.trim());
+
+      const newNode: Node = { id: res.id, title: newName.trim(), level: 'chapter', children: [] };
 
       setTree((prev) => {
         const insert = (nodes: Node[], depth: number): Node[] => {
@@ -171,24 +151,10 @@ export default function CourseStructureManagerRoute() {
       setAddOpen(false);
       setNewName('');
     } catch (e) {
-       console.error("Failed to create node:", e);
+      console.error('Failed to create chapter:', e);
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const resubmitRejected = () => {
-    if (!rejectedTarget) return;
-    setTree((prev) => {
-      const update = (nodes: Node[]): Node[] =>
-        nodes.map((n) =>
-          n.id === rejectedTarget.id
-            ? { ...n, status: 'pending' as Status, rejectReason: undefined }
-            : { ...n, children: n.children ? update(n.children) : n.children }
-        );
-      return update(prev);
-    });
-    setRejectedTarget(null);
   };
 
   return (
@@ -242,21 +208,16 @@ export default function CourseStructureManagerRoute() {
           <View style={{ alignItems: 'center', paddingVertical: space.xl, gap: space.xs }}>
             <Folder size={28} color={color('text/tertiary')} weight="duotone" />
             <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>
-              Nothing here yet — add the first {levelNoun(currentLevel)}.
+              {currentLevel === 'root'
+                ? 'No subjects yet — ask an admin to set up the course structure.'
+                : `Nothing here yet — add the first ${levelNoun(currentLevel)}.`}
             </Text>
           </View>
         ) : (
           <View style={{ gap: space.xs, paddingBottom: space['3xl'] }}>
             {currentLayer.map((node) => {
-              const badge = taxonomyBadge(node.status);
               const childCount = node.children?.length ?? 0;
-              const pendingChildCount = node.children?.filter((c) => c.status === 'pending').length ?? 0;
-              const countLabel =
-                node.level === 'subject'
-                  ? pendingChildCount > 0
-                    ? `${pluralize(childCount, levelNoun(node.level))} · ${pendingChildCount} in review`
-                    : pluralize(childCount, levelNoun(node.level))
-                  : undefined;
+              const countLabel = node.level === 'subject' ? pluralize(childCount, levelNoun(node.level)) : undefined;
               return (
                 <Pressable
                   key={node.id}
@@ -280,7 +241,6 @@ export default function CourseStructureManagerRoute() {
                       </Text>
                     ) : null}
                   </View>
-                  <StatusBadge status={badge.badgeStatus} label={badge.label} style={{ marginRight: space.xs }} />
                   <CaretRight size={18} color={color('text/tertiary')} />
                 </Pressable>
               );
@@ -291,10 +251,13 @@ export default function CourseStructureManagerRoute() {
 
       {pickerMode ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-          <PrimaryButton
-            label={`Use ${currentTitle === 'Subjects' ? 'NEET UG' : currentTitle}`}
-            onPress={useThisLocation}
-          />
+          {canUseLocation ? (
+            <PrimaryButton label={`Use ${currentTitle}`} onPress={useThisLocation} />
+          ) : (
+            <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'center' }]}>
+              Pick a chapter to continue
+            </Text>
+          )}
         </View>
       ) : (
         <View style={{ height: insets.bottom }} />
@@ -303,7 +266,7 @@ export default function CourseStructureManagerRoute() {
       <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
         <View style={[styles.scrim, { padding: space.lg }]}>
           <View style={[styles.modalCard, { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }]}>
-            <Text style={[type['type/h3'], { color: color('text/primary') }]}>New {levelNoun(currentLevel)}</Text>
+            <Text style={[type['type/h3'], { color: color('text/primary') }]}>New chapter</Text>
             <TextInput
               value={newName}
               onChangeText={setNewName}
@@ -326,30 +289,13 @@ export default function CourseStructureManagerRoute() {
             />
             <View style={{ gap: space.sm, marginTop: space.lg }}>
               <PrimaryButton
-                label="Submit for Review"
+                label="Add Chapter"
                 onPress={submitNewNode}
                 disabled={newName.trim().length === 0}
                 loading={submitting}
               />
               <SecondaryButton label="Cancel" onPress={() => setAddOpen(false)} />
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={!!rejectedTarget} transparent animationType="slide" onRequestClose={() => setRejectedTarget(null)}>
-        <View style={styles.sheetScrim}>
-          <View
-            style={[
-              styles.sheet,
-              { backgroundColor: color('bg/surface'), borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: space.lg, paddingBottom: space.lg + insets.bottom },
-            ]}
-          >
-            <Text style={[type['type/overline'], { color: color('semantic/danger') }]}>REVIEWER FEEDBACK</Text>
-            <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: space.xs }]}>
-              {rejectedTarget?.rejectReason}
-            </Text>
-            <PrimaryButton label="Edit Name & Resubmit" onPress={resubmitRejected} style={{ marginTop: space.lg }} />
           </View>
         </View>
       </Modal>
@@ -366,6 +312,4 @@ const styles = StyleSheet.create({
   rowIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   modalCard: { width: '100%', maxWidth: 400 },
-  sheetScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: {},
 });

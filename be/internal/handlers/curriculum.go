@@ -108,8 +108,8 @@ func (h *CurriculumHandler) UpdateSubject(c *gin.Context) {
 
 // CreateChapter godoc
 //
-//	@Summary		Create a Chapter (Admin)
-//	@Description	Creates a new chapter under a specific subject.
+//	@Summary		Create a Chapter (Teacher)
+//	@Description	Creates a new chapter (topic) under a specific subject. Callable by teachers and admins.
 //	@Tags			Curriculum
 //	@Security		BearerAuth
 //	@Accept			json
@@ -119,7 +119,7 @@ func (h *CurriculumHandler) UpdateSubject(c *gin.Context) {
 //	@Success		201			{object}	models.Chapter
 //	@Failure		400			{object}	errorResponse
 //	@Failure		404			{object}	errorResponse
-//	@Router			/api/v1/admin/subjects/{subject_id}/chapters [post]
+//	@Router			/api/v1/teacher/subjects/{subject_id}/chapters [post]
 func (h *CurriculumHandler) CreateChapter(c *gin.Context) {
 	subjectID, err := uuid.Parse(c.Param("subject_id"))
 	if err != nil {
@@ -155,8 +155,8 @@ func (h *CurriculumHandler) CreateChapter(c *gin.Context) {
 
 // UpdateChapter godoc
 //
-//	@Summary		Update a Chapter (Admin)
-//	@Description	Partially updates a chapter.
+//	@Summary		Update a Chapter (Teacher)
+//	@Description	Partially updates a chapter. Callable by teachers and admins.
 //	@Tags			Curriculum
 //	@Security		BearerAuth
 //	@Accept			json
@@ -166,7 +166,7 @@ func (h *CurriculumHandler) CreateChapter(c *gin.Context) {
 //	@Success		200		{object}	models.Chapter
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
-//	@Router			/api/v1/admin/chapters/{id} [patch]
+//	@Router			/api/v1/teacher/chapters/{id} [patch]
 func (h *CurriculumHandler) UpdateChapter(c *gin.Context) {
 	id := c.Param("id")
 
