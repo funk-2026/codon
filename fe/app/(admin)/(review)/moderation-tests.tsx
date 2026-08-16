@@ -16,6 +16,9 @@ type TestItem = {
   module: Exclude<ModuleType, 'All'>;
   teacher: string;
   submitted: string;
+  durationMinutes?: number;
+  marksCorrect: number;
+  marksWrong: number;
 };
 
 
@@ -52,11 +55,14 @@ export default function ModerationTestsRoute() {
           return {
             id: t.id,
             title: t.title,
-            breadcrumb: b || 'Unknown', 
-            questionCount: t.total_questions || 0, 
-            module: moduleMap[t.module_type] || 'Practice', 
-            teacher: t.creator?.name || t.creator?.phone_number || 'Unknown Teacher', 
+            breadcrumb: b || 'Unknown',
+            questionCount: t.total_questions || 0,
+            module: moduleMap[t.module_type] || 'Practice',
+            teacher: t.creator?.name || t.creator?.phone_number || 'Unknown Teacher',
             submitted: new Date(t.created_at || Date.now()).toLocaleDateString(),
+            durationMinutes: t.duration_minutes,
+            marksCorrect: t.marks_per_correct,
+            marksWrong: t.marks_per_wrong,
           };
        });
        setItems(mapped);
@@ -129,7 +135,22 @@ export default function ModerationTestsRoute() {
             <Pressable
               key={item.id}
               onPress={() =>
-                router.push({ pathname: '/(admin)/(review)/content-preview-detail', params: { id: item.id, type: 'test' } })
+                router.push({
+                  pathname: '/(admin)/(review)/content-preview-detail',
+                  params: {
+                    id: item.id,
+                    type: 'test',
+                    title: item.title,
+                    breadcrumb: item.breadcrumb,
+                    teacher: item.teacher,
+                    submitted: item.submitted,
+                    moduleType: item.module,
+                    questionCount: String(item.questionCount),
+                    durationMinutes: item.durationMinutes != null ? String(item.durationMinutes) : '',
+                    marksCorrect: String(item.marksCorrect),
+                    marksWrong: String(item.marksWrong),
+                  },
+                })
               }
               style={({ pressed }) => [
                 styles.row,

@@ -43,6 +43,14 @@ export function updateUserRole(id: string, role: string): Promise<{ message: str
   });
 }
 
+/** PATCH /api/v1/admin/users/:id/teacher-permissions */
+export function updateTeacherPermissions(id: string, canManageAllContent: boolean): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/admin/users/${id}/teacher-permissions`, {
+    method: 'PATCH',
+    body: JSON.stringify({ can_manage_all_content: canManageAllContent }),
+  });
+}
+
 /** GET /api/v1/admin/payments */
 export function listPayments(): Promise<any> {
   return apiFetch<any>('/admin/payments', { method: 'GET' });

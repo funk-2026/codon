@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { CaretLeft, CaretRight, Shield } from 'phosphor-react-native';
 import { PrimaryButton, SecondaryButton, StatusBadge, useToast, SkeletonBlock, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { getUser, updateUserRole, adminListKYC } from '@/src/api/admin';
+import { getUser, updateUserRole, updateTeacherPermissions, adminListKYC } from '@/src/api/admin';
 import type { UserProfile } from '@/src/api/profile';
 
 type Role = 'student' | 'teacher' | 'admin';
@@ -24,15 +24,34 @@ export default function UserDetailRoute() {
   const [pendingRole, setPendingRole] = useState<Role | null>(null);
   const [roleUpdating, setRoleUpdating] = useState(false);
   const [canManageAllContent, setCanManageAllContent] = useState(false);
+  const [permUpdating, setPermUpdating] = useState(false);
   const [kycNavLoading, setKycNavLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     getUser(id)
-      .then(res => setUser(res))
+      .then(res => {
+        setUser(res);
+        setCanManageAllContent(res.can_manage_all_content);
+      })
       .catch(() => show('Failed to load user', 'error'))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const toggleCanManageAllContent = async (value: boolean) => {
+    if (!user || permUpdating) return;
+    const previous = canManageAllContent;
+    setCanManageAllContent(value);
+    setPermUpdating(true);
+    try {
+      await updateTeacherPermissions(user.id, value);
+    } catch (e) {
+      setCanManageAllContent(previous);
+      show('Failed to update permission', 'error');
+    } finally {
+      setPermUpdating(false);
+    }
+  };
 
   const confirmRoleChange = async () => {
     if (!pendingRole || !user) return;
@@ -181,7 +200,8 @@ export default function UserDetailRoute() {
             </View>
             <Switch
               value={canManageAllContent}
-              onValueChange={setCanManageAllContent}
+              onValueChange={toggleCanManageAllContent}
+              disabled={permUpdating}
               trackColor={{ false: color('border/strong'), true: color('accent/default') }}
               thumbColor={color('bg/surface')}
             />
@@ -195,11 +215,13 @@ export default function UserDetailRoute() {
             ]}
           >
             <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Course</Text>
-            <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: 2 }]}>NEET UG</Text>
+            <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: 2 }]}>
+              {user.selected_course?.name || 'No course selected'}
+            </Text>
             <View style={{ height: 1, backgroundColor: color('border/subtle'), marginVertical: space.sm }} />
             <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Subscription</Text>
-            <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: 2 }]}>
-              NEET UG Pro — active until 14 Mar 2027
+            <Text style={[type['type/body-m'], { color: color('text/tertiary'), marginTop: 2 }]}>
+              Not available in this view yet
             </Text>
           </View>
         ) : null}
@@ -235,9 +257,12 @@ export default function UserDetailRoute() {
             { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
           ]}
         >
-          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>1 active device</Text>
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            Last active recently
+          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Last login</Text>
+          <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: 2 }]}>
+            {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'Never'}
+          </Text>
+          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
+            Active device count isn&apos;t available in this view yet
           </Text>
         </View>
       </ScrollView>

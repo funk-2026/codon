@@ -1,49 +1,62 @@
-# FE 
+# Codon — Todos
 
-## P0
-- ~~Need to store the accessToken got from the backend in secure storage on FE~~ ✅
-- ~~Color func from themeProvider is used directly in reanimated, in many places - need to fix that.~~ ✅
-- ~~Need to fix the transition of the screens when navigating~~ ✅ — no Stack anywhere set an `animation` option, so every navigator fell back to react-native-screens' default (an unanimated cut on web, inconsistent on Android). Added a shared `stackAnimation` constant (`src/components/ThemedStack.tsx`) — `slide_from_right` on native, `fade` on web — applied via `useStackScreenOptions()` everywhere, plus the root stack in `app/_layout.tsx`. Native (iOS/Android) transition feel not visually verified in this environment — no device/simulator available, only the web preview.
-- ~~Navigation Fix~~ ✅
-- ~~Admin course structure (includes courses, subjects, topics)~~ ✅ — revised flow: Admin creates Subjects only (Manage Subjects screen on Admin home). Teacher creates Chapters/Topics under an existing Subject and uploads content under them (Course Structure Manager on Teacher home). No approval step for structure, only content/tests keep their existing review workflow.
-- ~~UI for creatint a subjects for each of the course, topics for each of the subject. in admin panel.~~ ✅ — Subjects UI is in the Admin panel; Topics (Chapters) UI ended up on the Teacher side per the flow above, not the admin panel.
-- ~~Location picker (course/subject/topic) when creating Test/Content didn't actually save the picked topic — it only showed a label, chapter_id was never sent to the backend.~~ ✅ fixed
-- ~~Navigation and dashboard fix for Admin.~~ ✅ — dashboard was reading a `pending_reviews` field that doesn't exist on the backend response (it actually returns `pending_test_reviews` + `pending_content_reviews` separately), so the "Pending Reviews" tile, the "items need review" banner, and the Test Approvals badge were always stuck at 0. Fixed field mapping in `src/api/admin.ts`/`(admin)/(home)/index.tsx`, and gave the Content Approvals card its own badge (it had none before).
-- ~~When clicking on user in Admin Panel, getting a blank page~~ ✅ — `getUser` in `src/api/admin.ts` now expects the raw user object (matching what the backend actually returns) instead of `{ user: ... }`.
-- ~~User Detail screen: type error — `StatusBadge status` gets passed `'error'` for KYC action-needed state, but `BadgeStatus` type doesn't include `'error'`~~ ✅ — backend only ever sends `pending`/`approved`/`rejected`, which are already valid `BadgeStatus` values directly. Also fixed the same wrong status names (`verified`/`action_needed`) in the Users list KYC dot color.
-- ~~Payments always show "Unknown Plan"~~ ✅ — `payment-detail.tsx`/`(payments)/index.tsx` read `plan.title`, backend field is `plan.name`.
-- ~~Admin "Test/Content Approvals" location breadcrumb showed nothing~~ ✅ — same `.title` vs `.name` bug in `moderation-tests.tsx`/`moderation-videos-docs.tsx` (this was the pre-existing tsc error). `tsc --noEmit` is now fully clean, 0 errors.
-- ~~KYC review detail screen was fully mock data, Approve/Reject didn't call the real endpoints~~ ✅ — now fetches the real record (across pending/approved/rejected, since there's no get-by-id endpoint) and calls `adminApproveKYC`/`adminRejectKYC` for real.
-- ~~Broken KYC deep-link from User Detail (no id passed)~~ ✅ — now looks up the student's KYC record and navigates with a real id.
-- ~~Admin (and Teacher) Give Feedback screens faked success and discarded what was typed~~ ✅ — now call the real `submitFeedback()` API (Student's version was already correct; Admin and Teacher were not).
-- User Detail screen: "Can manage all content" switch and the student's subscription/device info are hardcoded placeholders, not wired to real data. Backend endpoint for the switch (`PATCH /admin/users/:id/teacher-permissions`) already exists but has no frontend wrapper yet.
-- Content/Test review screen (`content-preview-detail.tsx`) shows fake sample content while Approve/Reject act on the real item — backend has no `GET /admin/{tests,content}/:id` route to fetch the real detail, so this is backend-blocked.
-- 
+## FE
 
+### Blocked on BE
+- **P0** — User Detail: subscription plan and active-device count aren't shown (real course + last login are; see BE-1 / BE-2 below).
+- **P0** — Content/Test review screen: no full question list, video playback, or document body preview — approve/reject work on the real item, but reviewers only see summary metadata (see BE-3 below).
 
-## P2
-- ~~Errors can be shown in form of Toasts~~ ✅ — already wired via `ToastProvider`/`useToast`, used across ~20 screens.
+### Open
+- None right now — everything else is done or waiting on the backend items above.
 
+### Done
+- Store the access token from the backend in secure storage.
+- Fix `ThemeProvider`'s color func being used directly in reanimated in many places.
+- Fix screen transitions — no `Stack` set an `animation` option anywhere; added a shared `stackAnimation` constant (`src/components/ThemedStack.tsx`, `slide_from_right` native / `fade` web) via `useStackScreenOptions()`. *Native feel not visually verified — no device/simulator in this environment, only web.*
+- Navigation fix.
+- Course structure rework: Admin creates **Subjects** only (`(admin)/(home)/manage-subjects.tsx`); Teacher creates **Chapters/Topics** under a Subject and uploads content under them (`(teacher)/(home)/course-structure-manager.tsx`). No approval step on structure — only content/tests keep the existing review workflow.
+- Location picker (course → subject → topic) for Test/Content creation now actually saves the picked chapter — it used to only show a label, `chapter_id` was never sent to the backend.
+- Admin dashboard summary — was reading a `pending_reviews` field the backend doesn't send (real fields are `pending_test_reviews` + `pending_content_reviews`); Pending Reviews tile, review banner, and Test/Content Approval badges were all stuck at 0.
+- Admin → User Detail blank page — `getUser()` expected a `{ user }` wrapper the backend doesn't send.
+- KYC status values — code checked for `verified`/`action_needed`, backend only ever sends `pending`/`approved`/`rejected` (User Detail badge, Users list dot color). Fixing this also cleared a pre-existing `tsc` error.
+- Payments always showing "Unknown Plan" — read `plan.title`, backend field is `plan.name` (`payment-detail.tsx`, `(payments)/index.tsx`).
+- Same `.title`/`.name` mismatch in `moderation-tests.tsx` / `moderation-videos-docs.tsx` breadcrumbs — this was the other pre-existing `tsc` error. `tsc --noEmit` is now fully clean.
+- KYC review detail screen was 100% mock data with fake Approve/Reject — now fetches the real record and calls `adminApproveKYC`/`adminRejectKYC`.
+- Broken KYC deep-link from User Detail (navigated with no id) — now looks up the student's real record first.
+- Admin + Teacher "Give Feedback" screens faked success and discarded input — now call the real `submitFeedback()` API (Student's version already did this correctly).
+- User Detail "Can manage all content" switch was a hardcoded placeholder — added `updateTeacherPermissions()`, switch now reads/persists the real value.
+- User Detail Course + "Last login" — both were hardcoded; `GetUser` already returns `selected_course` and `last_login_at`, just wasn't being used.
+- Content/Test review screen — title, breadcrumb, teacher, submitted date, module type, question count, duration, and marking are now the real values passed from the review-queue list (which already had them). Removed the fake "queue position" counter and replaced the dead fake video-player/question-list with an honest "not available yet" notice.
+- Toasts for errors — already fully wired via `ToastProvider`/`useToast` across ~20 screens, nothing to do.
 
+---
 
-# BE 
+## BE
 
-## P0
-- ~~Need to figure out how to call the APis from the backend that is running on my computer~~ ✅
-- ~~Need to check the access of the creating the subjects, etc..~~ ✅
+### New asks from FE
+_Found while wiring the Admin panel to real data — everything else there is done, these are the last gaps._
 
-- Prod sanity pending - Need atleast a week to do that 
-    - Need to Do OTP delivering
-    - Payments
-    - Redis working
-    - Subscription based access to users 
-    - S3 working or not, playing videos from S3 ??
-    - Uploading content by teachers working or not ??
+- **BE-1** — `GET /admin/users/:id/subscription`: a student's active subscription (plan name, status, start/end date). `GET /me/subscription` exists but is self-service only.
+- **BE-2** — `GET /admin/users/:id/sessions`: a user's active device sessions, or at least a count. `GET /auth/sessions` exists but is self-service only.
+- **BE-3** — `GET /admin/tests/:id` and `GET /admin/content/:id`: full detail for a single pending-review item (questions with options/answers; document body / video URL), admin-role accessible. The frontend already has client stubs for these (`adminGetTest`/`adminGetContent` in `src/api/admin.ts`, marked "Requires BE implementation") — just needs the routes registered in `main.go`. Note: `GET /tests/:id/questions` and `GET /content/:id` already exist but are gated to `RoleStudent` only — admins get a 403 today.
 
-## P1
-- Need to check what happens to sessions when the app is uninstalled.
+### Open
 
+**P0**
+- Prod sanity pass pending — need at least a week:
+  - OTP delivery
+  - Payments
+  - Redis
+  - Subscription-gated access for users
+  - S3 / video playback from S3
+  - Teacher content upload — working end to end?
 
-## P2
-- Need to move to an ORM instead of SQL queries.
+**P1**
+- Check what happens to sessions when the app is uninstalled.
 
+**P2**
+- Move to an ORM instead of raw SQL queries.
+
+### Done
+- Figured out how to call the APIs from the backend running locally.
+- Checked access control on subject/chapter creation.

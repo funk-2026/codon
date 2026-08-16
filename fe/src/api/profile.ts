@@ -7,8 +7,11 @@ export type UserProfile = {
   role: 'student' | 'teacher' | 'admin';
   profile_photo_key: string | null;
   selected_course_id: string | null;
+  selected_course?: Course;
+  can_manage_all_content: boolean;
   kyc_status: string;
   created_at: string;
+  last_login_at?: string;
 };
 
 export type SubscriptionPlan = {

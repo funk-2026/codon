@@ -137,7 +137,17 @@ export default function ModerationVideosDocsRoute() {
               <Pressable
                 key={item.id}
                 onPress={() =>
-                  router.push({ pathname: '/(admin)/(review)/content-preview-detail', params: { id: item.id, type: item.type } })
+                  router.push({
+                    pathname: '/(admin)/(review)/content-preview-detail',
+                    params: {
+                      id: item.id,
+                      type: item.type,
+                      title: item.title,
+                      breadcrumb: item.breadcrumb ?? '',
+                      teacher: item.teacher,
+                      submitted: item.submitted,
+                    },
+                  })
                 }
                 style={({ pressed }) => [
                   styles.row,
