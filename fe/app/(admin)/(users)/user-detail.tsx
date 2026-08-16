@@ -28,10 +28,7 @@ export default function UserDetailRoute() {
   useEffect(() => {
     if (!id) return;
     getUser(id)
-      .then(res => {
-        setUser(res.user);
-        // Note: can_manage_all_content would need to be fetched/handled similarly if exposed
-      })
+      .then(res => setUser(res))
       .catch(() => show('Failed to load user', 'error'))
       .finally(() => setLoading(false));
   }, [id]);

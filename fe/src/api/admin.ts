@@ -22,9 +22,9 @@ export function listUsers(): Promise<{ users: UserProfile[] }> {
   return apiFetch<{ users: UserProfile[] }>('/admin/users', { method: 'GET' });
 }
 
-/** GET /api/v1/admin/users/:id */
-export function getUser(id: string): Promise<{ user: UserProfile }> {
-  return apiFetch<{ user: UserProfile }>(`/admin/users/${id}`, { method: 'GET' });
+/** GET /api/v1/admin/users/:id — backend returns the raw user object, not wrapped */
+export function getUser(id: string): Promise<UserProfile> {
+  return apiFetch<UserProfile>(`/admin/users/${id}`, { method: 'GET' });
 }
 
 /** PATCH /api/v1/admin/users/:id/role */

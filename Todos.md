@@ -5,15 +5,16 @@
 - ~~Color func from themeProvider is used directly in reanimated, in many places - need to fix that.~~ ✅
 - Need to fix the transition of the screens when navigating
 - ~~Navigation Fix~~ ✅
-- Admin course structure (includes courses, subjects, topics) - No need for approval here as admin can only create them, teachers just upload content for each of them, thats all 
+- ~~Admin course structure (includes courses, subjects, topics)~~ ✅ — revised flow: Admin creates Subjects only (Manage Subjects screen on Admin home). Teacher creates Chapters/Topics under an existing Subject and uploads content under them (Course Structure Manager on Teacher home). No approval step for structure, only content/tests keep their existing review workflow.
+- ~~UI for creatint a subjects for each of the course, topics for each of the subject. in admin panel.~~ ✅ — Subjects UI is in the Admin panel; Topics (Chapters) UI ended up on the Teacher side per the flow above, not the admin panel.
+- ~~Location picker (course/subject/topic) when creating Test/Content didn't actually save the picked topic — it only showed a label, chapter_id was never sent to the backend.~~ ✅ fixed
 - Navigation and dashboard fix for Admin. 
-- When clicking on user in Admin Panel, getting a blank page 
-- UI for creatint a subjects for each of the course, topics for each of the subject. in admin panel. 
+- ~~When clicking on user in Admin Panel, getting a blank page~~ ✅ — `getUser` in `src/api/admin.ts` now expects the raw user object (matching what the backend actually returns) instead of `{ user: ... }`.
 - 
 
 
 ## P2
-- Errors can be shown in form of Toasts
+- ~~Errors can be shown in form of Toasts~~ ✅ — already wired via `ToastProvider`/`useToast`, used across ~20 screens.
 
 
 
