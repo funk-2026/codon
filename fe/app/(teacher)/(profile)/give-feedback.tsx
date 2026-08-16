@@ -3,8 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CaretLeft, Camera, CheckCircle, X } from 'phosphor-react-native';
-import { InputField, PrimaryButton, TextButton } from '@/src/components';
+import { InputField, PrimaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { submitFeedback } from '@/src/api/feedback';
 
 const CATEGORIES = ['Bug', 'Content Issue', 'Suggestion', 'Something Else'] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -13,6 +14,7 @@ export default function TeacherGiveFeedbackRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { show } = useToast();
 
   const [category, setCategory] = useState<Category | null>(null);
   const [message, setMessage] = useState('');
@@ -22,13 +24,17 @@ export default function TeacherGiveFeedbackRoute() {
 
   const valid = !!category && message.trim().length > 0;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!valid || submitting) return;
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await submitFeedback({ category, message });
       setSubmitted(true);
-    }, 700);
+    } catch (err) {
+      show('Failed to submit feedback. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (

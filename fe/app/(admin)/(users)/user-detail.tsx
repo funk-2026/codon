@@ -3,9 +3,9 @@ import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 're
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { CaretLeft, CaretRight, Shield } from 'phosphor-react-native';
-import { PrimaryButton, SecondaryButton, StatusBadge, useToast, SkeletonBlock } from '@/src/components';
+import { PrimaryButton, SecondaryButton, StatusBadge, useToast, SkeletonBlock, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { getUser, updateUserRole } from '@/src/api/admin';
+import { getUser, updateUserRole, adminListKYC } from '@/src/api/admin';
 import type { UserProfile } from '@/src/api/profile';
 
 type Role = 'student' | 'teacher' | 'admin';
@@ -24,6 +24,7 @@ export default function UserDetailRoute() {
   const [pendingRole, setPendingRole] = useState<Role | null>(null);
   const [roleUpdating, setRoleUpdating] = useState(false);
   const [canManageAllContent, setCanManageAllContent] = useState(false);
+  const [kycNavLoading, setKycNavLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -45,6 +46,32 @@ export default function UserDetailRoute() {
     } finally {
       setRoleUpdating(false);
       setPendingRole(null);
+    }
+  };
+
+  const goToKycReview = async () => {
+    if (!user || kycNavLoading) return;
+    setKycNavLoading(true);
+    try {
+      // There's no "get KYC record by user id" endpoint — the admin list endpoint
+      // is filtered by status, so look across all three to find this user's record.
+      const [pending, approved, rejected] = await Promise.all([
+        adminListKYC('pending'),
+        adminListKYC('approved'),
+        adminListKYC('rejected'),
+      ]);
+      const record = [...pending.records, ...approved.records, ...rejected.records].find(
+        (r) => r.user_id === user.id
+      );
+      if (!record) {
+        show('No KYC record found for this user', 'error');
+        return;
+      }
+      router.push({ pathname: '/(admin)/(review)/kyc-review-detail', params: { id: record.id, from: 'user-detail' } });
+    } catch (e) {
+      show('Failed to load KYC record', 'error');
+    } finally {
+      setKycNavLoading(false);
     }
   };
 
@@ -179,10 +206,11 @@ export default function UserDetailRoute() {
 
         {user.role === 'student' ? (
           <Pressable
-            onPress={() => router.push('/(admin)/(review)/kyc-review-detail')}
+            onPress={goToKycReview}
+            disabled={kycNavLoading}
             style={({ pressed }) => [
               styles.row,
-              { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg, opacity: pressed ? 0.94 : 1 },
+              { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg, opacity: pressed || kycNavLoading ? 0.94 : 1 },
             ]}
           >
             <Shield size={20} color={color('text/secondary')} />
@@ -190,7 +218,13 @@ export default function UserDetailRoute() {
               Identity Verification
             </Text>
             {user.kyc_status && user.kyc_status !== 'not_required' ? (
-              <StatusBadge status={user.kyc_status === 'verified' ? 'success' : user.kyc_status === 'action_needed' ? 'error' : 'pending'} label={user.kyc_status.replace('_', ' ')} />
+              <StatusBadge
+                status={
+                  (user.kyc_status === 'approved' || user.kyc_status === 'rejected'
+                    ? user.kyc_status
+                    : 'pending') as BadgeStatus
+                }
+              />
             ) : null}
             <CaretRight size={18} color={color('text/tertiary')} style={{ marginLeft: space.xs }} />
           </Pressable>

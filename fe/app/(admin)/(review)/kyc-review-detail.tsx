@@ -1,27 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, IdentificationCard } from 'phosphor-react-native';
-import { InputField, PrimaryButton, SecondaryButton, useToast } from '@/src/components';
+import { EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { adminListKYC, adminApproveKYC, adminRejectKYC } from '@/src/api/admin';
+import type { KYCRecord } from '@/src/api/kyc';
 
-type KycEntry = {
-  id: string;
-  name: string;
-  phone: string;
-  course: string;
-  idType: 'Aadhaar' | 'PAN';
-  idNumber: string;
-  submitted: string;
+const ID_TYPE_LABEL: Record<KYCRecord['id_type'], string> = {
+  aadhaar: 'Aadhaar',
+  pan: 'PAN',
 };
-
-const QUEUE: KycEntry[] = [
-  { id: 'k1', name: 'Meera Pillai', phone: '+91 90XXXXXX15', course: 'NEET UG', idType: 'Aadhaar', idNumber: 'XXXX XXXX 4821', submitted: '16 Jul 2026' },
-  { id: 'k2', name: 'Arjun Das', phone: '+91 91XXXXXX32', course: '10th Standard', idType: 'PAN', idNumber: 'ABCDE1234F', submitted: '17 Jul 2026' },
-  { id: 'k3', name: 'Nisha Kumar', phone: '+91 92XXXXXX54', course: 'NEET UG', idType: 'Aadhaar', idNumber: 'XXXX XXXX 7710', submitted: '18 Jul 2026' },
-  { id: 'k4', name: 'Vikram Singh', phone: '+91 93XXXXXX67', course: 'NEET UG', idType: 'Aadhaar', idNumber: 'XXXX XXXX 3392', submitted: '18 Jul 2026' },
-];
 
 export default function KycReviewDetailRoute() {
   const { color, type, space, radius } = useTheme();
@@ -29,46 +19,91 @@ export default function KycReviewDetailRoute() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { id, from } = useLocalSearchParams<{ id?: string; from?: string }>();
-  const fromQueue = from === 'queue';
+  const fromQueue = from === 'queue' || from === 'user-detail';
 
-  const index = Math.max(0, QUEUE.findIndex((e) => e.id === id));
-  const entry = QUEUE[index] ?? QUEUE[0];
+  const [loading, setLoading] = useState(true);
+  const [record, setRecord] = useState<KYCRecord | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
 
-  const advance = () => {
-    const next = QUEUE[index + 1];
-    if (fromQueue && next) {
-      router.replace({ pathname: '/(admin)/(review)/kyc-review-detail', params: { id: next.id, from: 'queue' } });
-    } else if (fromQueue) {
-      router.replace('/(admin)/(review)');
-    } else {
+  useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    // There's no "get KYC record by id" endpoint — the list is filtered by
+    // status, so look across all three to find the record we were sent here for.
+    Promise.all([adminListKYC('pending'), adminListKYC('approved'), adminListKYC('rejected')])
+      .then(([pending, approved, rejected]) => {
+        if (cancelled) return;
+        setPendingCount(pending.records.length);
+        const found = [...pending.records, ...approved.records, ...rejected.records].find((r) => r.id === id);
+        setRecord(found ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) show('Failed to load KYC record', 'error');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const advance = async () => {
+    if (from !== 'queue') {
       router.back();
+      return;
+    }
+    try {
+      const res = await adminListKYC('pending');
+      const next = res.records[0];
+      if (next) {
+        router.replace({ pathname: '/(admin)/(review)/kyc-review-detail', params: { id: next.id, from: 'queue' } });
+      } else {
+        router.replace('/(admin)/(review)');
+      }
+    } catch {
+      router.replace('/(admin)/(review)');
     }
   };
 
-  const handleApprove = () => {
+  const displayName = record?.user?.name || 'Unknown User';
+
+  const handleApprove = async () => {
+    if (!record) return;
     setSubmitting(true);
-    setTimeout(() => {
+    try {
+      await adminApproveKYC(record.id);
+      show(`Approved — ${displayName} now has verified access.`, 'success');
+      await advance();
+    } catch (e) {
+      show('Failed to approve', 'error');
+    } finally {
       setSubmitting(false);
-      show(`Approved — ${entry.name} now has verified access.`, 'success');
-      advance();
-    }, 500);
+    }
   };
 
-  const confirmReject = () => {
-    if (reason.trim().length === 0) return;
+  const confirmReject = async () => {
+    if (!record || reason.trim().length === 0) return;
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await adminRejectKYC(record.id, reason.trim());
       setRejectOpen(false);
       setReason('');
-      show(`Rejected — ${entry.name} has been notified.`, 'success');
-      advance();
-    }, 500);
+      show(`Rejected — ${displayName} has been notified.`, 'success');
+      await advance();
+    } catch (e) {
+      show('Failed to reject', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -84,66 +119,87 @@ export default function KycReviewDetailRoute() {
         <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
           Review KYC
         </Text>
-        {fromQueue ? (
+        {fromQueue && pendingCount > 0 ? (
           <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
-            {index + 1} of {QUEUE.length} pending
+            {pendingCount} pending
           </Text>
         ) : null}
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View
-          style={[
-            styles.userRow,
-            { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
-          ]}
-        >
-          <View style={[styles.avatar, { backgroundColor: color('accent/tint') }]}>
-            <Text style={[type['type/h3'], { color: color('accent/default') }]}>
-              {entry.name.split(' ').map((p) => p[0]).join('').slice(0, 2)}
-            </Text>
-          </View>
-          <View style={{ marginLeft: space.sm }}>
-            <Text style={[type['type/h3'], { color: color('text/primary') }]}>{entry.name}</Text>
-            <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-              {entry.phone} · {entry.course}
-            </Text>
-          </View>
+      {loading ? (
+        <View style={{ paddingHorizontal: space.md, paddingTop: space.lg, gap: space.sm }}>
+          <SkeletonBlock height={72} radius={radius.md} />
+          <SkeletonBlock height={220} radius={radius.lg} />
+          <SkeletonBlock height={120} radius={radius.md} />
         </View>
+      ) : !record ? (
+        <EmptyState
+          title="Record not found"
+          description="This KYC record may have already been reviewed."
+          style={{ marginTop: space.xl }}
+        />
+      ) : (
+        <>
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View
+              style={[
+                styles.userRow,
+                { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
+              ]}
+            >
+              <View style={[styles.avatar, { backgroundColor: color('accent/tint') }]}>
+                <Text style={[type['type/h3'], { color: color('accent/default') }]}>
+                  {displayName.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ marginLeft: space.sm }}>
+                <Text style={[type['type/h3'], { color: color('text/primary') }]}>{displayName}</Text>
+                <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
+                  {record.user?.phone_number}
+                </Text>
+              </View>
+            </View>
 
-        <Pressable
-          onPress={() => setZoomOpen(true)}
-          style={[
-            styles.docViewer,
-            { backgroundColor: color('bg/sunken'), borderRadius: radius.lg, marginTop: space.lg },
-          ]}
-        >
-          <IdentificationCard size={48} color={color('text/tertiary')} />
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
-            Tap to view full document
-          </Text>
-        </Pressable>
+            <Pressable
+              onPress={() => setZoomOpen(true)}
+              style={[
+                styles.docViewer,
+                { backgroundColor: color('bg/sunken'), borderRadius: radius.lg, marginTop: space.lg },
+              ]}
+            >
+              <IdentificationCard size={48} color={color('text/tertiary')} />
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
+                Tap to view full document
+              </Text>
+            </Pressable>
 
-        <View
-          style={[
-            { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
-          ]}
-        >
-          <DetailRow label="ID Type" value={entry.idType} />
-          <Divider />
-          <DetailRow label="ID Number" value={entry.idNumber} />
-          <Divider />
-          <DetailRow label="Submitted" value={entry.submitted} />
-        </View>
-      </ScrollView>
+            <View
+              style={[
+                { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
+              ]}
+            >
+              <DetailRow label="ID Type" value={ID_TYPE_LABEL[record.id_type]} />
+              <Divider />
+              <DetailRow label="ID Number" value={record.id_number} />
+              <Divider />
+              <DetailRow label="Submitted" value={new Date(record.submitted_at).toLocaleDateString()} />
+            </View>
+          </ScrollView>
 
-      <View style={{ paddingHorizontal: space.md, marginBottom: space.lg, gap: space.sm }}>
-        <PrimaryButton label="Approve" onPress={handleApprove} loading={submitting} />
-        <SecondaryButton label="Reject" variant="danger" onPress={() => setRejectOpen(true)} disabled={submitting} />
-      </View>
+          <View style={{ paddingHorizontal: space.md, marginBottom: space.lg, gap: space.sm }}>
+            <PrimaryButton label="Approve" onPress={handleApprove} loading={submitting} disabled={record.status !== 'pending'} />
+            <SecondaryButton
+              label="Reject"
+              variant="danger"
+              onPress={() => setRejectOpen(true)}
+              disabled={submitting || record.status !== 'pending'}
+            />
+          </View>
+        </>
+      )}
 
       <Modal visible={zoomOpen} transparent animationType="fade" onRequestClose={() => setZoomOpen(false)}>
         <Pressable style={styles.zoomScrim} onPress={() => setZoomOpen(false)}>

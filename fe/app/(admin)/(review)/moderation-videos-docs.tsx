@@ -54,7 +54,7 @@ export default function ModerationVideosDocsRoute() {
             'document': 'Documents',
             'brain_hack': 'Brain Hacks'
           };
-          const b = [c.course?.title, c.chapter?.title].filter(Boolean).join(' · ');
+          const b = [c.course?.name, c.chapter?.name].filter(Boolean).join(' · ');
           
           return {
             id: c.id,

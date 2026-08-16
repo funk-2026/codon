@@ -47,7 +47,7 @@ export default function ModerationTestsRoute() {
             'test_series': 'Test Series',
             'practice': 'Practice'
           };
-          const b = [t.course?.title, t.subject?.title].filter(Boolean).join(' · ');
+          const b = [t.course?.name, t.subject?.name].filter(Boolean).join(' · ');
           
           return {
             id: t.id,

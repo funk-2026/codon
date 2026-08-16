@@ -19,8 +19,8 @@ const FILTERS: { key: RoleFilter; label: string }[] = [
 
 const KYC_DOT_COLOR: Record<string, 'semantic/warning' | 'semantic/success' | 'semantic/danger'> = {
   pending: 'semantic/warning',
-  verified: 'semantic/success',
-  action_needed: 'semantic/danger',
+  approved: 'semantic/success',
+  rejected: 'semantic/danger',
 };
 
 export default function UserManagementListRoute() {

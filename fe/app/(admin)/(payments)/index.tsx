@@ -15,7 +15,7 @@ type PaymentRecord = {
   id: string;
   user_id: string;
   user?: UserProfile;
-  subscription?: { plan?: { title: string } };
+  subscription?: { plan?: { name: string } };
   amount_paise: number;
   status: Status;
   created_at: string;
@@ -150,7 +150,7 @@ export default function PaymentRecordsListRoute() {
         ) : (
           filtered.map((p) => {
             const userName = p.user?.name || 'Unknown User';
-            const planName = p.subscription?.plan?.title || 'Unknown Plan';
+            const planName = p.subscription?.plan?.name || 'Unknown Plan';
             const displayAmount = `₹${(p.amount_paise / 100).toLocaleString('en-IN')}`;
             const displayDate = new Date(p.created_at).toLocaleDateString();
 

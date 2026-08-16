@@ -7,9 +7,17 @@ import { KYCRecord } from './kyc';
 import { WellnessContent } from './wellness';
 import { Subject } from './courses';
 
+export type AdminDashboardSummary = {
+  total_users: number;
+  active_subscriptions: number;
+  pending_kyc: number;
+  pending_test_reviews: number;
+  pending_content_reviews: number;
+};
+
 /** GET /api/v1/admin/dashboard/summary */
-export function getAdminDashboardSummary(): Promise<any> {
-  return apiFetch<any>('/admin/dashboard/summary', { method: 'GET' });
+export function getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
+  return apiFetch<AdminDashboardSummary>('/admin/dashboard/summary', { method: 'GET' });
 }
 
 /** GET /api/v1/admin/analytics */

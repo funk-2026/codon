@@ -14,6 +14,7 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { ThemeProvider } from '@/src/theme/ThemeProvider';
 import { AuthProvider } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components';
+import { stackAnimation } from '@/src/components/ThemedStack';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -42,7 +43,7 @@ export default function RootLayout() {
     <ThemeProvider>
       <AuthProvider>
         <ToastProvider>
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={{ headerShown: false, animation: stackAnimation }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="onboarding" />
             <Stack.Screen name="phone-entry" />
