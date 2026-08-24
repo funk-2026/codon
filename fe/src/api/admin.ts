@@ -21,8 +21,8 @@ export function getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
 }
 
 /** GET /api/v1/admin/analytics */
-export function adminAnalyticsOverview(): Promise<any> {
-  return apiFetch<any>('/admin/analytics', { method: 'GET' });
+export function adminAnalyticsOverview(range: string = '7D'): Promise<any> {
+  return apiFetch<any>(`/admin/analytics?range=${encodeURIComponent(range)}`, { method: 'GET' });
 }
 
 /** GET /api/v1/admin/users */

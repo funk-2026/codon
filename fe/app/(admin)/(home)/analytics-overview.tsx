@@ -89,7 +89,7 @@ export default function AnalyticsOverviewRoute() {
 
   useEffect(() => {
     setLoading(true);
-    adminAnalyticsOverview()
+    adminAnalyticsOverview(range)
       .then(res => setData(res))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -152,10 +152,10 @@ export default function AnalyticsOverviewRoute() {
             </>
           ) : (
             <>
-              <StatTile label="New Users" value={String(data?.new_users || 0)} delta="+12%" positive />
-              <StatTile label="Revenue" value={`₹${data?.revenue?.toLocaleString('en-IN') || 0}`} delta="+8%" positive />
-              <StatTile label="Active Subscriptions" value={String(data?.active_subscriptions || 0)} delta="+3%" positive />
-              <StatTile label="Tests Attempted" value={String(data?.tests_attempted || 0)} delta="-4%" positive={false} />
+              <StatTile label="New Users" value={String(data?.new_users || 0)} delta={data?.new_users_delta || '0%'} positive={data?.new_users_positive ?? true} />
+              <StatTile label="Revenue" value={`₹${data?.revenue?.toLocaleString('en-IN') || 0}`} delta={data?.revenue_delta || '0%'} positive={data?.revenue_positive ?? true} />
+              <StatTile label="Active Subscriptions" value={String(data?.active_subscriptions || 0)} delta={data?.active_subscriptions_delta || '0%'} positive={data?.active_subscriptions_positive ?? true} />
+              <StatTile label="Tests Attempted" value={String(data?.tests_attempted || 0)} delta={data?.tests_attempted_delta || '0%'} positive={data?.tests_attempted_positive ?? true} />
             </>
           )}
         </View>
