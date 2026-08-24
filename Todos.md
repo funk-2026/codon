@@ -2,6 +2,17 @@
 
 ## FE
 
+### P0
+- Fallback for APi status errors, we should not show cached data or something, we need to indicated some error state after failed api call.
+- Shimmers for the entire app. that indicate loading state.
+- In settings the UI for notitifications, sound effects is broken, 
+- when moving from one screen to another forward, like clicking on settings tab is smooth, but when moving back the old screen is getting completely removed immediately, need to check that
+- The initial animation that comes right when we open the app, feels like the app got stuck, there is no aniiation, need to think of an animation there or remove it completely 
+- Remove dummy data from Admin analytics page. 
+- The approval Sections in Admin like the Test approvals, conteent approvals, KYC review and all can be moved to a seperate tab (Like remove one tablike the review or something and keep a generic approval section that contains all the approvals) instead of the home page.. -> This is recommmended because we can group all of them and also another workaround can be fix the navigations there.. they are not properly working.. -> Can refer to the main branch for reference (for grouping tabs approach)
+- Back navigation is breaking at many places for admin please fix.
+- Also admin cant go beyond adding the subjects, there should be UI supporting for him to see all the content present from the course structure. Reviews section is completely different.
+
 ### Blocked on BE
 - **P0** — User Detail: subscription plan and active-device count aren't shown (real course + last login are; see BE-1 / BE-2 below).
 - **P0** — Content/Test review screen: no full question list, video playback, or document body preview — approve/reject work on the real item, but reviewers only see summary metadata (see BE-3 below).
@@ -57,6 +68,3 @@ _Found while wiring the Admin panel to real data — everything else there is do
 **P2**
 - Move to an ORM instead of raw SQL queries.
 
-### Done
-- Figured out how to call the APIs from the backend running locally.
-- Checked access control on subject/chapter creation.
