@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,7 +18,7 @@ import {
   Info,
   CaretRight,
 } from 'phosphor-react-native';
-import { SkeletonBlock } from '@/src/components';
+import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { getMe, getProgress } from '@/src/api/profile';
@@ -58,6 +58,7 @@ export default function ProfileHomeRoute() {
   const { user } = useAuth();
   
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [sub, setSub] = useState<Subscription | null>(null);
   const [stats, setStats] = useState({ attempts: 0, avg: 0 });
   const [kycRequired, setKycRequired] = useState(false);
@@ -68,21 +69,24 @@ export default function ProfileHomeRoute() {
   
   const kycState = (user?.kyc_status as KycState) || 'not_started';
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [me, prog] = await Promise.all([getMe(), getProgress()]);
-        if (me.active_subscription) setSub(me.active_subscription);
-        setKycRequired(me.kyc_required);
-        setStats({ attempts: prog.attempted_count, avg: prog.avg_score });
-      } catch (err) {
-        console.error('Failed to load profile', err);
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    try {
+      const [me, prog] = await Promise.all([getMe(), getProgress()]);
+      if (me.active_subscription) setSub(me.active_subscription);
+      setKycRequired(me.kyc_required);
+      setStats({ attempts: prog.attempted_count, avg: prog.avg_score });
+      setLoadError(false);
+    } catch (err) {
+      console.error('Failed to load profile', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const kycConfig: Record<Exclude<KycState, null>, { label: string; token: 'text/tertiary' | 'semantic/warning' | 'semantic/success' | 'semantic/danger' }> = {
     not_started: { label: 'Not Started', token: 'text/tertiary' },
@@ -157,6 +161,12 @@ export default function ProfileHomeRoute() {
             </View>
           </View>
         </Stagger>
+
+        {loadError ? (
+          <View style={{ marginTop: space.md }}>
+            <ErrorBanner onRetry={load} />
+          </View>
+        ) : null}
 
         <Stagger delayMs={80}>
           <View style={{ marginTop: space.xl }}>

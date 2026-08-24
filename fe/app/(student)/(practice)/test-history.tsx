@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CaretLeft, ClockCounterClockwise } from 'phosphor-react-native';
-import { EmptyState, TextButton } from '@/src/components';
+import { CaretLeft, ClockCounterClockwise, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getAttempts } from '@/src/api/profile';
 import type { StudentAttempt } from '@/src/api/attempts';
@@ -38,14 +38,14 @@ export default function TestHistoryRoute() {
   const [filter, setFilter] = useState<ModuleType>('All');
   
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await getAttempts();
-        const now = new Date();
-        const mapped = res.attempts.map((a: StudentAttempt): Attempt => {
+  const load = useCallback(async () => {
+    try {
+      const res = await getAttempts();
+      const now = new Date();
+      const mapped = res.attempts.map((a: StudentAttempt): Attempt => {
           const startedAt = new Date(a.started_at);
           const diffMs = now.getTime() - startedAt.getTime();
           const diffDays = diffMs / (1000 * 60 * 60 * 24);
@@ -68,15 +68,19 @@ export default function TestHistoryRoute() {
             scorePct: a.status === 'submitted' && (a.total_marks || 0) > 0 ? ((a.score || 0) / (a.total_marks || 1)) * 100 : undefined,
           };
         });
-        setAttempts(mapped);
-      } catch (err) {
-        console.error('Failed to load history', err);
-      } finally {
-        setLoading(false);
-      }
+      setAttempts(mapped);
+      setLoadError(false);
+    } catch (err) {
+      console.error('Failed to load history', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = attempts.filter((a) => filter === 'All' || a.module === filter);
   const isEmptyOverall = attempts.length === 0;
@@ -140,9 +144,18 @@ export default function TestHistoryRoute() {
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Loading history...</Text>
+          <View style={{ gap: space.sm }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SkeletonBlock key={i} height={72} radius={radius.md} />
+            ))}
           </View>
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load your test history"
+            description="Something went wrong fetching your attempts."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : isEmptyOverall ? (
           <EmptyState
             icon={<ClockCounterClockwise size={32} color={color('text/tertiary')} />}

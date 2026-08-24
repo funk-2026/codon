@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { CaretLeft, CheckCircle, Shield } from 'phosphor-react-native';
-import { PrimaryButton, SkeletonBlock } from '@/src/components';
+import { CaretLeft, CheckCircle, Shield, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, PrimaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listPlans } from '@/src/api/subscriptions';
 import { getMe } from '@/src/api/profile';
@@ -51,39 +51,44 @@ export default function SubscriptionPlansRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [kycRequired, setKycRequired] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [{ plans: apiPlans }, meRes] = await Promise.all([
-          listPlans(),
-          getMe()
-        ]);
-        
-        const activeSub = meRes.active_subscription;
-        
-        const mapped: Plan[] = apiPlans.map(p => ({
-          id: p.id,
-          name: p.name,
-          price: p.price_paise / 100,
-          durationMonths: Math.round(p.duration_days / 30),
-          durationLabel: `${Math.round(p.duration_days / 30)} months`,
-          benefits: p.benefits || [],
-          current: activeSub?.plan_id === p.id
-        }));
-        
-        setPlans(mapped);
-        setKycRequired(meRes.kyc_required);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [{ plans: apiPlans }, meRes] = await Promise.all([
+        listPlans(),
+        getMe()
+      ]);
+
+      const activeSub = meRes.active_subscription;
+
+      const mapped: Plan[] = apiPlans.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price_paise / 100,
+        durationMonths: Math.round(p.duration_days / 30),
+        durationLabel: `${Math.round(p.duration_days / 30)} months`,
+        benefits: p.benefits || [],
+        current: activeSub?.plan_id === p.id
+      }));
+
+      setPlans(mapped);
+      setKycRequired(meRes.kyc_required);
+      setLoadError(false);
+    } catch (err) {
+      console.error(err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const bestValueId = plans.length > 0 ? plans.reduce((best, p) => {
     const costPerDay = p.price / (p.durationMonths * 30);
@@ -123,6 +128,13 @@ export default function SubscriptionPlansRoute() {
             <SkeletonBlock height={220} radius={radius.lg} />
             <SkeletonBlock height={220} radius={radius.lg} />
           </View>
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load plans"
+            description="Something went wrong fetching subscription plans."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : (
           <View style={{ gap: space.md }}>
             {plans.map((p, i) => {

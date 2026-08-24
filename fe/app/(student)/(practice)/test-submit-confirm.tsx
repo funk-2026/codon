@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Warning } from 'phosphor-react-native';
-import { PrimaryButton, TextButton } from '@/src/components';
+import { ErrorBanner, PrimaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getAttemptReview, startAttempt, submitAttempt } from '@/src/api/attempts';
 import type { StudentAttempt, AttemptAnswer, ReviewItem } from '@/src/api/attempts';
@@ -21,31 +21,36 @@ export default function TestSubmitConfirmRoute() {
   const isExpired = expired === '1';
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!id && !testId) return;
-    async function load() {
-      try {
-        if (testId) {
-          const res = await startAttempt(testId);
-          setAttempt(res.attempt);
-          const count = res.answers.filter((a: AttemptAnswer) => !!a.selected_option).length;
-          setAnsweredCount(count);
-        } else {
-          const res = await getAttemptReview(id);
-          const count = res.review.filter((r: ReviewItem) => !!r.selected_option).length;
-          setAnsweredCount(count);
-        }
-      } catch (e) {
-        console.error('Failed to load attempt', e);
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    try {
+      if (testId) {
+        const res = await startAttempt(testId);
+        setAttempt(res.attempt);
+        const count = res.answers.filter((a: AttemptAnswer) => !!a.selected_option).length;
+        setAnsweredCount(count);
+      } else {
+        const res = await getAttemptReview(id);
+        const count = res.review.filter((r: ReviewItem) => !!r.selected_option).length;
+        setAnsweredCount(count);
       }
+      setLoadError(false);
+    } catch (e) {
+      console.error('Failed to load attempt', e);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, [id, testId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const total = attempt?.test?.total_questions || 0;
   const answered = answeredCount;
@@ -75,9 +80,11 @@ export default function TestSubmitConfirmRoute() {
 
   const title = isExpired
     ? 'Time\u2019s up.'
-    : unanswered === 0
-      ? 'All done \u2014 ready to submit?'
-      : 'Ready to submit?';
+    : loadError
+      ? 'Ready to submit?'
+      : unanswered === 0
+        ? 'All done \u2014 ready to submit?'
+        : 'Ready to submit?';
 
   const confirm = async () => {
     if (!id) return;
@@ -110,25 +117,40 @@ export default function TestSubmitConfirmRoute() {
         ]}
       >
         <View style={styles.handle} />
-        <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.md }]}>
-          {loading ? 'Loading...' : title}
-        </Text>
+        {loading ? (
+          <SkeletonBlock width={180} height={28} radius={radius.sm} style={{ marginTop: space.md }} />
+        ) : (
+          <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.md }]}>
+            {title}
+          </Text>
+        )}
 
-        <View style={[styles.tileRow, { gap: space.sm, marginTop: space.lg }]}>
-          <StatTile
-            label="Answered"
-            value={answered}
-            ink={color('semantic/success')}
-          />
-          <StatTile
-            label="Unanswered"
-            value={unanswered}
-            ink={unanswered > 0 ? color('semantic/warning') : color('text/secondary')}
-          />
-          {timed ? <StatTile label="Time Left" valueText={timeLeft} ink={color('text/primary')} /> : null}
-        </View>
+        {loading ? (
+          <View style={[styles.tileRow, { gap: space.sm, marginTop: space.lg }]}>
+            <SkeletonBlock height={72} radius={radius.sm} style={{ flex: 1 }} />
+            <SkeletonBlock height={72} radius={radius.sm} style={{ flex: 1 }} />
+          </View>
+        ) : loadError ? (
+          <View style={{ marginTop: space.lg }}>
+            <ErrorBanner message="Couldn't load your answer summary." onRetry={load} />
+          </View>
+        ) : (
+          <View style={[styles.tileRow, { gap: space.sm, marginTop: space.lg }]}>
+            <StatTile
+              label="Answered"
+              value={answered}
+              ink={color('semantic/success')}
+            />
+            <StatTile
+              label="Unanswered"
+              value={unanswered}
+              ink={unanswered > 0 ? color('semantic/warning') : color('text/secondary')}
+            />
+            {timed ? <StatTile label="Time Left" valueText={timeLeft} ink={color('text/primary')} /> : null}
+          </View>
+        )}
 
-        {unanswered > 0 ? (
+        {!loadError && unanswered > 0 ? (
           <View
             style={[
               styles.callout,

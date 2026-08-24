@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { CaretLeft, Clock, CheckCircle, XCircle } from 'phosphor-react-native';
-import { PrimaryButton, TextButton, SkeletonBlock } from '@/src/components';
+import { CaretLeft, Clock, CheckCircle, WarningCircle, XCircle } from 'phosphor-react-native';
+import { EmptyState, PrimaryButton, TextButton, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getMyKYC, KYCRecord } from '@/src/api/kyc';
 
@@ -18,13 +18,22 @@ export default function KycStatusRoute() {
   
   const [record, setRecord] = useState<KYCRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     getMyKYC()
-      .then(setRecord)
-      .catch(() => {}) // handled gracefully by showing empty or generic state
+      .then((res) => {
+        setRecord(res);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const status = record?.status || 'pending';
   const REJECTION_REASON = record?.rejection_reason || 'Unknown error';
@@ -84,6 +93,13 @@ export default function KycStatusRoute() {
       <View style={[styles.body, { paddingHorizontal: space.lg }]}>
         {loading ? (
           <SkeletonBlock height={300} radius={radius.lg} />
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load verification status"
+            description="Something went wrong fetching your identity verification status."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : (
           <>
             <Animated.View style={[{ alignItems: 'center' }, markStyle]}>
@@ -115,7 +131,7 @@ export default function KycStatusRoute() {
       </View>
 
       <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-        {status === 'pending' ? (
+        {loadError ? null : status === 'pending' ? (
           <View style={{ alignItems: 'center' }}>
             <TextButton label="Done" onPress={() => router.push('/(student)/(profile)')} />
           </View>

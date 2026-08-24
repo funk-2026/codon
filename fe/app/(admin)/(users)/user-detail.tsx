@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { CaretLeft, CaretRight, Shield } from 'phosphor-react-native';
-import { PrimaryButton, SecondaryButton, StatusBadge, useToast, SkeletonBlock, type BadgeStatus } from '@/src/components';
+import { CaretLeft, CaretRight, Shield, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, PrimaryButton, SecondaryButton, StatusBadge, TextButton, useToast, SkeletonBlock, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getUser, updateUserRole, updateTeacherPermissions, adminListKYC } from '@/src/api/admin';
 import type { UserProfile } from '@/src/api/profile';
@@ -20,6 +20,7 @@ export default function UserDetailRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [pendingRole, setPendingRole] = useState<Role | null>(null);
   const [roleUpdating, setRoleUpdating] = useState(false);
@@ -27,16 +28,25 @@ export default function UserDetailRoute() {
   const [permUpdating, setPermUpdating] = useState(false);
   const [kycNavLoading, setKycNavLoading] = useState(false);
 
-  useEffect(() => {
+  const loadUser = useCallback(() => {
     if (!id) return;
+    setLoading(true);
     getUser(id)
       .then(res => {
         setUser(res);
         setCanManageAllContent(res.can_manage_all_content);
+        setLoadError(false);
       })
-      .catch(() => show('Failed to load user', 'error'))
+      .catch(() => {
+        show('Failed to load user', 'error');
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, show]);
+
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
 
   const toggleCanManageAllContent = async (value: boolean) => {
     if (!user || permUpdating) return;
@@ -94,7 +104,7 @@ export default function UserDetailRoute() {
     }
   };
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
         <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
@@ -105,6 +115,24 @@ export default function UserDetailRoute() {
         <View style={{ padding: space.md, alignItems: 'center' }}>
           <SkeletonBlock height={72} radius={36} style={{ width: 72 }} />
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (loadError || !user) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+        <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
+          <Pressable onPress={() => router.back()} hitSlop={space.xs}>
+            <CaretLeft size={24} color={color('text/primary')} />
+          </Pressable>
+        </View>
+        <EmptyState
+          icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+          title="Couldn't load this user"
+          description="Something went wrong fetching this user's details."
+          action={<TextButton label="Retry" onPress={loadUser} />}
+        />
       </SafeAreaView>
     );
   }

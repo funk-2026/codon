@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CaretLeft } from 'phosphor-react-native';
-import { PrimaryButton, SecondaryButton, useToast } from '@/src/components';
+import { ErrorBanner, PrimaryButton, SecondaryButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getPlatformSettingsKYC, setKYCRequired } from '@/src/api/admin';
 
@@ -15,12 +15,20 @@ export default function PlatformSettingsRoute() {
 
   const [kycRequired, setKycRequiredState] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  const loadSettings = useCallback(() => {
+    getPlatformSettingsKYC()
+      .then(res => {
+        setKycRequiredState(res.required);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true));
+  }, []);
 
   useEffect(() => {
-    getPlatformSettingsKYC()
-      .then(res => setKycRequiredState(res.required))
-      .catch(() => {});
-  }, []);
+    loadSettings();
+  }, [loadSettings]);
 
   const handleToggle = (value: boolean) => {
     if (value) {
@@ -63,6 +71,12 @@ export default function PlatformSettingsRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
+        {loadError ? (
+          <View style={{ marginTop: space.xl }}>
+            <ErrorBanner onRetry={loadSettings} />
+          </View>
+        ) : null}
+
         <View style={{ marginTop: space.xl }}>
           <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>
             IDENTITY VERIFICATION

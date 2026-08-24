@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -10,9 +10,10 @@ import {
   PlayCircle,
   FileText,
   Lightbulb,
+  WarningCircle,
   X,
 } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, StatusBadge, type BadgeStatus } from '@/src/components';
+import { EmptyState, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listTeacherContent, listTeacherTests } from '@/src/api/teacher';
 
@@ -82,6 +83,7 @@ export default function MyContentListRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('All');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All Statuses');
   const [fabOpen, setFabOpen] = useState(false);
@@ -90,7 +92,8 @@ export default function MyContentListRoute() {
 
   const [items, setItems] = useState<ContentItem[]>([]);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     Promise.all([listTeacherContent(), listTeacherTests()])
       .then(([cRes, tRes]) => {
          const out: ContentItem[] = [];
@@ -113,10 +116,15 @@ export default function MyContentListRoute() {
             });
          });
          setItems(out);
+         setLoadError(false);
       })
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const fabProgress = useSharedValue(0);
   useEffect(() => {
@@ -259,6 +267,13 @@ export default function MyContentListRoute() {
       >
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => <SkeletonBlock key={i} height={72} radius={radius.md} />)
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load your content"
+            description="Something went wrong fetching your tests and content."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : isEmptyOverall ? (
           <EmptyState title="Nothing here yet" description="You haven't created anything yet — tap + to start." />
         ) : filtered.length === 0 ? (

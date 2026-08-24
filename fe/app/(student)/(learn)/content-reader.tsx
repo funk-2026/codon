@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -7,7 +7,8 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { CaretLeft } from 'phosphor-react-native';
+import { CaretLeft, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent } from '@/src/api/content';
 import type { ContentItem } from '@/src/api/content';
@@ -22,30 +23,35 @@ export default function ContentReaderRoute() {
   const scrollRef = useRef<ScrollView>(null);
   
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [content, setContent] = useState<{ item: ContentItem; url?: string } | null>(null);
   const [siblings, setSiblings] = useState<ContentItem[]>([]);
 
   const [progress, setProgress] = useState(0);
   const [scrolled, setScrolled] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!id) return;
-    async function load() {
-      try {
-        const res = await getContentItem(id as string);
-        setContent({ item: res.content, url: res.url });
-        if (res.content.chapter_id) {
-          const chapRes = await getChapterContent(res.content.chapter_id);
-          setSiblings(chapRes.content.filter(c => c.id !== id));
-        }
-      } catch (err) {
-        console.error('Failed to load content', err);
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    try {
+      const res = await getContentItem(id as string);
+      setContent({ item: res.content, url: res.url });
+      if (res.content.chapter_id) {
+        const chapRes = await getChapterContent(res.content.chapter_id);
+        setSiblings(chapRes.content.filter(c => c.id !== id));
       }
+      setLoadError(false);
+    } catch (err) {
+      console.error('Failed to load content', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const topBarBg = useSharedValue(0);
   const bgSurface = color('bg/surface');
@@ -118,97 +124,118 @@ export default function ContentReaderRoute() {
         showsVerticalScrollIndicator={false}
       >
         {/* Content header */}
-        <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
-          {content?.item?.content_type === 'video' ? 'Video Class' : 'Document'}
-        </Text>
-        <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space['2xs'] }]}>
-          {content?.item?.title || 'Loading...'}
-        </Text>
-        <Text
-          style={[
-            type['type/caption'],
-            { color: color('text/tertiary'), marginTop: space['2xs'] },
-          ]}
-        >
-          {loading ? '...' : ''}
-        </Text>
+        {loading ? (
+          <View style={{ gap: space.sm }}>
+            <SkeletonBlock width={90} height={16} radius={radius.sm} />
+            <SkeletonBlock width={220} height={28} radius={radius.sm} />
+          </View>
+        ) : (
+          <>
+            <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
+              {content?.item?.content_type === 'video' ? 'Video Class' : 'Document'}
+            </Text>
+            <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space['2xs'] }]}>
+              {content?.item?.title || 'Unable to load'}
+            </Text>
+          </>
+        )}
 
-        {/* Body */}
-        <View style={{ marginTop: space.lg, gap: space.md }}>
-          {paragraphs.map((para, i) => {
-            if (para.startsWith('## ')) {
-              return (
-                <Text
-                  key={i}
-                  style={[
-                    type['type/h3'],
-                    { color: color('text/primary'), marginTop: i > 0 ? space.lg : 0 },
-                  ]}
-                >
-                  {para.replace('## ', '')}
-                </Text>
-              );
-            }
-            return (
+        {loading ? (
+          <View style={{ marginTop: space.lg, gap: space.md }}>
+            <SkeletonBlock height={18} radius={radius.sm} />
+            <SkeletonBlock height={18} radius={radius.sm} />
+            <SkeletonBlock height={18} width="80%" radius={radius.sm} />
+            <SkeletonBlock height={18} radius={radius.sm} />
+            <SkeletonBlock height={18} width="60%" radius={radius.sm} />
+          </View>
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load this content"
+            description="Something went wrong loading this page. Check your connection and try again."
+            action={<TextButton label="Retry" onPress={load} />}
+            style={{ marginTop: space.xl }}
+          />
+        ) : (
+          <>
+            {/* Body */}
+            <View style={{ marginTop: space.lg, gap: space.md }}>
+              {paragraphs.map((para, i) => {
+                if (para.startsWith('## ')) {
+                  return (
+                    <Text
+                      key={i}
+                      style={[
+                        type['type/h3'],
+                        { color: color('text/primary'), marginTop: i > 0 ? space.lg : 0 },
+                      ]}
+                    >
+                      {para.replace('## ', '')}
+                    </Text>
+                  );
+                }
+                return (
+                  <Text
+                    key={i}
+                    style={[type['type/body-l'], { color: color('text/primary') }]}
+                  >
+                    {para}
+                  </Text>
+                );
+              })}
+            </View>
+
+            {/* End-of-content footer */}
+            <View
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: color('border/subtle'),
+                marginTop: space.xl,
+                paddingTop: space.lg,
+              }}
+            >
               <Text
-                key={i}
-                style={[type['type/body-l'], { color: color('text/primary') }]}
-              >
-                {para}
-              </Text>
-            );
-          })}
-        </View>
-
-        {/* End-of-content footer */}
-        <View
-          style={{
-            borderTopWidth: 1,
-            borderTopColor: color('border/subtle'),
-            marginTop: space.xl,
-            paddingTop: space.lg,
-          }}
-        >
-          <Text
-            style={[
-              type['type/overline'],
-              { color: color('text/tertiary'), marginBottom: space.sm },
-            ]}
-          >
-            MORE IN THIS CHAPTER
-          </Text>
-          <View style={{ gap: space.xs }}>
-            {siblings.map((s) => (
-              <Pressable
-                key={s.id}
-                onPress={() => router.push({ pathname: '/(student)/(learn)/content-reader', params: { id: s.id } })}
-                style={({ pressed }) => [
-                  styles.siblingRow,
-                  {
-                    backgroundColor: color('bg/surface'),
-                    borderRadius: radius.md,
-                    padding: space.sm,
-                    opacity: pressed ? 0.94 : 1,
-                  },
-                  shadow(),
+                style={[
+                  type['type/overline'],
+                  { color: color('text/tertiary'), marginBottom: space.sm },
                 ]}
               >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[type['type/body-m-medium'], { color: color('text/primary') }]}
-                    numberOfLines={1}
+                MORE IN THIS CHAPTER
+              </Text>
+              <View style={{ gap: space.xs }}>
+                {siblings.map((s) => (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => router.push({ pathname: '/(student)/(learn)/content-reader', params: { id: s.id } })}
+                    style={({ pressed }) => [
+                      styles.siblingRow,
+                      {
+                        backgroundColor: color('bg/surface'),
+                        borderRadius: radius.md,
+                        padding: space.sm,
+                        opacity: pressed ? 0.94 : 1,
+                      },
+                      shadow(),
+                    ]}
                   >
-                    {s.title}
-                  </Text>
-                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                    {s.content_type === 'video' ? 'Video' : 'Document'}
-                  </Text>
-                </View>
-                <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />
-              </Pressable>
-            ))}
-          </View>
-        </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[type['type/body-m-medium'], { color: color('text/primary') }]}
+                        numberOfLines={1}
+                      >
+                        {s.title}
+                      </Text>
+                      <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
+                        {s.content_type === 'video' ? 'Video' : 'Document'}
+                      </Text>
+                    </View>
+                    <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

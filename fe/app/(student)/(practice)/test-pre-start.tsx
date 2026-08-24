@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { CaretLeft, Check } from 'phosphor-react-native';
-import { PrimaryButton } from '@/src/components';
+import { ErrorBanner, PrimaryButton, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getTest } from '@/src/api/tests';
 import type { Test } from '@/src/api/tests';
@@ -50,22 +50,27 @@ export default function TestPreStartRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [test, setTest] = useState<Test | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!id) return;
-    async function load() {
-      try {
-        const res = await getTest(id as string);
-        setTest(res.test);
-      } catch (err) {
-        console.error('Failed to load test', err);
-      } finally {
-        setLoading(false);
-      }
+    setLoading(true);
+    try {
+      const res = await getTest(id as string);
+      setTest(res.test);
+      setLoadError(false);
+    } catch (err) {
+      console.error('Failed to load test', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const isResume = false; // We can detect in-progress attempt later if needed
   const timed = !!(test && test.duration_minutes && test.duration_minutes > 0);
@@ -114,9 +119,20 @@ export default function TestPreStartRoute() {
             ]}
           >
             {loading || !test ? (
-              <View style={{ height: 120, justifyContent: 'center', alignItems: 'center' }}>
-                <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Loading\u2026</Text>
-              </View>
+              loadError ? (
+                <ErrorBanner message="Couldn't load this test's details." onRetry={load} />
+              ) : (
+                <View style={{ gap: space.sm }}>
+                  <View style={{ flexDirection: 'row', gap: space.sm }}>
+                    <SkeletonBlock height={40} radius={radius.sm} style={{ flex: 1 }} />
+                    <SkeletonBlock height={40} radius={radius.sm} style={{ flex: 1 }} />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: space.sm }}>
+                    <SkeletonBlock height={40} radius={radius.sm} style={{ flex: 1 }} />
+                    <SkeletonBlock height={40} radius={radius.sm} style={{ flex: 1 }} />
+                  </View>
+                </View>
+              )
             ) : (
               <View>
                 <View style={styles.statGrid}>

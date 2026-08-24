@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { listCourses } from '@/src/api/courses';
@@ -27,25 +28,30 @@ export default function ProfileSetupRoute() {
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadCourses() {
-      try {
-        const res = await listCourses();
-        setCourses(res.courses.filter(c => c.is_active));
-        if (res.courses.length === 1) {
-          setSelectedCourse(res.courses[0].id);
-        }
-      } catch (err: any) {
-        setError(err.message || 'Failed to load courses');
-      } finally {
-        setLoading(false);
+  const loadCourses = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await listCourses();
+      setCourses(res.courses.filter(c => c.is_active));
+      if (res.courses.length === 1) {
+        setSelectedCourse(res.courses[0].id);
       }
+      setLoadError(false);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load courses');
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    loadCourses();
   }, []);
+
+  useEffect(() => {
+    loadCourses();
+  }, [loadCourses]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -129,7 +135,18 @@ export default function ProfileSetupRoute() {
           </Text>
           
           {loading ? (
-            <ActivityIndicator color={color('accent/default')} style={{ marginTop: space.md, alignSelf: 'flex-start' }} />
+            <View style={{ gap: space.sm }}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <SkeletonBlock key={i} height={56} radius={radius.md} />
+              ))}
+            </View>
+          ) : loadError ? (
+            <EmptyState
+              icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+              title="Couldn't load courses"
+              description="Something went wrong fetching the list of courses."
+              action={<TextButton label="Retry" onPress={loadCourses} />}
+            />
           ) : (
             <View style={{ gap: space.sm }}>
               {courses.map(c => {

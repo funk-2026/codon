@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MagnifyingGlass } from 'phosphor-react-native';
-import { SkeletonBlock } from '@/src/components';
+import { MagnifyingGlass, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listUsers } from '@/src/api/admin';
 import type { UserProfile } from '@/src/api/profile';
@@ -27,16 +27,25 @@ export default function UserManagementListRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('All');
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     listUsers()
-      .then(res => setUsers(res.users || []))
-      .catch(() => {})
+      .then(res => {
+        setUsers(res.users || []);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = users.filter((u) => {
     if (roleFilter !== 'All' && u.role !== roleFilter) return false;
@@ -109,6 +118,13 @@ export default function UserManagementListRoute() {
       >
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => <SkeletonBlock key={i} height={72} radius={radius.md} />)
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load users"
+            description="Something went wrong fetching the user list."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : filtered.length === 0 ? (
           <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center', marginTop: space.xl }]}>
             No users match &apos;{query}&apos;.

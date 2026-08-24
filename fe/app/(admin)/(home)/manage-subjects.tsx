@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CaretLeft, CaretRight, Folder, Plus, Books } from 'phosphor-react-native';
-import { EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, useToast } from '@/src/components';
+import { CaretLeft, CaretRight, Folder, Plus, Books, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listCourses, getCurriculum, type Course, type Subject } from '@/src/api/courses';
 import { createSubject } from '@/src/api/admin';
@@ -25,6 +25,7 @@ export default function ManageSubjectsRoute() {
   const { show } = useToast();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -35,12 +36,23 @@ export default function ManageSubjectsRoute() {
   const [newDescription, setNewDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  const loadCourses = useCallback(() => {
+    setLoading(true);
     listCourses()
-      .then((res) => setCourses(res.courses))
-      .catch(() => show('Failed to load courses', 'error'))
+      .then((res) => {
+        setCourses(res.courses);
+        setLoadError(false);
+      })
+      .catch(() => {
+        show('Failed to load courses', 'error');
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [show]);
+
+  useEffect(() => {
+    loadCourses();
+  }, [loadCourses]);
 
   const loadSubjects = (course: Course) => {
     setSelectedCourse(course);
@@ -104,6 +116,13 @@ export default function ManageSubjectsRoute() {
                 <SkeletonBlock key={i} height={72} radius={radius.md} />
               ))}
             </View>
+          ) : loadError ? (
+            <EmptyState
+              icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+              title="Couldn't load courses"
+              description="Something went wrong fetching your courses."
+              action={<TextButton label="Retry" onPress={loadCourses} />}
+            />
           ) : courses.length === 0 ? (
             <EmptyState
               icon={<Books size={32} color={color('text/tertiary')} weight="duotone" />}

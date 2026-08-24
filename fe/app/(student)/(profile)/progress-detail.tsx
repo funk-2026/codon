@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -7,9 +7,9 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { CaretLeft, Flame } from 'phosphor-react-native';
+import { CaretLeft, Flame, WarningCircle } from 'phosphor-react-native';
 import RNSvg, { Line, Polygon, Polyline } from 'react-native-svg';
-import { SkeletonBlock } from '@/src/components';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getProgress, getProgressBreakdown, ProgressResponse, ProgressBreakdownResponse } from '@/src/api/profile';
 
@@ -43,18 +43,25 @@ export default function ProgressDetailRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [stats, setStats] = useState<ProgressResponse | null>(null);
   const [breakdown, setBreakdown] = useState<ProgressBreakdownResponse | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     Promise.all([getProgress(), getProgressBreakdown()])
       .then(([statsRes, breakdownRes]) => {
         setStats(statsRes);
         setBreakdown(breakdownRes);
+        setLoadError(false);
       })
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const chartWidth = 320;
   const chartHeight = 100;
@@ -86,6 +93,16 @@ export default function ProgressDetailRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
+        {loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load your progress"
+            description="Something went wrong fetching your progress data."
+            action={<TextButton label="Retry" onPress={load} />}
+            style={{ marginTop: space.xl }}
+          />
+        ) : (
+        <>
         <Stagger delayMs={0}>
           <View style={[styles.statRow, { gap: space.xs, marginTop: space.xl }]}>
             {loading ? (
@@ -207,6 +224,8 @@ export default function ProgressDetailRoute() {
             </View>
           </View>
         </Stagger>
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

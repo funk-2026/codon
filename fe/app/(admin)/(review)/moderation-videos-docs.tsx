@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CaretLeft, CaretRight, PlayCircle, FileText, Lightbulb } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock } from '@/src/components';
+import { CaretLeft, CaretRight, PlayCircle, FileText, Lightbulb, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListContent } from '@/src/api/admin';
 
@@ -42,11 +42,13 @@ export default function ModerationVideosDocsRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<ContentType>('All');
 
   const [items, setItems] = useState<ContentItem[]>([]);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     adminListContent('pending_review').then(res => {
        const mapped: ContentItem[] = res.content.map(c => {
           const typeMap: Record<string, Exclude<ContentType, 'All'>> = {
@@ -55,20 +57,25 @@ export default function ModerationVideosDocsRoute() {
             'brain_hack': 'Brain Hacks'
           };
           const b = [c.course?.name, c.chapter?.name].filter(Boolean).join(' · ');
-          
+
           return {
             id: c.id,
             title: c.title,
-            breadcrumb: b || null, 
-            type: typeMap[c.content_type] || 'Documents', 
-            teacher: c.uploader?.name || c.uploader?.phone_number || 'Unknown Teacher', 
+            breadcrumb: b || null,
+            type: typeMap[c.content_type] || 'Documents',
+            teacher: c.uploader?.name || c.uploader?.phone_number || 'Unknown Teacher',
             submitted: new Date(c.created_at || Date.now()).toLocaleDateString(),
           };
        });
        setItems(mapped);
-    }).catch(() => {})
+       setLoadError(false);
+    }).catch(() => setLoadError(true))
     .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = items.filter((i) => filter === 'All' || i.type === filter);
 
@@ -128,6 +135,13 @@ export default function ModerationVideosDocsRoute() {
       >
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonBlock key={i} height={92} radius={radius.md} />)
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load content"
+            description="Something went wrong fetching content pending review."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : filtered.length === 0 ? (
           <EmptyState title="All clear" description="No content waiting on review." />
         ) : (

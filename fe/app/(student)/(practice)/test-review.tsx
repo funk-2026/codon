@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -7,7 +7,8 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { CaretLeft, Check, X } from 'phosphor-react-native';
+import { CaretLeft, Check, WarningCircle, X } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getAttemptReview } from '@/src/api/attempts';
 import type { ReviewItem } from '@/src/api/attempts';
@@ -53,30 +54,35 @@ export default function TestReviewRoute() {
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [questions, setQuestions] = useState<ReviewQuestion[]>([]);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!id) return;
-    async function load() {
-      try {
-        const res = await getAttemptReview(id as string);
-        const mapped: ReviewQuestion[] = res.review.map((r, i) => ({
-          n: i + 1,
-          text: r.question_text,
-          options: [r.option_a, r.option_b, r.option_c, r.option_d],
-          correctIdx: r.correct_option.charCodeAt(0) - 65,
-          pickedIdx: r.selected_option ? r.selected_option.charCodeAt(0) - 65 : undefined,
-          explanation: r.explanation || undefined,
-        }));
-        setQuestions(mapped);
-      } catch (err) {
-        console.error('Failed to load review', err);
-      } finally {
-        setLoading(false);
-      }
+    setLoading(true);
+    try {
+      const res = await getAttemptReview(id as string);
+      const mapped: ReviewQuestion[] = res.review.map((r, i) => ({
+        n: i + 1,
+        text: r.question_text,
+        options: [r.option_a, r.option_b, r.option_c, r.option_d],
+        correctIdx: r.correct_option.charCodeAt(0) - 65,
+        pickedIdx: r.selected_option ? r.selected_option.charCodeAt(0) - 65 : undefined,
+        explanation: r.explanation || undefined,
+      }));
+      setQuestions(mapped);
+      setLoadError(false);
+    } catch (err) {
+      console.error('Failed to load review', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const [filter, setFilter] = useState<Filter>('all');
   const [fadeKey, setFadeKey] = useState(0);
@@ -171,7 +177,28 @@ export default function TestReviewRoute() {
         showsVerticalScrollIndicator={false}
       >
         <Animated.View style={fadeStyle}>
-          {filtered.length === 0 ? (
+          {loading ? (
+            <View style={{ gap: space.lg }}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <View
+                  key={i}
+                  style={{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, gap: space.sm }}
+                >
+                  <SkeletonBlock width={120} height={16} radius={radius.sm} />
+                  <SkeletonBlock height={48} radius={radius.md} />
+                  <SkeletonBlock height={52} radius={radius.md} />
+                  <SkeletonBlock height={52} radius={radius.md} />
+                </View>
+              ))}
+            </View>
+          ) : loadError ? (
+            <EmptyState
+              icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+              title="Couldn't load review"
+              description="Something went wrong fetching your test review."
+              action={<TextButton label="Retry" onPress={load} />}
+            />
+          ) : filtered.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: space['2xl'], gap: space.xs }}>
               <Check size={28} color={color('semantic/success')} weight="duotone" />
               <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>

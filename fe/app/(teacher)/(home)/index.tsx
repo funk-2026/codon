@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -12,7 +12,7 @@ import {
   TreeStructure,
   CaretRight,
 } from 'phosphor-react-native';
-import { SkeletonBlock } from '@/src/components';
+import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listTeacherTests, listTeacherContent } from '@/src/api/teacher';
 import { useAuth } from '@/src/auth/AuthContext';
@@ -78,10 +78,12 @@ export default function TeacherHomeRoute() {
   const tileWidth = (screenWidth - space.md * 2 - space.xs) / 2;
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [stats, setStats] = useState({ inReview: 0, approved: 0, live: 0, changesNeeded: 0 });
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
+    setLoading(true);
     Promise.all([listTeacherTests(), listTeacherContent()])
       .then(([testsRes, contentRes]) => {
         let inReview = 0, approved = 0, live = 0, changesNeeded = 0;
@@ -110,10 +112,15 @@ export default function TeacherHomeRoute() {
         
         setStats({ inReview, approved, live, changesNeeded });
         setRecentActivity(acts.slice(0, 5));
+        setLoadError(false);
       })
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const attentionCount = stats.changesNeeded;
 
@@ -142,6 +149,12 @@ export default function TeacherHomeRoute() {
             ) : null}
           </View>
         </Stagger>
+
+        {loadError ? (
+          <View style={{ marginTop: space.md }}>
+            <ErrorBanner onRetry={loadData} />
+          </View>
+        ) : null}
 
         <Stagger delayMs={80}>
           <View style={[styles.grid2, { gap: space.xs, marginTop: space.xl }]}>

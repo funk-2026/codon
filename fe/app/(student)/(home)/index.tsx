@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -24,6 +24,7 @@ import {
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
+import { ErrorBanner } from '@/src/components';
 import { getMe, getProgress, getProgressBreakdown, getRecentContent } from '@/src/api/profile';
 import type { Subscription } from '@/src/api/profile';
 
@@ -88,52 +89,57 @@ export default function HomeDashboardRoute() {
   const [streak, setStreak] = useState(0);
   const [isNewUser, setIsNewUser] = useState(true);
   const [recentItem, setRecentItem] = useState<any>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const flatRef = useRef<FlatList<typeof UPDATES[number]>>(null);
   const [slide, setSlide] = useState(0);
   const paused = useRef(false);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [meRes, progRes, breakdownRes, recentRes] = await Promise.all([
-          getMe(),
-          getProgress(),
-          getProgressBreakdown(),
-          getRecentContent()
-        ]);
+  const loadData = useCallback(async () => {
+    try {
+      const [meRes, progRes, breakdownRes, recentRes] = await Promise.all([
+        getMe(),
+        getProgress(),
+        getProgressBreakdown(),
+        getRecentContent()
+      ]);
 
-        if (recentRes.recent && recentRes.recent.length > 0) {
-          setRecentItem(recentRes.recent[0]);
-        }
+      setLoadError(false);
 
-        setStreak(breakdownRes.day_streak);
-        if (meRes.active_subscription) {
-          const end = new Date(meRes.active_subscription.end_date);
-          const diffDays = Math.ceil((end.getTime() - Date.now()) / (1000 * 3600 * 24));
-          const planName = meRes.active_subscription.plan?.name || 'Pro';
-
-          if (diffDays <= 7) {
-            setSubState('expiring');
-            setSubText(`Your ${planName} plan expires in ${diffDays} days — renew to keep access.`);
-          } else {
-            setSubState('active');
-            setSubText(`${planName} — active until ${end.toLocaleDateString()}`);
-          }
-        } else {
-          setSubState('none');
-        }
-
-        if (progRes.attempted_count > 0) {
-          setStats({ attempted: progRes.attempted_count, avgScore: progRes.avg_score });
-          setIsNewUser(false);
-        }
-      } catch (err) {
-        console.error('Failed to load home data', err);
+      if (recentRes.recent && recentRes.recent.length > 0) {
+        setRecentItem(recentRes.recent[0]);
       }
+
+      setStreak(breakdownRes.day_streak);
+      if (meRes.active_subscription) {
+        const end = new Date(meRes.active_subscription.end_date);
+        const diffDays = Math.ceil((end.getTime() - Date.now()) / (1000 * 3600 * 24));
+        const planName = meRes.active_subscription.plan?.name || 'Pro';
+
+        if (diffDays <= 7) {
+          setSubState('expiring');
+          setSubText(`Your ${planName} plan expires in ${diffDays} days — renew to keep access.`);
+        } else {
+          setSubState('active');
+          setSubText(`${planName} — active until ${end.toLocaleDateString()}`);
+        }
+      } else {
+        setSubState('none');
+      }
+
+      if (progRes.attempted_count > 0) {
+        setStats({ attempted: progRes.attempted_count, avgScore: progRes.avg_score });
+        setIsNewUser(false);
+      }
+    } catch (err) {
+      console.error('Failed to load home data', err);
+      setLoadError(true);
     }
-    loadData();
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     if (paused.current) return;
@@ -194,6 +200,12 @@ export default function HomeDashboardRoute() {
                 </Pressable>
               </View>
             </Stagger>
+
+            {loadError ? (
+              <View style={{ marginTop: space.md }}>
+                <ErrorBanner onRetry={loadData} />
+              </View>
+            ) : null}
 
             {/* Updates carousel */}
             {/* <Stagger delayMs={80}>

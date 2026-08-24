@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -8,8 +8,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
-import { CaretLeft } from 'phosphor-react-native';
-import { PrimaryButton, SecondaryButton, TextButton } from '@/src/components';
+import { CaretLeft, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getAttemptResult } from '@/src/api/attempts';
 import type { StudentAttempt } from '@/src/api/attempts';
@@ -45,15 +45,27 @@ export default function TestResultRoute() {
   const revisited = fromHistory === '1';
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!id) return;
+    setLoading(true);
     getAttemptResult(id)
-      .then(res => setAttempt(res.attempt))
-      .catch(console.error)
+      .then(res => {
+        setAttempt(res.attempt);
+        setLoadError(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load result', err);
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const SCORE = attempt?.score || 0;
   const MAX = attempt?.total_marks || 100;
@@ -108,8 +120,32 @@ export default function TestResultRoute() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas'), justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Loading results...</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+        <View style={{ paddingHorizontal: space.md, marginTop: space['2xl'] }}>
+          <View style={{ alignItems: 'center' }}>
+            <SkeletonBlock width={120} height={120} radius={60} />
+          </View>
+          <View style={[styles.breakdownRow, { gap: space.xs, marginTop: space.xl }]}>
+            <SkeletonBlock height={72} radius={radius.md} style={{ flex: 1 }} />
+            <SkeletonBlock height={72} radius={radius.md} style={{ flex: 1 }} />
+            <SkeletonBlock height={72} radius={radius.md} style={{ flex: 1 }} />
+          </View>
+          <SkeletonBlock height={64} radius={radius.md} style={{ marginTop: space.lg }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+        <EmptyState
+          icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+          title="Couldn't load your result"
+          description="Something went wrong fetching this test result. Check your connection and try again."
+          action={<TextButton label="Retry" onPress={load} />}
+          style={{ flex: 1, justifyContent: 'center' }}
+        />
       </SafeAreaView>
     );
   }

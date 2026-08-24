@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import RNSvg, { G, Rect } from 'react-native-svg';
 import { CaretLeft } from 'phosphor-react-native';
-import { SkeletonBlock } from '@/src/components';
+import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminAnalyticsOverview } from '@/src/api/admin';
 
@@ -84,16 +84,24 @@ export default function AnalyticsOverviewRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [range, setRange] = useState<Range>('7D');
   const [data, setData] = useState<any>({});
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     setLoading(true);
     adminAnalyticsOverview(range)
-      .then(res => setData(res))
-      .catch(() => {})
+      .then(res => {
+        setData(res);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [range]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const chartWidth = 320;
 
@@ -137,6 +145,12 @@ export default function AnalyticsOverviewRoute() {
           );
         })}
       </View>
+
+      {loadError ? (
+        <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
+          <ErrorBanner onRetry={loadData} />
+        </View>
+      ) : null}
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'] + insets.bottom }}

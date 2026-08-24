@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CaretLeft, CaretRight } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock } from '@/src/components';
+import { CaretLeft, CaretRight, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListTests } from '@/src/api/admin';
 
@@ -39,10 +39,12 @@ export default function ModerationTestsRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<ModuleType>('All');
   const [items, setItems] = useState<TestItem[]>([]);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     adminListTests('pending_review').then(res => {
        const mapped: TestItem[] = res.tests.map(t => {
           const moduleMap: Record<string, Exclude<ModuleType, 'All'>> = {
@@ -51,7 +53,7 @@ export default function ModerationTestsRoute() {
             'practice': 'Practice'
           };
           const b = [t.course?.name, t.subject?.name].filter(Boolean).join(' · ');
-          
+
           return {
             id: t.id,
             title: t.title,
@@ -66,9 +68,14 @@ export default function ModerationTestsRoute() {
           };
        });
        setItems(mapped);
-    }).catch(() => {})
+       setLoadError(false);
+    }).catch(() => setLoadError(true))
     .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = items.filter((i) => filter === 'All' || i.module === filter);
 
@@ -128,6 +135,13 @@ export default function ModerationTestsRoute() {
       >
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonBlock key={i} height={92} radius={radius.md} />)
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load tests"
+            description="Something went wrong fetching tests pending review."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : filtered.length === 0 ? (
           <EmptyState title="All clear" description="No tests waiting on review." />
         ) : (

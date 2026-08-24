@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, useToast } from '@/src/components';
+import { Plus, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListSubscriptionPlans, updateSubscriptionPlan } from '@/src/api/admin';
 import type { SubscriptionPlan } from '@/src/api/profile';
@@ -23,15 +23,24 @@ export default function SubscriptionPlanListRoute() {
   const router = useRouter();
   const { show } = useToast();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [tab, setTab] = useState<'Active' | 'Inactive'>('Active');
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     adminListSubscriptionPlans()
-      .then(res => setPlans(res.plans || []))
-      .catch(() => {})
+      .then(res => {
+        setPlans(res.plans || []);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = plans.filter((p) => (tab === 'Active' ? p.is_active : !p.is_active));
 
@@ -90,6 +99,13 @@ export default function SubscriptionPlanListRoute() {
       >
         {loading ? (
           Array.from({ length: 2 }).map((_, i) => <SkeletonBlock key={i} height={92} radius={radius.md} />)
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load plans"
+            description="Something went wrong fetching subscription plans."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : filtered.length === 0 ? (
           <EmptyState title="No plans yet" description="Tap + to create your first one." />
         ) : (

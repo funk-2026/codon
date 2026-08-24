@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MagnifyingGlass } from 'phosphor-react-native';
-import { SkeletonBlock } from '@/src/components';
+import { MagnifyingGlass, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listPayments } from '@/src/api/admin';
 import type { UserProfile } from '@/src/api/profile';
@@ -44,16 +44,25 @@ export default function PaymentRecordsListRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('All');
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     listPayments()
-      .then(res => setPayments(res.payments || []))
-      .catch(() => {})
+      .then(res => {
+        setPayments(res.payments || []);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = payments.filter((p) => {
     if (filter !== 'All' && p.status !== filter) return false;
@@ -143,6 +152,13 @@ export default function PaymentRecordsListRoute() {
       >
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => <SkeletonBlock key={i} height={76} radius={radius.md} />)
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load payments"
+            description="Something went wrong fetching payment records."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : filtered.length === 0 ? (
           <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center', marginTop: space.xl }]}>
             No payments match &apos;{query}&apos;.

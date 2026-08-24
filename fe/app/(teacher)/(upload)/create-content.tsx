@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -11,7 +11,7 @@ import {
   ListBullets,
   X,
 } from 'phosphor-react-native';
-import { InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
+import { ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { createContent } from '@/src/api/teacher';
 import { listCourses, getCurriculum } from '@/src/api/courses';
@@ -40,19 +40,27 @@ export default function CreateContentRoute() {
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    listCourses().then(res => {
+  const loadCourseInfo = useCallback(async () => {
+    try {
+      const res = await listCourses();
       if (res.courses.length > 0) {
         setCourseId(res.courses[0].id);
-        getCurriculum(res.courses[0].id).then(cRes => {
-          const chaps = cRes.course.subjects.flatMap((s: any) => s.chapters);
-          if (chaps.length > 0) setChapterId(chaps[0].id);
-        }).catch(() => {});
+        const cRes = await getCurriculum(res.courses[0].id);
+        const chaps = cRes.course.subjects.flatMap((s: any) => s.chapters);
+        if (chaps.length > 0) setChapterId(chaps[0].id);
       }
-    }).catch(() => {});
+      setLoadError(false);
+    } catch (err) {
+      setLoadError(true);
+    }
   }, []);
+
+  useEffect(() => {
+    loadCourseInfo();
+  }, [loadCourseInfo]);
 
   useEffect(() => {
     if (locationLabel) setLocation(locationLabel);
@@ -163,6 +171,12 @@ export default function CreateContentRoute() {
         </Text>
         <TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
       </View>
+
+      {loadError ? (
+        <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
+          <ErrorBanner message="Couldn't load your course info." onRetry={loadCourseInfo} />
+        </View>
+      ) : null}
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}

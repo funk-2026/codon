@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, DeviceMobile, CreditCard, Wallet, Lock } from 'phosphor-react-native';
-import { PrimaryButton, SkeletonBlock, useToast } from '@/src/components';
+import { CaretLeft, DeviceMobile, CreditCard, Wallet, Lock, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listPlans, checkout, verifyPayment } from '@/src/api/subscriptions';
 import { SubscriptionPlan } from '@/src/api/profile';
@@ -16,18 +16,28 @@ export default function CheckoutRoute() {
   const { planId } = useLocalSearchParams<{ planId?: string }>();
   const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [stage, setStage] = useState<'summary' | 'launching' | 'verifying'>('summary');
   const { show } = useToast();
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     listPlans()
       .then((res) => {
         const found = res.plans.find((p) => p.id === planId) || res.plans[0];
         setPlan(found);
+        setLoadError(false);
       })
-      .catch(() => show('Failed to load plan details.', 'error'))
+      .catch(() => {
+        show('Failed to load plan details.', 'error');
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
   }, [planId, show]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handlePay = async () => {
     if (!plan) return;
@@ -83,8 +93,16 @@ export default function CheckoutRoute() {
       </View>
 
       <View style={{ paddingHorizontal: space.md, flex: 1 }}>
-        {loading || !plan ? (
+        {loading ? (
           <SkeletonBlock height={200} radius={radius.lg} style={{ marginTop: space.xl }} />
+        ) : loadError || !plan ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load plan details"
+            description="Something went wrong fetching the plan you selected."
+            action={<TextButton label="Retry" onPress={load} />}
+            style={{ marginTop: space.xl }}
+          />
         ) : (
           <View
             style={[

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -7,8 +7,8 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { X, GridFour, CaretLeft, CaretRight } from 'phosphor-react-native';
-import { PrimaryButton, SecondaryButton, TextButton } from '@/src/components';
+import { X, GridFour, CaretLeft, CaretRight, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getTestQuestions } from '@/src/api/tests';
 import { startAttempt, upsertAnswer } from '@/src/api/attempts';
@@ -22,12 +22,14 @@ export default function TestQuestionRoute() {
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
 
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
-  
+
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -40,44 +42,48 @@ export default function TestQuestionRoute() {
   const q = questions[current];
   const TOTAL = questions.length;
 
-  useEffect(() => {
+  const init = useCallback(async () => {
     if (!id) return;
-    async function init() {
-      try {
-        const [attRes, qRes] = await Promise.all([
-          startAttempt(id as string),
-          getTestQuestions(id as string)
-        ]);
-        setAttempt(attRes.attempt);
-        setQuestions(qRes.questions);
+    setLoading(true);
+    try {
+      const [attRes, qRes] = await Promise.all([
+        startAttempt(id as string),
+        getTestQuestions(id as string)
+      ]);
+      setAttempt(attRes.attempt);
+      setQuestions(qRes.questions);
 
-        // Pre-fill answers from previous session
-        const ansMap: Record<string, number> = {};
-        attRes.answers.forEach((a: AttemptAnswer) => {
-           if (a.selected_option) {
-             // We need to map options like 'A', 'B' to index 0, 1
-             const idx = a.selected_option.charCodeAt(0) - 65;
-             if (idx >= 0 && idx <= 3) {
-               ansMap[a.question_id] = idx;
-             }
+      // Pre-fill answers from previous session
+      const ansMap: Record<string, number> = {};
+      attRes.answers.forEach((a: AttemptAnswer) => {
+         if (a.selected_option) {
+           // We need to map options like 'A', 'B' to index 0, 1
+           const idx = a.selected_option.charCodeAt(0) - 65;
+           if (idx >= 0 && idx <= 3) {
+             ansMap[a.question_id] = idx;
            }
-        });
-        setAnswers(ansMap);
+         }
+      });
+      setAnswers(ansMap);
 
-        if (attRes.attempt.test?.duration_minutes) {
-          const totalSec = attRes.attempt.test.duration_minutes * 60;
-          const startedAt = new Date(attRes.attempt.started_at).getTime();
-          const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-          setSecondsLeft(Math.max(0, totalSec - elapsed));
-        }
-      } catch (err) {
-        console.error('Failed to init test', err);
-      } finally {
-        setLoading(false);
+      if (attRes.attempt.test?.duration_minutes) {
+        const totalSec = attRes.attempt.test.duration_minutes * 60;
+        const startedAt = new Date(attRes.attempt.started_at).getTime();
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        setSecondsLeft(Math.max(0, totalSec - elapsed));
       }
+      setLoadError(false);
+    } catch (err) {
+      console.error('Failed to init test', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    init();
   }, [id]);
+
+  useEffect(() => {
+    init();
+  }, [init]);
 
   useEffect(() => {
     if (!timed) return;
@@ -104,8 +110,10 @@ export default function TestQuestionRoute() {
       await upsertAnswer(attempt.id, q.id, {
         selected_option: String.fromCharCode(65 + optIdx)
       });
+      setSaveError(false);
     } catch (e) {
       console.error('Failed to save answer', e);
+      setSaveError(true);
     }
   };
 
@@ -120,8 +128,20 @@ export default function TestQuestionRoute() {
       await upsertAnswer(attempt.id, q.id, {
         selected_option: null
       });
+      setSaveError(false);
     } catch (e) {
       console.error('Failed to clear answer', e);
+      setSaveError(true);
+    }
+  };
+
+  const retrySave = () => {
+    if (!q) return;
+    const sel = answers[q.id];
+    if (sel != null) {
+      selectOption(sel);
+    } else {
+      clearResponse();
     }
   };
 
@@ -238,7 +258,25 @@ export default function TestQuestionRoute() {
         </View>
       </View>
 
-      {loading || !q ? (
+      {loading ? (
+        <View style={{ flex: 1, paddingHorizontal: space.md, marginTop: space.xl }}>
+          <SkeletonBlock height={120} radius={radius.lg} />
+          <View style={{ gap: space.sm, marginTop: space.lg }}>
+            <SkeletonBlock height={56} radius={radius.md} />
+            <SkeletonBlock height={56} radius={radius.md} />
+            <SkeletonBlock height={56} radius={radius.md} />
+            <SkeletonBlock height={56} radius={radius.md} />
+          </View>
+        </View>
+      ) : loadError ? (
+        <EmptyState
+          icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+          title="Couldn't load this test"
+          description="Something went wrong loading your questions. Check your connection and try again."
+          action={<TextButton label="Retry" onPress={init} />}
+          style={{ flex: 1, justifyContent: 'center' }}
+        />
+      ) : !q ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Loading...</Text>
         </View>
@@ -246,6 +284,13 @@ export default function TestQuestionRoute() {
       <>
         {/* Question + options */}
         <View style={{ flex: 1, paddingHorizontal: space.md, marginTop: space.xl }}>
+        {saveError ? (
+          <ErrorBanner
+            message="Couldn't save your last answer."
+            onRetry={retrySave}
+            style={{ marginBottom: space.md }}
+          />
+        ) : null}
         <Animated.View style={slideStyle}>
           <View
             style={[

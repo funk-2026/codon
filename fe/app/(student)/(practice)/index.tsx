@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
@@ -14,6 +14,7 @@ import {
   CaretRight,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { ErrorBanner } from '@/src/components';
 import { getAttempts } from '@/src/api/profile';
 import type { StudentAttempt } from '@/src/api/attempts';
 
@@ -47,21 +48,25 @@ export default function PracticeHubRoute() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [attempts, setAttempts] = useState<StudentAttempt[]>([]);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await getAttempts();
-        setAttempts(res.attempts);
-      } catch (e) {
-        console.error('Failed to load attempts', e);
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    try {
+      const res = await getAttempts();
+      setAttempts(res.attempts);
+      setLoadError(false);
+    } catch (e) {
+      console.error('Failed to load attempts', e);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const isNewUser = !loading && attempts.length === 0;
 
@@ -112,6 +117,12 @@ export default function PracticeHubRoute() {
         <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space.lg }]}>
           Practice.
         </Text>
+
+        {loadError ? (
+          <View style={{ marginTop: space.md }}>
+            <ErrorBanner onRetry={load} />
+          </View>
+        ) : null}
 
         <View style={{ gap: space.md, marginTop: space.lg }}>
           {categories.map((c, i) => (

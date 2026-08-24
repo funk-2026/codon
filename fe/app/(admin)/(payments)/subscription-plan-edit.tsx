@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, CheckCircle, X } from 'phosphor-react-native';
-import { InputField, PrimaryButton, TextButton, useToast } from '@/src/components';
+import { CaretLeft, CheckCircle, WarningCircle, X } from 'phosphor-react-native';
+import { EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListSubscriptionPlans, createSubscriptionPlan, updateSubscriptionPlan } from '@/src/api/admin';
 import { listCourses } from '@/src/api/courses';
@@ -18,8 +18,9 @@ export default function SubscriptionPlanEditRoute() {
   const isEditing = !!id;
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
-  
+
   const [name, setName] = useState('');
   const [courseId, setCourseId] = useState<string>('');
   const [days, setDays] = useState('');
@@ -28,7 +29,8 @@ export default function SubscriptionPlanEditRoute() {
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
+    setLoading(true);
     // Fetch courses first
     listCourses()
       .then(res => {
@@ -52,9 +54,17 @@ export default function SubscriptionPlanEditRoute() {
           });
         }
       })
-      .catch(() => show('Failed to load data', 'error'))
+      .then(() => setLoadError(false))
+      .catch(() => {
+        show('Failed to load data', 'error');
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
-  }, [id, isEditing]);
+  }, [id, isEditing, show]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const valid = name.trim().length > 0 && days.trim().length > 0 && price.trim().length > 0 && !!courseId && !loading;
 
@@ -112,6 +122,22 @@ export default function SubscriptionPlanEditRoute() {
         </Text>
       </View>
 
+      {loading ? (
+        <View style={{ paddingHorizontal: space.md, marginTop: space.xl, gap: space.lg }}>
+          <SkeletonBlock height={56} radius={radius.md} />
+          <SkeletonBlock height={56} radius={radius.md} />
+          <SkeletonBlock height={56} radius={radius.md} />
+          <SkeletonBlock height={56} radius={radius.md} />
+        </View>
+      ) : loadError ? (
+        <EmptyState
+          icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+          title="Couldn't load plan data"
+          description="Something went wrong fetching courses and plan details."
+          action={<TextButton label="Retry" onPress={loadData} />}
+          style={{ flex: 1 }}
+        />
+      ) : (
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
@@ -241,10 +267,13 @@ export default function SubscriptionPlanEditRoute() {
           </View>
         </View>
       </ScrollView>
+      )}
 
-      <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-        <PrimaryButton label="Save Plan" onPress={handleSave} disabled={!valid} loading={saving} />
-      </View>
+      {!loadError ? (
+        <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
+          <PrimaryButton label="Save Plan" onPress={handleSave} disabled={!valid} loading={saving} />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
@@ -10,7 +10,7 @@ import Animated, {
 import { PlayCircle, FileText, CaretRight } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getRecentContent } from '@/src/api/profile';
-import { SkeletonBlock } from '@/src/components';
+import { ErrorBanner, SkeletonBlock } from '@/src/components';
 
 type Category = {
   id: 'video' | 'document';
@@ -51,14 +51,22 @@ export default function LearnHubRoute() {
   const insets = useSafeAreaInsets();
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const isNewUser = !loading && recent.length === 0;
 
-  useEffect(() => {
+  const loadRecent = useCallback(() => {
     getRecentContent()
-      .then((res) => setRecent(res.recent))
-      .catch(() => {})
+      .then((res) => {
+        setRecent(res.recent);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadRecent();
+  }, [loadRecent]);
 
   const categories: Category[] = [
     {
@@ -87,6 +95,12 @@ export default function LearnHubRoute() {
         <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space.lg }]}>
           Learn.
         </Text>
+
+        {loadError ? (
+          <View style={{ marginTop: space.md }}>
+            <ErrorBanner onRetry={loadRecent} />
+          </View>
+        ) : null}
 
         {/* Continue Watching */}
         {!isNewUser ? (

@@ -19,6 +19,9 @@ export type { InputFieldProps } from './InputField';
 export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
 
+export { ErrorBanner } from './ErrorBanner';
+export type { ErrorBannerProps } from './ErrorBanner';
+
 export { ToastProvider, useToast } from './Toast';
 export type { ToastType } from './Toast';
 

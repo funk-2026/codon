@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CaretLeft } from 'phosphor-react-native';
-import { PrimaryButton, TextButton } from '@/src/components';
+import { CaretLeft, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, PrimaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useLocalSearchParams } from 'expo-router';
 import { getCSVImportReport } from '@/src/api/teacher';
@@ -18,13 +18,17 @@ export default function CsvImportReportRoute() {
   const { batchId } = useLocalSearchParams<{ batchId?: string }>();
 
   const [processing, setProcessing] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [report, setReport] = useState<any>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!batchId) {
       setProcessing(false);
       return;
     }
+    setProcessing(true);
+    setLoadError(false);
     const interval = setInterval(() => {
       getCSVImportReport(batchId)
         .then((res) => {
@@ -36,12 +40,15 @@ export default function CsvImportReportRoute() {
         })
         .catch(() => {
           setProcessing(false);
+          setLoadError(true);
           clearInterval(interval);
         });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [batchId]);
+  }, [batchId, retryKey]);
+
+  const retry = useCallback(() => setRetryKey((k) => k + 1), []);
 
   const totalRows = report?.total_rows || 0;
   const successCount = report?.successful_rows || 0;
@@ -81,12 +88,17 @@ export default function CsvImportReportRoute() {
           ]}
         >
           {processing ? (
-            <>
-              <OrbitPulse color={color('accent/default')} />
-              <Text style={[type['type/body-m-medium'], { color: color('text/secondary'), marginTop: space.md }]}>
-                Processing your file…
-              </Text>
-            </>
+            <View style={{ alignItems: 'center', gap: space.sm }}>
+              <SkeletonBlock width={72} height={40} radius={radius.sm} />
+              <SkeletonBlock width={160} height={16} radius={radius.sm} />
+            </View>
+          ) : loadError ? (
+            <EmptyState
+              icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+              title="Couldn't load import results"
+              description="Something went wrong checking your CSV import status."
+              action={<TextButton label="Retry" onPress={retry} />}
+            />
           ) : (
             <>
               <Text
@@ -159,21 +171,6 @@ export default function CsvImportReportRoute() {
         </View>
       ) : null}
     </SafeAreaView>
-  );
-}
-
-function OrbitPulse({ color: ink }: { color: string }) {
-  return (
-    <View
-      style={{
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        borderWidth: 3,
-        borderColor: ink,
-        opacity: 0.6,
-      }}
-    />
   );
 }
 

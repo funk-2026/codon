@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
@@ -14,7 +14,7 @@ import {
   GearSix,
   ChartBar,
 } from 'phosphor-react-native';
-import { SkeletonBlock } from '@/src/components';
+import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getAdminDashboardSummary } from '@/src/api/admin';
 
@@ -59,6 +59,7 @@ export default function AdminHomeRoute() {
   const { width: screenWidth } = useWindowDimensions();
   const tileWidth = (screenWidth - space.md * 2 - space.sm) / 2;
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [summary, setSummary] = useState({
     total_users: 1248,
     active_subscriptions: 342,
@@ -67,7 +68,8 @@ export default function AdminHomeRoute() {
     pending_content_reviews: 3,
   });
 
-  useEffect(() => {
+  const loadSummary = useCallback(() => {
+    setLoading(true);
     getAdminDashboardSummary()
       .then(res => {
          setSummary({
@@ -77,10 +79,15 @@ export default function AdminHomeRoute() {
             pending_test_reviews: res.pending_test_reviews || 0,
             pending_content_reviews: res.pending_content_reviews || 0,
          });
+         setLoadError(false);
       })
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary]);
 
   const pendingReviews = summary.pending_test_reviews + summary.pending_content_reviews;
 
@@ -117,6 +124,12 @@ export default function AdminHomeRoute() {
             ) : null}
           </View>
         </Stagger>
+
+        {loadError ? (
+          <View style={{ marginTop: space.md }}>
+            <ErrorBanner onRetry={loadSummary} />
+          </View>
+        ) : null}
 
         <Stagger delayMs={80}>
           <View style={[styles.grid2, { gap: space.sm, marginTop: space.xl }]}>

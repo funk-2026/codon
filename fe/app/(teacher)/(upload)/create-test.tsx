@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretRight, Stack, Exam, Lightning, WarningCircle, Minus, Plus } from 'phosphor-react-native';
-import { InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
+import { ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { createTest } from '@/src/api/teacher';
 import { listCourses } from '@/src/api/courses';
@@ -36,13 +36,19 @@ export default function CreateTestRoute() {
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const questionCount = isRejectedEdit ? 20 : 0;
 
-  useEffect(() => {
+  const loadCourseInfo = useCallback(() => {
     listCourses().then(res => {
       if (res.courses.length > 0) setCourseId(res.courses[0].id);
-    }).catch(() => {});
+      setLoadError(false);
+    }).catch(() => setLoadError(true));
   }, []);
+
+  useEffect(() => {
+    loadCourseInfo();
+  }, [loadCourseInfo]);
 
   useEffect(() => {
     if (locationLabel) setLocation(locationLabel);
@@ -108,6 +114,12 @@ export default function CreateTestRoute() {
         </Text>
         <TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
       </View>
+
+      {loadError ? (
+        <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
+          <ErrorBanner message="Couldn't load your course info." onRetry={loadCourseInfo} />
+        </View>
+      ) : null}
 
       {isRejectedEdit && !bannerDismissed ? (
         <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>

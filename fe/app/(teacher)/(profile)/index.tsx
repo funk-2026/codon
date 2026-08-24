@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { PencilSimple, CaretRight, Stack } from 'phosphor-react-native';
-import { SecondaryButton, useToast } from '@/src/components';
+import { ErrorBanner, SecondaryButton, useToast } from '@/src/components';
 import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { updateMe } from '@/src/api/profile';
@@ -23,6 +23,7 @@ export default function TeacherProfileRoute() {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [canManageAllContent, setCanManageAllContent] = useState(false);
   const [contentCount, setContentCount] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (user?.name) {
@@ -31,23 +32,29 @@ export default function TeacherProfileRoute() {
     }
   }, [user?.name]);
 
-  useEffect(() => {
+  const loadExtras = useCallback(() => {
     import('@/src/api/profile').then(({ getMe }) => {
       getMe().then(res => {
         if (res.user && (res.user as any).can_manage_all_content) {
           setCanManageAllContent(true);
         }
-      }).catch(() => {});
+        setLoadError(false);
+      }).catch(() => setLoadError(true));
     });
 
     import('@/src/api/teacher').then(({ listTeacherContent, listTeacherTests }) => {
       Promise.all([listTeacherContent(), listTeacherTests()])
         .then(([cRes, tRes]) => {
           setContentCount((cRes.content?.length || 0) + (tRes.tests?.length || 0));
+          setLoadError(false);
         })
-        .catch(() => {});
+        .catch(() => setLoadError(true));
     });
   }, []);
+
+  useEffect(() => {
+    loadExtras();
+  }, [loadExtras]);
 
   const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
@@ -119,6 +126,12 @@ export default function TeacherProfileRoute() {
             ) : null}
           </View>
         </View>
+
+        {loadError ? (
+          <View style={{ marginTop: space.md }}>
+            <ErrorBanner onRetry={loadExtras} />
+          </View>
+        ) : null}
 
         <Pressable
           onPress={() => router.push('/(teacher)/(content)')}

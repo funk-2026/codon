@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, IdentificationCard } from 'phosphor-react-native';
-import { EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, useToast } from '@/src/components';
+import { CaretLeft, IdentificationCard, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListKYC, adminApproveKYC, adminRejectKYC } from '@/src/api/admin';
 import type { KYCRecord } from '@/src/api/kyc';
@@ -22,6 +22,7 @@ export default function KycReviewDetailRoute() {
   const fromQueue = from === 'queue' || from === 'user-detail';
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [record, setRecord] = useState<KYCRecord | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -30,31 +31,33 @@ export default function KycReviewDetailRoute() {
   const [submitting, setSubmitting] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!id) {
       setLoading(false);
       return;
     }
-    let cancelled = false;
+    setLoading(true);
     // There's no "get KYC record by id" endpoint — the list is filtered by
     // status, so look across all three to find the record we were sent here for.
     Promise.all([adminListKYC('pending'), adminListKYC('approved'), adminListKYC('rejected')])
       .then(([pending, approved, rejected]) => {
-        if (cancelled) return;
         setPendingCount(pending.records.length);
         const found = [...pending.records, ...approved.records, ...rejected.records].find((r) => r.id === id);
         setRecord(found ?? null);
+        setLoadError(false);
       })
       .catch(() => {
-        if (!cancelled) show('Failed to load KYC record', 'error');
+        show('Failed to load KYC record', 'error');
+        setLoadError(true);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const advance = async () => {
     if (from !== 'queue') {
@@ -132,6 +135,14 @@ export default function KycReviewDetailRoute() {
           <SkeletonBlock height={220} radius={radius.lg} />
           <SkeletonBlock height={120} radius={radius.md} />
         </View>
+      ) : loadError ? (
+        <EmptyState
+          icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+          title="Couldn't load record"
+          description="Something went wrong fetching this KYC record."
+          action={<TextButton label="Retry" onPress={load} />}
+          style={{ marginTop: space.xl }}
+        />
       ) : !record ? (
         <EmptyState
           title="Record not found"

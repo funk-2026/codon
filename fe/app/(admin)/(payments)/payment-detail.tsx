@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, CaretRight } from 'phosphor-react-native';
-import { SkeletonBlock } from '@/src/components';
+import { CaretLeft, CaretRight, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getPayment } from '@/src/api/admin';
 import type { UserProfile } from '@/src/api/profile';
@@ -39,22 +39,44 @@ export default function PaymentDetailRoute() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [p, setPayment] = useState<PaymentRecord | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!id) return;
+    setLoading(true);
     getPayment(id)
-      .then(res => setPayment(res))
-      .catch(() => {})
+      .then(res => {
+        setPayment(res);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading || !p) {
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
         <View style={{ padding: space.md, alignItems: 'center' }}>
           <SkeletonBlock height={72} radius={36} style={{ width: 72 }} />
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (loadError || !p) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+        <EmptyState
+          icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+          title="Couldn't load this payment"
+          description="Something went wrong fetching the payment details."
+          action={<TextButton label="Retry" onPress={load} />}
+        />
       </SafeAreaView>
     );
   }

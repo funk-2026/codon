@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -26,9 +26,11 @@ import {
   PlayCircle,
   FileText,
   Exam,
+  WarningCircle,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { getCurriculum } from '@/src/api/courses';
 import { listTests } from '@/src/api/tests';
 import type { Subject, Chapter } from '@/src/api/courses';
@@ -98,9 +100,10 @@ export default function HierarchyBrowserRoute() {
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [courseName, setCourseName] = useState('Course');
-  
+
   // Tests fetched dynamically when viewing a chapter
   const [leafTests, setLeafTests] = useState<Test[]>([]);
   const [loadingTests, setLoadingTests] = useState(false);
@@ -110,33 +113,55 @@ export default function HierarchyBrowserRoute() {
     [params.path],
   );
 
-  useEffect(() => {
-    async function init() {
-      if (!user?.selected_course_id) return;
-      try {
-        const res = await getCurriculum(user.selected_course_id);
-        setSubjects(res.course.subjects || []);
-        setCourseName(res.course.name);
-      } catch (err) {
-        console.error('Failed to load curriculum', err);
-      } finally {
-        setLoading(false);
-      }
+  const loadCurriculum = useCallback(async () => {
+    if (!user?.selected_course_id) return;
+    setLoading(true);
+    try {
+      const res = await getCurriculum(user.selected_course_id);
+      setSubjects(res.course.subjects || []);
+      setCourseName(res.course.name);
+      setLoadError(false);
+    } catch (err) {
+      console.error('Failed to load curriculum', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    init();
   }, [user?.selected_course_id]);
 
   useEffect(() => {
+    loadCurriculum();
+  }, [loadCurriculum]);
+
+  const loadTests = useCallback(() => {
+    setLoadingTests(true);
+    listTests({ chapter_id: pathIds[1], module_type: params.kind })
+      .then(res => {
+        setLeafTests(res.tests || []);
+        setLoadError(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load tests', err);
+        setLoadError(true);
+      })
+      .finally(() => setLoadingTests(false));
+  }, [pathIds[1], params.kind]);
+
+  useEffect(() => {
     if (pathIds.length === 2) {
-      setLoadingTests(true);
-      listTests({ chapter_id: pathIds[1], module_type: params.kind })
-        .then(res => setLeafTests(res.tests || []))
-        .catch(console.error)
-        .finally(() => setLoadingTests(false));
+      loadTests();
     } else {
       setLeafTests([]);
     }
   }, [pathIds.length, pathIds[1], params.kind]);
+
+  const retryLoad = () => {
+    if (pathIds.length === 2) {
+      loadTests();
+    } else {
+      loadCurriculum();
+    }
+  };
 
   const crumbs = useMemo(() => {
     const out: { id: string; title: string; path: string }[] = [];
@@ -302,9 +327,18 @@ export default function HierarchyBrowserRoute() {
         showsVerticalScrollIndicator={false}
       >
         {loading || loadingTests ? (
-          <View style={{ alignItems: 'center', paddingVertical: space['2xl'] }}>
-            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Loading...</Text>
+          <View style={{ gap: space.xs }}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonBlock key={i} height={64} radius={radius.md} />
+            ))}
           </View>
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load this section"
+            description="Something went wrong loading the curriculum. Check your connection and try again."
+            action={<TextButton label="Retry" onPress={retryLoad} />}
+          />
         ) : crumbs.currentLayer.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: space['2xl'], gap: space.xs }}>
             <Folder size={28} color={color('text/tertiary')} weight="duotone" />

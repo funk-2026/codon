@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -7,10 +7,10 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { CaretLeft, Play, Pause, X, GridFour } from 'phosphor-react-native';
+import { CaretLeft, Play, Pause, X, GridFour, WarningCircle } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat } from '@/src/api/content';
-import { SkeletonBlock } from '@/src/components';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 
 
 
@@ -25,12 +25,14 @@ export default function VideoPlayerRoute() {
   const [content, setContent] = useState<ContentItem | null>(null);
   const [siblings, setSiblings] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!id) {
       setLoading(false);
       return;
     }
+    setLoading(true);
     getContentItem(id)
       .then((res) => {
         setContent(res.content);
@@ -38,10 +40,15 @@ export default function VideoPlayerRoute() {
       })
       .then((chRes) => {
         setSiblings(chRes.content.filter(c => c.id !== id));
+        setLoadError(false);
       })
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const [playing, setPlaying] = useState(true);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -215,52 +222,64 @@ export default function VideoPlayerRoute() {
 
         {/* Below-canvas panel */}
         <View style={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}>
-          <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.md }]}>
-            {content?.title || 'Loading...'}
-          </Text>
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            Video Lesson
-          </Text>
-          <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.md }]}>
-            {/* We don't have a description on content item currently */}
-            This is a video lesson.
-          </Text>
-          <Text
-            style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.lg, marginBottom: space.sm }]}
-          >
-            MORE IN THIS CHAPTER
-          </Text>
-          <View style={{ gap: space.xs }}>
-            {siblings.map((s) => (
-              <Pressable
-                key={s.id}
-                onPress={() => router.push({ pathname: '/(student)/(learn)/video-player', params: { id: s.id } })}
-                style={({ pressed }) => [
-                  styles.siblingRow,
-                  {
-                    backgroundColor: color('bg/surface'),
-                    borderRadius: radius.md,
-                    padding: space.sm,
-                    opacity: pressed ? 0.94 : 1,
-                  },
-                  shadow(),
-                ]}
+          {loadError ? (
+            <EmptyState
+              icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+              title="Couldn't load this video"
+              description="Something went wrong loading this lesson. Check your connection and try again."
+              action={<TextButton label="Retry" onPress={load} />}
+              style={{ marginTop: space.md }}
+            />
+          ) : (
+            <>
+              <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.md }]}>
+                {content?.title || 'Loading...'}
+              </Text>
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
+                Video Lesson
+              </Text>
+              <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.md }]}>
+                {/* We don't have a description on content item currently */}
+                This is a video lesson.
+              </Text>
+              <Text
+                style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.lg, marginBottom: space.sm }]}
               >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[type['type/body-m-medium'], { color: color('text/primary') }]}
-                    numberOfLines={1}
+                MORE IN THIS CHAPTER
+              </Text>
+              <View style={{ gap: space.xs }}>
+                {siblings.map((s) => (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => router.push({ pathname: '/(student)/(learn)/video-player', params: { id: s.id } })}
+                    style={({ pressed }) => [
+                      styles.siblingRow,
+                      {
+                        backgroundColor: color('bg/surface'),
+                        borderRadius: radius.md,
+                        padding: space.sm,
+                        opacity: pressed ? 0.94 : 1,
+                      },
+                      shadow(),
+                    ]}
                   >
-                    {s.title}
-                  </Text>
-                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                    {s.content_type === 'video' ? 'Video' : 'Document'}
-                  </Text>
-                </View>
-                <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />
-              </Pressable>
-            ))}
-          </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[type['type/body-m-medium'], { color: color('text/primary') }]}
+                        numberOfLines={1}
+                      >
+                        {s.title}
+                      </Text>
+                      <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
+                        {s.content_type === 'video' ? 'Video' : 'Document'}
+                      </Text>
+                    </View>
+                    <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
         </View>
       </Animated.View>
 

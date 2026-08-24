@@ -12,11 +12,37 @@ import {
 } from '@expo-google-fonts/manrope';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { ThemeProvider } from '@/src/theme/ThemeProvider';
-import { AuthProvider } from '@/src/auth/AuthContext';
+import { AuthProvider, useAuth } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components';
 import { stackAnimation } from '@/src/components/ThemedStack';
 
 SplashScreen.preventAutoHideAsync();
+
+// Screens behind these guards are unmounted (not just hidden) once auth
+// status flips, so an authenticated user can't back-navigate into the
+// sign-in flow, and vice versa — no manual redirect-on-back-press needed.
+function RootNavigator() {
+  const auth = useAuth();
+
+  return (
+    <Stack screenOptions={{ headerShown: false, animation: stackAnimation }}>
+      <Stack.Screen name="index" />
+      <Stack.Protected guard={auth.status !== 'authenticated'}>
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="phone-entry" />
+        <Stack.Screen name="otp-verify" />
+        <Stack.Screen name="preview-mode" />
+      </Stack.Protected>
+      <Stack.Protected guard={auth.status === 'authenticated'}>
+        <Stack.Screen name="profile-setup" />
+        <Stack.Screen name="(student)" />
+        <Stack.Screen name="(teacher)" />
+        <Stack.Screen name="(admin)" />
+      </Stack.Protected>
+      <Stack.Screen name="+not-found" />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   useFrameworkReady();
@@ -43,18 +69,7 @@ export default function RootLayout() {
     <ThemeProvider>
       <AuthProvider>
         <ToastProvider>
-          <Stack screenOptions={{ headerShown: false, animation: stackAnimation }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="onboarding" />
-            <Stack.Screen name="phone-entry" />
-            <Stack.Screen name="otp-verify" />
-            <Stack.Screen name="preview-mode" />
-            <Stack.Screen name="profile-setup" />
-            <Stack.Screen name="(student)" />
-            <Stack.Screen name="(teacher)" />
-            <Stack.Screen name="(admin)" />
-            <Stack.Screen name="+not-found" />
-          </Stack>
+          <RootNavigator />
           <StatusBar style="auto" />
         </ToastProvider>
       </AuthProvider>

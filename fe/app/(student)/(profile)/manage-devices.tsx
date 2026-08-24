@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CaretLeft, DeviceMobile, DeviceTablet } from 'phosphor-react-native';
-import { SecondaryButton, SkeletonBlock, useToast } from '@/src/components';
+import { CaretLeft, DeviceMobile, DeviceTablet, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listSessions, revokeSession } from '@/src/api/sessions';
 
@@ -22,33 +22,38 @@ export default function ManageDevicesRoute() {
   const { show } = useToast();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
   const [target, setTarget] = useState<Device | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const { sessions } = await listSessions();
-        const mapped: Device[] = sessions.map(s => {
-          const kind = s.device_info?.toLowerCase().includes('ipad') || s.device_info?.toLowerCase().includes('tablet') ? 'tablet' : 'phone';
-          return {
-            id: s.id,
-            label: s.device_info || 'Unknown Device',
-            lastActive: new Date(s.last_used_at).toLocaleDateString(),
-            current: false,
-            kind,
-          };
-        });
-        if (mapped.length > 0) mapped[0].current = true; // Best effort for current session indicator
-        setDevices(mapped);
-      } catch (err) {
-        show('Failed to load devices', 'error');
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { sessions } = await listSessions();
+      const mapped: Device[] = sessions.map(s => {
+        const kind = s.device_info?.toLowerCase().includes('ipad') || s.device_info?.toLowerCase().includes('tablet') ? 'tablet' : 'phone';
+        return {
+          id: s.id,
+          label: s.device_info || 'Unknown Device',
+          lastActive: new Date(s.last_used_at).toLocaleDateString(),
+          current: false,
+          kind,
+        };
+      });
+      if (mapped.length > 0) mapped[0].current = true; // Best effort for current session indicator
+      setDevices(mapped);
+      setLoadError(false);
+    } catch (err) {
+      show('Failed to load devices', 'error');
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, [show]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const confirmRemove = async () => {
     if (!target) return;
@@ -101,6 +106,13 @@ export default function ManageDevicesRoute() {
             <SkeletonBlock height={84} radius={radius.md} />
             <SkeletonBlock height={84} radius={radius.md} />
           </>
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load devices"
+            description="Something went wrong fetching your signed-in devices."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
         ) : (
           devices.map((d) => {
             const Icon = d.kind === 'tablet' ? DeviceTablet : DeviceMobile;

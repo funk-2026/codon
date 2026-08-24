@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { Check, X, CheckCircle } from 'phosphor-react-native';
-import { EmptyState, InputField, PrimaryButton, SkeletonBlock, useToast } from '@/src/components';
+import { Check, X, CheckCircle, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListKYC, adminApproveKYC, adminRejectKYC } from '@/src/api/admin';
 import type { KYCRecord } from '@/src/api/kyc';
@@ -99,20 +99,25 @@ export default function KycReviewQueueRoute() {
   const { show } = useToast();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [entries, setEntries] = useState<KYCRecord[]>([]);
   const [rejectTarget, setRejectTarget] = useState<KYCRecord | null>(null);
   const [reason, setReason] = useState('');
 
-  const fetchRecords = () => {
+  const fetchRecords = useCallback(() => {
+    setLoading(true);
     adminListKYC('pending')
-      .then(res => setEntries(res.records || []))
-      .catch(() => {})
+      .then(res => {
+        setEntries(res.records || []);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [fetchRecords]);
 
   const approve = async (id: string) => {
     try {
@@ -153,6 +158,13 @@ export default function KycReviewQueueRoute() {
       >
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonBlock key={i} height={92} radius={radius.md} />)
+        ) : loadError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load KYC queue"
+            description="Something went wrong fetching pending reviews."
+            action={<TextButton label="Retry" onPress={fetchRecords} />}
+          />
         ) : entries.length === 0 ? (
           <EmptyState
             icon={<CheckCircle size={32} color={color('semantic/success')} weight="fill" />}
