@@ -5,14 +5,21 @@ import (
 
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
+	"codon-backend/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-type AdminHandler struct{ DB *gorm.DB }
+type AdminHandler struct {
+	DB         *gorm.DB
+	SessionSvc *services.SessionService
+}
 
-func NewAdminHandler(db *gorm.DB) *AdminHandler { return &AdminHandler{DB: db} }
+func NewAdminHandler(db *gorm.DB, sessionSvc *services.SessionService) *AdminHandler {
+	return &AdminHandler{DB: db, SessionSvc: sessionSvc}
+}
 
 // ListUsers godoc
 //
@@ -141,6 +148,66 @@ func (h *AdminHandler) UpdateTeacherPermissions(c *gin.Context) {
 	c.JSON(http.StatusOK, messageResponse{Message: "permissions updated"})
 }
 
+// GetUserSubscription godoc
+//
+//	@Summary		Get a user's active subscription (Admin)
+//	@Description	Returns the active subscription for the specified user, or null if none.
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"User UUID"
+//	@Success		200	{object}	adminUserSubscriptionResponse
+//	@Failure		404	{object}	errorResponse
+//	@Router			/api/v1/admin/users/{id}/subscription [get]
+func (h *AdminHandler) GetUserSubscription(c *gin.Context) {
+	userID := c.Param("id")
+
+	var sub models.Subscription
+	err := h.DB.WithContext(c.Request.Context()).
+		Where("user_id = ? AND status = ? AND end_date >= NOW()", userID, models.SubActive).
+		Preload("Plan").
+		Preload("Course").
+		First(&sub).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, adminUserSubscriptionResponse{Subscription: nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to fetch subscription"})
+		return
+	}
+	c.JSON(http.StatusOK, adminUserSubscriptionResponse{Subscription: &sub})
+}
+
+// GetUserSessions godoc
+//
+//	@Summary		Get a user's active sessions (Admin)
+//	@Description	Returns the list of active (non-revoked, non-expired) device sessions for a user.
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"User UUID"
+//	@Success		200	{object}	adminUserSessionsResponse
+//	@Failure		400	{object}	errorResponse
+//	@Router			/api/v1/admin/users/{id}/sessions [get]
+func (h *AdminHandler) GetUserSessions(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid user id"})
+		return
+	}
+
+	sessions, err := h.SessionSvc.ListActiveSessions(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to list sessions"})
+		return
+	}
+	c.JSON(http.StatusOK, adminUserSessionsResponse{
+		Sessions:    sessions,
+		ActiveCount: len(sessions),
+	})
+}
+
 // DashboardSummary godoc
 //
 //	@Summary		Get admin dashboard summary
@@ -198,9 +265,17 @@ func (h *AdminHandler) AnalyticsOverview(c *gin.Context) {
 		Where("status = ? AND end_date >= NOW()", models.SubActive).
 		Count(&activeSubCount)
 	
-	// Mock some analytics for now, but in a real app this would query logs/metrics tables
-	testsAttempted = 1204
-	revenue = 42986
+	h.DB.Model(&models.StudentAttempt{}).Count(&testsAttempted)
+	
+	type result struct {
+		Total int64
+	}
+	var res result
+	h.DB.Model(&models.PaymentRecord{}).
+		Select("COALESCE(SUM(amount_paise), 0) as total").
+		Where("status = ?", models.PayCaptured).
+		Scan(&res)
+	revenue = res.Total / 100 // Convert paise to whole rupees
 	
 	var publishedTests, publishedContent, publishedBrainHacks, pendingReviews int64
 	h.DB.Model(&models.Test{}).Where("status = ?", models.StatusPublished).Count(&publishedTests)
@@ -217,9 +292,9 @@ func (h *AdminHandler) AnalyticsOverview(c *gin.Context) {
 		Revenue:              revenue,
 		ActiveSubscriptions:  activeSubCount,
 		TestsAttempted:       testsAttempted,
-		RevenueBars:          []int{4, 6, 5, 8, 7, 9, 6},
-		StudentBars:          []int{5, 6, 6, 8, 7, 9, 8},
-		TeacherBars:          []int{1, 1, 0, 1, 0, 1, 1},
+		RevenueBars:          []int{0, 0, 0, 0, 0, 0, 0},
+		StudentBars:          []int{0, 0, 0, 0, 0, 0, 0},
+		TeacherBars:          []int{0, 0, 0, 0, 0, 0, 0},
 		PublishedTests:       publishedTests,
 		PublishedContent:     publishedContent,
 		PublishedBrainHacks:  publishedBrainHacks,
@@ -261,4 +336,13 @@ type analyticsOverviewResponse struct {
 	PublishedContent    int64   `json:"published_content"`
 	PublishedBrainHacks int64   `json:"published_brain_hacks"`
 	PendingReviews      int64   `json:"pending_reviews"`
+}
+
+type adminUserSubscriptionResponse struct {
+	Subscription *models.Subscription `json:"subscription"`
+}
+
+type adminUserSessionsResponse struct {
+	Sessions    []models.Session `json:"sessions"`
+	ActiveCount int              `json:"active_count"`
 }

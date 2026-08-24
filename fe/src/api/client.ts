@@ -10,7 +10,7 @@ import { DeviceEventEmitter } from 'react-native';
  */
 // const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
 // const DEV_HOST = debuggerHost ? debuggerHost.split(':')[0] : '192.168.0.7';
-const DEV_HOST = '192.168.0.7';
+const DEV_HOST = '192.168.0.6';
 
 export const API_BASE = __DEV__
   ? `http://${DEV_HOST}:8080/api/v1`

@@ -96,7 +96,7 @@ func main() {
 	attemptH := handlers.NewAttemptHandler(db.DB, scoringSvc)
 	contentH := handlers.NewContentHandler(db.DB)
 	wellnessH := handlers.NewWellnessHandler(db.DB)
-	adminH := handlers.NewAdminHandler(db.DB)
+	adminH := handlers.NewAdminHandler(db.DB, sessionSvc)
 	curriculumH := handlers.NewCurriculumHandler(db.DB)
 	feedbackH := handlers.NewFeedbackHandler(db.DB)
 
@@ -237,14 +237,16 @@ func main() {
 		teacher.POST("/tests/:id/csv-import", testH.CSVImport)
 		teacher.GET("/csv-imports/:id", testH.GetCSVImport)
 		teacher.POST("/tests/:id/submit-for-review", testH.SubmitForReview)
-		teacher.POST("/tests/:id/publish", testH.PublishTest)
 		teacher.GET("/tests", testH.ListTeacherTests)
+		teacher.GET("/tests/:id", testH.TeacherGetTest)
+		teacher.POST("/tests/:id/publish", testH.PublishTest)
 
 		teacher.POST("/content", contentH.CreateContent)
 		teacher.PATCH("/content/:id", contentH.UpdateContent)
 		teacher.POST("/content/:id/submit-for-review", contentH.SubmitContentForReview)
-		teacher.POST("/content/:id/publish", contentH.PublishContent)
 		teacher.GET("/content", contentH.ListTeacherContent)
+		teacher.GET("/content/:id", contentH.TeacherGetContent)
+		teacher.POST("/content/:id/publish", contentH.PublishContent)
 
 		// Curriculum: teachers create chapters (topics) under an existing subject
 		teacher.POST("/subjects/:subject_id/chapters", curriculumH.CreateChapter)
@@ -283,11 +285,13 @@ func main() {
 
 		// Tests moderation
 		admin.GET("/tests", testH.AdminListTests)
+		admin.GET("/tests/:id", testH.AdminGetTest)
 		admin.POST("/tests/:id/approve", testH.AdminApproveTest)
 		admin.POST("/tests/:id/reject", testH.AdminRejectTest)
 
 		// Content moderation
 		admin.GET("/content", contentH.AdminListContent)
+		admin.GET("/content/:id", contentH.AdminGetContent)
 		admin.POST("/content/:id/approve", contentH.AdminApproveContent)
 		admin.POST("/content/:id/reject", contentH.AdminRejectContent)
 
@@ -296,6 +300,8 @@ func main() {
 		admin.GET("/users/:id", adminH.GetUser)
 		admin.PATCH("/users/:id/role", adminH.UpdateUserRole)
 		admin.PATCH("/users/:id/teacher-permissions", adminH.UpdateTeacherPermissions)
+		admin.GET("/users/:id/subscription", adminH.GetUserSubscription)
+		admin.GET("/users/:id/sessions", adminH.GetUserSessions)
 
 		// Dashboard
 		admin.GET("/dashboard/summary", adminH.DashboardSummary)

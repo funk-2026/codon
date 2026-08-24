@@ -206,6 +206,45 @@ func (h *ContentHandler) PublishContent(c *gin.Context) {
 	c.JSON(http.StatusOK, messageResponse{Message: "content published"})
 }
 
+// TeacherGetContent godoc
+//
+//	@Summary		Get a content item (Teacher)
+//	@Description	Returns full content item details. A teacher can view their own content (or all content if they have platform-wide permission).
+//	@Tags			Teacher
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Content item UUID"
+//	@Success		200	{object}	adminContentDetailResponse
+//	@Failure		404	{object}	errorResponse
+//	@Router			/api/v1/teacher/content/{id} [get]
+func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
+	teacher := middleware.GetUser(c)
+	id := c.Param("id")
+
+	var item models.ContentItem
+	query := h.DB.WithContext(c.Request.Context()).
+		Preload("Course").Preload("Chapter").Preload("Uploader").
+		Where("id = ?", id)
+
+	if !teacher.CanManageAllContent {
+		query = query.Where("uploaded_by = ?", teacher.ID)
+	}
+
+	if err := query.First(&item).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "content not found"})
+		return
+	}
+
+	url := ""
+	if item.ContentType == models.ContentVideo && item.HLSPlaylistURL != nil {
+		url = *item.HLSPlaylistURL
+	} else if item.ContentType == models.ContentDocument {
+		url = "https://s3.amazonaws.com/codon-files/" + item.FileKey
+	}
+
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: url})
+}
+
 // ListTeacherContent godoc
 //
 //	@Summary		List teacher's content items
@@ -283,6 +322,38 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 	c.JSON(http.StatusOK, getContentResponse{Content: item, URL: url})
 }
 
+// AdminGetContent godoc
+//
+//	@Summary		Get a content item (Admin)
+//	@Description	Returns full content item details regardless of status, including the file URL for review.
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Content item UUID"
+//	@Success		200	{object}	adminContentDetailResponse
+//	@Failure		404	{object}	errorResponse
+//	@Router			/api/v1/admin/content/{id} [get]
+func (h *ContentHandler) AdminGetContent(c *gin.Context) {
+	id := c.Param("id")
+	var item models.ContentItem
+	if err := h.DB.WithContext(c.Request.Context()).
+		Preload("Course").Preload("Chapter").Preload("Uploader").
+		Where("id = ?", id).
+		First(&item).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "content not found"})
+		return
+	}
+
+	url := ""
+	if item.ContentType == models.ContentVideo && item.HLSPlaylistURL != nil {
+		url = *item.HLSPlaylistURL
+	} else if item.ContentType == models.ContentDocument {
+		url = "https://s3.amazonaws.com/codon-files/" + item.FileKey
+	}
+
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: url})
+}
+
 // ─── Admin Content Moderation ─────────────────────────────────────────────────
 
 // AdminListContent godoc
@@ -292,17 +363,29 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 //	@Tags			Admin
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Param			status	query		string	false	"Filter by status"	default(pending_review)
-//	@Success		200		{object}	listContentResponse
-//	@Failure		401		{object}	errorResponse
-//	@Failure		403		{object}	errorResponse
+//	@Param			status		query		string	false	"Filter by status"	default(pending_review)
+//	@Param			course_id	query		string	false	"Filter by course ID"
+//	@Param			chapter_id	query		string	false	"Filter by chapter ID"
+//	@Success		200			{object}	listContentResponse
+//	@Failure		401			{object}	errorResponse
+//	@Failure		403			{object}	errorResponse
 //	@Router			/api/v1/admin/content [get]
 func (h *ContentHandler) AdminListContent(c *gin.Context) {
 	status := c.DefaultQuery("status", string(models.StatusPendingReview))
+	courseID := c.Query("course_id")
+	chapterID := c.Query("chapter_id")
+
+	query := h.DB.WithContext(c.Request.Context()).Where("status = ?", status)
+	
+	if courseID != "" {
+		query = query.Where("course_id = ?", courseID)
+	}
+	if chapterID != "" {
+		query = query.Where("chapter_id = ?", chapterID)
+	}
+
 	var items []models.ContentItem
-	h.DB.WithContext(c.Request.Context()).
-		Where("status = ?", status).
-		Preload("Course").Preload("Chapter").Preload("Uploader").
+	query.Preload("Course").Preload("Chapter").Preload("Uploader").
 		Order("created_at DESC").
 		Find(&items)
 	c.JSON(http.StatusOK, listContentResponse{Content: items})
@@ -400,3 +483,9 @@ type getContentResponse struct {
 	Content models.ContentItem `json:"content"`
 	URL     string             `json:"url,omitempty"`
 }
+
+type adminContentDetailResponse struct {
+	Content models.ContentItem `json:"content"`
+	URL     string             `json:"url,omitempty"`
+}
+

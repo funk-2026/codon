@@ -490,6 +490,44 @@ func (h *TestHandler) PublishTest(c *gin.Context) {
 	c.JSON(http.StatusOK, messageResponse{Message: "test published"})
 }
 
+// TeacherGetTest godoc
+//
+//	@Summary		Get a test with questions (Teacher)
+//	@Description	Returns full test metadata plus all questions. A teacher can view their own tests (or all tests if they have platform-wide permission).
+//	@Tags			Teacher
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Test UUID"
+//	@Success		200	{object}	adminTestDetailResponse
+//	@Failure		404	{object}	errorResponse
+//	@Router			/api/v1/teacher/tests/{id} [get]
+func (h *TestHandler) TeacherGetTest(c *gin.Context) {
+	teacher := middleware.GetUser(c)
+	id := c.Param("id")
+
+	var test models.Test
+	query := h.DB.WithContext(c.Request.Context()).
+		Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator").
+		Where("id = ?", id)
+	
+	if !teacher.CanManageAllContent {
+		query = query.Where("created_by = ?", teacher.ID)
+	}
+
+	if err := query.First(&test).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "test not found"})
+		return
+	}
+
+	var questions []models.Question
+	h.DB.WithContext(c.Request.Context()).
+		Where("test_id = ?", test.ID).
+		Order("order_index ASC").
+		Find(&questions)
+
+	c.JSON(http.StatusOK, adminTestDetailResponse{Test: test, Questions: questions})
+}
+
 // ListTeacherTests godoc
 //
 //	@Summary		List teacher's own tests
@@ -510,6 +548,37 @@ func (h *TestHandler) ListTeacherTests(c *gin.Context) {
 	}
 	query.Preload("Course").Order("created_at DESC").Find(&tests)
 	c.JSON(http.StatusOK, listTestsResponse{Tests: tests})
+}
+
+// AdminGetTest godoc
+//
+//	@Summary		Get a test with questions (Admin)
+//	@Description	Returns full test metadata plus all questions with correct answers and explanations. No status filter — admin can view any test regardless of status.
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Test UUID"
+//	@Success		200	{object}	adminTestDetailResponse
+//	@Failure		404	{object}	errorResponse
+//	@Router			/api/v1/admin/tests/{id} [get]
+func (h *TestHandler) AdminGetTest(c *gin.Context) {
+	id := c.Param("id")
+	var test models.Test
+	if err := h.DB.WithContext(c.Request.Context()).
+		Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator").
+		Where("id = ?", id).
+		First(&test).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "test not found"})
+		return
+	}
+
+	var questions []models.Question
+	h.DB.WithContext(c.Request.Context()).
+		Where("test_id = ?", test.ID).
+		Order("order_index ASC").
+		Find(&questions)
+
+	c.JSON(http.StatusOK, adminTestDetailResponse{Test: test, Questions: questions})
 }
 
 // ─── Admin Test Moderation ────────────────────────────────────────────────────
@@ -662,4 +731,9 @@ type csvImportStatusResponse struct {
 
 type rejectContentRequest struct {
 	Reason string `json:"reason" example:"Questions contain formatting errors"`
+}
+
+type adminTestDetailResponse struct {
+	Test      models.Test       `json:"test"`
+	Questions []models.Question `json:"questions"`
 }
