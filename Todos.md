@@ -13,6 +13,7 @@
 - Back navigation is breaking at many places for admin please fix.
 - Also admin cant go beyond adding the subjects, there should be UI supporting for him to see all the content present from the course structure. Reviews section is completely different.
 - Upload a CSV for teacher is mocked currently.. implement that Upload CSV feature, also the download CSV is not working.. please check
+- Demo test series preview is mocked currently, implement that from the backend ? 
 
 ### Blocked on BE
 - **P0** — User Detail: subscription plan and active-device count aren't shown (real course + last login are; see BE-1 / BE-2 below).
@@ -62,6 +63,7 @@ _Found while wiring the Admin panel to real data — everything else there is do
   - Subscription-gated access for users
   - S3 / video playback from S3
   - Teacher content upload — working end to end?
+- The worker need to download the csv file from S3 and then process and store it in the DB
 
 **P1**
 - Check what happens to sessions when the app is uninstalled.
