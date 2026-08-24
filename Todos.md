@@ -12,6 +12,7 @@
 - The approval Sections in Admin like the Test approvals, conteent approvals, KYC review and all can be moved to a seperate tab (Like remove one tablike the review or something and keep a generic approval section that contains all the approvals) instead of the home page.. -> This is recommmended because we can group all of them and also another workaround can be fix the navigations there.. they are not properly working.. -> Can refer to the main branch for reference (for grouping tabs approach)
 - Back navigation is breaking at many places for admin please fix.
 - Also admin cant go beyond adding the subjects, there should be UI supporting for him to see all the content present from the course structure. Reviews section is completely different.
+- Upload a CSV for teacher is mocked currently.. implement that Upload CSV feature, also the download CSV is not working.. please check
 
 ### Blocked on BE
 - **P0** — User Detail: subscription plan and active-device count aren't shown (real course + last login are; see BE-1 / BE-2 below).
