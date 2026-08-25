@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
@@ -12,8 +13,6 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat } from '@/src/api/content';
 import { SkeletonBlock } from '@/src/components';
 
-
-
 const SPEEDS = ['0.5x', '0.75x', '1x', '1.25x', '1.5x', '2x'];
 
 export default function VideoPlayerRoute() {
@@ -23,6 +22,7 @@ export default function VideoPlayerRoute() {
   const insets = useSafeAreaInsets();
 
   const [content, setContent] = useState<ContentItem | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string>('');
   const [siblings, setSiblings] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,6 +34,9 @@ export default function VideoPlayerRoute() {
     getContentItem(id)
       .then((res) => {
         setContent(res.content);
+        if (res.url) {
+          setVideoUrl(res.url);
+        }
         return getChapterContent(res.content.chapter_id);
       })
       .then((chRes) => {
@@ -104,114 +107,65 @@ export default function VideoPlayerRoute() {
       {/* Full-screen mode */}
       <Animated.View style={[styles.fullWrap, fullStyle]}>
         {/* Video canvas */}
-        <Pressable
-          onPress={() => setControlsVisible((v) => !v)}
-          style={[styles.canvas, { backgroundColor: '#000', paddingTop: insets.top }]}
-        >
-          <View style={styles.canvasInner}>
-            {playing ? null : (
-              <View style={styles.centerPlay}>
-                <Pressable
-                  onPress={togglePlay}
-                  style={({ pressed }) => [
-                    styles.playBtn,
-                    {
-                      backgroundColor: pressed ? color('accent/pressed') : color('accent/default'),
-                      borderRadius: 32,
-                    },
-                  ]}
-                >
-                  <Play size={32} color={color('accent/on-accent')} weight="fill" />
-                </Pressable>
-              </View>
-            )}
+        <View style={[styles.canvas, { backgroundColor: '#000', paddingTop: insets.top }]}>
+          {(() => {
+            const activeUrl = videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+            const isStreamIframe = activeUrl.includes('iframe.videodelivery.net') || activeUrl.includes('iframe');
 
-            {controlsVisible ? (
-              <>
-                <View style={[styles.topScrim, styles.topRow, { paddingHorizontal: space.md }]}>
-                  <Pressable
-                    onPress={() => setFloating(true)}
-                    hitSlop={space.xs}
-                    style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-                  >
-                    <CaretLeft size={26} color="#fff" />
-                  </Pressable>
-                  <Text
-                    style={[type['type/body-m-medium'], { color: '#fff', flex: 1, marginLeft: space.sm }]}
-                    numberOfLines={1}
-                  >
-                    {content?.title || 'Loading...'}
-                  </Text>
-                </View>
+            if (Platform.OS === 'web') {
+              return isStreamIframe ? (
+                // @ts-ignore - iframe element on web
+                <iframe
+                  src={`${activeUrl}?autoplay=true&controls=true`}
+                  style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#000' }}
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                  allowFullScreen
+                />
+              ) : (
+                // @ts-ignore - video element on web
+                <video
+                  src={activeUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  style={{ width: '100%', height: '100%', backgroundColor: '#000', objectFit: 'contain' }}
+                />
+              );
+            }
 
-                <View style={[styles.bottomScrim, { paddingHorizontal: space.md, paddingBottom: space.sm }]}>
-                  <View style={[styles.controlsRow, { gap: space.sm }]}>
-                    <Pressable onPress={togglePlay} hitSlop={space.xs}>
-                      {playing ? (
-                        <Pause size={28} color="#fff" weight="fill" />
-                      ) : (
-                        <Play size={28} color="#fff" weight="fill" />
-                      )}
-                    </Pressable>
-                    <Text style={[type['type/caption'], { color: '#fff' }]}>{mm(elapsed)}</Text>
-                    <View
-                      style={{
-                        flex: 1,
-                        height: 4,
-                        backgroundColor: 'rgba(255,255,255,0.3)',
-                        borderRadius: 2,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: `${(elapsed / duration) * 100}%`,
-                          height: 4,
-                          backgroundColor: color('accent/default'),
-                          borderRadius: 2,
-                        }}
-                      />
-                    </View>
-                    <Text style={[type['type/caption'], { color: '#fff' }]}>{mm(duration)}</Text>
-                    <Pressable
-                      onPress={() => setSpeedMenuOpen((o) => !o)}
-                      hitSlop={space.xs}
-                      style={{
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        borderRadius: radius.pill,
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                      }}
-                    >
-                      <Text style={[type['type/caption'], { color: '#fff' }]}>{SPEEDS[speedIdx]}</Text>
-                    </Pressable>
-                    <GridFour size={22} color="#fff" />
-                  </View>
-                  {speedMenuOpen ? (
-                    <View style={[styles.speedMenu, { gap: 4, marginTop: space.xs }]}>
-                      {SPEEDS.map((s, i) => (
-                        <Pressable
-                          key={s}
-                          onPress={() => {
-                            setSpeedIdx(i);
-                            setSpeedMenuOpen(false);
-                          }}
-                          style={{
-                            paddingHorizontal: 12,
-                            paddingVertical: 4,
-                            borderRadius: 6,
-                            backgroundColor: i === speedIdx ? 'rgba(255,255,255,0.25)' : 'transparent',
-                          }}
-                        >
-                          <Text style={[type['type/caption'], { color: '#fff' }]}>{s}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              </>
-            ) : null}
-          </View>
-        </Pressable>
+            return (
+              <WebView
+                source={
+                  isStreamIframe
+                    ? { uri: `${activeUrl}?autoplay=true&controls=true` }
+                    : {
+                        html: `
+                          <!DOCTYPE html>
+                          <html>
+                            <head>
+                              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                              <style>
+                                * { margin: 0; padding: 0; box-sizing: border-box; background-color: #000; }
+                                html, body { width: 100%; height: 100%; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+                                video { width: 100%; height: 100%; max-height: 100vh; object-fit: contain; }
+                              </style>
+                            </head>
+                            <body>
+                              <video src="${activeUrl}" controls autoplay playsinline controlsList="nodownload"></video>
+                            </body>
+                          </html>
+                        `,
+                      }
+                }
+                style={{ flex: 1, backgroundColor: '#000' }}
+                allowsInlineMediaPlayback={true}
+                mediaPlaybackRequiresUserAction={false}
+                scalesPageToFit={true}
+                allowsFullscreenVideo={true}
+              />
+            );
+          })()}
+        </View>
 
         {/* Below-canvas panel */}
         <View style={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}>

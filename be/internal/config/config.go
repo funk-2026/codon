@@ -31,12 +31,16 @@ type Config struct {
 	RazorpayKeySecret string
 	RazorpayWebhookSecret string
 
-	// AWS / S3
+	// AWS / S3 (Cloudflare R2)
 	S3Endpoint        string
 	S3Region          string
 	S3Bucket          string
 	S3AccessKeyID     string
 	S3SecretAccessKey string
+
+	// Cloudflare Stream (Video Streaming)
+	CloudflareAccountID       string
+	CloudflareStreamAPIToken  string
 
 	// OTP Rate Limit (per hour per phone)
 	OTPRateLimitPerHour int
@@ -52,23 +56,25 @@ func Load() {
 	_ = godotenv.Load()
 
 	AppConfig = Config{
-		Port:                  getEnv("PORT", "8080"),
-		Env:                   getEnv("ENV", "development"),
-		DatabaseURL:           getEnv("DATABASE_URL", "postgres://codon:codon@localhost:5432/codon?sslmode=disable"),
-		RedisURL:              getEnv("REDIS_URL", "redis://localhost:6379"),
-		JWTSecret:             getEnv("JWT_SECRET", "change-me-in-production"),
-		JWTExpiryDays:         getEnvInt("JWT_EXPIRY_DAYS", 90),
-		TwoFactorAPIKey:       getEnv("TWO_FACTOR_API_KEY", ""),
-		RazorpayKeyID:         getEnv("RAZORPAY_KEY_ID", ""),
-		RazorpayKeySecret:     getEnv("RAZORPAY_KEY_SECRET", ""),
-		RazorpayWebhookSecret: getEnv("RAZORPAY_WEBHOOK_SECRET", ""),
-		S3Endpoint:            getEnv("S3_ENDPOINT", ""),
-		S3Region:              getEnv("S3_REGION", "us-east-1"),
-		S3Bucket:              getEnv("S3_BUCKET", "codon"),
-		S3AccessKeyID:         getEnv("S3_ACCESS_KEY_ID", ""),
-		S3SecretAccessKey:     getEnv("S3_SECRET_ACCESS_KEY", ""),
-		OTPRateLimitPerHour:   getEnvInt("OTP_RATE_LIMIT_PER_HOUR", 3),
-		WorkerPollSeconds:     getEnvInt("WORKER_POLL_SECONDS", 5),
+		Port:                     getEnv("PORT", "8080"),
+		Env:                      getEnv("ENV", "development"),
+		DatabaseURL:              getEnv("DATABASE_URL", "postgres://codon:codon@localhost:5432/codon?sslmode=disable"),
+		RedisURL:                 getEnv("REDIS_URL", "redis://localhost:6379"),
+		JWTSecret:                getEnv("JWT_SECRET", "change-me-in-production"),
+		JWTExpiryDays:            getEnvInt("JWT_EXPIRY_DAYS", 90),
+		TwoFactorAPIKey:          getEnv("TWO_FACTOR_API_KEY", ""),
+		RazorpayKeyID:            getEnv("RAZORPAY_KEY_ID", ""),
+		RazorpayKeySecret:        getEnv("RAZORPAY_KEY_SECRET", ""),
+		RazorpayWebhookSecret:    getEnv("RAZORPAY_WEBHOOK_SECRET", ""),
+		S3Endpoint:               getEnv("S3_ENDPOINT", ""),
+		S3Region:                 getEnv("S3_REGION", "us-east-1"),
+		S3Bucket:                 getEnv("S3_BUCKET", "codon"),
+		S3AccessKeyID:            getEnv("S3_ACCESS_KEY_ID", ""),
+		S3SecretAccessKey:        getEnv("S3_SECRET_ACCESS_KEY", ""),
+		CloudflareAccountID:      getEnv("CLOUDFLARE_ACCOUNT_ID", ""),
+		CloudflareStreamAPIToken: getEnv("CLOUDFLARE_STREAM_API_TOKEN", ""),
+		OTPRateLimitPerHour:      getEnvInt("OTP_RATE_LIMIT_PER_HOUR", 3),
+		WorkerPollSeconds:        getEnvInt("WORKER_POLL_SECONDS", 5),
 	}
 }
 
