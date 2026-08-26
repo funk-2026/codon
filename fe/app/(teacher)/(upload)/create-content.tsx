@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import {
   CaretLeft,
-  CaretRight,
+  CaretDown,
   UploadSimple,
   TextB,
   TextHOne,
@@ -14,23 +14,108 @@ import {
 import { InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { createContent } from '@/src/api/teacher';
-import { listCourses, getCurriculum } from '@/src/api/courses';
+import { listCourses, getCurriculum, Course, Subject, Chapter } from '@/src/api/courses';
 
 type ContentType = 'Video' | 'Document';
 type VideoState = 'idle' | 'uploading' | 'processing' | 'ready' | 'failed';
+
+function SelectDropdown({
+  label,
+  placeholder,
+  value,
+  options,
+  onSelect,
+  disabled,
+}: {
+  label: string;
+  placeholder: string;
+  value?: string | null;
+  options: { label: string; value: string | null }[];
+  onSelect: (val: string | null) => void;
+  disabled?: boolean;
+}) {
+  const { color, type, space, radius } = useTheme();
+  const [open, setOpen] = useState(false);
+
+  const selectedOption = options.find((o) => o.value === value);
+
+  return (
+    <View style={{ opacity: disabled ? 0.5 : 1 }}>
+      <Text style={[type['type/caption'], { color: color('text/secondary'), marginBottom: space.xs }]}>
+        {label}
+      </Text>
+      <Pressable
+        onPress={() => !disabled && setOpen((v) => !v)}
+        style={[
+          styles.dropdownBtn,
+          {
+            backgroundColor: color('bg/surface'),
+            borderColor: open ? color('accent/default') : color('border/subtle'),
+            borderRadius: radius.md,
+            paddingHorizontal: space.md,
+            paddingVertical: space.sm + 2,
+          },
+        ]}
+      >
+        <Text style={[type['type/body-m'], { color: selectedOption ? color('text/primary') : color('text/tertiary'), flex: 1 }]}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </Text>
+        <CaretDown size={18} color={color('text/tertiary')} />
+      </Pressable>
+
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setOpen(false)}>
+          <View style={[styles.modalBox, { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md }]}>
+            <Text style={[type['type/h3'], { color: color('text/primary'), marginBottom: space.sm }]}>{label}</Text>
+            <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+              {options.map((opt) => {
+                const active = opt.value === value;
+                return (
+                  <Pressable
+                    key={opt.label + (opt.value || 'null')}
+                    onPress={() => {
+                      onSelect(opt.value);
+                      setOpen(false);
+                    }}
+                    style={[
+                      styles.optionRow,
+                      {
+                        backgroundColor: active ? color('accent/tint') : 'transparent',
+                        borderRadius: radius.sm,
+                        paddingVertical: space.sm,
+                        paddingHorizontal: space.sm,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        type['type/body-m'],
+                        { color: active ? color('accent/default') : color('text/primary'), fontWeight: active ? '600' : '400', flex: 1 },
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                    {active ? <Text style={{ color: color('accent/default'), fontWeight: '700' }}>✓</Text> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
 
 export default function CreateContentRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { locationLabel, chapterId: pickedChapterId } = useLocalSearchParams<{ locationLabel?: string; chapterId?: string }>();
 
   const [contentType, setContentType] = useState<ContentType>('Video');
   const [pendingTypeSwitch, setPendingTypeSwitch] = useState<ContentType | null>(null);
   const [title, setTitle] = useState('');
-  const [location, setLocation] = useState<string | null>(null);
-  const [topic, setTopic] = useState('');
   const [notes, setNotes] = useState('');
   const [videoState, setVideoState] = useState<VideoState>('idle');
   const [videoProgress, setVideoProgress] = useState(0);
@@ -38,26 +123,66 @@ export default function CreateContentRoute() {
   const [docBody, setDocBody] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Cascading Location Dropdowns State
+  const [coursesList, setCoursesList] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string | null>(null);
+
+  const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
+  const [subjectId, setSubjectId] = useState<string | null>(null);
+
+  const [chaptersList, setChaptersList] = useState<Chapter[]>([]);
   const [chapterId, setChapterId] = useState<string | null>(null);
+
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Load available courses
   useEffect(() => {
-    listCourses().then(res => {
-      if (res.courses.length > 0) {
-        setCourseId(res.courses[0].id);
-        getCurriculum(res.courses[0].id).then(cRes => {
-          const chaps = cRes.course.subjects.flatMap((s: any) => s.chapters);
-          if (chaps.length > 0) setChapterId(chaps[0].id);
-        }).catch(() => {});
-      }
-    }).catch(() => {});
+    listCourses()
+      .then((res) => {
+        setCoursesList(res.courses || []);
+        if (res.courses && res.courses.length > 0) {
+          handleCourseSelect(res.courses[0].id);
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (locationLabel) setLocation(locationLabel);
-    if (pickedChapterId) setChapterId(pickedChapterId);
-  }, [locationLabel, pickedChapterId]);
+  const handleCourseSelect = (selectedId: string | null) => {
+    setCourseId(selectedId);
+    setSubjectId(null);
+    setChapterId(null);
+    setSubjectsList([]);
+    setChaptersList([]);
+
+    if (selectedId) {
+      getCurriculum(selectedId)
+        .then((res) => {
+          setSubjectsList(res.course?.subjects || []);
+        })
+        .catch(() => {});
+    }
+  };
+
+  const handleSubjectSelect = (selectedSubId: string | null) => {
+    setSubjectId(selectedSubId);
+    setChapterId(null);
+    setChaptersList([]);
+
+    if (selectedSubId) {
+      const sub = subjectsList.find((s) => s.id === selectedSubId);
+      if (sub) {
+        setChaptersList(sub.chapters || []);
+        if (sub.chapters.length > 0) {
+          setChapterId(sub.chapters[0].id);
+        }
+      }
+    }
+  };
+
+  const handleChapterSelect = (selectedChapId: string | null) => {
+    setChapterId(selectedChapId);
+  };
 
   useEffect(() => {
     if (contentType !== 'Document' || docBody.trim().length === 0) return;
@@ -108,13 +233,6 @@ export default function CreateContentRoute() {
     setDocBody('');
   };
 
-  const goToLocationPicker = () => {
-    router.push({
-      pathname: '/(teacher)/(home)/course-structure-manager',
-      params: { pickerMode: '1', returnTo: '/(teacher)/(upload)/create-content' },
-    });
-  };
-
   const handleSaveDraft = () => {
     setSaving(true);
     setTimeout(() => {
@@ -147,6 +265,18 @@ export default function CreateContentRoute() {
       setSaving(false);
     }
   };
+
+  const courseOptions = coursesList.map((c) => ({ label: c.name, value: c.id }));
+
+  const subjectOptions = [
+    { label: 'Select Subject', value: null },
+    ...subjectsList.map((s) => ({ label: s.name, value: s.id })),
+  ];
+
+  const chapterOptions = [
+    { label: 'Select Chapter', value: null },
+    ...chaptersList.map((ch) => ({ label: ch.name, value: ch.id })),
+  ];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -186,25 +316,37 @@ export default function CreateContentRoute() {
         </View>
 
         <View style={{ marginTop: space.lg, gap: space.lg }}>
-          <InputField label="Title" value={title} onChangeText={setTitle} />
+          <InputField label="Title *" value={title} onChangeText={setTitle} placeholder="e.g. Thermodynamics Video Lecture" />
 
-          <Pressable
-            onPress={goToLocationPicker}
-            style={[
-              styles.readOnlyRow,
-              { backgroundColor: color('bg/sunken'), borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: space.sm },
-            ]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Location in Course</Text>
-              <Text style={[type['type/body-l'], { color: location ? color('text/primary') : color('text/tertiary'), marginTop: 2 }]}>
-                {location ?? 'Not set'}
-              </Text>
-            </View>
-            <CaretRight size={18} color={color('text/tertiary')} />
-          </Pressable>
+          {/* Cascading Location Dropdowns */}
+          <SelectDropdown
+            label="Course *"
+            placeholder="Select Course"
+            value={courseId}
+            options={courseOptions}
+            onSelect={handleCourseSelect}
+          />
 
-          <InputField label="Topic" value={topic} onChangeText={setTopic} placeholder="Optional" />
+          {courseId ? (
+            <SelectDropdown
+              label="Subject *"
+              placeholder="Select Subject"
+              value={subjectId}
+              options={subjectOptions}
+              onSelect={handleSubjectSelect}
+            />
+          ) : null}
+
+          {subjectId && chaptersList.length > 0 ? (
+            <SelectDropdown
+              label="Chapter *"
+              placeholder="Select Chapter"
+              value={chapterId}
+              options={chapterOptions}
+              onSelect={handleChapterSelect}
+            />
+          ) : null}
+
           <InputField label="Description / Notes" value={notes} onChangeText={setNotes} multiline placeholder="Optional" />
         </View>
 
@@ -333,7 +475,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center' },
   segmented: { flexDirection: 'row' },
   segment: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
-  readOnlyRow: { flexDirection: 'row', alignItems: 'center' },
+  dropdownBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
+  modalBox: { elevation: 5, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  optionRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 2 },
   uploadZone: { minHeight: 160, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', padding: 16 },
   videoFileRow: { flexDirection: 'row', alignItems: 'center' },
   toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },

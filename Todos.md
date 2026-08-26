@@ -3,6 +3,7 @@
 ## FE
 
 ### P0
+#### UI
 - Fallback for APi status errors, we should not show cached data or something, we need to indicated some error state after failed api call.
 - Shimmers for the entire app. that indicate loading state.
 - In settings the UI for notitifications, sound effects is broken, 
@@ -12,12 +13,12 @@
 - The approval Sections in Admin like the Test approvals, conteent approvals, KYC review and all can be moved to a seperate tab (Like remove one tablike the review or something and keep a generic approval section that contains all the approvals) instead of the home page.. -> This is recommmended because we can group all of them and also another workaround can be fix the navigations there.. they are not properly working.. -> Can refer to the main branch for reference (for grouping tabs approach)
 - Back navigation is breaking at many places for admin please fix.
 - Also admin cant go beyond adding the subjects, there should be UI supporting for him to see all the content present from the course structure. Reviews section is completely different.
-- Upload a CSV for teacher is mocked currently, also teacher should be able to add video content .. implement that Upload CSV feature, also the download CSV is not working.. please check
-- Currently creating a custom video player, move to cloudflares stream videoplayer instead, it provides all the features that we are doing, and additional features as well. -> also check how can we uplaod videos to cloudflare stream. (the compression and all). -> we need to handle outside the player box, heart beat/Progress tracking of videos.
-- Demo test series preview is mocked currently, implement that from the backend ? 
 - After signing in to the Dashboard, if user tries to go back, then he is getting redirected to the login page.. that should not happen.. authenticated user should not be able to see the signin page
+
+#### Functionality 
+- Test series preview is mocked currently, implement that from the backend
+- Upload a CSV for teacher is mocked currently, also teacher should be able to add video content .. implement that Upload CSV feature, also the download CSV is not working.. please check
 - Razorpay integration from FE is pending.
-- [x] Video streaming on FE & BE.
 
 ### P1
 - Need to persist user account after loggin out, so that he can login again without otp.

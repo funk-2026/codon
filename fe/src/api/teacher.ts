@@ -4,10 +4,14 @@ import { Test, Question } from './tests';
 
 export type CreateTestRequest = {
   title: string;
+  description?: string;
   course_id: string;
   module_type: 'qbank' | 'test_series' | 'practice';
   subject_id?: string;
   chapter_id?: string;
+  duration_minutes?: number;
+  marks_per_correct?: number;
+  marks_per_wrong?: number;
   requires_subscription?: boolean;
 };
 
