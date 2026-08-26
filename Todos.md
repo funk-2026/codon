@@ -14,7 +14,7 @@
 - Back navigation is breaking at many places for admin please fix.
 - Also admin cant go beyond adding the subjects, there should be UI supporting for him to see all the content present from the course structure. Reviews section is completely different.
 - After signing in to the Dashboard, if user tries to go back, then he is getting redirected to the login page.. that should not happen.. authenticated user should not be able to see the signin page
-
+- (For Admin) -> Need to move the payment routes in to the payment tab and dont keep the references in the homepage for now. same for review
 #### Functionality 
 - Test series preview is mocked currently, implement that from the backend
 - Upload a CSV for teacher is mocked currently, also teacher should be able to add video content .. implement that Upload CSV feature, also the download CSV is not working.. please check

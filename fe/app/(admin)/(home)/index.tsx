@@ -70,30 +70,30 @@ export default function AdminHomeRoute() {
   useEffect(() => {
     getAdminDashboardSummary()
       .then(res => {
-         setSummary({
-            total_users: res.total_users || 0,
-            active_subscriptions: res.active_subscriptions || 0,
-            pending_kyc: res.pending_kyc || 0,
-            pending_test_reviews: res.pending_test_reviews || 0,
-            pending_content_reviews: res.pending_content_reviews || 0,
-         });
+        setSummary({
+          total_users: res.total_users || 0,
+          active_subscriptions: res.active_subscriptions || 0,
+          pending_kyc: res.pending_kyc || 0,
+          pending_test_reviews: res.pending_test_reviews || 0,
+          pending_content_reviews: res.pending_content_reviews || 0,
+        });
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
   const pendingReviews = summary.pending_test_reviews + summary.pending_content_reviews;
 
   const cards: Card[] = [
-    { key: 'users', label: 'Users', icon: <Users size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(users)' },
+    { key: 'settings', label: 'Platform Settings', icon: <GearSix size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/platform-settings' },
+    { key: 'analytics', label: 'Analytics', icon: <ChartBar size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/analytics-overview' },
+    { key: 'structure', label: 'Manage Subjects', icon: <TreeStructure size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/manage-subjects' },
+
     { key: 'kyc', label: 'KYC Review', icon: <Shield size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)', badge: summary.pending_kyc },
     { key: 'tests', label: 'Test Approvals', icon: <ClipboardText size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/moderation-tests', badge: summary.pending_test_reviews > 0 ? summary.pending_test_reviews : undefined },
     { key: 'content', label: 'Content Approvals', icon: <PlayCircle size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/moderation-videos-docs', badge: summary.pending_content_reviews > 0 ? summary.pending_content_reviews : undefined },
-    { key: 'structure', label: 'Manage Subjects', icon: <TreeStructure size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/manage-subjects' },
     { key: 'payments', label: 'Payments', icon: <Receipt size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(payments)' },
     { key: 'plans', label: 'Subscription Plans', icon: <Tag size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(payments)/subscription-plan-list' },
-    { key: 'settings', label: 'Platform Settings', icon: <GearSix size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/platform-settings' },
-    { key: 'analytics', label: 'Analytics', icon: <ChartBar size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/analytics-overview' },
   ];
 
   const totalNeedsReview = summary.pending_kyc + pendingReviews;
