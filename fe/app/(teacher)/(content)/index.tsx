@@ -93,28 +93,28 @@ export default function MyContentListRoute() {
   useEffect(() => {
     Promise.all([listTeacherContent(), listTeacherTests()])
       .then(([cRes, tRes]) => {
-         const out: ContentItem[] = [];
-         (tRes.tests || []).forEach(t => {
-            out.push({
-               id: t.id,
-               title: t.title,
-               breadcrumb: 'Test',
-               type: 'Test',
-               status: t.status as Status,
-            });
-         });
-         (cRes.content || []).forEach(c => {
-            out.push({
-               id: c.id,
-               title: c.title,
-               breadcrumb: 'Content',
-               type: c.content_type === 'video' ? 'Video' : 'Document',
-               status: c.status as Status,
-            });
-         });
-         setItems(out);
+        const out: ContentItem[] = [];
+        (tRes.tests || []).forEach(t => {
+          out.push({
+            id: t.id,
+            title: t.title,
+            breadcrumb: 'Test',
+            type: 'Test',
+            status: t.status as Status,
+          });
+        });
+        (cRes.content || []).forEach(c => {
+          out.push({
+            id: c.id,
+            title: c.title,
+            breadcrumb: 'Content',
+            type: c.content_type === 'video' ? 'Video' : 'Document',
+            status: c.status as Status,
+          });
+        });
+        setItems(out);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 

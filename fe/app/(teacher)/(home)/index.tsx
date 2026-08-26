@@ -86,13 +86,13 @@ export default function TeacherHomeRoute() {
       .then(([testsRes, contentRes]) => {
         let inReview = 0, approved = 0, live = 0, changesNeeded = 0;
         const acts: Activity[] = [];
-        
+
         const processItem = (item: any) => {
           if (item.status === 'in_review') inReview++;
           if (item.status === 'approved') approved++;
           if (item.status === 'published') live++;
           if (item.status === 'rejected') changesNeeded++;
-          
+
           if (item.status === 'approved' || item.status === 'published' || item.status === 'rejected') {
             let text = `${item.title} was ${item.status}`;
             if (item.status === 'rejected') text = `${item.title} needs changes`;
@@ -104,14 +104,14 @@ export default function TeacherHomeRoute() {
             });
           }
         };
-        
+
         (testsRes.tests || []).forEach(t => processItem(t));
         (contentRes.content || []).forEach(c => processItem(c));
-        
+
         setStats({ inReview, approved, live, changesNeeded });
         setRecentActivity(acts.slice(0, 5));
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
@@ -164,27 +164,6 @@ export default function TeacherHomeRoute() {
             )}
           </View>
         </Stagger>
-
-        <Stagger delayMs={160}>
-          <View style={[styles.grid3, { gap: space.xs, marginTop: space.xl }]}>
-            <QuickAction
-              label="New Test"
-              icon={<ClipboardText size={22} color={color('accent/default')} weight="duotone" />}
-              onPress={() => router.push('/(teacher)/(upload)/create-test')}
-            />
-            <QuickAction
-              label="New Video"
-              icon={<VideoCamera size={22} color={color('accent/default')} weight="duotone" />}
-              onPress={() => router.push('/(teacher)/(upload)/create-content')}
-            />
-            <QuickAction
-              label="New Brain Hack"
-              icon={<Lightbulb size={22} color={color('accent/default')} weight="duotone" />}
-              onPress={() => router.push('/(teacher)/(upload)/create-brain-hack')}
-            />
-          </View>
-        </Stagger>
-
 
         <View style={{ marginTop: space.xl }}>
           <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>

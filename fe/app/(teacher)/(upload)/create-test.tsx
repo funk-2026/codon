@@ -105,7 +105,8 @@ export default function CreateTestRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { rejected } = useLocalSearchParams<{ rejected?: string }>();
+  const { id: routeId, testId: routeTestId, rejected } = useLocalSearchParams<{ id?: string; testId?: string; rejected?: string }>();
+  const initialTestId = routeId || routeTestId || null;
   const isRejectedEdit = rejected === '1';
 
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -128,7 +129,7 @@ export default function CreateTestRoute() {
   const [chaptersList, setChaptersList] = useState<Chapter[]>([]);
   const [chapterId, setChapterId] = useState<string | null>(null);
 
-  const [testId, setTestId] = useState<string | null>(null);
+  const [testId, setTestId] = useState<string | null>(initialTestId);
   const questionCount = isRejectedEdit ? 20 : 0;
 
   // Load available courses
@@ -223,7 +224,7 @@ export default function CreateTestRoute() {
   const handleGoToQuestionBuilder = async () => {
     const id = await ensureTestSaved();
     if (id) {
-      router.push({ pathname: '/(teacher)/(upload)/question-builder', params: { testId: id } });
+      router.push({ pathname: '/(teacher)/(upload)/question-builder', params: { testId: id, testTitle: title } });
     }
   };
 
