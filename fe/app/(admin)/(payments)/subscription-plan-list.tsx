@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus } from 'phosphor-react-native';
+import { Plus, CaretLeft } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListSubscriptionPlans, updateSubscriptionPlan } from '@/src/api/admin';
@@ -54,8 +54,15 @@ export default function SubscriptionPlanListRoute() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
-        <Text style={[type['type/h1'], { color: color('text/primary') }]}>Subscription Plans</Text>
+      <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={space.xs}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, marginRight: space.sm })}
+        >
+          <CaretLeft size={24} color={color('text/primary')} />
+        </Pressable>
+        <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>Subscription Plans</Text>
       </View>
 
       <View style={{ paddingHorizontal: space.md, marginTop: space.md, flexDirection: 'row', gap: space.xs }}>
@@ -149,6 +156,7 @@ export default function SubscriptionPlanListRoute() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center' },
   chip: { minHeight: 36, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center' },
   fab: {
