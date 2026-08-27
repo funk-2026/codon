@@ -70,12 +70,18 @@ func main() {
 
 	// ─── OTP Provider ────────────────────────────────────────────────────────
 	var otpProvider otp.OTPProvider
-	if config.AppConfig.TwoFactorAPIKey != "" {
+	if config.AppConfig.Msg91AuthKey != "" && config.AppConfig.Msg91TemplateID != "" {
+		otpProvider = &otp.Msg91Provider{
+			AuthKey:    config.AppConfig.Msg91AuthKey,
+			TemplateID: config.AppConfig.Msg91TemplateID,
+		}
+		log.Println("OTP provider: Msg91")
+	} else if config.AppConfig.TwoFactorAPIKey != "" {
 		otpProvider = &otp.TwoFactorProvider{APIKey: config.AppConfig.TwoFactorAPIKey}
 		log.Println("OTP provider: 2Factor.in")
 	} else {
 		otpProvider = &otp.ConsoleProvider{}
-		log.Println("OTP provider: console stub (set TWO_FACTOR_API_KEY for real OTPs)")
+		log.Println("OTP provider: console stub (set MSG91_AUTH_KEY and MSG91_TEMPLATE_ID for real OTPs)")
 	}
 
 	// ─── Services ────────────────────────────────────────────────────────────
