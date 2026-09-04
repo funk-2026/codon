@@ -42,10 +42,10 @@ export default function CourseStructureManagerRoute() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ path?: string; pickerMode?: string; returnTo?: string }>();
   const pickerMode = params.pickerMode === '1';
-  const returnTo: '/(teacher)/(upload)/create-test' | '/(teacher)/(upload)/create-content' =
-    params.returnTo === '/(teacher)/(upload)/create-content'
-      ? '/(teacher)/(upload)/create-content'
-      : '/(teacher)/(upload)/create-test';
+  const returnTo: '/(teacher)/create-test' | '/(teacher)/create-content' =
+    params.returnTo === '/(teacher)/create-content'
+      ? '/(teacher)/create-content'
+      : '/(teacher)/create-test';
   const extraParams = pickerMode ? { pickerMode: '1', returnTo: params.returnTo ?? '' } : {};
 
   const [tree, setTree] = useState<Node[]>([]);
@@ -106,11 +106,11 @@ export default function CourseStructureManagerRoute() {
 
   const goDeeper = (node: Node) => {
     const nextPath = pathIds.length ? `${pathIds.join('/')}/${node.id}` : node.id;
-    router.push({ pathname: '/(teacher)/(home)/course-structure-manager', params: { path: nextPath, ...extraParams } });
+    router.push({ pathname: '/(teacher)/(tabs)/(home)/course-structure-manager', params: { path: nextPath, ...extraParams } });
   };
 
   const jumpTo = (path: string) => {
-    router.dismissTo({ pathname: '/(teacher)/(home)/course-structure-manager', params: { path, ...extraParams } });
+    router.dismissTo({ pathname: '/(teacher)/(tabs)/(home)/course-structure-manager', params: { path, ...extraParams } });
   };
 
   const goBack = () => {

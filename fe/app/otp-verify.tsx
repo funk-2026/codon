@@ -94,7 +94,7 @@ export default function OtpVerifyRoute() {
       } else if (role === 'admin') {
         router.replace('/(admin)/(home)');
       } else if (role === 'teacher') {
-        router.replace('/(teacher)/(home)');
+        router.replace('/(teacher)/(tabs)/(home)');
       } else {
         router.replace('/(student)/(home)');
       }

@@ -134,7 +134,7 @@ export default function TeacherProfileRoute() {
         ) : null}
 
         <Pressable
-          onPress={() => router.push('/(teacher)/(content)')}
+          onPress={() => router.push('/(teacher)/(tabs)/(content)')}
           style={({ pressed }) => [
             styles.row,
             { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg, opacity: pressed ? 0.94 : 1 },
@@ -190,7 +190,7 @@ export default function TeacherProfileRoute() {
           <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>SUPPORT</Text>
           <View style={{ gap: space.xs }}>
             <Pressable
-              onPress={() => router.push('/(teacher)/(profile)/manage-devices')}
+              onPress={() => router.push('/(teacher)/(tabs)/(profile)/manage-devices')}
               style={({ pressed }) => [
                 styles.row,
                 { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
@@ -200,7 +200,7 @@ export default function TeacherProfileRoute() {
               <CaretRight size={18} color={color('text/tertiary')} />
             </Pressable>
             <Pressable
-              onPress={() => router.push('/(teacher)/(profile)/give-feedback')}
+              onPress={() => router.push('/(teacher)/(tabs)/(profile)/give-feedback')}
               style={({ pressed }) => [
                 styles.row,
                 { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },

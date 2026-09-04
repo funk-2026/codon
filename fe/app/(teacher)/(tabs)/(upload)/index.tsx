@@ -42,19 +42,19 @@ export default function UploadHubRoute() {
       label: 'New Test',
       description: 'Q Bank, Test Series, or Practice — build questions one at a time or bulk-upload via CSV.',
       icon: <ClipboardText size={26} color={color('accent/default')} weight="duotone" />,
-      href: '/(teacher)/(upload)/create-test',
+      href: '/(teacher)/create-test',
     },
     {
       label: 'New Video / Document',
       description: 'Upload a video lecture or write a document lesson for a chapter.',
       icon: <VideoCamera size={26} color={color('accent/default')} weight="duotone" />,
-      href: '/(teacher)/(upload)/create-content',
+      href: '/(teacher)/create-content',
     },
     {
       label: 'New Brain Hack',
       description: 'A short, practical tip — no course attachment needed.',
       icon: <Lightbulb size={26} color={color('accent/default')} weight="duotone" />,
-      href: '/(teacher)/(upload)/create-brain-hack',
+      href: '/(teacher)/create-brain-hack',
     },
   ];
 

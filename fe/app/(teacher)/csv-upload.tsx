@@ -82,7 +82,7 @@ export default function CsvBulkUploadRoute() {
         throw new Error('Upload failed');
       }
       const res = await importQuestionsCSV(testId, { file_key: presign.file_key });
-      router.push({ pathname: '/(teacher)/(upload)/csv-import-report', params: { batchId: res.batch_id } });
+      router.push({ pathname: '/(teacher)/csv-import-report', params: { batchId: res.batch_id } });
     } catch (err) {
       setError('Failed to upload CSV.');
     } finally {

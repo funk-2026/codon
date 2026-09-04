@@ -148,7 +148,7 @@ export default function CsvImportReportRoute() {
                     <Text style={[type['type/h3'], { color: color('text/primary') }]}>Row {e.row}</Text>
                     <Pressable
                       onPress={() =>
-                        router.push({ pathname: '/(teacher)/(upload)/question-builder', params: { prefillText: e.preview } })
+                        router.push({ pathname: '/(teacher)/question-builder', params: { prefillText: e.preview } })
                       }
                     >
                       <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>Fix & Retry</Text>
@@ -167,7 +167,7 @@ export default function CsvImportReportRoute() {
 
       {!processing ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-          <PrimaryButton label="Done" onPress={() => router.push('/(teacher)/(upload)/create-test')} />
+          <PrimaryButton label="Done" onPress={() => router.push('/(teacher)/create-test')} />
         </View>
       ) : null}
     </SafeAreaView>

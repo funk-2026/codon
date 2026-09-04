@@ -1,59 +1,23 @@
-import { Tabs } from 'expo-router';
-import { House, Stack as StackIcon, UploadSimple, User } from 'phosphor-react-native';
-import { useTheme } from '@/src/theme/ThemeProvider';
+import { Stack } from 'expo-router';
+import { useStackScreenOptions } from '@/src/components/ThemedStack';
 
-export default function TeacherTabLayout() {
-  const { color, type } = useTheme();
-
+// The tab bar lives under (tabs). Everything below is a self-contained
+// creation flow reachable both from the Upload tab's own hub and as a
+// direct deep link from other tabs (e.g. Home's quick actions) — kept as
+// root-level modals here, outside any single tab's own stack, so a deep
+// link can never silently back-fill that tab's hub screen underneath it
+// and turn one "back" into two.
+export default function TeacherLayout() {
+  const base = useStackScreenOptions();
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: color('accent/default'),
-        tabBarInactiveTintColor: color('text/tertiary'),
-        tabBarStyle: {
-          backgroundColor: color('bg/surface'),
-          borderTopColor: color('border/subtle'),
-        },
-        tabBarLabelStyle: type['type/caption'],
-      }}
-    >
-      <Tabs.Screen
-        name="(home)"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <House color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(content)"
-        options={{
-          title: 'My Content',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <StackIcon color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(upload)"
-        options={{
-          title: 'Upload',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <UploadSimple color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(profile)"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <User color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-    </Tabs>
+    <Stack screenOptions={base}>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="create-test" options={{ title: 'Create Test', presentation: 'modal' }} />
+      <Stack.Screen name="question-builder" options={{ title: 'Question Builder' }} />
+      <Stack.Screen name="csv-upload" options={{ title: 'CSV Bulk Upload' }} />
+      <Stack.Screen name="csv-import-report" options={{ title: 'Import Report' }} />
+      <Stack.Screen name="create-content" options={{ title: 'Create Content', presentation: 'modal' }} />
+      <Stack.Screen name="create-brain-hack" options={{ title: 'Create Brain Hack', presentation: 'modal' }} />
+    </Stack>
   );
 }

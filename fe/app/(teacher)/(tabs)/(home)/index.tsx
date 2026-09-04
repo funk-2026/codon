@@ -183,17 +183,17 @@ export default function TeacherHomeRoute() {
             <QuickAction
               label="New Test"
               icon={<ClipboardText size={22} color={color('accent/default')} weight="duotone" />}
-              onPress={() => router.push('/(teacher)/(upload)/create-test')}
+              onPress={() => router.push('/(teacher)/create-test')}
             />
             <QuickAction
               label="New Video"
               icon={<VideoCamera size={22} color={color('accent/default')} weight="duotone" />}
-              onPress={() => router.push('/(teacher)/(upload)/create-content')}
+              onPress={() => router.push('/(teacher)/create-content')}
             />
             <QuickAction
               label="New Brain Hack"
               icon={<Lightbulb size={22} color={color('accent/default')} weight="duotone" />}
-              onPress={() => router.push('/(teacher)/(upload)/create-brain-hack')}
+              onPress={() => router.push('/(teacher)/create-brain-hack')}
             />
           </View>
         </Stagger>
@@ -216,8 +216,8 @@ export default function TeacherHomeRoute() {
                   key={a.id}
                   onPress={() =>
                     a.status === 'rejected'
-                      ? router.push({ pathname: '/(teacher)/(content)/rejected-content-detail', params: { id: a.id } })
-                      : router.push({ pathname: '/(teacher)/(content)/content-preview', params: { id: a.id } })
+                      ? router.push({ pathname: '/(teacher)/(tabs)/(content)/rejected-content-detail', params: { id: a.id } })
+                      : router.push({ pathname: '/(teacher)/(tabs)/(content)/content-preview', params: { id: a.id } })
                   }
                   style={({ pressed }) => [
                     styles.activityRow,

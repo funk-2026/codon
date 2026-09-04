@@ -7,7 +7,7 @@ import { useAuth, type Role } from '@/src/auth/AuthContext';
 
 const OPTIONS: { role: Role; label: string; href: Href }[] = [
   { role: 'student', label: 'Student', href: '/profile-setup' as Href },
-  { role: 'teacher', label: 'Teacher', href: '/(teacher)/(home)' },
+  { role: 'teacher', label: 'Teacher', href: '/(teacher)/(tabs)/(home)' },
   { role: 'admin', label: 'Admin', href: '/(admin)/(home)' },
 ];
 

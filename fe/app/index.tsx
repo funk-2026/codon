@@ -18,7 +18,7 @@ import { useAuth, type Role } from '@/src/auth/AuthContext';
 
 const ROLE_HOME: Record<Role, Href> = {
   student: '/(student)/(home)',
-  teacher: '/(teacher)/(home)',
+  teacher: '/(teacher)/(tabs)/(home)',
   admin: '/(admin)/(home)',
 };
 

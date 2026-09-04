@@ -144,9 +144,9 @@ export default function MyContentListRoute() {
 
   const openItem = (item: ContentItem) => {
     if (item.status === 'rejected') {
-      router.push({ pathname: '/(teacher)/(content)/rejected-content-detail', params: { id: item.id } });
+      router.push({ pathname: '/(teacher)/(tabs)/(content)/rejected-content-detail', params: { id: item.id } });
     } else {
-      router.push({ pathname: '/(teacher)/(content)/content-preview', params: { id: item.id, type: item.type } });
+      router.push({ pathname: '/(teacher)/(tabs)/(content)/content-preview', params: { id: item.id, type: item.type } });
     }
   };
 
@@ -327,7 +327,7 @@ export default function MyContentListRoute() {
             label="New Brain Hack"
             onPress={() => {
               setFabOpen(false);
-              router.push('/(teacher)/(upload)/create-brain-hack');
+              router.push('/(teacher)/create-brain-hack');
             }}
           />
         </Animated.View>
@@ -336,7 +336,7 @@ export default function MyContentListRoute() {
             label="New Video/Document"
             onPress={() => {
               setFabOpen(false);
-              router.push('/(teacher)/(upload)/create-content');
+              router.push('/(teacher)/create-content');
             }}
           />
         </Animated.View>
@@ -345,7 +345,7 @@ export default function MyContentListRoute() {
             label="New Test"
             onPress={() => {
               setFabOpen(false);
-              router.push('/(teacher)/(upload)/create-test');
+              router.push('/(teacher)/create-test');
             }}
           />
         </Animated.View>

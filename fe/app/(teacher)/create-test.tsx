@@ -87,7 +87,7 @@ export default function CreateTestRoute() {
       if (!id) return;
       show('Draft saved', 'success');
       // For MVP, proceed to question builder
-      router.push({ pathname: '/(teacher)/(upload)/question-builder', params: { testId: id } });
+      router.push({ pathname: '/(teacher)/question-builder', params: { testId: id } });
     } catch (err) {
       show('Failed to save draft', 'error');
     } finally {
@@ -103,7 +103,7 @@ export default function CreateTestRoute() {
         show('Fill in the title and module type first', 'error');
         return;
       }
-      router.push({ pathname: '/(teacher)/(upload)/csv-upload', params: { testId: id } });
+      router.push({ pathname: '/(teacher)/csv-upload', params: { testId: id } });
     } catch (err) {
       show('Failed to save test', 'error');
     } finally {
@@ -113,8 +113,8 @@ export default function CreateTestRoute() {
 
   const goToLocationPicker = () => {
     router.push({
-      pathname: '/(teacher)/(home)/course-structure-manager',
-      params: { pickerMode: '1', returnTo: '/(teacher)/(upload)/create-test' },
+      pathname: '/(teacher)/(tabs)/(home)/course-structure-manager',
+      params: { pickerMode: '1', returnTo: '/(teacher)/create-test' },
     });
   };
 
@@ -303,7 +303,7 @@ export default function CreateTestRoute() {
 
         {questionCount > 0 ? (
           <Pressable
-            onPress={() => router.push('/(teacher)/(upload)/question-builder')}
+            onPress={() => router.push('/(teacher)/question-builder')}
             style={[
               styles.questionSummary,
               { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.xl },
@@ -326,12 +326,12 @@ export default function CreateTestRoute() {
             />
           ) : (
             <>
-              <SecondaryButton label="Add More Questions" onPress={() => router.push('/(teacher)/(upload)/question-builder')} />
+              <SecondaryButton label="Add More Questions" onPress={() => router.push('/(teacher)/question-builder')} />
               <PrimaryButton
                 label="Preview & Submit"
                 onPress={() =>
                   router.push({
-                    pathname: '/(teacher)/(content)/content-preview',
+                    pathname: '/(teacher)/(tabs)/(content)/content-preview',
                     params: {
                       type: 'Test',
                       draftTitle: title,

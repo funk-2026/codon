@@ -22,9 +22,9 @@ const TYPE_ICON: Record<ItemType, React.ComponentType<{ size: number; color: str
 };
 
 function editRouteFor(itemType: ItemType, params: { rejected: string }) {
-  if (itemType === 'Test') return { pathname: '/(teacher)/(upload)/create-test' as const, params };
-  if (itemType === 'Brain Hack') return { pathname: '/(teacher)/(upload)/create-brain-hack' as const, params };
-  return { pathname: '/(teacher)/(upload)/create-content' as const, params };
+  if (itemType === 'Test') return { pathname: '/(teacher)/create-test' as const, params };
+  if (itemType === 'Brain Hack') return { pathname: '/(teacher)/create-brain-hack' as const, params };
+  return { pathname: '/(teacher)/create-content' as const, params };
 }
 
 function shadow(): {} {

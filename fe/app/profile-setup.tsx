@@ -76,7 +76,7 @@ export default function ProfileSetupRoute() {
       if (user?.role === 'admin') {
         router.replace('/(admin)/(home)');
       } else if (user?.role === 'teacher') {
-        router.replace('/(teacher)/(home)');
+        router.replace('/(teacher)/(tabs)/(home)');
       } else {
         router.replace('/(student)/(home)');
       }
