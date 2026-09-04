@@ -15,8 +15,6 @@ type Node = {
   children?: Node[];
 };
 
-const COURSE_NAME = 'NEET UG';
-
 function levelNoun(level: Level | 'root'): 'chapter' | 'subject' {
   if (level === 'root') return 'subject';
   return 'chapter';
@@ -50,14 +48,16 @@ export default function CourseStructureManagerRoute() {
 
   const [tree, setTree] = useState<Node[]>([]);
   const [courseId, setCourseId] = useState<string | null>(null);
+  const [courseName, setCourseName] = useState<string>('');
 
   useMemo(() => {
     import('@/src/api/courses').then(({ listCourses, getCurriculum }) => {
       listCourses().then((cRes) => {
-        const neet = cRes.courses.find((c) => c.name === COURSE_NAME);
-        if (neet) {
-          setCourseId(neet.id);
-          getCurriculum(neet.id).then((res) => {
+        const course = cRes.courses[0];
+        if (course) {
+          setCourseId(course.id);
+          setCourseName(course.name);
+          getCurriculum(course.id).then((res) => {
             const fetchedTree: Node[] = res.course.subjects.map((sub: any) => ({
               id: sub.id,
               title: sub.name,
@@ -124,7 +124,7 @@ export default function CourseStructureManagerRoute() {
   const useThisLocation = () => {
     if (!canUseLocation) return;
     const chapterCrumb = crumbs[crumbs.length - 1];
-    const label = `${COURSE_NAME} · ${crumbs.map((c) => c.title).join(' · ')}`;
+    const label = `${courseName} · ${crumbs.map((c) => c.title).join(' · ')}`;
     router.dismissTo({ pathname: returnTo, params: { locationLabel: label, chapterId: chapterCrumb.id } });
   };
 
@@ -166,7 +166,7 @@ export default function CourseStructureManagerRoute() {
           </Pressable>
           <View style={{ flex: 1, marginLeft: space.sm }}>
             <View style={[styles.crumbRow, { gap: space['2xs'] }]}>
-              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{COURSE_NAME}</Text>
+              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{courseName}</Text>
               <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>›</Text>
               {crumbs.map((c, i) => (
                 <View key={c.id} style={[styles.crumbRow, { gap: space['2xs'] }]}>
