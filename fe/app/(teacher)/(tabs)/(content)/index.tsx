@@ -58,6 +58,16 @@ const TYPE_ICON: Record<ContentType, React.ComponentType<{ size: number; color: 
   'Brain Hack': Lightbulb,
 };
 
+// The backend isn't consistent about status strings across endpoints
+// (e.g. 'pending' vs 'pending_review' for the same in-review state) —
+// normalize known variants and fall back safely for anything else,
+// rather than crashing on an unrecognized value.
+function normalizeStatus(raw: string): Status {
+  if (raw === 'pending_review') return 'pending';
+  const known: Status[] = ['draft', 'pending', 'approved', 'rejected', 'published'];
+  return (known as string[]).includes(raw) ? (raw as Status) : 'draft';
+}
+
 function taxonomyBadge(status: Status): { badgeStatus: BadgeStatus; label: string } {
   const map: Record<Status, { badgeStatus: BadgeStatus; label: string }> = {
     draft: { badgeStatus: 'draft', label: 'Draft' },
@@ -66,7 +76,7 @@ function taxonomyBadge(status: Status): { badgeStatus: BadgeStatus; label: strin
     rejected: { badgeStatus: 'rejected', label: 'Changes Needed' },
     published: { badgeStatus: 'published', label: 'Live' },
   };
-  return map[status];
+  return map[status] ?? { badgeStatus: 'neutral', label: status };
 }
 
 function shadow(): {} {
@@ -103,7 +113,7 @@ export default function MyContentListRoute() {
                title: t.title,
                breadcrumb: 'Test',
                type: 'Test',
-               status: t.status as Status,
+               status: normalizeStatus(t.status),
             });
          });
          (cRes.content || []).forEach(c => {
@@ -112,7 +122,7 @@ export default function MyContentListRoute() {
                title: c.title,
                breadcrumb: 'Content',
                type: c.content_type === 'video' ? 'Video' : 'Document',
-               status: c.status as Status,
+               status: normalizeStatus(c.status),
             });
          });
          setItems(out);
