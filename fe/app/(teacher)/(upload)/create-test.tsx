@@ -37,6 +37,7 @@ export default function CreateTestRoute() {
   const [courseId, setCourseId] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [testId, setTestId] = useState<string | null>(null);
   const questionCount = isRejectedEdit ? 20 : 0;
 
   const loadCourseInfo = useCallback(() => {
@@ -66,21 +67,45 @@ export default function CreateTestRoute() {
   const locationSet = !!location;
   const canProceed = locationSet;
 
+  const ensureTestSaved = useCallback(async (): Promise<string | null> => {
+    if (testId) return testId;
+    if (!title || !moduleType || !courseId) return null;
+    const res = await createTest({
+      title,
+      course_id: courseId,
+      module_type: moduleType === 'Q Bank' ? 'qbank' : moduleType === 'Test Series' ? 'test_series' : 'practice',
+      ...(chapterId ? { chapter_id: chapterId } : {}),
+    });
+    setTestId(res.id);
+    return res.id;
+  }, [testId, title, moduleType, courseId, chapterId]);
+
   const handleSaveDraft = async () => {
-    if (!title || !moduleType || !courseId) return;
     setSaving(true);
     try {
-      const res = await createTest({
-        title,
-        course_id: courseId,
-        module_type: moduleType === 'Q Bank' ? 'qbank' : moduleType === 'Test Series' ? 'test_series' : 'practice',
-        ...(chapterId ? { chapter_id: chapterId } : {}),
-      });
+      const id = await ensureTestSaved();
+      if (!id) return;
       show('Draft saved', 'success');
       // For MVP, proceed to question builder
-      router.push({ pathname: '/(teacher)/(upload)/question-builder', params: { testId: res.id } });
+      router.push({ pathname: '/(teacher)/(upload)/question-builder', params: { testId: id } });
     } catch (err) {
       show('Failed to save draft', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBulkUpload = async () => {
+    setSaving(true);
+    try {
+      const id = await ensureTestSaved();
+      if (!id) {
+        show('Fill in the title and module type first', 'error');
+        return;
+      }
+      router.push({ pathname: '/(teacher)/(upload)/csv-upload', params: { testId: id } });
+    } catch (err) {
+      show('Failed to save test', 'error');
     } finally {
       setSaving(false);
     }
@@ -323,7 +348,7 @@ export default function CreateTestRoute() {
             </>
           )}
           <View style={{ alignItems: 'center', marginTop: space.xs }}>
-            <TextButton label="Bulk Upload via CSV" onPress={() => router.push('/(teacher)/(upload)/csv-upload')} />
+            <TextButton label="Bulk Upload via CSV" onPress={handleBulkUpload} disabled={saving || !canProceed} />
           </View>
         </View>
       </ScrollView>

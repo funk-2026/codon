@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -11,8 +11,15 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { useLocalSearchParams } from 'expo-router';
 import { importQuestionsCSV } from '@/src/api/teacher';
 import { getPresignedUrl } from '@/src/api/uploads';
+import { getTest, type Test } from '@/src/api/tests';
 
 const COLUMNS = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation'];
+
+const MODULE_TYPE_LABEL: Record<string, string> = {
+  qbank: 'Q Bank',
+  test_series: 'Test Series',
+  practice: 'Practice',
+};
 
 function formatFileSize(bytes?: number): string {
   if (bytes === undefined) return '';
@@ -31,6 +38,14 @@ export default function CsvBulkUploadRoute() {
   const [file, setFile] = useState<{ name: string; size: string; uri: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [test, setTest] = useState<Test | null>(null);
+
+  useEffect(() => {
+    if (!testId) return;
+    getTest(testId)
+      .then((res) => setTest(res.test))
+      .catch(() => {});
+  }, [testId]);
 
   const handleSelectFile = async () => {
     setError(null);
@@ -114,6 +129,22 @@ export default function CsvBulkUploadRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
+        {test ? (
+          <View
+            style={[
+              styles.testContextCard,
+              { backgroundColor: color('accent/tint'), borderRadius: radius.md, padding: space.sm, marginTop: space.md },
+            ]}
+          >
+            <Text style={[type['type/caption'], { color: color('accent/default') }]}>
+              UPLOADING INTO
+            </Text>
+            <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: 2 }]} numberOfLines={1}>
+              {test.title} · {MODULE_TYPE_LABEL[test.module_type] ?? test.module_type}
+            </Text>
+          </View>
+        ) : null}
+
         <View
           style={[
             { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, marginTop: space.xl },
@@ -215,6 +246,7 @@ function shadow(): {} {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center' },
+  testContextCard: {},
   colChipRow: { flexDirection: 'row', flexWrap: 'wrap' },
   colChip: { borderWidth: 1, paddingVertical: 4 },
   fileChip: { flexDirection: 'row', alignItems: 'center' },
