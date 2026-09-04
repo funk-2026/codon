@@ -12,6 +12,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { importQuestionsCSV } from '@/src/api/teacher';
 import { getPresignedUrl } from '@/src/api/uploads';
 import { getTest, type Test } from '@/src/api/tests';
+import { ApiError } from '@/src/api/client';
 
 const COLUMNS = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation'];
 
@@ -70,21 +71,46 @@ export default function CsvBulkUploadRoute() {
     }
     setUploading(true);
     setError(null);
+
+    let presign;
     try {
-      const presign = await getPresignedUrl({ filename: file.name, content_type: 'text/csv' });
+      presign = await getPresignedUrl({ filename: file.name, content_type: 'text/csv' });
+    } catch (err) {
+      console.error('CSV upload: presign request failed', err);
+      const detail = err instanceof ApiError ? ` (${err.status}: ${err.message})` : '';
+      setError(`Couldn't get an upload URL from the server${detail}.`);
+      setUploading(false);
+      return;
+    }
+
+    let putRes;
+    try {
       const blob = await (await fetch(file.uri)).blob();
-      const putRes = await fetch(presign.upload_url, {
+      putRes = await fetch(presign.upload_url, {
         method: 'PUT',
         body: blob,
         headers: { 'Content-Type': 'text/csv' },
       });
-      if (!putRes.ok) {
-        throw new Error('Upload failed');
-      }
+    } catch (err) {
+      console.error('CSV upload: PUT to storage failed', err);
+      setError("Couldn't upload the file to storage — check your connection and try again.");
+      setUploading(false);
+      return;
+    }
+    if (!putRes.ok) {
+      console.error('CSV upload: PUT to storage returned', putRes.status, await putRes.text().catch(() => ''));
+      setError(`Upload to storage failed (${putRes.status}).`);
+      setUploading(false);
+      return;
+    }
+
+    try {
       const res = await importQuestionsCSV(testId, { file_key: presign.file_key });
       router.push({ pathname: '/(teacher)/csv-import-report', params: { batchId: res.batch_id } });
     } catch (err) {
-      setError('Failed to upload CSV.');
+      console.error('CSV upload: import-questions request failed', err);
+      const detail = err instanceof ApiError ? ` (${err.status}: ${err.message})` : '';
+      setError(`File uploaded, but the server couldn't process it${detail}.`);
     } finally {
       setUploading(false);
     }
