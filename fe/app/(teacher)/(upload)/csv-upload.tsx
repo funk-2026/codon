@@ -3,26 +3,48 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CaretLeft, UploadSimple, FileCsv, X } from 'phosphor-react-native';
-import { PrimaryButton, SecondaryButton } from '@/src/components';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { PrimaryButton, SecondaryButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useLocalSearchParams } from 'expo-router';
 import { importQuestionsCSV } from '@/src/api/teacher';
+import { getPresignedUrl } from '@/src/api/uploads';
 
 const COLUMNS = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation'];
+
+function formatFileSize(bytes?: number): string {
+  if (bytes === undefined) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function CsvBulkUploadRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { testId } = useLocalSearchParams<{ testId?: string }>();
+  const { show } = useToast();
 
-  const [file, setFile] = useState<{ name: string; size: string } | null>(null);
+  const [file, setFile] = useState<{ name: string; size: string; uri: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSelectFile = () => {
+  const handleSelectFile = async () => {
     setError(null);
-    setFile({ name: 'thermodynamics_questions.csv', size: '18 KB' });
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      setFile({ name: asset.name, size: formatFileSize(asset.size), uri: asset.uri });
+    } catch (err) {
+      setError('Failed to select file.');
+    }
   };
 
   const handleUpload = async () => {
@@ -32,13 +54,44 @@ export default function CsvBulkUploadRoute() {
       return;
     }
     setUploading(true);
+    setError(null);
     try {
-      const res = await importQuestionsCSV(testId, { file_key: 'mock-csv-key' });
+      const presign = await getPresignedUrl({ filename: file.name, content_type: 'text/csv' });
+      const blob = await (await fetch(file.uri)).blob();
+      const putRes = await fetch(presign.upload_url, {
+        method: 'PUT',
+        body: blob,
+        headers: { 'Content-Type': 'text/csv' },
+      });
+      if (!putRes.ok) {
+        throw new Error('Upload failed');
+      }
+      const res = await importQuestionsCSV(testId, { file_key: presign.file_key });
       router.push({ pathname: '/(teacher)/(upload)/csv-import-report', params: { batchId: res.batch_id } });
     } catch (err) {
       setError('Failed to upload CSV.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      if (!FileSystem.cacheDirectory) {
+        show('Template download is not supported on this device.', 'error');
+        return;
+      }
+      const csvContent = `${COLUMNS.join(',')}\n`;
+      const fileUri = `${FileSystem.cacheDirectory}question-template.csv`;
+      await FileSystem.writeAsStringAsync(fileUri, csvContent);
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        show('Sharing is not available on this device.', 'error');
+        return;
+      }
+      await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', UTI: 'public.comma-separated-values-text' });
+    } catch (err) {
+      show('Failed to generate template.', 'error');
     }
   };
 
@@ -71,7 +124,7 @@ export default function CsvBulkUploadRoute() {
           <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
             Start from our CSV template so every column lines up correctly.
           </Text>
-          <SecondaryButton label="Download Template (CSV)" onPress={() => {}} style={{ marginTop: space.md, alignSelf: 'flex-start' }} />
+          <SecondaryButton label="Download Template (CSV)" onPress={handleDownloadTemplate} style={{ marginTop: space.md, alignSelf: 'flex-start' }} />
         </View>
 
         <View

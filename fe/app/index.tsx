@@ -23,7 +23,7 @@ const ROLE_HOME: Record<Role, Href> = {
 };
 
 const ENTER_MS = 900;
-const MIN_DISPLAY_MS = 2000;
+const MIN_DISPLAY_MS = 1200;
 
 function OrbitMark({ size, color, opacity = 1 }: { size: number; color: string; opacity?: number }) {
   return (

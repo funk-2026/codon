@@ -6,9 +6,8 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import {
   Users,
   Shield,
-  ClipboardText,
-  PlayCircle,
   TreeStructure,
+  FolderOpen,
   Receipt,
   Tag,
   GearSix,
@@ -93,10 +92,9 @@ export default function AdminHomeRoute() {
 
   const cards: Card[] = [
     { key: 'users', label: 'Users', icon: <Users size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(users)' },
-    { key: 'kyc', label: 'KYC Review', icon: <Shield size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)', badge: summary.pending_kyc },
-    { key: 'tests', label: 'Test Approvals', icon: <ClipboardText size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/moderation-tests', badge: summary.pending_test_reviews > 0 ? summary.pending_test_reviews : undefined },
-    { key: 'content', label: 'Content Approvals', icon: <PlayCircle size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)/moderation-videos-docs', badge: summary.pending_content_reviews > 0 ? summary.pending_content_reviews : undefined },
+    { key: 'approvals', label: 'Approvals', icon: <Shield size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)', badge: summary.pending_kyc + pendingReviews > 0 ? summary.pending_kyc + pendingReviews : undefined },
     { key: 'structure', label: 'Manage Subjects', icon: <TreeStructure size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/manage-subjects' },
+    { key: 'course-structure', label: 'Course Structure', icon: <FolderOpen size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/course-structure' },
     { key: 'payments', label: 'Payments', icon: <Receipt size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(payments)' },
     { key: 'plans', label: 'Subscription Plans', icon: <Tag size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(payments)/subscription-plan-list' },
     { key: 'settings', label: 'Platform Settings', icon: <GearSix size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/platform-settings' },

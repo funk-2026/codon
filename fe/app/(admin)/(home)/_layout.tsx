@@ -9,6 +9,7 @@ export default function AdminHomeStack() {
       <Stack.Screen name="platform-settings" options={{ title: 'Platform Settings' }} />
       <Stack.Screen name="analytics-overview" options={{ title: 'Analytics' }} />
       <Stack.Screen name="manage-subjects" options={{ headerShown: false }} />
+      <Stack.Screen name="course-structure" options={{ headerShown: false }} />
     </Stack>
   );
 }

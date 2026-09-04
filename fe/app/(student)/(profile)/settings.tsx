@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CaretLeft, CaretRight } from 'phosphor-react-native';
+import * as SecureStore from 'expo-secure-store';
 import { SecondaryButton } from '@/src/components';
 import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
+
+const SOUND_EFFECTS_KEY = 'codon_pref_sound_effects';
+const NOTIFICATIONS_KEY = 'codon_pref_notifications';
 
 function GroupLabel({ label }: { label: string }) {
   const { color, type, space } = useTheme();
@@ -64,9 +68,30 @@ export default function SettingsRoute() {
   const insets = useSafeAreaInsets();
 
   const auth = useAuth();
-  const [soundEffects, setSoundEffects] = useState(true);
-  const [notifications, setNotifications] = useState(true);
+  const [soundEffects, setSoundEffectsState] = useState(true);
+  const [notifications, setNotificationsState] = useState(true);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [storedSound, storedNotifications] = await Promise.all([
+        SecureStore.getItemAsync(SOUND_EFFECTS_KEY),
+        SecureStore.getItemAsync(NOTIFICATIONS_KEY),
+      ]);
+      if (storedSound != null) setSoundEffectsState(storedSound === 'true');
+      if (storedNotifications != null) setNotificationsState(storedNotifications === 'true');
+    })();
+  }, []);
+
+  const setSoundEffects = (value: boolean) => {
+    setSoundEffectsState(value);
+    SecureStore.setItemAsync(SOUND_EFFECTS_KEY, String(value));
+  };
+
+  const setNotifications = (value: boolean) => {
+    setNotificationsState(value);
+    SecureStore.setItemAsync(NOTIFICATIONS_KEY, String(value));
+  };
 
   const segments: { key: ThemePreference; label: string }[] = [
     { key: 'system', label: 'System' },
@@ -151,6 +176,7 @@ export default function SettingsRoute() {
           <View style={{ gap: space.xs }}>
             <Row
               label="Sound Effects"
+              caption="Coming soon"
               trailing={
                 <Switch
                   value={soundEffects}

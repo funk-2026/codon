@@ -3,11 +3,66 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { Check, X, CheckCircle, WarningCircle } from 'phosphor-react-native';
+import { Check, X, CheckCircle, WarningCircle, Shield, ClipboardText, PlayCircle, CaretRight } from 'phosphor-react-native';
 import { EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { adminListKYC, adminApproveKYC, adminRejectKYC } from '@/src/api/admin';
+import { adminListKYC, adminApproveKYC, adminRejectKYC, getAdminDashboardSummary } from '@/src/api/admin';
 import type { KYCRecord } from '@/src/api/kyc';
+
+function shadowCard(): {} {
+  return {
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  };
+}
+
+function ApprovalNavCard({
+  icon,
+  label,
+  count,
+  current,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  count?: number;
+  current?: boolean;
+  onPress?: () => void;
+}) {
+  const { color, type, space, radius } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        styles.navCard,
+        {
+          backgroundColor: color('bg/surface'),
+          borderRadius: radius.md,
+          padding: space.sm,
+          opacity: pressed ? 0.94 : 1,
+          borderWidth: current ? 1 : 0,
+          borderColor: color('accent/default'),
+        },
+        shadowCard(),
+      ]}
+    >
+      {icon}
+      <Text style={[type['type/body-m-medium'], { color: color('text/primary'), marginTop: space.xs }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <View style={[styles.navCardFooter, { marginTop: 2 }]}>
+        <Text style={[type['type/caption'], { color: count ? color('semantic/warning') : color('text/tertiary') }]}>
+          {count != null ? `${count} pending` : current ? 'Viewing' : ''}
+        </Text>
+        {onPress ? <CaretRight size={14} color={color('text/tertiary')} /> : null}
+      </View>
+    </Pressable>
+  );
+}
 
 function shadow(): {} {
   return {
@@ -103,6 +158,13 @@ export default function KycReviewQueueRoute() {
   const [entries, setEntries] = useState<KYCRecord[]>([]);
   const [rejectTarget, setRejectTarget] = useState<KYCRecord | null>(null);
   const [reason, setReason] = useState('');
+  const [otherCounts, setOtherCounts] = useState<{ tests?: number; content?: number }>({});
+
+  useEffect(() => {
+    getAdminDashboardSummary()
+      .then(res => setOtherCounts({ tests: res.pending_test_reviews, content: res.pending_content_reviews }))
+      .catch(() => {});
+  }, []);
 
   const fetchRecords = useCallback(() => {
     setLoading(true);
@@ -146,14 +208,44 @@ export default function KycReviewQueueRoute() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
       <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
-        <Text style={[type['type/h1'], { color: color('text/primary') }]}>KYC Review</Text>
+        <Text style={[type['type/h1'], { color: color('text/primary') }]}>Approvals</Text>
         <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
-          {entries.length} pending.
+          Everything waiting on your review, in one place.
         </Text>
       </View>
 
+      <View style={[styles.navCardRow, { paddingHorizontal: space.md, marginTop: space.md, gap: space.sm }]}>
+        <ApprovalNavCard
+          icon={<Shield size={22} color={color('accent/default')} weight="duotone" />}
+          label="KYC Review"
+          count={entries.length > 0 ? entries.length : undefined}
+          current
+        />
+        <ApprovalNavCard
+          icon={<ClipboardText size={22} color={color('accent/default')} weight="duotone" />}
+          label="Test Approvals"
+          count={otherCounts.tests}
+          onPress={() => router.push('/(admin)/(review)/moderation-tests')}
+        />
+        <ApprovalNavCard
+          icon={<PlayCircle size={22} color={color('accent/default')} weight="duotone" />}
+          label="Content Approvals"
+          count={otherCounts.content}
+          onPress={() => router.push('/(admin)/(review)/moderation-videos-docs')}
+        />
+      </View>
+
+      <Text
+        style={[
+          type['type/overline'],
+          { color: color('text/tertiary'), paddingHorizontal: space.md, marginTop: space.xl },
+        ]}
+      >
+        KYC REVIEW — {entries.length} PENDING
+      </Text>
+
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'] + insets.bottom, gap: space.sm }}
+        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space['3xl'] + insets.bottom, gap: space.sm }}
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
@@ -215,6 +307,9 @@ export default function KycReviewQueueRoute() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  navCardRow: { flexDirection: 'row' },
+  navCard: { flex: 1 },
+  navCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   row: { flexDirection: 'row', alignItems: 'center' },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   idBadge: { paddingVertical: 2 },

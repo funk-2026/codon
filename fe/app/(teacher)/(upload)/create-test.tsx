@@ -304,7 +304,20 @@ export default function CreateTestRoute() {
               <SecondaryButton label="Add More Questions" onPress={() => router.push('/(teacher)/(upload)/question-builder')} />
               <PrimaryButton
                 label="Preview & Submit"
-                onPress={() => router.push({ pathname: '/(teacher)/(content)/content-preview', params: { type: 'Test' } })}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(teacher)/(content)/content-preview',
+                    params: {
+                      type: 'Test',
+                      draftTitle: title,
+                      draftModuleType: moduleType ?? '',
+                      draftDuration: timed ? String(duration) : '',
+                      draftMarksCorrect: marksCorrect,
+                      draftMarksWrong: marksWrong,
+                      draftQuestionCount: String(questionCount),
+                    },
+                  })
+                }
                 disabled={!canProceed}
               />
             </>

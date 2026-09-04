@@ -20,5 +20,9 @@ export function useStackScreenOptions() {
     },
     contentStyle: { backgroundColor: color('bg/canvas') },
     animation: stackAnimation,
+    // The screen being revealed on a back-pop was freezing mid-transition
+    // (react-native-screens' default), reading as an instant cut instead of
+    // a slide — freezeOnBlur only makes sense for screens staying offscreen.
+    freezeOnBlur: false,
   } as const;
 }

@@ -1,18 +1,22 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, CaretDown, CaretUp, Play, Pause, CheckCircle, Clock, Exam } from 'phosphor-react-native';
-import { PrimaryButton, StatusBadge, type BadgeStatus, useToast } from '@/src/components';
+import { CaretLeft, CaretDown, CaretUp, Play, Pause, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, PrimaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { submitTestForReview, submitContentForReview, publishContent } from '@/src/api/teacher';
+import { submitTestForReview, submitContentForReview, publishContent, getTeacherContent } from '@/src/api/teacher';
+import { getTest, getTestQuestions, Test, Question } from '@/src/api/tests';
+import { ContentItem } from '@/src/api/content';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 type Status = 'draft' | 'pending' | 'approved' | 'published';
 
-const SAMPLE_QUESTIONS = [
-  { question: 'What is the SI unit of thermodynamic temperature?', options: ['Celsius', 'Fahrenheit', 'Kelvin', 'Rankine'], correct: 2, explanation: 'Kelvin is the SI base unit of temperature.' },
-  { question: 'Which law states entropy of an isolated system never decreases?', options: ['Zeroth', 'First', 'Second', 'Third'], correct: 2, explanation: 'The Second Law establishes the direction of spontaneous processes.' },
+const QUESTION_OPTIONS: { letter: string; key: 'option_a' | 'option_b' | 'option_c' | 'option_d' }[] = [
+  { letter: 'A', key: 'option_a' },
+  { letter: 'B', key: 'option_b' },
+  { letter: 'C', key: 'option_c' },
+  { letter: 'D', key: 'option_d' },
 ];
 
 function taxonomyBadge(status: Status): { badgeStatus: BadgeStatus; label: string } {
@@ -35,17 +39,111 @@ function shadow(): {} {
   };
 }
 
+function breadcrumbFrom(parts: (string | undefined)[]): string {
+  return parts.filter((p): p is string => !!p && p.trim().length > 0).join(' · ');
+}
+
 export default function ContentPreviewRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { type: rawType, status: rawStatus, id } = useLocalSearchParams<{ type?: string; status?: string; id?: string }>();
-  const contentType = (rawType as ContentType) ?? 'Test';
+  const {
+    type: rawType,
+    status: rawStatus,
+    id,
+    draftTitle,
+    draftModuleType,
+    draftDuration,
+    draftMarksCorrect,
+    draftMarksWrong,
+    draftQuestionCount,
+    draftCategory,
+    draftContent,
+  } = useLocalSearchParams<{
+    type?: string;
+    status?: string;
+    id?: string;
+    draftTitle?: string;
+    draftModuleType?: string;
+    draftDuration?: string;
+    draftMarksCorrect?: string;
+    draftMarksWrong?: string;
+    draftQuestionCount?: string;
+    draftCategory?: string;
+    draftContent?: string;
+  }>();
+  const paramType = rawType as ContentType | undefined;
+
   const [status, setStatus] = useState<Status>((rawStatus as Status) ?? 'draft');
   const [questionsExpanded, setQuestionsExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [playing, setPlaying] = useState(false);
+
+  const [loading, setLoading] = useState(!!id);
+  const [loadError, setLoadError] = useState(false);
+  const [resolvedType, setResolvedType] = useState<ContentType | null>(null);
+  const [testData, setTestData] = useState<Test | null>(null);
+  const [contentData, setContentData] = useState<ContentItem | null>(null);
+
+  const [questions, setQuestions] = useState<Question[] | null>(null);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [questionsError, setQuestionsError] = useState(false);
+
+  const contentType: ContentType = paramType ?? resolvedType ?? 'Test';
+
+  const loadItem = useCallback(() => {
+    if (!id) return;
+    setLoading(true);
+    setLoadError(false);
+
+    const loadTest = () =>
+      getTest(id).then((res) => {
+        setTestData(res.test);
+        setResolvedType('Test');
+      });
+    const loadContent = () =>
+      getTeacherContent(id).then((res) => {
+        setContentData(res);
+        const rawContentType = String(res.content_type);
+        setResolvedType(
+          rawContentType === 'video' ? 'Video' : rawContentType === 'brain_hack' ? 'Brain Hack' : 'Document'
+        );
+      });
+
+    const run =
+      paramType === 'Test'
+        ? loadTest()
+        : paramType === 'Video' || paramType === 'Document' || paramType === 'Brain Hack'
+          ? loadContent()
+          : loadTest().catch(loadContent);
+
+    run.catch(() => setLoadError(true)).finally(() => setLoading(false));
+  }, [id, paramType]);
+
+  useEffect(() => {
+    loadItem();
+  }, [loadItem]);
+
+  useEffect(() => {
+    if (!id || contentType !== 'Test' || !questionsExpanded) return;
+    if (questions !== null || questionsLoading || questionsError) return;
+    let cancelled = false;
+    setQuestionsLoading(true);
+    getTestQuestions(id)
+      .then((res) => {
+        if (!cancelled) setQuestions(res.questions);
+      })
+      .catch(() => {
+        if (!cancelled) setQuestionsError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setQuestionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, contentType, questionsExpanded, questions, questionsLoading, questionsError]);
 
   const badge = taxonomyBadge(status);
 
@@ -86,6 +184,25 @@ export default function ContentPreviewRoute() {
     }
   };
 
+  const questionCountNum = id ? testData?.total_questions ?? 0 : Number(draftQuestionCount || 0);
+  const durationLabel = id
+    ? testData?.duration_minutes
+      ? `${testData.duration_minutes} min`
+      : 'Untimed'
+    : draftDuration
+      ? `${draftDuration} min`
+      : 'Untimed';
+  const markingLabel = id
+    ? testData
+      ? `+${testData.marks_per_correct} / ${testData.marks_per_wrong}`
+      : '—'
+    : draftMarksCorrect && draftMarksWrong
+      ? `+${draftMarksCorrect} / ${draftMarksWrong}`
+      : '—';
+  const testTitle = id ? testData?.title ?? 'Untitled Test' : draftTitle?.trim() || 'Untitled Test';
+  const sortedQuestions = questions ? [...questions].sort((a, b) => a.order_index - b.order_index) : null;
+  const contentBreadcrumb = breadcrumbFrom([contentData?.course?.name, contentData?.chapter?.name]);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
       <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
@@ -112,15 +229,31 @@ export default function ContentPreviewRoute() {
             { borderColor: color('border/subtle'), borderRadius: radius.lg, padding: space.sm, marginTop: space.lg },
           ]}
         >
-          {contentType === 'Test' ? (
+          {loading ? (
+            <View style={{ padding: space.sm, gap: space.sm }}>
+              <SkeletonBlock height={28} width="70%" />
+              <SkeletonBlock height={16} width="40%" />
+              <SkeletonBlock height={140} radius={radius.md} />
+            </View>
+          ) : loadError ? (
+            <EmptyState
+              icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+              title="Couldn't load preview"
+              description="Something went wrong fetching this item."
+              action={<TextButton label="Retry" onPress={loadItem} />}
+            />
+          ) : contentType === 'Test' ? (
             <View>
               <Text style={[type['type/h2'], { color: color('text/primary'), padding: space.sm }]}>
-                Thermodynamics — Practice Set 4
+                {testTitle}
               </Text>
               <View style={[styles.statGrid, { gap: space.xs, paddingHorizontal: space.sm }]}>
-                <StatChip icon={<Exam size={16} color={color('accent/default')} />} label="20 questions" />
-                <StatChip icon={<Clock size={16} color={color('accent/default')} />} label="30 min" />
-                <StatChip icon={<CheckCircle size={16} color={color('accent/default')} />} label="+4 / −1" />
+                <StatChip
+                  icon={<Exam size={16} color={color('accent/default')} />}
+                  label={`${questionCountNum} question${questionCountNum === 1 ? '' : 's'}`}
+                />
+                <StatChip icon={<Clock size={16} color={color('accent/default')} />} label={durationLabel} />
+                <StatChip icon={<CheckCircle size={16} color={color('accent/default')} />} label={markingLabel} />
               </View>
 
               <Pressable
@@ -128,7 +261,7 @@ export default function ContentPreviewRoute() {
                 style={[styles.questionsToggle, { margin: space.sm, borderRadius: radius.md, backgroundColor: color('bg/sunken'), padding: space.sm }]}
               >
                 <Text style={[type['type/body-m-medium'], { color: color('text/primary'), flex: 1 }]}>
-                  Questions (20)
+                  Questions ({questionCountNum})
                 </Text>
                 {questionsExpanded ? (
                   <CaretUp size={18} color={color('text/tertiary')} />
@@ -139,82 +272,123 @@ export default function ContentPreviewRoute() {
 
               {questionsExpanded ? (
                 <View style={{ gap: space.sm, paddingHorizontal: space.sm, paddingBottom: space.sm }}>
-                  {SAMPLE_QUESTIONS.map((q, qi) => (
-                    <View
-                      key={qi}
-                      style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}
-                    >
-                      <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
-                        {qi + 1}. {q.question}
-                      </Text>
-                      <View style={{ marginTop: space.xs, gap: 4 }}>
-                        {q.options.map((opt, oi) => (
-                          <Text
-                            key={oi}
-                            style={[type['type/body-m'], { color: oi === q.correct ? color('semantic/success') : color('text/secondary') }]}
-                          >
-                            {String.fromCharCode(65 + oi)}. {opt}
-                            {oi === q.correct ? '  ✓' : ''}
+                  {!id ? (
+                    <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+                      {questionCountNum > 0
+                        ? "Question text isn't available in this preview yet — add or review them via the question builder."
+                        : 'No questions added yet.'}
+                    </Text>
+                  ) : questionsLoading ? (
+                    <>
+                      <SkeletonBlock height={96} radius={radius.md} />
+                      <SkeletonBlock height={96} radius={radius.md} />
+                    </>
+                  ) : questionsError ? (
+                    <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+                      Question preview isn&apos;t available yet.
+                    </Text>
+                  ) : sortedQuestions && sortedQuestions.length > 0 ? (
+                    sortedQuestions.map((q, qi) => (
+                      <View
+                        key={q.id}
+                        style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}
+                      >
+                        <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
+                          {qi + 1}. {q.question_text}
+                        </Text>
+                        <View style={{ marginTop: space.xs, gap: 4 }}>
+                          {QUESTION_OPTIONS.map(({ letter, key }) => (
+                            <Text
+                              key={letter}
+                              style={[
+                                type['type/body-m'],
+                                { color: q.correct_option?.toUpperCase() === letter ? color('semantic/success') : color('text/secondary') },
+                              ]}
+                            >
+                              {letter}. {q[key]}
+                              {q.correct_option?.toUpperCase() === letter ? '  ✓' : ''}
+                            </Text>
+                          ))}
+                        </View>
+                        {q.explanation ? (
+                          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
+                            {q.explanation}
                           </Text>
-                        ))}
+                        ) : null}
                       </View>
-                      <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
-                        {q.explanation}
-                      </Text>
-                    </View>
-                  ))}
+                    ))
+                  ) : (
+                    <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+                      No questions added yet.
+                    </Text>
+                  )}
                 </View>
               ) : null}
             </View>
           ) : contentType === 'Video' ? (
             <View>
-              <View style={[styles.videoFrame, { backgroundColor: '#000', borderRadius: radius.md }]}>
-                <Pressable onPress={() => setPlaying((v) => !v)} style={styles.videoCenter}>
-                  {playing ? (
-                    <Pause size={48} color="#fff" weight="fill" />
-                  ) : (
-                    <Play size={48} color="#fff" weight="fill" />
-                  )}
-                </Pressable>
-              </View>
+              {contentData?.hls_playlist_url ? (
+                <View style={[styles.videoFrame, { backgroundColor: '#000', borderRadius: radius.md }]}>
+                  <Pressable onPress={() => setPlaying((v) => !v)} style={styles.videoCenter}>
+                    {playing ? (
+                      <Pause size={48} color="#fff" weight="fill" />
+                    ) : (
+                      <Play size={48} color="#fff" weight="fill" />
+                    )}
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={[styles.videoFrame, { backgroundColor: color('bg/sunken'), borderRadius: radius.md }]}>
+                  <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Video not available</Text>
+                </View>
+              )}
               <Text style={[type['type/h3'], { color: color('text/primary'), padding: space.sm }]}>
-                Laws of Thermodynamics — Explained
+                {contentData?.title ?? 'Untitled Video'}
               </Text>
-              <Text style={[type['type/caption'], { color: color('text/tertiary'), paddingHorizontal: space.sm, paddingBottom: space.sm }]}>
-                12:40 · NEET UG · Physics · Thermodynamics
-              </Text>
+              {contentBreadcrumb ? (
+                <Text style={[type['type/caption'], { color: color('text/tertiary'), paddingHorizontal: space.sm, paddingBottom: space.sm }]}>
+                  {contentBreadcrumb}
+                </Text>
+              ) : null}
             </View>
           ) : contentType === 'Document' ? (
             <View style={{ padding: space.sm }}>
-              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
-                NEET UG · Physics · Thermodynamics
-              </Text>
+              {contentBreadcrumb ? (
+                <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{contentBreadcrumb}</Text>
+              ) : null}
               <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: 4 }]}>
-                Entropy — Chapter Notes
+                {contentData?.title ?? 'Untitled Document'}
               </Text>
-              <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: space.md }]}>
-                Entropy quantifies the number of ways a system&apos;s energy can be distributed. For NEET,
-                focus on the Second Law&apos;s statement, the direction of spontaneous processes, and how
-                entropy relates to disorder at a molecular level.
+              <Text style={[type['type/body-m'], { color: color('text/tertiary'), marginTop: space.md }]}>
+                Document text preview isn&apos;t available yet.
+              </Text>
+            </View>
+          ) : id ? (
+            <View style={{ padding: space.sm }}>
+              <Text style={[type['type/h2'], { color: color('text/primary') }]}>
+                {contentData?.title ?? 'Untitled Brain Hack'}
+              </Text>
+              <Text style={[type['type/body-m'], { color: color('text/tertiary'), marginTop: space.md }]}>
+                Brain hack content preview isn&apos;t available yet.
               </Text>
             </View>
           ) : (
             <View style={{ padding: space.sm }}>
-              <View
-                style={[
-                  styles.pill,
-                  { backgroundColor: color('accent/tint'), borderRadius: radius.pill, paddingHorizontal: space.sm },
-                ]}
-              >
-                <Text style={[type['type/caption'], { color: color('accent/default') }]}>Focus</Text>
-              </View>
+              {draftCategory ? (
+                <View
+                  style={[
+                    styles.pill,
+                    { backgroundColor: color('accent/tint'), borderRadius: radius.pill, paddingHorizontal: space.sm },
+                  ]}
+                >
+                  <Text style={[type['type/caption'], { color: color('accent/default') }]}>{draftCategory}</Text>
+                </View>
+              ) : null}
               <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.xs }]}>
-                The 2-minute recall trick
+                {draftTitle?.trim() || 'Untitled Brain Hack'}
               </Text>
-              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>2 min read</Text>
               <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: space.md }]}>
-                Right after finishing a topic, close your notes and try to recall three things about it out
-                loud, in your own words, before checking anything.
+                {draftContent?.trim() || 'No content added yet.'}
               </Text>
             </View>
           )}

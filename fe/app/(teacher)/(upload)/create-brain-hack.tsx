@@ -133,7 +133,17 @@ export default function CreateBrainHackRoute() {
       <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
         <PrimaryButton
           label="Preview & Submit"
-          onPress={() => router.push({ pathname: '/(teacher)/(content)/content-preview', params: { type: 'Brain Hack' } })}
+          onPress={() =>
+            router.push({
+              pathname: '/(teacher)/(content)/content-preview',
+              params: {
+                type: 'Brain Hack',
+                draftTitle: title,
+                draftCategory: category ?? '',
+                draftContent: content,
+              },
+            })
+          }
           disabled={!valid}
         />
       </View>
