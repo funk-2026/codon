@@ -23,7 +23,7 @@ export default function StudentTabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <House color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <House color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -32,7 +32,7 @@ export default function StudentTabLayout() {
         options={{
           title: 'Practice',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <Exam color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <Exam color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -41,7 +41,7 @@ export default function StudentTabLayout() {
         options={{
           title: 'Learn',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <BookOpen color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <BookOpen color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -50,7 +50,7 @@ export default function StudentTabLayout() {
         options={{
           title: 'Support',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <HandHeart color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <HandHeart color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -59,7 +59,7 @@ export default function StudentTabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <User color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <User color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />

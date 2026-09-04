@@ -20,7 +20,9 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-splash-screen",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true

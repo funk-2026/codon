@@ -23,7 +23,7 @@ export default function AdminTabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <House color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <House color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -32,7 +32,7 @@ export default function AdminTabLayout() {
         options={{
           title: 'Users',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <Users color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <Users color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -41,7 +41,7 @@ export default function AdminTabLayout() {
         options={{
           title: 'Review',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <ClipboardText color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <ClipboardText color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -50,7 +50,7 @@ export default function AdminTabLayout() {
         options={{
           title: 'Payments',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <CreditCard color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <CreditCard color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -59,7 +59,7 @@ export default function AdminTabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <User color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <User color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />

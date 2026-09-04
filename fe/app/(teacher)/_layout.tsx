@@ -23,7 +23,7 @@ export default function TeacherTabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <House color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <House color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -32,7 +32,7 @@ export default function TeacherTabLayout() {
         options={{
           title: 'My Content',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <StackIcon color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <StackIcon color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -41,7 +41,7 @@ export default function TeacherTabLayout() {
         options={{
           title: 'Upload',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <UploadSimple color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <UploadSimple color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
@@ -50,7 +50,7 @@ export default function TeacherTabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color: c, size, focused }) => (
-            <User color={c} size={size} weight={focused ? 'fill' : 'regular'} />
+            <User color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
