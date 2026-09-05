@@ -79,6 +79,19 @@ export function createQuestion(testId: string, data: CreateQuestionRequest): Pro
   });
 }
 
+/** PATCH /api/v1/teacher/questions/:id */
+export function updateQuestion(id: string, data: CreateQuestionRequest): Promise<Question> {
+  return apiFetch<Question>(`/teacher/questions/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+/** DELETE /api/v1/teacher/questions/:id */
+export function deleteQuestion(id: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/teacher/questions/${id}`, { method: 'DELETE' });
+}
+
 /** POST /api/v1/teacher/tests/:id/csv-import */
 export function importQuestionsCSV(testId: string, data: { file_key: string }): Promise<{ batch_id: string; message: string }> {
   return apiFetch<{ batch_id: string; message: string }>(`/teacher/tests/${testId}/csv-import`, {

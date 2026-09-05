@@ -148,7 +148,7 @@ export default function CreateContentRoute() {
         file_key: contentType === 'Video' ? 'mock-video-key' : 'mock-doc-key',
       });
       show('Content saved', 'success');
-      router.push({ pathname: '/(teacher)/(tabs)/(content)/content-preview', params: { type: contentType, id: res.id } });
+      router.push({ pathname: '/(teacher)/content-preview', params: { type: contentType, id: res.id } });
     } catch (err) {
       show('Failed to save content', 'error');
     } finally {

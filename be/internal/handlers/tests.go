@@ -363,6 +363,133 @@ func (h *TestHandler) AddQuestion(c *gin.Context) {
 	c.JSON(http.StatusCreated, question)
 }
 
+// UpdateQuestion godoc
+//
+//	@Summary		Update a question (Teacher)
+//	@Description	Edits a question's text, options, correct answer, or explanation. Only allowed while the parent test is in draft or rejected state.
+//	@Tags			Teacher
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string				true	"Question UUID"
+//	@Param			body	body		addQuestionRequest	true	"Question details"
+//	@Success		200		{object}	models.Question
+//	@Failure		400		{object}	errorResponse
+//	@Failure		404		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse
+//	@Router			/api/v1/teacher/questions/{id} [patch]
+func (h *TestHandler) UpdateQuestion(c *gin.Context) {
+	teacher := middleware.GetUser(c)
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid question id"})
+		return
+	}
+
+	var question models.Question
+	if err := h.DB.Where("id = ?", id).First(&question).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "question not found"})
+		return
+	}
+
+	var test models.Test
+	testQuery := h.DB.Where("id = ?", question.TestID)
+	if !teacher.CanManageAllContent {
+		testQuery = testQuery.Where("created_by = ?", teacher.ID)
+	}
+	if err := testQuery.First(&test).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "question not found"})
+		return
+	}
+	if test.Status != models.StatusDraft && test.Status != models.StatusRejected {
+		c.JSON(http.StatusConflict, errorResponse{Error: "questions can only be edited while the test is in draft or rejected state"})
+		return
+	}
+
+	var req addQuestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+
+	opt := models.CorrectOption(req.CorrectOption)
+	if opt != models.OptionA && opt != models.OptionB && opt != models.OptionC && opt != models.OptionD {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "correct_option must be A, B, C, or D"})
+		return
+	}
+
+	updates := map[string]interface{}{
+		"question_text":  req.QuestionText,
+		"option_a":       req.OptionA,
+		"option_b":       req.OptionB,
+		"option_c":       req.OptionC,
+		"option_d":       req.OptionD,
+		"correct_option": opt,
+		"explanation":    req.Explanation,
+	}
+	h.DB.WithContext(c.Request.Context()).Model(&question).Updates(updates)
+	h.DB.WithContext(c.Request.Context()).First(&question, question.ID)
+	c.JSON(http.StatusOK, question)
+}
+
+// DeleteQuestion godoc
+//
+//	@Summary		Delete a question (Teacher)
+//	@Description	Removes a question from its test and decrements the test's question count. Only allowed while the parent test is in draft or rejected state.
+//	@Tags			Teacher
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Question UUID"
+//	@Success		200	{object}	messageResponse
+//	@Failure		404	{object}	errorResponse
+//	@Failure		409	{object}	errorResponse
+//	@Router			/api/v1/teacher/questions/{id} [delete]
+func (h *TestHandler) DeleteQuestion(c *gin.Context) {
+	teacher := middleware.GetUser(c)
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid question id"})
+		return
+	}
+
+	var question models.Question
+	if err := h.DB.Where("id = ?", id).First(&question).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "question not found"})
+		return
+	}
+
+	var test models.Test
+	testQuery := h.DB.Where("id = ?", question.TestID)
+	if !teacher.CanManageAllContent {
+		testQuery = testQuery.Where("created_by = ?", teacher.ID)
+	}
+	if err := testQuery.First(&test).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "question not found"})
+		return
+	}
+	if test.Status != models.StatusDraft && test.Status != models.StatusRejected {
+		c.JSON(http.StatusConflict, errorResponse{Error: "questions can only be deleted while the test is in draft or rejected state"})
+		return
+	}
+
+	err = h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("question_id = ?", question.ID).Delete(&models.AttemptAnswer{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&question).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.Test{}).Where("id = ?", test.ID).
+			UpdateColumn("total_questions", gorm.Expr("total_questions - 1")).Error
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to delete question"})
+		return
+	}
+
+	c.JSON(http.StatusOK, messageResponse{Message: "question deleted"})
+}
+
 // CSVImport godoc
 //
 //	@Summary		Bulk import questions from CSV (Teacher)

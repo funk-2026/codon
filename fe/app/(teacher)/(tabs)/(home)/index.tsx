@@ -218,8 +218,8 @@ export default function TeacherHomeRoute() {
                   key={a.id}
                   onPress={() =>
                     a.status === 'rejected'
-                      ? router.push({ pathname: '/(teacher)/(tabs)/(content)/rejected-content-detail', params: { id: a.id } })
-                      : router.push({ pathname: '/(teacher)/(tabs)/(content)/content-preview', params: { id: a.id } })
+                      ? router.push({ pathname: '/(teacher)/rejected-content-detail', params: { id: a.id } })
+                      : router.push({ pathname: '/(teacher)/content-preview', params: { id: a.id } })
                   }
                   style={({ pressed }) => [
                     styles.activityRow,

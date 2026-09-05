@@ -240,6 +240,8 @@ func main() {
 		teacher.POST("/tests", testH.CreateTest)
 		teacher.PATCH("/tests/:id", testH.UpdateTest)
 		teacher.POST("/tests/:id/questions", testH.AddQuestion)
+		teacher.PATCH("/questions/:id", testH.UpdateQuestion)
+		teacher.DELETE("/questions/:id", testH.DeleteQuestion)
 		teacher.POST("/tests/:id/csv-import", testH.CSVImport)
 		teacher.GET("/csv-imports/:id", testH.GetCSVImport)
 		teacher.POST("/tests/:id/submit-for-review", testH.SubmitForReview)

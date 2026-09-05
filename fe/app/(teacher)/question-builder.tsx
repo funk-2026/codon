@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, PencilSimple, Trash } from 'phosphor-react-native';
 import { InputField, PrimaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { createQuestion, getTeacherTest } from '@/src/api/teacher';
+import { createQuestion, updateQuestion, deleteQuestion, getTeacherTest } from '@/src/api/teacher';
 
 type Question = {
   id: string;
@@ -33,6 +33,7 @@ export default function QuestionBuilderRoute() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Load existing questions for this test draft
   useEffect(() => {
@@ -83,6 +84,15 @@ export default function QuestionBuilderRoute() {
 
     try {
       if (editingId) {
+        await updateQuestion(editingId, {
+          question_text: form.text,
+          option_a: form.options[0],
+          option_b: form.options[1],
+          option_c: form.options[2],
+          option_d: form.options[3],
+          correct_option: form.correct === 0 ? 'A' : form.correct === 1 ? 'B' : form.correct === 2 ? 'C' : 'D',
+          explanation: form.explanation,
+        });
         setQuestions((prev) =>
           prev.map((q) =>
             q.id === editingId
@@ -134,10 +144,18 @@ export default function QuestionBuilderRoute() {
     setError(null);
   };
 
-  const confirmDelete = (id: string) => {
-    setQuestions((prev) => prev.filter((q) => q.id !== id));
-    setDeleteConfirmId(null);
-    if (editingId === id) cancelEdit();
+  const confirmDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await deleteQuestion(id);
+      setQuestions((prev) => prev.filter((q) => q.id !== id));
+      setDeleteConfirmId(null);
+      if (editingId === id) cancelEdit();
+    } catch (err: any) {
+      show(err?.message || 'Failed to delete question.', 'error');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleDone = () => {
@@ -146,7 +164,7 @@ export default function QuestionBuilderRoute() {
       return;
     }
     router.push({
-      pathname: '/(teacher)/(tabs)/(content)/content-preview',
+      pathname: '/(teacher)/content-preview',
       params: { id: testId, type: 'Test' },
     });
   };
@@ -230,8 +248,13 @@ export default function QuestionBuilderRoute() {
                         <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
                           Delete this question?
                         </Text>
-                        <TextButton label="Yes" onPress={() => confirmDelete(q.id)} style={{ marginRight: space.sm }} />
-                        <TextButton label="No" onPress={() => setDeleteConfirmId(null)} />
+                        <TextButton
+                          label={deletingId === q.id ? 'Deleting…' : 'Yes'}
+                          onPress={() => confirmDelete(q.id)}
+                          disabled={deletingId === q.id}
+                          style={{ marginRight: space.sm }}
+                        />
+                        <TextButton label="No" onPress={() => setDeleteConfirmId(null)} disabled={deletingId === q.id} />
                       </View>
                     ) : null}
                   </View>
