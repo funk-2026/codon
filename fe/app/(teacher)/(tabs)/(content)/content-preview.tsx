@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretDown, CaretUp, Play, Pause, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
 import { EmptyState, PrimaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { submitTestForReview, submitContentForReview, publishContent, getTeacherContent, getTeacherTest, deleteTest } from '@/src/api/teacher';
+import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest } from '@/src/api/teacher';
 import { Test, Question } from '@/src/api/tests';
 import { ContentItem } from '@/src/api/content';
 
@@ -162,13 +162,12 @@ export default function ContentPreviewRoute() {
     setSubmitting(true);
     try {
       if (contentType === 'Test') {
-        show('Test published (mock)', 'success');
-        setStatus('published');
+        await publishTest(id);
       } else {
         await publishContent(id);
-        setStatus('published');
-        show('Now live for students', 'success');
       }
+      setStatus('published');
+      show('Now live for students', 'success');
     } catch (err) {
       show('Failed to publish', 'error');
     } finally {

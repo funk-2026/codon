@@ -41,6 +41,11 @@ export function deleteTest(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/teacher/tests/${id}`, { method: 'DELETE' });
 }
 
+/** POST /api/v1/teacher/tests/:id/publish */
+export function publishTest(id: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/teacher/tests/${id}/publish`, { method: 'POST' });
+}
+
 /** GET /api/v1/teacher/tests */
 export function listTeacherTests(): Promise<{ tests: Test[] }> {
   return apiFetch<{ tests: Test[] }>('/teacher/tests', { method: 'GET' });
