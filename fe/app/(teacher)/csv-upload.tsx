@@ -74,7 +74,7 @@ export default function CsvBulkUploadRoute() {
 
     let presign;
     try {
-      presign = await getPresignedUrl({ filename: file.name, content_type: 'text/csv' });
+      presign = await getPresignedUrl({ filename: file.name, content_type: 'text/csv', purpose: 'csv' });
     } catch (err) {
       console.error('CSV upload: presign request failed', err);
       const detail = err instanceof ApiError ? ` (${err.status}: ${err.message})` : '';
