@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MagnifyingGlass, WarningCircle } from 'phosphor-react-native';
+import { MagnifyingGlass, Tag, WarningCircle } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listPayments } from '@/src/api/admin';
@@ -78,7 +78,19 @@ export default function PaymentRecordsListRoute() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
       <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
-        <Text style={[type['type/h1'], { color: color('text/primary') }]}>Payments</Text>
+        <View style={styles.headerRow}>
+          <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>Payments</Text>
+          <Pressable
+            onPress={() => router.push('/(admin)/(payments)/subscription-plan-list')}
+            hitSlop={space.xs}
+            style={({ pressed }) => [styles.plansLink, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Tag size={18} color={color('accent/default')} />
+            <Text style={[type['type/body-m-medium'], { color: color('accent/default'), marginLeft: 4 }]}>
+              Plans
+            </Text>
+          </Pressable>
+        </View>
         <View
           style={[
             styles.searchRow,
@@ -222,6 +234,8 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  plansLink: { flexDirection: 'row', alignItems: 'center' },
   searchRow: { flexDirection: 'row', alignItems: 'center' },
   filterRow: { flexGrow: 0, flexShrink: 0 },
   list: { flex: 1 },
