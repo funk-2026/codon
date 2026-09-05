@@ -7,14 +7,18 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { CaretLeft, Play, Pause, X, GridFour, WarningCircle } from 'phosphor-react-native';
+import { useEvent } from 'expo';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { CaretLeft, Play, Pause, X, GridFour, WarningCircle, LockSimple } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat } from '@/src/api/content';
-import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
+import { ApiError } from '@/src/api/client';
+import { EmptyState, PrimaryButton, SkeletonBlock, TextButton } from '@/src/components';
 
 
 
 const SPEEDS = ['0.5x', '0.75x', '1x', '1.25x', '1.5x', '2x'];
+const SPEED_VALUES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export default function VideoPlayerRoute() {
   const { color, type, space, radius } = useTheme();
@@ -23,9 +27,11 @@ export default function VideoPlayerRoute() {
   const insets = useSafeAreaInsets();
 
   const [content, setContent] = useState<ContentItem | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
   const [siblings, setSiblings] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const load = useCallback(() => {
     if (!id) {
@@ -33,16 +39,24 @@ export default function VideoPlayerRoute() {
       return;
     }
     setLoading(true);
+    setLoadError(false);
+    setAccessDenied(false);
     getContentItem(id)
       .then((res) => {
         setContent(res.content);
+        setVideoUrl(res.url);
         return getChapterContent(res.content.chapter_id);
       })
       .then((chRes) => {
-        setSiblings(chRes.content.filter(c => c.id !== id));
-        setLoadError(false);
+        setSiblings(chRes.content.filter((c) => c.id !== id));
       })
-      .catch(() => setLoadError(true))
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setAccessDenied(true);
+        } else {
+          setLoadError(true);
+        }
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -50,52 +64,61 @@ export default function VideoPlayerRoute() {
     load();
   }, [load]);
 
-  const [playing, setPlaying] = useState(true);
+  const player = useVideoPlayer(videoUrl || null, (p) => {
+    p.timeUpdateEventInterval = 0.5;
+  });
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const { currentTime } = useEvent(player, 'timeUpdate', {
+    currentTime: 0,
+    currentLiveTimestamp: null,
+    currentOffsetFromLive: null,
+    bufferedPosition: 0,
+  });
+  const { status: playerStatus } = useEvent(player, 'statusChange', { status: player.status });
+  const duration = player.duration || 0;
+
   const [controlsVisible, setControlsVisible] = useState(true);
   const [floating, setFloating] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(2);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
-  const [elapsed, setElapsed] = useState(14 * 60 + 22);
-  const duration = 20 * 60;
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!playing || !controlsVisible || floating) return;
+    if (!isPlaying || !controlsVisible || floating) return;
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [playing, controlsVisible, floating]);
+  }, [isPlaying, controlsVisible, floating]);
 
   useEffect(() => {
-    if (!playing) return;
-    const t = setInterval(() => setElapsed((e) => Math.min(e + 1, duration)), 1000);
-    return () => clearInterval(t);
-  }, [playing, duration]);
-
-  useEffect(() => {
-    if (!playing || !id) return;
-    // Heartbeat every 10 seconds
+    if (!isPlaying || !id || duration <= 0) return;
     const t = setInterval(() => {
-       sendHeartbeat(id, elapsed, elapsed >= duration - 5).catch(() => {});
+      sendHeartbeat(id, Math.floor(currentTime), currentTime >= duration - 5).catch(() => {});
     }, 10000);
     return () => clearInterval(t);
-  }, [playing, elapsed, duration, id]);
+  }, [isPlaying, currentTime, duration, id]);
 
   const floatScale = useSharedValue(0);
   useEffect(() => {
     floatScale.value = withTiming(floating ? 1 : 0, { duration: 280 });
   }, [floating, floatScale]);
 
-  const mm = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const mm = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const togglePlay = () => {
-    setPlaying((p) => !p);
+    if (player.playing) {
+      player.pause();
+    } else {
+      player.play();
+    }
     setControlsVisible(true);
   };
-  const cycleSpeed = () => {
-    setSpeedIdx((i) => (i + 1) % SPEEDS.length);
+  const selectSpeed = (i: number) => {
+    setSpeedIdx(i);
+    player.playbackRate = SPEED_VALUES[i];
+    setSpeedMenuOpen(false);
   };
 
   const fullStyle = useAnimatedStyle(() => ({
@@ -105,6 +128,8 @@ export default function VideoPlayerRoute() {
   const floatStyle = useAnimatedStyle(() => ({
     opacity: floatScale.value,
   }));
+
+  const videoNotReady = !loading && !loadError && !accessDenied && !videoUrl;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -116,7 +141,26 @@ export default function VideoPlayerRoute() {
           style={[styles.canvas, { backgroundColor: '#000', paddingTop: insets.top }]}
         >
           <View style={styles.canvasInner}>
-            {playing ? null : (
+            {videoUrl ? (
+              <VideoView
+                player={player}
+                style={StyleSheet.absoluteFill}
+                contentFit="contain"
+                nativeControls={false}
+              />
+            ) : null}
+
+            {videoNotReady ? (
+              <View style={styles.centerMessage}>
+                <Text style={[type['type/body-m'], { color: '#fff', textAlign: 'center' }]}>
+                  {content?.video_status === 'failed'
+                    ? "This video couldn't be processed."
+                    : 'This video is still processing — check back soon.'}
+                </Text>
+              </View>
+            ) : null}
+
+            {videoUrl && playerStatus === 'readyToPlay' && !isPlaying ? (
               <View style={styles.centerPlay}>
                 <Pressable
                   onPress={togglePlay}
@@ -131,7 +175,7 @@ export default function VideoPlayerRoute() {
                   <Play size={32} color={color('accent/on-accent')} weight="fill" />
                 </Pressable>
               </View>
-            )}
+            ) : null}
 
             {controlsVisible ? (
               <>
@@ -154,13 +198,13 @@ export default function VideoPlayerRoute() {
                 <View style={[styles.bottomScrim, { paddingHorizontal: space.md, paddingBottom: space.sm }]}>
                   <View style={[styles.controlsRow, { gap: space.sm }]}>
                     <Pressable onPress={togglePlay} hitSlop={space.xs}>
-                      {playing ? (
+                      {isPlaying ? (
                         <Pause size={28} color="#fff" weight="fill" />
                       ) : (
                         <Play size={28} color="#fff" weight="fill" />
                       )}
                     </Pressable>
-                    <Text style={[type['type/caption'], { color: '#fff' }]}>{mm(elapsed)}</Text>
+                    <Text style={[type['type/caption'], { color: '#fff' }]}>{mm(currentTime)}</Text>
                     <View
                       style={{
                         flex: 1,
@@ -171,7 +215,7 @@ export default function VideoPlayerRoute() {
                     >
                       <View
                         style={{
-                          width: `${(elapsed / duration) * 100}%`,
+                          width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
                           height: 4,
                           backgroundColor: color('accent/default'),
                           borderRadius: 2,
@@ -198,10 +242,7 @@ export default function VideoPlayerRoute() {
                       {SPEEDS.map((s, i) => (
                         <Pressable
                           key={s}
-                          onPress={() => {
-                            setSpeedIdx(i);
-                            setSpeedMenuOpen(false);
-                          }}
+                          onPress={() => selectSpeed(i)}
                           style={{
                             paddingHorizontal: 12,
                             paddingVertical: 4,
@@ -222,12 +263,27 @@ export default function VideoPlayerRoute() {
 
         {/* Below-canvas panel */}
         <View style={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}>
-          {loadError ? (
+          {loading ? (
+            <SkeletonBlock height={28} width="70%" style={{ marginTop: space.md }} />
+          ) : loadError ? (
             <EmptyState
               icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
               title="Couldn't load this video"
               description="Something went wrong loading this lesson. Check your connection and try again."
               action={<TextButton label="Retry" onPress={load} />}
+              style={{ marginTop: space.md }}
+            />
+          ) : accessDenied ? (
+            <EmptyState
+              icon={<LockSimple size={32} color={color('text/tertiary')} weight="fill" />}
+              title="Subscription required"
+              description="Subscribe to a plan to unlock this video."
+              action={
+                <PrimaryButton
+                  label="View Plans"
+                  onPress={() => router.replace('/(student)/(profile)/subscription-plans')}
+                />
+              }
               style={{ marginTop: space.md }}
             />
           ) : (
@@ -237,10 +293,6 @@ export default function VideoPlayerRoute() {
               </Text>
               <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
                 Video Lesson
-              </Text>
-              <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.md }]}>
-                {/* We don't have a description on content item currently */}
-                This is a video lesson.
               </Text>
               <Text
                 style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.lg, marginBottom: space.sm }]}
@@ -309,10 +361,19 @@ export default function VideoPlayerRoute() {
           onPress={() => setFloating(false)}
           style={{ width: 148, height: 84, backgroundColor: '#000' }}
         >
+          {videoUrl ? (
+            <VideoView
+              player={player}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              nativeControls={false}
+              pointerEvents="none"
+            />
+          ) : null}
           <View style={styles.floatProgress}>
             <View
               style={{
-                width: `${(elapsed / duration) * 100}%`,
+                width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
                 height: 2,
                 backgroundColor: color('accent/default'),
               }}
@@ -320,7 +381,7 @@ export default function VideoPlayerRoute() {
           </View>
           <View style={styles.floatControls}>
             <Pressable onPress={togglePlay} hitSlop={space.xs}>
-              {playing ? (
+              {isPlaying ? (
                 <Pause size={20} color="#fff" weight="fill" />
               ) : (
                 <Play size={20} color="#fff" weight="fill" />
@@ -329,7 +390,7 @@ export default function VideoPlayerRoute() {
             <Pressable
               onPress={() => {
                 setFloating(false);
-                setPlaying(false);
+                player.pause();
                 router.back();
               }}
               hitSlop={space.xs}
@@ -360,6 +421,7 @@ const styles = StyleSheet.create({
   canvas: { width: '100%', aspectRatio: 16 / 9 },
   canvasInner: { flex: 1, position: 'relative' },
   centerPlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  centerMessage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
   playBtn: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
   topScrim: {
     position: 'absolute',

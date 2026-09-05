@@ -1,13 +1,39 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, Info } from 'phosphor-react-native';
-import { InputField, PrimaryButton, SecondaryButton, StatusBadge, useToast } from '@/src/components';
+import { CaretLeft, Info, WarningCircle } from 'phosphor-react-native';
+import { WebView } from 'react-native-webview';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import {
+  EmptyState,
+  InputField,
+  PrimaryButton,
+  SecondaryButton,
+  SkeletonBlock,
+  StatusBadge,
+  TextButton,
+  useToast,
+} from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { adminApproveContent, adminRejectContent, adminApproveTest, adminRejectTest } from '@/src/api/admin';
+import {
+  adminApproveContent,
+  adminRejectContent,
+  adminApproveTest,
+  adminRejectTest,
+  adminGetContent,
+  adminGetTest,
+} from '@/src/api/admin';
+import type { Question } from '@/src/api/tests';
 
 type ItemType = 'test' | 'Videos' | 'Documents' | 'Brain Hacks';
+
+const QUESTION_OPTIONS: { letter: string; key: 'option_a' | 'option_b' | 'option_c' | 'option_d' }[] = [
+  { letter: 'A', key: 'option_a' },
+  { letter: 'B', key: 'option_b' },
+  { letter: 'C', key: 'option_c' },
+  { letter: 'D', key: 'option_d' },
+];
 
 function shadow(): {} {
   return {
@@ -43,6 +69,33 @@ export default function ContentPreviewDetailRoute() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const [previewLoading, setPreviewLoading] = useState(true);
+  const [previewError, setPreviewError] = useState(false);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
+
+  const loadPreview = useCallback(() => {
+    if (!id) {
+      setPreviewLoading(false);
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewError(false);
+    const run =
+      itemType === 'test'
+        ? adminGetTest(id).then((res) => setQuestions(res.questions))
+        : itemType === 'Videos' || itemType === 'Documents'
+          ? adminGetContent(id).then((res) => setPreviewUrl(res.url))
+          : Promise.resolve();
+    run.catch(() => setPreviewError(true)).finally(() => setPreviewLoading(false));
+  }, [id, itemType]);
+
+  useEffect(() => {
+    loadPreview();
+  }, [loadPreview]);
+
+  const videoPlayer = useVideoPlayer(itemType === 'Videos' && previewUrl ? previewUrl : null);
 
   const handleApprove = async () => {
     if (!id) return;
@@ -134,23 +187,103 @@ export default function ContentPreviewDetailRoute() {
           ) : null}
         </View>
 
-        <View
-          style={[
-            styles.noticeBox,
-            { backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
-          ]}
-        >
-          <Info size={18} color={color('text/tertiary')} />
-          <Text style={[type['type/body-m'], { color: color('text/secondary'), flex: 1, marginLeft: space.sm }]}>
-            {itemType === 'test'
-              ? 'Full question-by-question preview isn’t available in this view yet — review using the details above.'
-              : itemType === 'Videos'
-                ? 'Video playback preview isn’t available in this view yet.'
-                : itemType === 'Brain Hacks'
-                  ? 'Brain hack content preview isn’t available in this view yet.'
-                  : 'Document preview isn’t available in this view yet.'}
-          </Text>
-        </View>
+        {itemType === 'Brain Hacks' ? (
+          <View
+            style={[
+              styles.noticeBox,
+              { backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
+            ]}
+          >
+            <Info size={18} color={color('text/tertiary')} />
+            <Text style={[type['type/body-m'], { color: color('text/secondary'), flex: 1, marginLeft: space.sm }]}>
+              Brain hack content preview isn’t available in this view yet.
+            </Text>
+          </View>
+        ) : previewLoading ? (
+          <SkeletonBlock height={itemType === 'Videos' ? 200 : 120} radius={radius.md} style={{ marginTop: space.lg }} />
+        ) : previewError ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load the preview"
+            description="Something went wrong fetching this item's content."
+            action={<TextButton label="Retry" onPress={loadPreview} />}
+            style={{ marginTop: space.lg }}
+          />
+        ) : itemType === 'test' ? (
+          <View style={{ marginTop: space.lg, gap: space.sm }}>
+            <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>
+              QUESTIONS ({questions.length})
+            </Text>
+            {questions.length === 0 ? (
+              <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>No questions added yet.</Text>
+            ) : (
+              [...questions]
+                .sort((a, b) => a.order_index - b.order_index)
+                .map((q, qi) => (
+                  <View
+                    key={q.id}
+                    style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}
+                  >
+                    <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
+                      {qi + 1}. {q.question_text}
+                    </Text>
+                    <View style={{ marginTop: space.xs, gap: 4 }}>
+                      {QUESTION_OPTIONS.map(({ letter, key }) => (
+                        <Text
+                          key={letter}
+                          style={[
+                            type['type/body-m'],
+                            { color: q.correct_option?.toUpperCase() === letter ? color('semantic/success') : color('text/secondary') },
+                          ]}
+                        >
+                          {letter}. {q[key]}
+                          {q.correct_option?.toUpperCase() === letter ? '  ✓' : ''}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                ))
+            )}
+          </View>
+        ) : itemType === 'Videos' ? (
+          previewUrl ? (
+            <VideoView
+              player={videoPlayer}
+              style={[styles.videoPreview, { borderRadius: radius.md, marginTop: space.lg }]}
+              contentFit="contain"
+              nativeControls
+            />
+          ) : (
+            <View
+              style={[
+                styles.noticeBox,
+                { backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
+              ]}
+            >
+              <Info size={18} color={color('text/tertiary')} />
+              <Text style={[type['type/body-m'], { color: color('text/secondary'), flex: 1, marginLeft: space.sm }]}>
+                Video isn’t ready to preview yet — it may still be processing.
+              </Text>
+            </View>
+          )
+        ) : previewUrl ? (
+          <WebView
+            source={{ uri: previewUrl }}
+            style={[styles.docPreview, { borderRadius: radius.md, marginTop: space.lg }]}
+          />
+        ) : (
+          <View
+            style={[
+              styles.noticeBox,
+              { backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
+            ]}
+          >
+            <Info size={18} color={color('text/tertiary')} />
+            <Text style={[type['type/body-m'], { color: color('text/secondary'), flex: 1, marginLeft: space.sm }]}>
+              No document file available to preview.
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       <View style={{ paddingHorizontal: space.md, marginBottom: space.lg, gap: space.sm }}>
@@ -203,6 +336,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center' },
   row: { flexDirection: 'row', alignItems: 'center' },
   noticeBox: { flexDirection: 'row', alignItems: 'flex-start' },
+  videoPreview: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000' },
+  docPreview: { width: '100%', height: 400 },
   sheetScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: {},
 });

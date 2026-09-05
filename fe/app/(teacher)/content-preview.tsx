@@ -9,6 +9,7 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest } from '@/src/api/teacher';
 import { Test, Question } from '@/src/api/tests';
 import { ContentItem } from '@/src/api/content';
+import { ApiError } from '@/src/api/client';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 type Status = 'draft' | 'pending' | 'approved' | 'published' | 'rejected';
@@ -175,7 +176,7 @@ export default function ContentPreviewRoute() {
       setStatus('published');
       show('Now live for students', 'success');
     } catch (err) {
-      show('Failed to publish', 'error');
+      show(err instanceof ApiError ? err.message : 'Failed to publish', 'error');
     } finally {
       setSubmitting(false);
     }

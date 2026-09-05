@@ -1,6 +1,6 @@
 import { apiFetch } from './client';
 import { UserProfile } from './profile';
-import { Test } from './tests';
+import { Test, Question } from './tests';
 import { ContentItem } from './content';
 import { SubscriptionPlan } from './profile';
 import { KYCRecord } from './kyc';
@@ -93,9 +93,9 @@ export function adminListTests(status?: string): Promise<{ tests: Test[] }> {
   return apiFetch<{ tests: Test[] }>(`/admin/tests${qs}`, { method: 'GET' });
 }
 
-/** GET /api/v1/admin/tests/:id (Requires BE implementation) */
-export function adminGetTest(id: string): Promise<{ test: Test }> {
-  return apiFetch<{ test: Test }>(`/admin/tests/${id}`, { method: 'GET' });
+/** GET /api/v1/admin/tests/:id */
+export function adminGetTest(id: string): Promise<{ test: Test; questions: Question[] }> {
+  return apiFetch<{ test: Test; questions: Question[] }>(`/admin/tests/${id}`, { method: 'GET' });
 }
 
 /** POST /api/v1/admin/tests/:id/approve */
@@ -117,9 +117,9 @@ export function adminListContent(status?: string): Promise<{ content: ContentIte
   return apiFetch<{ content: ContentItem[] }>(`/admin/content${qs}`, { method: 'GET' });
 }
 
-/** GET /api/v1/admin/content/:id (Requires BE implementation) */
-export function adminGetContent(id: string): Promise<{ content: ContentItem }> {
-  return apiFetch<{ content: ContentItem }>(`/admin/content/${id}`, { method: 'GET' });
+/** GET /api/v1/admin/content/:id */
+export function adminGetContent(id: string): Promise<{ content: ContentItem; url?: string }> {
+  return apiFetch<{ content: ContentItem; url?: string }>(`/admin/content/${id}`, { method: 'GET' });
 }
 
 /** POST /api/v1/admin/content/:id/approve */
