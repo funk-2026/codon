@@ -156,7 +156,7 @@ export default function MyContentListRoute() {
 
   const openItem = (item: ContentItem) => {
     if (item.status === 'rejected') {
-      router.push({ pathname: '/(teacher)/rejected-content-detail', params: { id: item.id } });
+      router.push({ pathname: '/(teacher)/rejected-content-detail', params: { id: item.id, type: item.type } });
     } else {
       router.push({ pathname: '/(teacher)/content-preview', params: { id: item.id, type: item.type } });
     }

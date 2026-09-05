@@ -10,7 +10,7 @@ import { Test, Question } from '@/src/api/tests';
 import { ContentItem } from '@/src/api/content';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
-type Status = 'draft' | 'pending' | 'approved' | 'published';
+type Status = 'draft' | 'pending' | 'approved' | 'published' | 'rejected';
 
 const QUESTION_OPTIONS: { letter: string; key: 'option_a' | 'option_b' | 'option_c' | 'option_d' }[] = [
   { letter: 'A', key: 'option_a' },
@@ -25,6 +25,7 @@ function taxonomyBadge(status: Status): { badgeStatus: BadgeStatus; label: strin
     pending: { badgeStatus: 'pending', label: 'In Review' },
     approved: { badgeStatus: 'approved', label: 'Approved' },
     published: { badgeStatus: 'published', label: 'Live' },
+    rejected: { badgeStatus: 'rejected', label: 'Changes Needed' },
   };
   return map[status];
 }
@@ -48,7 +49,7 @@ function breadcrumbFrom(parts: (string | undefined)[]): string {
 // normalize known variants and fall back safely for anything else.
 function normalizeStatus(raw: string): Status {
   if (raw === 'pending_review') return 'pending';
-  const known: Status[] = ['draft', 'pending', 'approved', 'published'];
+  const known: Status[] = ['draft', 'pending', 'approved', 'published', 'rejected'];
   return (known as string[]).includes(raw) ? (raw as Status) : 'draft';
 }
 
@@ -115,12 +116,12 @@ export default function ContentPreviewRoute() {
       });
     const loadContent = () =>
       getTeacherContent(id).then((res) => {
-        setContentData(res);
-        const rawContentType = String(res.content_type);
+        setContentData(res.content);
+        const rawContentType = String(res.content.content_type);
         setResolvedType(
           rawContentType === 'video' ? 'Video' : rawContentType === 'brain_hack' ? 'Brain Hack' : 'Document'
         );
-        setStatus(normalizeStatus(res.status));
+        setStatus(normalizeStatus(res.content.status));
       });
 
     const run =
@@ -189,7 +190,8 @@ export default function ContentPreviewRoute() {
     }
   };
 
-  const canDelete = contentType === 'Test' && !!id && (status === 'draft' || status === 'pending');
+  const canDelete = contentType === 'Test' && !!id && (status === 'draft' || status === 'pending' || status === 'rejected');
+  const rejectionReason = contentType === 'Test' ? testData?.rejection_reason : contentData?.rejection_reason;
 
   const questionCountNum = id ? testData?.total_questions ?? 0 : Number(draftQuestionCount || 0);
   const durationLabel = id
@@ -412,6 +414,18 @@ export default function ContentPreviewRoute() {
             </Text>
           </View>
         ) : null}
+
+        {status === 'rejected' ? (
+          <View style={[styles.rejectedCallout, { borderRadius: radius.md, marginTop: space.lg }]}>
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: color('semantic/danger'), opacity: 0.12, borderRadius: radius.md }]} />
+            <View style={{ padding: space.sm }}>
+              <Text style={[type['type/overline'], { color: color('semantic/danger') }]}>REVIEWER FEEDBACK</Text>
+              <Text style={[type['type/body-m'], { color: color('text/primary'), marginTop: 4 }]}>
+                {rejectionReason || 'No reason was provided.'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
 
       {canDelete ? (
@@ -435,9 +449,9 @@ export default function ContentPreviewRoute() {
         )
       ) : null}
 
-      {status === 'draft' ? (
+      {status === 'draft' || status === 'rejected' ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-          <PrimaryButton label="Submit for Review" onPress={handleSubmitForReview} loading={submitting} />
+          <PrimaryButton label={status === 'rejected' ? 'Resubmit for Review' : 'Submit for Review'} onPress={handleSubmitForReview} loading={submitting} />
         </View>
       ) : status === 'approved' ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
@@ -474,5 +488,6 @@ const styles = StyleSheet.create({
   videoCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
   pill: { alignSelf: 'flex-start', paddingVertical: 4 },
   approvedCallout: { overflow: 'hidden' },
+  rejectedCallout: { overflow: 'hidden' },
   deleteConfirmRow: { flexDirection: 'row', alignItems: 'center' },
 });

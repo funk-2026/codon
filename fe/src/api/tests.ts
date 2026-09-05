@@ -19,6 +19,8 @@ export type Test = {
   marks_per_correct: number;
   marks_per_wrong: number;
   status: string;
+  rejection_reason?: string;
+  reviewed_at?: string;
   creator?: UserProfile;
   created_at?: string;
 };

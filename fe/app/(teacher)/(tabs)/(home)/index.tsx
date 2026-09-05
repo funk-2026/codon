@@ -20,6 +20,7 @@ import { useAuth } from '@/src/auth/AuthContext';
 type Activity = {
   id: string;
   status: 'approved' | 'rejected' | 'published';
+  type: 'Test' | 'Video' | 'Document';
   text: string;
   time: string;
 };
@@ -101,6 +102,7 @@ export default function TeacherHomeRoute() {
             acts.push({
               id: item.id,
               status: item.status as Activity['status'],
+              type: item.content_type === 'video' ? 'Video' : item.content_type === 'document' ? 'Document' : 'Test',
               text,
               time: new Date(item.updated_at || Date.now()).toLocaleDateString(),
             });
@@ -218,8 +220,8 @@ export default function TeacherHomeRoute() {
                   key={a.id}
                   onPress={() =>
                     a.status === 'rejected'
-                      ? router.push({ pathname: '/(teacher)/rejected-content-detail', params: { id: a.id } })
-                      : router.push({ pathname: '/(teacher)/content-preview', params: { id: a.id } })
+                      ? router.push({ pathname: '/(teacher)/rejected-content-detail', params: { id: a.id, type: a.type } })
+                      : router.push({ pathname: '/(teacher)/content-preview', params: { id: a.id, type: a.type } })
                   }
                   style={({ pressed }) => [
                     styles.activityRow,

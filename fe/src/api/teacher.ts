@@ -172,7 +172,12 @@ export function listTeacherContent(): Promise<{ content: ContentItem[] }> {
   return apiFetch<{ content: ContentItem[] }>('/teacher/content', { method: 'GET' });
 }
 
-/** GET /api/v1/teacher/content/:id (Requires BE implementation) */
-export function getTeacherContent(id: string): Promise<ContentItem> {
-  return apiFetch<ContentItem>(`/teacher/content/${id}`, { method: 'GET' });
+export type TeacherContentDetail = {
+  content: ContentItem;
+  url?: string;
+};
+
+/** GET /api/v1/teacher/content/:id */
+export function getTeacherContent(id: string): Promise<TeacherContentDetail> {
+  return apiFetch<TeacherContentDetail>(`/teacher/content/${id}`, { method: 'GET' });
 }
