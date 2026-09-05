@@ -5,8 +5,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretDown, CaretUp, Play, Pause, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
 import { EmptyState, PrimaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { submitTestForReview, submitContentForReview, publishContent, getTeacherContent } from '@/src/api/teacher';
-import { getTest, getTestQuestions, Test, Question } from '@/src/api/tests';
+import { submitTestForReview, submitContentForReview, publishContent, getTeacherContent, getTeacherTest } from '@/src/api/teacher';
+import { Test, Question } from '@/src/api/tests';
 import { ContentItem } from '@/src/api/content';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
@@ -87,8 +87,6 @@ export default function ContentPreviewRoute() {
   const [contentData, setContentData] = useState<ContentItem | null>(null);
 
   const [questions, setQuestions] = useState<Question[] | null>(null);
-  const [questionsLoading, setQuestionsLoading] = useState(false);
-  const [questionsError, setQuestionsError] = useState(false);
 
   const contentType: ContentType = paramType ?? resolvedType ?? 'Test';
 
@@ -98,8 +96,9 @@ export default function ContentPreviewRoute() {
     setLoadError(false);
 
     const loadTest = () =>
-      getTest(id).then((res) => {
+      getTeacherTest(id).then((res) => {
         setTestData(res.test);
+        setQuestions(res.questions);
         setResolvedType('Test');
       });
     const loadContent = () =>
@@ -124,26 +123,6 @@ export default function ContentPreviewRoute() {
   useEffect(() => {
     loadItem();
   }, [loadItem]);
-
-  useEffect(() => {
-    if (!id || contentType !== 'Test' || !questionsExpanded) return;
-    if (questions !== null || questionsLoading || questionsError) return;
-    let cancelled = false;
-    setQuestionsLoading(true);
-    getTestQuestions(id)
-      .then((res) => {
-        if (!cancelled) setQuestions(res.questions);
-      })
-      .catch(() => {
-        if (!cancelled) setQuestionsError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setQuestionsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, contentType, questionsExpanded, questions, questionsLoading, questionsError]);
 
   const badge = taxonomyBadge(status);
 
@@ -277,15 +256,6 @@ export default function ContentPreviewRoute() {
                       {questionCountNum > 0
                         ? "Question text isn't available in this preview yet — add or review them via the question builder."
                         : 'No questions added yet.'}
-                    </Text>
-                  ) : questionsLoading ? (
-                    <>
-                      <SkeletonBlock height={96} radius={radius.md} />
-                      <SkeletonBlock height={96} radius={radius.md} />
-                    </>
-                  ) : questionsError ? (
-                    <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
-                      Question preview isn&apos;t available yet.
                     </Text>
                   ) : sortedQuestions && sortedQuestions.length > 0 ? (
                     sortedQuestions.map((q, qi) => (

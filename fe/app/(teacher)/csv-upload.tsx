@@ -9,9 +9,9 @@ import * as Sharing from 'expo-sharing';
 import { PrimaryButton, SecondaryButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useLocalSearchParams } from 'expo-router';
-import { importQuestionsCSV } from '@/src/api/teacher';
+import { importQuestionsCSV, getTeacherTest } from '@/src/api/teacher';
 import { getPresignedUrl } from '@/src/api/uploads';
-import { getTest, type Test } from '@/src/api/tests';
+import { type Test } from '@/src/api/tests';
 import { ApiError } from '@/src/api/client';
 
 const COLUMNS = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation'];
@@ -43,7 +43,7 @@ export default function CsvBulkUploadRoute() {
 
   useEffect(() => {
     if (!testId) return;
-    getTest(testId)
+    getTeacherTest(testId)
       .then((res) => setTest(res.test))
       .catch(() => {});
   }, [testId]);

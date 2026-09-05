@@ -5,8 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, PencilSimple, Trash } from 'phosphor-react-native';
 import { InputField, PrimaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { createQuestion } from '@/src/api/teacher';
-import { getTestQuestions } from '@/src/api/tests';
+import { createQuestion, getTeacherTest } from '@/src/api/teacher';
 
 type Question = {
   id: string;
@@ -39,7 +38,7 @@ export default function QuestionBuilderRoute() {
   useEffect(() => {
     if (!testId) return;
     setLoading(true);
-    getTestQuestions(testId)
+    getTeacherTest(testId)
       .then((res) => {
         const loaded: Question[] = (res.questions || []).map((q) => {
           const opt = q.correct_option?.trim().toUpperCase();

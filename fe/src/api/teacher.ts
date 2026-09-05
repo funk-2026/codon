@@ -41,6 +41,16 @@ export function listTeacherTests(): Promise<{ tests: Test[] }> {
   return apiFetch<{ tests: Test[] }>('/teacher/tests', { method: 'GET' });
 }
 
+export type TeacherTestDetail = {
+  test: Test;
+  questions: Question[];
+};
+
+/** GET /api/v1/teacher/tests/:id */
+export function getTeacherTest(id: string): Promise<TeacherTestDetail> {
+  return apiFetch<TeacherTestDetail>(`/teacher/tests/${id}`, { method: 'GET' });
+}
+
 export type CreateQuestionRequest = {
   question_text: string;
   option_a: string;
