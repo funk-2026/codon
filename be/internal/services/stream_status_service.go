@@ -22,6 +22,24 @@ func NewStreamStatusService(db *gorm.DB) *StreamStatusService {
 	return &StreamStatusService{DB: db}
 }
 
+// HandleExhausted marks a ContentItem as VideoFailed once its
+// stream_status_check job has permanently run out of retries without
+// Cloudflare ever reporting the video ready — otherwise the item would sit
+// at video_status "queued"/"transcoding" forever with no visible failure.
+func (s *StreamStatusService) HandleExhausted(ctx context.Context, payload string) {
+	var p jobs.StreamStatusCheckPayload
+	if err := json.Unmarshal([]byte(payload), &p); err != nil {
+		return
+	}
+	vs := models.VideoFailed
+	s.DB.WithContext(ctx).Model(&models.ContentItem{}).
+		Where("id = ?", p.ContentItemID).
+		Updates(map[string]interface{}{
+			"video_status": vs,
+			"updated_at":   time.Now(),
+		})
+}
+
 // HandleStreamStatusCheck polls Cloudflare Stream for a video's transcode
 // status. It returns an error while the video is still processing so the
 // job queue retries it with backoff, and returns nil once the video is

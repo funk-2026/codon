@@ -45,6 +45,7 @@ func main() {
 	worker.RegisterHandler(jobs.JobTypeCSVImport, csvImportSvc.HandleCSVImport)
 	worker.RegisterHandler(jobs.JobTypeTranscode, transcodeSvc.HandleTranscode)
 	worker.RegisterHandler(jobs.JobTypeStreamStatusCheck, streamStatusSvc.HandleStreamStatusCheck)
+	worker.RegisterExhaustionHandler(jobs.JobTypeStreamStatusCheck, streamStatusSvc.HandleExhausted)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

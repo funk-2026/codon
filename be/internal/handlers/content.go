@@ -164,15 +164,39 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 			updates["chapter_id"] = u
 		}
 	}
-	if req.FileKey != nil {
+	fileKeyChanged := req.FileKey != nil && *req.FileKey != item.FileKey
+	if fileKeyChanged {
 		updates["file_key"] = *req.FileKey
 	}
 	if req.RequiresSubscription != nil {
 		updates["requires_subscription"] = *req.RequiresSubscription
 	}
 
+	// Replacing a video's file makes the old video_status/hls_playlist_url
+	// stale (they describe the previous file) — reset them and re-trigger
+	// transcoding/status-checking against the new file, same as CreateContent.
+	if fileKeyChanged && item.ContentType == models.ContentVideo {
+		vs := models.VideoQueued
+		updates["video_status"] = vs
+		updates["hls_playlist_url"] = nil
+	}
+
 	h.DB.WithContext(c.Request.Context()).Model(&item).Updates(updates)
 	h.DB.WithContext(c.Request.Context()).First(&item, item.ID)
+
+	if fileKeyChanged && item.ContentType == models.ContentVideo {
+		if strings.HasPrefix(item.FileKey, "stream:") {
+			uid := strings.TrimPrefix(item.FileKey, "stream:")
+			jobs.EnqueueJob(h.DB, jobs.JobTypeStreamStatusCheck, jobs.StreamStatusCheckPayload{
+				ContentItemID: item.ID, VideoUID: uid,
+			})
+		} else {
+			jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
+				ContentItemID: item.ID, FileKey: item.FileKey,
+			})
+		}
+	}
+
 	c.JSON(http.StatusOK, item)
 }
 
@@ -227,6 +251,11 @@ func (h *ContentHandler) PublishContent(c *gin.Context) {
 	}
 	if err := query.First(&item).Error; err != nil {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "content item not found or not approved"})
+		return
+	}
+
+	if item.ContentType == models.ContentVideo && (item.VideoStatus == nil || *item.VideoStatus != models.VideoReady) {
+		c.JSON(http.StatusConflict, errorResponse{Error: "video is still processing — try again once it's ready"})
 		return
 	}
 
