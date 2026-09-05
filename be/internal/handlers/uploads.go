@@ -1,12 +1,16 @@
 package handlers
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"codon-backend/internal/config"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/storage"
 
@@ -28,7 +32,7 @@ var allowedPurposes = map[string][]string{
 // Presign godoc
 //
 //	@Summary		Generate presigned upload URL
-//	@Description	Returns a presigned S3 PUT URL valid for 15 minutes. The client uses this URL to upload the file directly to object storage without routing it through the backend. After upload, use the returned file_key when referencing the file in other API calls.
+//	@Description	Returns a presigned S3 PUT URL (for Cloudflare R2 files) or Cloudflare Stream Direct Upload URL (for videos) valid for 15 minutes. The client uses this URL to upload the file directly without routing through backend. After upload, use the returned file_key when referencing the file in other API calls.
 //	@Tags			Uploads
 //	@Security		BearerAuth
 //	@Accept			json
@@ -58,6 +62,19 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 		return
 	}
 
+	// 1. Cloudflare Stream for Videos
+	if req.Purpose == "video" && config.AppConfig.CloudflareAccountID != "" && config.AppConfig.CloudflareStreamAPIToken != "" {
+		uploadURL, videoUID, err := createCloudflareStreamDirectUpload(c.Request.Context())
+		if err == nil {
+			c.JSON(http.StatusOK, presignResponse{
+				UploadURL: uploadURL,
+				FileKey:   "stream:" + videoUID,
+			})
+			return
+		}
+	}
+
+	// 2. Cloudflare R2 / S3 for generic files (CSV, docs, KYC, profile photos)
 	ext := filepath.Ext(req.FileName)
 	key := fmt.Sprintf("%s/%s/%s%s", req.Purpose, user.ID, uuid.New().String(), ext)
 	key = strings.ToLower(key)
@@ -77,6 +94,52 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, presignResponse{UploadURL: url, FileKey: key})
+}
+
+func createCloudflareStreamDirectUpload(ctx context.Context) (string, string, error) {
+	apiURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/stream/direct_upload", config.AppConfig.CloudflareAccountID)
+	reqBody, _ := json.Marshal(map[string]interface{}{
+		"maxDurationSeconds": 7200,
+	})
+
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+config.AppConfig.CloudflareStreamAPIToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Success bool `json:"success"`
+		Result  struct {
+			UploadURL string `json:"uploadURL"`
+			UID       string `json:"uid"`
+		} `json:"result"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", "", err
+	}
+
+	if !result.Success || result.Result.UploadURL == "" {
+		errMsg := "unknown stream error"
+		if len(result.Errors) > 0 {
+			errMsg = result.Errors[0].Message
+		}
+		return "", "", fmt.Errorf("cloudflare stream error: %s", errMsg)
+	}
+
+	return result.Result.UploadURL, result.Result.UID, nil
 }
 
 func getKeys(m map[string][]string) []string {

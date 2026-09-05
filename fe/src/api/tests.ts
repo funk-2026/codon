@@ -5,6 +5,7 @@ import type { UserProfile } from './profile';
 export type Test = {
   id: string;
   title: string;
+  description?: string;
   course_id: string;
   course?: Course;
   module_type: 'qbank' | 'test_series' | 'practice';

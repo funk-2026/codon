@@ -1,12 +1,16 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"codon-backend/internal/jobs"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
+	"codon-backend/internal/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -235,14 +239,39 @@ func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
 		return
 	}
 
-	url := ""
-	if item.ContentType == models.ContentVideo && item.HLSPlaylistURL != nil {
-		url = *item.HLSPlaylistURL
-	} else if item.ContentType == models.ContentDocument {
-		url = "https://s3.amazonaws.com/codon-files/" + item.FileKey
-	}
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
+}
 
-	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: url})
+func resolveContentURL(ctx context.Context, item *models.ContentItem) string {
+	if item.ContentType == models.ContentVideo {
+		// 1. Cloudflare Stream video UID (prefixed with stream:)
+		if strings.HasPrefix(item.FileKey, "stream:") {
+			uid := strings.TrimPrefix(item.FileKey, "stream:")
+			return fmt.Sprintf("https://iframe.videodelivery.net/%s", uid)
+		}
+		// 2. Direct HLS playlist URL if stored explicitly
+		if item.HLSPlaylistURL != nil && *item.HLSPlaylistURL != "" {
+			return *item.HLSPlaylistURL
+		}
+		// 3. R2 Presigned GET URL if stored as raw MP4 file in Cloudflare R2
+		if storage.Client != nil && item.FileKey != "" {
+			url, err := storage.Client.PresignGet(ctx, item.FileKey, 2*time.Hour)
+			if err == nil && url != "" {
+				return url
+			}
+		}
+		// Fallback sample MP4 for testing when credentials are unconfigured
+		return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+	} else if item.ContentType == models.ContentDocument {
+		if storage.Client != nil && item.FileKey != "" {
+			url, err := storage.Client.PresignGet(ctx, item.FileKey, 2*time.Hour)
+			if err == nil && url != "" {
+				return url
+			}
+		}
+		return "https://s3.amazonaws.com/codon-files/" + item.FileKey
+	}
+	return ""
 }
 
 // ListTeacherContent godoc
@@ -311,15 +340,7 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 		return
 	}
 
-	url := ""
-	if item.ContentType == models.ContentVideo && item.HLSPlaylistURL != nil {
-		url = *item.HLSPlaylistURL
-	} else if item.ContentType == models.ContentDocument {
-		// Mock a pre-signed URL for document downloads for now
-		url = "https://s3.amazonaws.com/codon-files/" + item.FileKey
-	}
-
-	c.JSON(http.StatusOK, getContentResponse{Content: item, URL: url})
+	c.JSON(http.StatusOK, getContentResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
 }
 
 // AdminGetContent godoc
@@ -344,14 +365,7 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 		return
 	}
 
-	url := ""
-	if item.ContentType == models.ContentVideo && item.HLSPlaylistURL != nil {
-		url = *item.HLSPlaylistURL
-	} else if item.ContentType == models.ContentDocument {
-		url = "https://s3.amazonaws.com/codon-files/" + item.FileKey
-	}
-
-	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: url})
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
 }
 
 // ─── Admin Content Moderation ─────────────────────────────────────────────────

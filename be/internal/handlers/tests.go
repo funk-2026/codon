@@ -204,7 +204,7 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 	}
 
 	test := models.Test{
-		Title: req.Title, CourseID: courseID,
+		Title: req.Title, Description: req.Description, CourseID: courseID,
 		ModuleType: models.ModuleType(req.ModuleType),
 		SubjectID: sID, ChapterID: cID,
 		DurationMinutes: req.DurationMinutes, MarksPerCorrect: marksCorrect,
@@ -261,6 +261,9 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 	updates := map[string]interface{}{}
 	if req.Title != nil {
 		updates["title"] = *req.Title
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
 	}
 	if req.SubjectID != nil {
 		if *req.SubjectID == "" {
@@ -684,19 +687,21 @@ type testQuestionsResponse struct {
 }
 
 type createTestRequest struct {
-	Title               string  `json:"title"       example:"Biology Chapter 1 — Cell Structure"`
-	CourseID            string  `json:"course_id"   example:"550e8400-e29b-41d4-a716-446655440000"`
-	ModuleType          string  `json:"module_type" example:"qbank" enums:"qbank,test_series,practice"`
-	SubjectID           *string `json:"subject_id"  example:"550e8400-e29b-41d4-a716-446655440001"`
-	ChapterID           *string `json:"chapter_id"  example:"550e8400-e29b-41d4-a716-446655440002"`
-	DurationMinutes     *int    `json:"duration_minutes" example:"60"`
+	Title               string   `json:"title"       example:"Biology Chapter 1 — Cell Structure"`
+	Description         *string  `json:"description" example:"Comprehensive practice test for Cell Structure and Organelles."`
+	CourseID            string   `json:"course_id"   example:"550e8400-e29b-41d4-a716-446655440000"`
+	ModuleType          string   `json:"module_type" example:"qbank" enums:"qbank,test_series,practice"`
+	SubjectID           *string  `json:"subject_id"  example:"550e8400-e29b-41d4-a716-446655440001"`
+	ChapterID           *string  `json:"chapter_id"  example:"550e8400-e29b-41d4-a716-446655440002"`
+	DurationMinutes     *int     `json:"duration_minutes" example:"60"`
 	MarksPerCorrect     *float64 `json:"marks_per_correct" example:"4"`
 	MarksPerWrong       *float64 `json:"marks_per_wrong"   example:"-1"`
-	RequiresSubscription *bool  `json:"requires_subscription" example:"true"`
+	RequiresSubscription *bool   `json:"requires_subscription" example:"true"`
 }
 
 type updateTestRequest struct {
 	Title               *string  `json:"title"`
+	Description         *string  `json:"description"`
 	SubjectID           *string  `json:"subject_id"`
 	ChapterID           *string  `json:"chapter_id"`
 	DurationMinutes     *int     `json:"duration_minutes"`

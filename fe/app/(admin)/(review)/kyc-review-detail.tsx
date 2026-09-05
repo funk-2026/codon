@@ -70,10 +70,10 @@ export default function KycReviewDetailRoute() {
       if (next) {
         router.replace({ pathname: '/(admin)/(review)/kyc-review-detail', params: { id: next.id, from: 'queue' } });
       } else {
-        router.replace('/(admin)/(review)');
+        router.replace('/(admin)/(review)/kyc-queue');
       }
     } catch {
-      router.replace('/(admin)/(review)');
+      router.replace('/(admin)/(review)/kyc-queue');
     }
   };
 
