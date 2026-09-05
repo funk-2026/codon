@@ -14,7 +14,7 @@ import {
   CaretRight,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { ErrorBanner } from '@/src/components';
+import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { getAttempts } from '@/src/api/profile';
 import type { StudentAttempt } from '@/src/api/attempts';
 
@@ -171,7 +171,11 @@ export default function PracticeHubRoute() {
           ))}
         </View>
 
-        {!isNewUser ? (
+        {loading ? (
+          <View style={{ marginTop: space.xl }}>
+            <SkeletonBlock height={72} radius={radius.md} />
+          </View>
+        ) : !isNewUser ? (
           <Stagger delayMs={320}>
             <View style={{ marginTop: space.xl }}>
               <View
@@ -207,7 +211,13 @@ export default function PracticeHubRoute() {
             </Pressable>
           </View>
 
-          {isNewUser ? (
+          {loading ? (
+            <View style={{ gap: space.xs }}>
+              <SkeletonBlock height={60} radius={radius.md} />
+              <SkeletonBlock height={60} radius={radius.md} />
+              <SkeletonBlock height={60} radius={radius.md} />
+            </View>
+          ) : isNewUser ? (
             <View
               style={{
                 alignItems: 'center',

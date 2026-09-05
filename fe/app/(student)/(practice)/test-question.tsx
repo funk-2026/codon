@@ -277,9 +277,13 @@ export default function TestQuestionRoute() {
           style={{ flex: 1, justifyContent: 'center' }}
         />
       ) : !q ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Loading...</Text>
-        </View>
+        <EmptyState
+          icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+          title="No questions available"
+          description="This test doesn't have any questions to show right now."
+          action={<TextButton label="Retry" onPress={init} />}
+          style={{ flex: 1, justifyContent: 'center' }}
+        />
       ) : (
       <>
         {/* Question + options */}

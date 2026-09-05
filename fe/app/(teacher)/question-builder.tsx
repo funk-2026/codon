@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, PencilSimple, Trash } from 'phosphor-react-native';
-import { InputField, PrimaryButton, TextButton, useToast } from '@/src/components';
+import { InputField, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { createQuestion, updateQuestion, deleteQuestion, getTeacherTest } from '@/src/api/teacher';
 
@@ -188,12 +188,17 @@ export default function QuestionBuilderRoute() {
       </View>
 
       {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={color('accent/default')} />
-          <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.sm }]}>
-            Loading questions…
-          </Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'] + insets.bottom }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={{ gap: space.xs, marginBottom: space.xl }}>
+            <SkeletonBlock height={56} radius={radius.md} />
+            <SkeletonBlock height={56} radius={radius.md} />
+            <SkeletonBlock height={56} radius={radius.md} />
+          </View>
+          <SkeletonBlock height={220} radius={radius.md} />
+        </ScrollView>
       ) : (
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'] + insets.bottom }}
@@ -370,7 +375,6 @@ function shadow(): {} {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center' },
-  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   qRow: { flexDirection: 'row', alignItems: 'center' },
   deleteConfirm: { flexDirection: 'row', alignItems: 'center' },
   answerChip: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

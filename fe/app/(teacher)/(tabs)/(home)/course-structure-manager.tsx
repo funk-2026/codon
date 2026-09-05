@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { CaretLeft, CaretRight, Folder } from 'phosphor-react-native';
-import { PrimaryButton } from '@/src/components';
+import { PrimaryButton, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 
 type Level = 'subject' | 'chapter';
@@ -49,6 +49,7 @@ export default function CourseStructureManagerRoute() {
   const [tree, setTree] = useState<Node[]>([]);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [courseName, setCourseName] = useState<string>('');
+  const [loading, setLoading] = useState(true);
 
   useMemo(() => {
     import('@/src/api/courses').then(({ listCourses, getCurriculum }) => {
@@ -70,9 +71,12 @@ export default function CourseStructureManagerRoute() {
               })),
             }));
             setTree(fetchedTree);
+            setLoading(false);
           });
+        } else {
+          setLoading(false);
         }
-      });
+      }).catch(() => setLoading(false));
     });
   }, []);
 
@@ -152,7 +156,13 @@ export default function CourseStructureManagerRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, marginTop: space.md }}
         showsVerticalScrollIndicator={false}
       >
-        {currentLayer.length === 0 ? (
+        {loading ? (
+          <View style={{ gap: space.xs }}>
+            <SkeletonBlock height={64} radius={radius.md} />
+            <SkeletonBlock height={64} radius={radius.md} />
+            <SkeletonBlock height={64} radius={radius.md} />
+          </View>
+        ) : currentLayer.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: space.xl, gap: space.xs }}>
             <Folder size={28} color={color('text/tertiary')} weight="duotone" />
             <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>

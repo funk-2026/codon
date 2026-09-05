@@ -264,7 +264,15 @@ export default function VideoPlayerRoute() {
         {/* Below-canvas panel */}
         <View style={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}>
           {loading ? (
-            <SkeletonBlock height={28} width="70%" style={{ marginTop: space.md }} />
+            <View style={{ marginTop: space.md, gap: space.sm }}>
+              <SkeletonBlock height={28} width="70%" />
+              <SkeletonBlock height={16} width="40%" />
+              <View style={{ marginTop: space.md, gap: space.xs }}>
+                <SkeletonBlock height={14} width="45%" />
+                <SkeletonBlock height={56} radius={radius.md} />
+                <SkeletonBlock height={56} radius={radius.md} />
+              </View>
+            </View>
           ) : loadError ? (
             <EmptyState
               icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
