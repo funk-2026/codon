@@ -12,6 +12,7 @@ import (
 	"codon-backend/internal/db"
 	"codon-backend/internal/jobs"
 	"codon-backend/internal/services"
+	"codon-backend/internal/storage"
 )
 
 func main() {
@@ -23,6 +24,12 @@ func main() {
 
 	if err := db.AutoMigrateAll(); err != nil {
 		log.Fatalf("Worker AutoMigrate: %v", err)
+	}
+
+	if config.AppConfig.S3AccessKeyID != "" {
+		if err := storage.Init(); err != nil {
+			log.Printf("Warning: S3 init failed: %v (CSV import will fail until this is fixed)", err)
+		}
 	}
 
 	// Create service instances

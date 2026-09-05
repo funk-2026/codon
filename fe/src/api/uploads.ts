@@ -3,7 +3,7 @@ import { apiFetch } from './client';
 export type UploadPurpose = 'kyc_document' | 'video' | 'csv' | 'profile_photo';
 
 export type PresignRequest = {
-  filename: string;
+  file_name: string;
   content_type: string;
   purpose: UploadPurpose;
 };
