@@ -6,9 +6,19 @@ import { CaretLeft, WarningCircle } from 'phosphor-react-native';
 import { EmptyState, PrimaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useLocalSearchParams } from 'expo-router';
-import { getCSVImportReport } from '@/src/api/teacher';
+import { getCSVImportReport, type GetCSVImportResponse } from '@/src/api/teacher';
 
 type ErrorRow = { row: number; reason: string; preview: string };
+
+function formatRawRow(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.join(', ');
+  } catch {
+    // fall through to raw string below
+  }
+  return raw;
+}
 
 export default function CsvImportReportRoute() {
   const { color, type, space, radius } = useTheme();
@@ -19,7 +29,7 @@ export default function CsvImportReportRoute() {
 
   const [processing, setProcessing] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [report, setReport] = useState<any>(null);
+  const [report, setReport] = useState<GetCSVImportResponse | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
@@ -32,7 +42,7 @@ export default function CsvImportReportRoute() {
     const interval = setInterval(() => {
       getCSVImportReport(batchId)
         .then((res) => {
-          if (res.status === 'completed' || res.status === 'failed') {
+          if (res.batch.status !== 'processing') {
             setReport(res);
             setProcessing(false);
             clearInterval(interval);
@@ -50,9 +60,13 @@ export default function CsvImportReportRoute() {
 
   const retry = useCallback(() => setRetryKey((k) => k + 1), []);
 
-  const totalRows = report?.total_rows || 0;
-  const successCount = report?.successful_rows || 0;
-  const errors: ErrorRow[] = report?.errors || [];
+  const totalRows = report?.batch?.total_rows || 0;
+  const successCount = report?.batch?.success_rows || 0;
+  const errors: ErrorRow[] = (report?.errors || []).map((e) => ({
+    row: e.row_number,
+    reason: e.error_message,
+    preview: formatRawRow(e.raw_row_data),
+  }));
 
   const allSucceeded = errors.length === 0;
   const allFailed = successCount === 0 && totalRows > 0;

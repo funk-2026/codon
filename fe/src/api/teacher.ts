@@ -68,8 +68,35 @@ export function importQuestionsCSV(testId: string, data: { file_key: string }): 
 }
 
 /** GET /api/v1/teacher/csv-imports/:id */
-export function getCSVImportReport(batchId: string): Promise<any> {
-  return apiFetch<any>(`/teacher/csv-imports/${batchId}`, { method: 'GET' });
+export type CSVImportStatus = 'processing' | 'completed' | 'completed_with_errors' | 'failed';
+
+export type CSVImportBatch = {
+  id: string;
+  test_id: string;
+  file_key: string;
+  total_rows: number;
+  success_rows: number;
+  error_rows: number;
+  status: CSVImportStatus;
+  created_at: string;
+  completed_at?: string;
+};
+
+export type CSVImportRowError = {
+  id: string;
+  batch_id: string;
+  row_number: number;
+  error_message: string;
+  raw_row_data: string;
+};
+
+export type GetCSVImportResponse = {
+  batch: CSVImportBatch;
+  errors: CSVImportRowError[];
+};
+
+export function getCSVImportReport(batchId: string): Promise<GetCSVImportResponse> {
+  return apiFetch<GetCSVImportResponse>(`/teacher/csv-imports/${batchId}`, { method: 'GET' });
 }
 
 export type CreateContentRequest = {
