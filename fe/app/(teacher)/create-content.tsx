@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   CaretLeft,
   CaretRight,
@@ -14,10 +15,12 @@ import {
 import { ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { createContent } from '@/src/api/teacher';
+import { getPresignedUrl } from '@/src/api/uploads';
 import { listCourses, getCurriculum } from '@/src/api/courses';
+import { ApiError } from '@/src/api/client';
 
 type ContentType = 'Video' | 'Document';
-type VideoState = 'idle' | 'uploading' | 'processing' | 'ready' | 'failed';
+type VideoState = 'idle' | 'uploading' | 'ready' | 'failed';
 
 export default function CreateContentRoute() {
   const { color, type, space, radius } = useTheme();
@@ -35,13 +38,15 @@ export default function CreateContentRoute() {
   const [videoState, setVideoState] = useState<VideoState>('idle');
   const [videoProgress, setVideoProgress] = useState(0);
   const [videoFileName, setVideoFileName] = useState('');
+  const [videoFileKey, setVideoFileKey] = useState<string | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
   const [docBody, setDocBody] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const uploadXhr = useRef<XMLHttpRequest | null>(null);
 
   const loadCourseInfo = useCallback(async () => {
     try {
@@ -76,27 +81,79 @@ export default function CreateContentRoute() {
     return () => clearTimeout(t);
   }, [docBody, contentType]);
 
-  const startVideoUpload = () => {
-    setVideoFileName('laws-of-thermodynamics.mp4');
+  const handleSelectVideo = async () => {
+    setVideoError(null);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'video/*', copyToCacheDirectory: true });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      uploadVideo(asset.uri, asset.name, asset.mimeType || 'video/mp4');
+    } catch (err) {
+      setVideoError('Failed to select file.');
+    }
+  };
+
+  const uploadVideo = async (uri: string, name: string, mimeType: string) => {
+    setVideoFileName(name);
+    setVideoFileKey(null);
+    setVideoError(null);
     setVideoState('uploading');
     setVideoProgress(0);
-    progressTimer.current = setInterval(() => {
-      setVideoProgress((p) => {
-        if (p >= 100) {
-          if (progressTimer.current) clearInterval(progressTimer.current);
-          setVideoState('processing');
-          setTimeout(() => setVideoState('ready'), 1500);
-          return 100;
-        }
-        return p + 10;
+
+    try {
+      const presign = await getPresignedUrl({ file_name: name, content_type: mimeType, purpose: 'video' });
+      // Cloudflare Stream's direct-upload URL takes a multipart POST; the R2
+      // fallback (when Stream isn't configured) takes a raw PUT, same as
+      // every other upload purpose in this app.
+      const isStream = presign.file_key.startsWith('stream:');
+
+      let body: FormData | Blob;
+      if (isStream) {
+        const formData = new FormData();
+        formData.append('file', { uri, name, type: mimeType } as unknown as Blob);
+        body = formData;
+      } else {
+        body = await (await fetch(uri)).blob();
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        uploadXhr.current = xhr;
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setVideoProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`upload failed (${xhr.status})`));
+        };
+        xhr.onerror = () => reject(new Error("couldn't upload the file — check your connection and try again"));
+        xhr.onabort = () => reject(new Error('cancelled'));
+        xhr.open(isStream ? 'POST' : 'PUT', presign.upload_url);
+        if (!isStream) xhr.setRequestHeader('Content-Type', mimeType);
+        xhr.send(body as any);
       });
-    }, 150);
+
+      uploadXhr.current = null;
+      setVideoFileKey(presign.file_key);
+      setVideoProgress(100);
+      setVideoState('ready');
+    } catch (err: any) {
+      uploadXhr.current = null;
+      if (err?.message === 'cancelled') return;
+      console.error('Video upload failed', err);
+      const detail = err instanceof ApiError ? ` (${err.status}: ${err.message})` : err?.message ? `: ${err.message}` : '';
+      setVideoError(`Upload failed${detail}`);
+      setVideoState('failed');
+    }
   };
 
   const cancelVideoUpload = () => {
-    if (progressTimer.current) clearInterval(progressTimer.current);
+    uploadXhr.current?.abort();
+    uploadXhr.current = null;
     setVideoState('idle');
     setVideoProgress(0);
+    setVideoFileKey(null);
+    setVideoError(null);
   };
 
   const handleTypeToggle = (next: ContentType) => {
@@ -145,7 +202,7 @@ export default function CreateContentRoute() {
         course_id: courseId!,
         content_type: contentType === 'Video' ? 'video' : 'document',
         chapter_id: chapterId!,
-        file_key: contentType === 'Video' ? 'mock-video-key' : 'mock-doc-key',
+        file_key: contentType === 'Video' ? videoFileKey! : 'mock-doc-key',
       });
       show('Content saved', 'success');
       router.push({ pathname: '/(teacher)/content-preview', params: { type: contentType, id: res.id } });
@@ -226,7 +283,7 @@ export default function CreateContentRoute() {
           {contentType === 'Video' ? (
             videoState === 'idle' ? (
               <Pressable
-                onPress={startVideoUpload}
+                onPress={handleSelectVideo}
                 style={[
                   styles.uploadZone,
                   { backgroundColor: color('bg/sunken'), borderRadius: radius.md, borderColor: color('border/strong') },
@@ -258,14 +315,17 @@ export default function CreateContentRoute() {
                       Uploading… {videoProgress}%
                     </Text>
                   </>
-                ) : videoState === 'processing' ? (
-                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
-                    Processing video…
-                  </Text>
                 ) : videoState === 'ready' ? (
                   <Text style={[type['type/caption'], { color: color('semantic/success'), marginTop: space.xs }]}>
-                    Ready to preview
+                    Uploaded — will process after you submit
                   </Text>
+                ) : videoState === 'failed' ? (
+                  <>
+                    <Text style={[type['type/caption'], { color: color('semantic/danger'), marginTop: space.xs }]}>
+                      {videoError || 'Upload failed.'}
+                    </Text>
+                    <TextButton label="Try Again" onPress={handleSelectVideo} style={{ alignSelf: 'flex-start', marginTop: space.xs }} />
+                  </>
                 ) : null}
               </View>
             )

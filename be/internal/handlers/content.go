@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -89,9 +88,18 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 	}
 
 	if ct == models.ContentVideo {
-		jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
-			ContentItemID: item.ID, FileKey: item.FileKey,
-		})
+		if strings.HasPrefix(item.FileKey, "stream:") {
+			// Cloudflare Stream transcodes the upload itself — poll its API
+			// for status instead of running our own ffmpeg job against it.
+			uid := strings.TrimPrefix(item.FileKey, "stream:")
+			jobs.EnqueueJob(h.DB, jobs.JobTypeStreamStatusCheck, jobs.StreamStatusCheckPayload{
+				ContentItemID: item.ID, VideoUID: uid,
+			})
+		} else {
+			jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
+				ContentItemID: item.ID, FileKey: item.FileKey,
+			})
+		}
 	}
 
 	c.JSON(http.StatusCreated, item)
@@ -244,10 +252,15 @@ func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
 
 func resolveContentURL(ctx context.Context, item *models.ContentItem) string {
 	if item.ContentType == models.ContentVideo {
-		// 1. Cloudflare Stream video UID (prefixed with stream:)
+		// 1. Cloudflare Stream video: the real HLS manifest URL is filled in
+		// by the stream_status_check job once Cloudflare finishes
+		// transcoding — an iframe embed URL wouldn't work for a native
+		// video player, so return nothing (still processing) until then.
 		if strings.HasPrefix(item.FileKey, "stream:") {
-			uid := strings.TrimPrefix(item.FileKey, "stream:")
-			return fmt.Sprintf("https://iframe.videodelivery.net/%s", uid)
+			if item.HLSPlaylistURL != nil && *item.HLSPlaylistURL != "" {
+				return *item.HLSPlaylistURL
+			}
+			return ""
 		}
 		// 2. Direct HLS playlist URL if stored explicitly
 		if item.HLSPlaylistURL != nil && *item.HLSPlaylistURL != "" {

@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	JobTypeCSVImport  = "csv_import"
-	JobTypeTranscode  = "video_transcode"
+	JobTypeCSVImport         = "csv_import"
+	JobTypeTranscode         = "video_transcode"
+	JobTypeStreamStatusCheck = "stream_status_check"
 )
 
 // EnqueueJob inserts a background job into the DB queue.
@@ -45,6 +46,13 @@ type CSVImportPayload struct {
 type TranscodePayload struct {
 	ContentItemID uuid.UUID `json:"content_item_id"`
 	FileKey       string    `json:"file_key"`
+}
+
+// StreamStatusCheckPayload is the payload for polling a Cloudflare Stream
+// video's transcode status until it's ready to play.
+type StreamStatusCheckPayload struct {
+	ContentItemID uuid.UUID `json:"content_item_id"`
+	VideoUID      string    `json:"video_uid"`
 }
 
 // Worker polls for pending jobs and processes them.
@@ -85,8 +93,11 @@ func (w *Worker) Run(ctx context.Context) {
 func (w *Worker) processNextJob(ctx context.Context) {
 	var job models.BackgroundJob
 	err := w.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Pick one pending job that's due
-		res := tx.Where("status = ? AND run_after <= ? AND attempts < 5", models.JobPending, time.Now()).
+		// Pick one pending job that's due. Capped at 30 attempts (~30 minutes
+		// at the 1-minute backoff below) rather than the original 5 (~5
+		// minutes) — long enough for a Cloudflare Stream status-check job to
+		// poll until transcoding finishes, not just for quick one-shot jobs.
+		res := tx.Where("status = ? AND run_after <= ? AND attempts < 30", models.JobPending, time.Now()).
 			Order("created_at ASC").
 			First(&job)
 		if res.Error != nil {

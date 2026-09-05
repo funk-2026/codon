@@ -35,6 +35,7 @@ func main() {
 	// Create service instances
 	csvImportSvc := services.NewCSVImportService(db.DB)
 	transcodeSvc := services.NewTranscodeService(db.DB)
+	streamStatusSvc := services.NewStreamStatusService(db.DB)
 
 	// Create worker
 	pollInterval := time.Duration(config.AppConfig.WorkerPollSeconds) * time.Second
@@ -43,6 +44,7 @@ func main() {
 	// Register job handlers
 	worker.RegisterHandler(jobs.JobTypeCSVImport, csvImportSvc.HandleCSVImport)
 	worker.RegisterHandler(jobs.JobTypeTranscode, transcodeSvc.HandleTranscode)
+	worker.RegisterHandler(jobs.JobTypeStreamStatusCheck, streamStatusSvc.HandleStreamStatusCheck)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
