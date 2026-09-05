@@ -284,6 +284,15 @@ export default function ContentPreviewDetailRoute() {
             </Text>
           </View>
         )}
+
+        {__DEV__ && (itemType === 'Videos' || itemType === 'Documents') ? (
+          <Text
+            selectable
+            style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.sm }]}
+          >
+            DEBUG url={previewUrl || '(none)'}
+          </Text>
+        ) : null}
       </ScrollView>
 
       <View style={{ paddingHorizontal: space.md, marginBottom: space.lg, gap: space.sm }}>

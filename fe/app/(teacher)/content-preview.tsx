@@ -351,6 +351,14 @@ export default function ContentPreviewRoute() {
                   </Text>
                 </View>
               )}
+              {__DEV__ ? (
+                <Text
+                  selectable
+                  style={[type['type/caption'], { color: color('text/tertiary'), paddingHorizontal: space.sm, paddingTop: space.xs }]}
+                >
+                  DEBUG video_status={contentData?.video_status ?? 'null'} url={videoUrl || '(none)'}
+                </Text>
+              ) : null}
               <Text style={[type['type/h3'], { color: color('text/primary'), padding: space.sm }]}>
                 {contentData?.title ?? 'Untitled Video'}
               </Text>
