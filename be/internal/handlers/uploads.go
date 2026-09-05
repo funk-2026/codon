@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -63,14 +64,19 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 	}
 
 	// 1. Cloudflare Stream for Videos
-	if req.Purpose == "video" && config.AppConfig.CloudflareAccountID != "" && config.AppConfig.CloudflareStreamAPIToken != "" {
-		uploadURL, videoUID, err := createCloudflareStreamDirectUpload(c.Request.Context())
-		if err == nil {
-			c.JSON(http.StatusOK, presignResponse{
-				UploadURL: uploadURL,
-				FileKey:   "stream:" + videoUID,
-			})
-			return
+	if req.Purpose == "video" {
+		if config.AppConfig.CloudflareAccountID == "" || config.AppConfig.CloudflareStreamAPIToken == "" {
+			log.Printf("[Presign] Cloudflare Stream not configured (CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_STREAM_API_TOKEN blank) — falling back to R2 for video upload")
+		} else {
+			uploadURL, videoUID, err := createCloudflareStreamDirectUpload(c.Request.Context())
+			if err == nil {
+				c.JSON(http.StatusOK, presignResponse{
+					UploadURL: uploadURL,
+					FileKey:   "stream:" + videoUID,
+				})
+				return
+			}
+			log.Printf("[Presign] Cloudflare Stream direct_upload failed, falling back to R2: %v", err)
 		}
 	}
 
