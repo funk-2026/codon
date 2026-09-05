@@ -100,7 +100,7 @@ func main() {
 	uploadH := handlers.NewUploadHandler()
 	testH := handlers.NewTestHandler(db.DB)
 	attemptH := handlers.NewAttemptHandler(db.DB, scoringSvc)
-	contentH := handlers.NewContentHandler(db.DB)
+	contentH := handlers.NewContentHandler(db.DB, subSvc)
 	wellnessH := handlers.NewWellnessHandler(db.DB)
 	adminH := handlers.NewAdminHandler(db.DB, sessionSvc)
 	curriculumH := handlers.NewCurriculumHandler(db.DB)

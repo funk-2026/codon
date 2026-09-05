@@ -9,6 +9,7 @@ import (
 	"codon-backend/internal/jobs"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
+	"codon-backend/internal/services"
 	"codon-backend/internal/storage"
 
 	"github.com/gin-gonic/gin"
@@ -16,9 +17,24 @@ import (
 	"gorm.io/gorm"
 )
 
-type ContentHandler struct{ DB *gorm.DB }
+type ContentHandler struct {
+	DB     *gorm.DB
+	SubSvc *services.SubscriptionService
+}
 
-func NewContentHandler(db *gorm.DB) *ContentHandler { return &ContentHandler{DB: db} }
+func NewContentHandler(db *gorm.DB, subSvc *services.SubscriptionService) *ContentHandler {
+	return &ContentHandler{DB: db, SubSvc: subSvc}
+}
+
+// kycRequired reports whether the platform currently requires approved KYC
+// before a student can access subscription-gated content.
+func kycRequired(db *gorm.DB) bool {
+	var setting models.PlatformSetting
+	if db.Where("key = ?", "kyc_required").First(&setting).Error == nil {
+		return setting.Value == "true"
+	}
+	return false
+}
 
 // CreateContent godoc
 //
@@ -314,7 +330,7 @@ func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 // GetChapterContent godoc
 //
 //	@Summary		List published content items for a chapter (Student)
-//	@Description	Returns all published content items (videos, documents) for a specific chapter.
+//	@Description	Returns all published content items (videos, documents) for a specific chapter. Items the student hasn't unlocked (subscription/KYC required) are still listed but with file_key and hls_playlist_url stripped.
 //	@Tags			Content
 //	@Security		BearerAuth
 //	@Produce		json
@@ -323,33 +339,50 @@ func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 //	@Failure		401	{object}	errorResponse
 //	@Router			/api/v1/chapters/{chapter_id}/content [get]
 func (h *ContentHandler) GetChapterContent(c *gin.Context) {
+	user := middleware.GetUser(c)
 	chapterID := c.Param("chapter_id")
 	var items []models.ContentItem
 	h.DB.WithContext(c.Request.Context()).
 		Where("chapter_id = ? AND status = ?", chapterID, models.StatusPublished).
 		Order("created_at ASC").
 		Find(&items)
+
+	kycReq := kycRequired(h.DB)
+	for i := range items {
+		if h.SubSvc.CheckAccess(c.Request.Context(), user, items[i].RequiresSubscription, items[i].CourseID, kycReq) != nil {
+			items[i].FileKey = ""
+			items[i].HLSPlaylistURL = nil
+		}
+	}
+
 	c.JSON(http.StatusOK, listContentResponse{Content: items})
 }
 
 // GetContentItem godoc
 //
 //	@Summary		Get a single published content item (Student)
-//	@Description	Returns the details of a published content item. For videos, the frontend can use the HLS URL directly.
+//	@Description	Returns the details of a published content item plus a playable URL. Requires an active subscription (and approved KYC, if the platform requires it) when the item has requires_subscription set.
 //	@Tags			Content
 //	@Security		BearerAuth
 //	@Produce		json
 //	@Param			id	path		string	true	"Content item UUID"
 //	@Success		200	{object}	getContentResponse
+//	@Failure		403	{object}	errorResponse
 //	@Failure		404	{object}	errorResponse
 //	@Router			/api/v1/content/{id} [get]
 func (h *ContentHandler) GetContentItem(c *gin.Context) {
+	user := middleware.GetUser(c)
 	id := c.Param("id")
 	var item models.ContentItem
 	if err := h.DB.WithContext(c.Request.Context()).
 		Where("id = ? AND status = ?", id, models.StatusPublished).
 		First(&item).Error; err != nil {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "content not found"})
+		return
+	}
+
+	if err := h.SubSvc.CheckAccess(c.Request.Context(), user, item.RequiresSubscription, item.CourseID, kycRequired(h.DB)); err != nil {
+		c.JSON(http.StatusForbidden, errorResponse{Error: err.Error()})
 		return
 	}
 
