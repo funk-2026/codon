@@ -6,7 +6,6 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import {
   TreeStructure,
   FolderOpen,
-  Receipt,
   GearSix,
   ChartBar,
 } from 'phosphor-react-native';
@@ -90,7 +89,6 @@ export default function AdminHomeRoute() {
   const cards: Card[] = [
     { key: 'structure', label: 'Manage Subjects', icon: <TreeStructure size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/manage-subjects' },
     { key: 'course-structure', label: 'Course Structure', icon: <FolderOpen size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/course-structure' },
-    { key: 'payments', label: 'Payments', icon: <Receipt size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(payments)' },
     { key: 'settings', label: 'Platform Settings', icon: <GearSix size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/platform-settings' },
     { key: 'analytics', label: 'Analytics', icon: <ChartBar size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/analytics-overview' },
   ];
