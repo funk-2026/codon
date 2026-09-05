@@ -15,10 +15,17 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 export default function PaymentSuccessRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const { planName, amount } = useLocalSearchParams<{ planName?: string; amount?: string }>();
+  const { planName, amount, validUntil } = useLocalSearchParams<{ planName?: string; amount?: string; validUntil?: string }>();
 
   const resolvedPlan = planName ?? '3 Months';
   const resolvedAmount = amount ? Number(amount) : 2999;
+  const resolvedValidUntil = (() => {
+    if (!validUntil) return null;
+    const d = new Date(validUntil);
+    return Number.isNaN(d.getTime())
+      ? null
+      : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  })();
 
   const markScale = useSharedValue(0.6);
   const markOpacity = useSharedValue(0);
@@ -75,8 +82,12 @@ export default function PaymentSuccessRoute() {
             <ReceiptRow label="Plan" value={`NEET UG Pro (${resolvedPlan})`} />
             <Divider />
             <ReceiptRow label="Amount Paid" value={`₹${resolvedAmount.toLocaleString('en-IN')}`} />
-            <Divider />
-            <ReceiptRow label="Valid Until" value="18 Oct 2026" />
+            {resolvedValidUntil ? (
+              <>
+                <Divider />
+                <ReceiptRow label="Valid Until" value={resolvedValidUntil} />
+              </>
+            ) : null}
           </View>
         </Animated.View>
       </View>
