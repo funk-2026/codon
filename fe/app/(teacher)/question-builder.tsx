@@ -140,6 +140,17 @@ export default function QuestionBuilderRoute() {
     if (editingId === id) cancelEdit();
   };
 
+  const handleDone = () => {
+    if (questions.length === 0) {
+      show('Add at least one question before finishing.', 'error');
+      return;
+    }
+    router.push({
+      pathname: '/(teacher)/(tabs)/(content)/content-preview',
+      params: { id: testId, type: 'Test' },
+    });
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
       <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
@@ -242,6 +253,12 @@ export default function QuestionBuilderRoute() {
           ) : null}
         </ScrollView>
       )}
+
+      {!loading && !editingId && testId ? (
+        <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
+          <PrimaryButton label="Done" onPress={handleDone} disabled={questions.length === 0} />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
