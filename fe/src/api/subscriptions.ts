@@ -18,7 +18,7 @@ export type CheckoutResponse = {
   razorpay_order_id: string;
   amount_paise: number;
   currency: string;
-  payment_record_id: string;
+  key_id: string;
 };
 
 /** POST /api/v1/subscriptions/checkout */

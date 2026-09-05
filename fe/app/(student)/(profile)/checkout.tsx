@@ -3,10 +3,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, DeviceMobile, CreditCard, Wallet, Lock, WarningCircle } from 'phosphor-react-native';
+import RazorpayCheckout from 'react-native-razorpay';
 import { EmptyState, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { useAuth } from '@/src/auth/AuthContext';
 import { listPlans, checkout, verifyPayment } from '@/src/api/subscriptions';
-import { SubscriptionPlan } from '@/src/api/profile';
+import { getMe, SubscriptionPlan } from '@/src/api/profile';
 
 
 
@@ -14,6 +16,7 @@ export default function CheckoutRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const { planId } = useLocalSearchParams<{ planId?: string }>();
+  const { user } = useAuth();
   const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -42,25 +45,51 @@ export default function CheckoutRoute() {
   const handlePay = async () => {
     if (!plan) return;
     setStage('launching');
-    
+
     try {
       const order = await checkout({ plan_id: plan.id });
-      setStage('verifying');
-      
-      // Simulate Razorpay SDK UI flow and success callback
-      await verifyPayment({
-        razorpay_order_id: order.razorpay_order_id,
-        razorpay_payment_id: 'mock_pay_' + Math.floor(Math.random() * 100000),
-        razorpay_signature: 'mock_signature',
+
+      const result = await RazorpayCheckout.open({
+        key: order.key_id,
+        amount: order.amount_paise,
+        currency: order.currency,
+        name: 'Codon',
+        description: plan.name,
+        order_id: order.razorpay_order_id,
+        prefill: {
+          name: user?.name || undefined,
+          contact: user?.phone_number || undefined,
+        },
       });
-      
+
+      setStage('verifying');
+      await verifyPayment({
+        razorpay_order_id: result.razorpay_order_id,
+        razorpay_payment_id: result.razorpay_payment_id,
+        razorpay_signature: result.razorpay_signature,
+      });
+
+      // Best-effort: fetch the real activated subscription's end date for
+      // the receipt screen. Not fatal if it fails — the payment itself
+      // already succeeded at this point.
+      let validUntil = '';
+      try {
+        const me = await getMe();
+        validUntil = me.active_subscription?.end_date ?? '';
+      } catch {
+        // ignore — payment-success falls back to a generic message
+      }
+
       router.replace({
         pathname: '/(student)/(profile)/payment-success',
-        params: { planName: plan.name, amount: String(plan.price_paise / 100) },
+        params: { planName: plan.name, amount: String(plan.price_paise / 100), validUntil },
       });
-    } catch (err) {
+    } catch (err: any) {
       setStage('summary');
-      show('Payment failed or cancelled', 'error');
+      router.push({
+        pathname: '/(student)/(profile)/payment-failed',
+        params: { reason: err?.description || err?.message || undefined },
+      });
     }
   };
 
