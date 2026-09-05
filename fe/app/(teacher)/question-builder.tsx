@@ -25,7 +25,7 @@ export default function QuestionBuilderRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { prefillText, testId, testTitle } = usseLocalSearchParams<{ prefillText?: string; testId?: string; testTitle?: string }>();
+  const { prefillText, testId, testTitle } = useLocalSearchParams<{ prefillText?: string; testId?: string; testTitle?: string }>();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(false);
