@@ -246,6 +246,7 @@ func main() {
 		teacher.GET("/tests", testH.ListTeacherTests)
 		teacher.GET("/tests/:id", testH.TeacherGetTest)
 		teacher.POST("/tests/:id/publish", testH.PublishTest)
+		teacher.DELETE("/tests/:id", testH.DeleteTest)
 
 		teacher.POST("/content", contentH.CreateContent)
 		teacher.PATCH("/content/:id", contentH.UpdateContent)

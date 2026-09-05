@@ -36,6 +36,11 @@ export function submitTestForReview(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/teacher/tests/${id}/submit-for-review`, { method: 'POST' });
 }
 
+/** DELETE /api/v1/teacher/tests/:id */
+export function deleteTest(id: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/teacher/tests/${id}`, { method: 'DELETE' });
+}
+
 /** GET /api/v1/teacher/tests */
 export function listTeacherTests(): Promise<{ tests: Test[] }> {
   return apiFetch<{ tests: Test[] }>('/teacher/tests', { method: 'GET' });

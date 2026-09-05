@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import {
   CheckCircle,
@@ -90,7 +90,7 @@ export default function TeacherHomeRoute() {
         const acts: Activity[] = [];
         
         const processItem = (item: any) => {
-          if (item.status === 'in_review') inReview++;
+          if (item.status === 'pending_review') inReview++;
           if (item.status === 'approved') approved++;
           if (item.status === 'published') live++;
           if (item.status === 'rejected') changesNeeded++;
@@ -118,9 +118,11 @@ export default function TeacherHomeRoute() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const attentionCount = stats.changesNeeded;
 

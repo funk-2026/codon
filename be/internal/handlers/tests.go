@@ -493,6 +493,69 @@ func (h *TestHandler) PublishTest(c *gin.Context) {
 	c.JSON(http.StatusOK, messageResponse{Message: "test published"})
 }
 
+// DeleteTest godoc
+//
+//	@Summary		Delete a test (Teacher)
+//	@Description	Permanently deletes a test and its questions, attempts, and CSV import history. Only allowed before the test has been approved or published.
+//	@Tags			Teacher
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Test UUID"
+//	@Success		200	{object}	messageResponse
+//	@Failure		404	{object}	errorResponse
+//	@Failure		409	{object}	errorResponse
+//	@Router			/api/v1/teacher/tests/{id} [delete]
+func (h *TestHandler) DeleteTest(c *gin.Context) {
+	teacher := middleware.GetUser(c)
+	id := c.Param("id")
+
+	var test models.Test
+	query := h.DB.Where("id = ?", id)
+	if !teacher.CanManageAllContent {
+		query = query.Where("created_by = ?", teacher.ID)
+	}
+	if err := query.First(&test).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "test not found"})
+		return
+	}
+
+	if test.Status == models.StatusApproved || test.Status == models.StatusPublished {
+		c.JSON(http.StatusConflict, errorResponse{Error: "cannot delete a test that has been approved or published"})
+		return
+	}
+
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where(
+			"attempt_id IN (?)",
+			tx.Model(&models.StudentAttempt{}).Select("id").Where("test_id = ?", test.ID),
+		).Delete(&models.AttemptAnswer{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("test_id = ?", test.ID).Delete(&models.StudentAttempt{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where(
+			"batch_id IN (?)",
+			tx.Model(&models.CSVImportBatch{}).Select("id").Where("test_id = ?", test.ID),
+		).Delete(&models.CSVImportRowError{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("test_id = ?", test.ID).Delete(&models.CSVImportBatch{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("test_id = ?", test.ID).Delete(&models.Question{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&test).Error
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to delete test"})
+		return
+	}
+
+	c.JSON(http.StatusOK, messageResponse{Message: "test deleted"})
+}
+
 // TeacherGetTest godoc
 //
 //	@Summary		Get a test with questions (Teacher)

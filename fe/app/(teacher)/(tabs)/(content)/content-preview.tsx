@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretDown, CaretUp, Play, Pause, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
 import { EmptyState, PrimaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { submitTestForReview, submitContentForReview, publishContent, getTeacherContent, getTeacherTest } from '@/src/api/teacher';
+import { submitTestForReview, submitContentForReview, publishContent, getTeacherContent, getTeacherTest, deleteTest } from '@/src/api/teacher';
 import { Test, Question } from '@/src/api/tests';
 import { ContentItem } from '@/src/api/content';
 
@@ -41,6 +41,15 @@ function shadow(): {} {
 
 function breadcrumbFrom(parts: (string | undefined)[]): string {
   return parts.filter((p): p is string => !!p && p.trim().length > 0).join(' · ');
+}
+
+// The backend isn't consistent about status strings across endpoints
+// (e.g. 'pending' vs 'pending_review' for the same in-review state) —
+// normalize known variants and fall back safely for anything else.
+function normalizeStatus(raw: string): Status {
+  if (raw === 'pending_review') return 'pending';
+  const known: Status[] = ['draft', 'pending', 'approved', 'published'];
+  return (known as string[]).includes(raw) ? (raw as Status) : 'draft';
 }
 
 export default function ContentPreviewRoute() {
@@ -87,6 +96,8 @@ export default function ContentPreviewRoute() {
   const [contentData, setContentData] = useState<ContentItem | null>(null);
 
   const [questions, setQuestions] = useState<Question[] | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const contentType: ContentType = paramType ?? resolvedType ?? 'Test';
 
@@ -100,6 +111,7 @@ export default function ContentPreviewRoute() {
         setTestData(res.test);
         setQuestions(res.questions);
         setResolvedType('Test');
+        setStatus(normalizeStatus(res.test.status));
       });
     const loadContent = () =>
       getTeacherContent(id).then((res) => {
@@ -108,6 +120,7 @@ export default function ContentPreviewRoute() {
         setResolvedType(
           rawContentType === 'video' ? 'Video' : rawContentType === 'brain_hack' ? 'Brain Hack' : 'Document'
         );
+        setStatus(normalizeStatus(res.status));
       });
 
     const run =
@@ -162,6 +175,22 @@ export default function ContentPreviewRoute() {
       setSubmitting(false);
     }
   };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await deleteTest(id);
+      show('Test deleted', 'success');
+      router.back();
+    } catch (err) {
+      show('Failed to delete', 'error');
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
+    }
+  };
+
+  const canDelete = contentType === 'Test' && !!id && (status === 'draft' || status === 'pending');
 
   const questionCountNum = id ? testData?.total_questions ?? 0 : Number(draftQuestionCount || 0);
   const durationLabel = id
@@ -386,6 +415,27 @@ export default function ContentPreviewRoute() {
         ) : null}
       </ScrollView>
 
+      {canDelete ? (
+        deleteConfirmOpen ? (
+          <View
+            style={[
+              styles.deleteConfirmRow,
+              { backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.sm, marginHorizontal: space.md, marginBottom: space.sm },
+            ]}
+          >
+            <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
+              Delete this test permanently?
+            </Text>
+            <TextButton label={deleting ? 'Deleting…' : 'Yes, delete'} onPress={handleDelete} disabled={deleting} style={{ marginRight: space.sm }} />
+            <TextButton label="Cancel" onPress={() => setDeleteConfirmOpen(false)} disabled={deleting} />
+          </View>
+        ) : (
+          <View style={{ alignItems: 'center', marginBottom: space.sm }}>
+            <TextButton label="Delete draft" onPress={() => setDeleteConfirmOpen(true)} />
+          </View>
+        )
+      ) : null}
+
       {status === 'draft' ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
           <PrimaryButton label="Submit for Review" onPress={handleSubmitForReview} loading={submitting} />
@@ -425,4 +475,5 @@ const styles = StyleSheet.create({
   videoCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
   pill: { alignSelf: 'flex-start', paddingVertical: 4 },
   approvedCallout: { overflow: 'hidden' },
+  deleteConfirmRow: { flexDirection: 'row', alignItems: 'center' },
 });
