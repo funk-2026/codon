@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { CaretLeft, CaretRight, Folder, Plus } from 'phosphor-react-native';
-import { PrimaryButton, SecondaryButton } from '@/src/components';
+import { CaretLeft, CaretRight, Folder } from 'phosphor-react-native';
+import { PrimaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 
 type Level = 'subject' | 'chapter';
@@ -76,10 +76,6 @@ export default function CourseStructureManagerRoute() {
     });
   }, []);
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
   const pathIds = useMemo(() => (params.path ? params.path.split('/').filter(Boolean) : []), [params.path]);
 
   const { crumbs, currentLayer } = useMemo(() => {
@@ -98,11 +94,7 @@ export default function CourseStructureManagerRoute() {
 
   const currentLevel: Level | 'root' =
     crumbs.length === 0 ? 'root' : crumbs.length === 1 ? 'subject' : 'chapter';
-  // Teachers can only add chapters under an existing subject — subjects are admin-owned.
-  const nextLevel: Level | null = currentLevel === 'subject' ? 'chapter' : null;
-  const addLabel = 'Add Chapter';
   const currentTitle = crumbs.length ? crumbs[crumbs.length - 1].title : 'Subjects';
-  const canAddDeeper = nextLevel !== null;
 
   const goDeeper = (node: Node) => {
     const nextPath = pathIds.length ? `${pathIds.join('/')}/${node.id}` : node.id;
@@ -126,35 +118,6 @@ export default function CourseStructureManagerRoute() {
     const chapterCrumb = crumbs[crumbs.length - 1];
     const label = `${courseName} · ${crumbs.map((c) => c.title).join(' · ')}`;
     router.dismissTo({ pathname: returnTo, params: { locationLabel: label, chapterId: chapterCrumb.id } });
-  };
-
-  const submitNewNode = async () => {
-    if (newName.trim().length === 0 || submitting || nextLevel !== 'chapter' || !courseId) return;
-    setSubmitting(true);
-
-    try {
-      const { createChapter } = await import('@/src/api/courses');
-      const subjectId = pathIds[0];
-      const res = await createChapter(subjectId, newName.trim(), 'Chapter for ' + newName.trim());
-
-      const newNode: Node = { id: res.id, title: newName.trim(), level: 'chapter', children: [] };
-
-      setTree((prev) => {
-        const insert = (nodes: Node[], depth: number): Node[] => {
-          if (depth === pathIds.length) return [...nodes, newNode];
-          return nodes.map((n) =>
-            n.id === pathIds[depth] ? { ...n, children: insert(n.children ?? [], depth + 1) } : n
-          );
-        };
-        return insert(prev, 0);
-      });
-      setAddOpen(false);
-      setNewName('');
-    } catch (e) {
-      console.error('Failed to create chapter:', e);
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   return (
@@ -189,28 +152,13 @@ export default function CourseStructureManagerRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, marginTop: space.md }}
         showsVerticalScrollIndicator={false}
       >
-        {canAddDeeper ? (
-          <Pressable
-            onPress={() => setAddOpen(true)}
-            style={[
-              styles.addRow,
-              { borderRadius: radius.md, borderColor: color('border/strong'), padding: space.md, marginBottom: space.sm },
-            ]}
-          >
-            <Plus size={18} color={color('accent/default')} />
-            <Text style={[type['type/body-m-medium'], { color: color('accent/default'), marginLeft: space.xs }]}>
-              {addLabel}
-            </Text>
-          </Pressable>
-        ) : null}
-
         {currentLayer.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: space.xl, gap: space.xs }}>
             <Folder size={28} color={color('text/tertiary')} weight="duotone" />
             <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>
               {currentLevel === 'root'
                 ? 'No subjects yet — ask an admin to set up the course structure.'
-                : `Nothing here yet — add the first ${levelNoun(currentLevel)}.`}
+                : `No ${levelNoun(currentLevel)}s yet — ask an admin to add some.`}
             </Text>
           </View>
         ) : (
@@ -262,43 +210,6 @@ export default function CourseStructureManagerRoute() {
       ) : (
         <View style={{ height: insets.bottom }} />
       )}
-
-      <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
-        <View style={[styles.scrim, { padding: space.lg }]}>
-          <View style={[styles.modalCard, { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }]}>
-            <Text style={[type['type/h3'], { color: color('text/primary') }]}>New chapter</Text>
-            <TextInput
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="e.g. Thermodynamics"
-              placeholderTextColor={color('text/tertiary')}
-              autoFocus
-              style={[
-                type['type/body-l'],
-                {
-                  color: color('text/primary'),
-                  backgroundColor: color('bg/sunken'),
-                  borderRadius: radius.sm,
-                  borderWidth: 1,
-                  borderColor: color('border/subtle'),
-                  paddingHorizontal: space.sm,
-                  paddingVertical: space.sm,
-                  marginTop: space.md,
-                },
-              ]}
-            />
-            <View style={{ gap: space.sm, marginTop: space.lg }}>
-              <PrimaryButton
-                label="Add Chapter"
-                onPress={submitNewNode}
-                disabled={newName.trim().length === 0}
-                loading={submitting}
-              />
-              <SecondaryButton label="Cancel" onPress={() => setAddOpen(false)} />
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -307,9 +218,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start' },
   crumbRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  addRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderStyle: 'dashed' },
   row: { flexDirection: 'row', alignItems: 'center' },
   rowIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-  modalCard: { width: '100%', maxWidth: 400 },
 });

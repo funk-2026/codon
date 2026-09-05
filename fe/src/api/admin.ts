@@ -5,7 +5,7 @@ import { ContentItem } from './content';
 import { SubscriptionPlan } from './profile';
 import { KYCRecord } from './kyc';
 import { WellnessContent } from './wellness';
-import { Subject } from './courses';
+import { Subject, Chapter } from './courses';
 
 export type AdminDashboardSummary = {
   total_users: number;
@@ -194,6 +194,25 @@ export function updateSubject(
   fields: Partial<Pick<Subject, 'name' | 'description' | 'order_index'>>
 ): Promise<Subject> {
   return apiFetch<Subject>(`/admin/subjects/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(fields),
+  });
+}
+
+/** POST /api/v1/admin/subjects/:subject_id/chapters */
+export function createChapter(subjectId: string, name: string, description: string): Promise<Chapter> {
+  return apiFetch<Chapter>(`/admin/subjects/${subjectId}/chapters`, {
+    method: 'POST',
+    body: JSON.stringify({ name, description }),
+  });
+}
+
+/** PATCH /api/v1/admin/chapters/:id */
+export function updateChapter(
+  id: string,
+  fields: Partial<Pick<Chapter, 'name' | 'description' | 'order_index'>>
+): Promise<Chapter> {
+  return apiFetch<Chapter>(`/admin/chapters/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(fields),
   });
