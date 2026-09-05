@@ -4,8 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import {
-  Users,
-  Shield,
   TreeStructure,
   FolderOpen,
   Receipt,
@@ -91,8 +89,6 @@ export default function AdminHomeRoute() {
   const pendingReviews = summary.pending_test_reviews + summary.pending_content_reviews;
 
   const cards: Card[] = [
-    { key: 'users', label: 'Users', icon: <Users size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(users)' },
-    { key: 'approvals', label: 'Approvals', icon: <Shield size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(review)', badge: summary.pending_kyc + pendingReviews > 0 ? summary.pending_kyc + pendingReviews : undefined },
     { key: 'structure', label: 'Manage Subjects', icon: <TreeStructure size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/manage-subjects' },
     { key: 'course-structure', label: 'Course Structure', icon: <FolderOpen size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/course-structure' },
     { key: 'payments', label: 'Payments', icon: <Receipt size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(payments)' },
