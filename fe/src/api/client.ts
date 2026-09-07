@@ -14,7 +14,7 @@ const DEV_HOST = '192.168.0.6';
 
 export const API_BASE = __DEV__
   ? `http://${DEV_HOST}:8080/api/v1`
-  : 'https://api.codon.app/api/v1';
+  : 'https://codon-production-2652.up.railway.app/api/v1';
 
 /**
  * Thin wrapper around `fetch` that sets common defaults.
