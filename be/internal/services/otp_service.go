@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 	"math/big"
 	"time"
@@ -57,8 +58,20 @@ func otpRateKey(phone string) string {
 	return fmt.Sprintf("otp_rate:%s", phone)
 }
 
+// isReviewerPhone reports whether phone is the configured app-store-reviewer
+// test number. Disabled (always false) unless REVIEWER_PHONE_NUMBER is set.
+func isReviewerPhone(phone string) bool {
+	return config.AppConfig.ReviewerPhoneNumber != "" && phone == config.AppConfig.ReviewerPhoneNumber
+}
+
 // SendOTP generates, stores (hashed), rate-limits, and dispatches the OTP.
 func (s *OTPService) SendOTP(ctx context.Context, phone string) error {
+	// Reviewer test number: skip real SMS dispatch entirely, they sign in
+	// with the fixed REVIEWER_OTP_CODE instead.
+	if isReviewerPhone(phone) {
+		return nil
+	}
+
 	var key string
 	// Rate-limit check (skip in dev mode)
 	if config.AppConfig.Env != "development" {
@@ -103,6 +116,14 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) error {
 
 // VerifyOTP checks the code against the latest valid OTP record.
 func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) error {
+	if isReviewerPhone(phone) {
+		if config.AppConfig.ReviewerOTPCode == "" ||
+			subtle.ConstantTimeCompare([]byte(code), []byte(config.AppConfig.ReviewerOTPCode)) != 1 {
+			return fmt.Errorf("invalid OTP code")
+		}
+		return nil
+	}
+
 	var record models.OTPRequest
 	err := s.DB.WithContext(ctx).
 		Where("phone_number = ? AND consumed_at IS NULL AND expires_at > ?", phone, time.Now()).

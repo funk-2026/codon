@@ -9,10 +9,13 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.codonn.app"
+      "bundleIdentifier": "com.codon.learn",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.codonn.app"
+      "package": "com.codon.learn"
     },
     "web": {
       "bundler": "metro",

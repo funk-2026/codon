@@ -49,6 +49,11 @@ type Config struct {
 	// OTP Rate Limit (per hour per phone)
 	OTPRateLimitPerHour int
 
+	// App store reviewer test login (empty = disabled). Lets Apple/Google
+	// reviewers sign in with a fixed OTP since they can't receive real SMS.
+	ReviewerPhoneNumber string
+	ReviewerOTPCode     string
+
 	// Misc
 	WorkerPollSeconds int
 }
@@ -80,6 +85,8 @@ func Load() {
 		CloudflareAccountID:      getEnv("CLOUDFLARE_ACCOUNT_ID", ""),
 		CloudflareStreamAPIToken: getEnv("CLOUDFLARE_STREAM_API_TOKEN", ""),
 		OTPRateLimitPerHour:      getEnvInt("OTP_RATE_LIMIT_PER_HOUR", 3),
+		ReviewerPhoneNumber:      getEnv("REVIEWER_PHONE_NUMBER", ""),
+		ReviewerOTPCode:          getEnv("REVIEWER_OTP_CODE", ""),
 		WorkerPollSeconds:        getEnvInt("WORKER_POLL_SECONDS", 5),
 	}
 }
