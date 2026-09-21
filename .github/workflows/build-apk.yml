@@ -1,0 +1,60 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'App version (e.g. 1.2.0)'
+        required: true
+        type: string
+
+jobs:
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: fe/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Set app version
+        run: |
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            app.expo.version = '${{ inputs.version }}';
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+          "
+          echo "✅ Set version to ${{ inputs.version }}"
+          cat app.json | grep '"version"'
+
+      - name: Build APK
+        run: eas build --platform android --profile preview-apk --non-interactive
+
+      - name: Get build URL
+        run: |
+          echo "## 📱 APK Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the APK from the [Expo dashboard](https://expo.dev/accounts/vlmlokesh22/projects/codon/builds)" >> $GITHUB_STEP_SUMMARY
+
