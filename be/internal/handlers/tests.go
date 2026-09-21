@@ -17,6 +17,10 @@ type TestHandler struct{ DB *gorm.DB }
 
 func NewTestHandler(db *gorm.DB) *TestHandler { return &TestHandler{DB: db} }
 
+func canManageAllTests(u *models.User) bool {
+	return u != nil && (u.Role == models.RoleAdmin || u.CanManageAllContent)
+}
+
 // ListTests godoc
 //
 //	@Summary		List published tests
@@ -239,7 +243,7 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 
 	var test models.Test
 	query := h.DB.Where("id = ?", id)
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
@@ -321,7 +325,7 @@ func (h *TestHandler) AddQuestion(c *gin.Context) {
 
 	var test models.Test
 	query := h.DB.Where("id = ?", testID)
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
@@ -394,7 +398,7 @@ func (h *TestHandler) UpdateQuestion(c *gin.Context) {
 
 	var test models.Test
 	testQuery := h.DB.Where("id = ?", question.TestID)
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		testQuery = testQuery.Where("created_by = ?", teacher.ID)
 	}
 	if err := testQuery.First(&test).Error; err != nil {
@@ -460,7 +464,7 @@ func (h *TestHandler) DeleteQuestion(c *gin.Context) {
 
 	var test models.Test
 	testQuery := h.DB.Where("id = ?", question.TestID)
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		testQuery = testQuery.Where("created_by = ?", teacher.ID)
 	}
 	if err := testQuery.First(&test).Error; err != nil {
@@ -579,7 +583,7 @@ func (h *TestHandler) SubmitForReview(c *gin.Context) {
 
 	var test models.Test
 	query := h.DB.Where("id = ? AND status IN ?", id, []string{string(models.StatusDraft), string(models.StatusRejected)})
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
@@ -608,7 +612,7 @@ func (h *TestHandler) PublishTest(c *gin.Context) {
 
 	var test models.Test
 	query := h.DB.Where("id = ? AND status = ?", id, models.StatusApproved)
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
@@ -638,7 +642,7 @@ func (h *TestHandler) DeleteTest(c *gin.Context) {
 
 	var test models.Test
 	query := h.DB.Where("id = ?", id)
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
@@ -703,7 +707,7 @@ func (h *TestHandler) TeacherGetTest(c *gin.Context) {
 		Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator").
 		Where("id = ?", id)
 	
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 
@@ -736,7 +740,7 @@ func (h *TestHandler) ListTeacherTests(c *gin.Context) {
 
 	var tests []models.Test
 	query := h.DB.WithContext(c.Request.Context())
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	query.Preload("Course").Order("created_at DESC").Find(&tests)
