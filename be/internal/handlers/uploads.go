@@ -105,7 +105,7 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 func createCloudflareStreamDirectUpload(ctx context.Context) (string, string, error) {
 	apiURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/stream/direct_upload", config.AppConfig.CloudflareAccountID)
 	reqBody, _ := json.Marshal(map[string]interface{}{
-		"maxDurationSeconds": 7200,
+		"maxDurationSeconds": 3 * 60 * 60,
 	})
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(reqBody))

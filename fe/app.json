@@ -4,7 +4,12 @@
     "slug": "codon",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon-1.png",
+    "splash": {
+      "image": "./assets/images/codon-1.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAFAF9"
+    },
     "scheme": "codon",
     "userInterfaceStyle": "automatic",
     "ios": {

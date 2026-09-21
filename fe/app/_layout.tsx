@@ -35,6 +35,7 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={auth.status === 'authenticated'}>
         <Stack.Screen name="profile-setup" />
+        <Stack.Screen name="role-picker" />
         <Stack.Screen name="(student)" />
         <Stack.Screen name="(teacher)" />
         <Stack.Screen name="(admin)" />

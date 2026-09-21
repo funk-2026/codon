@@ -26,6 +26,10 @@ func NewContentHandler(db *gorm.DB, subSvc *services.SubscriptionService) *Conte
 	return &ContentHandler{DB: db, SubSvc: subSvc}
 }
 
+func canManageAllContent(u *models.User) bool {
+	return u != nil && (u.Role == models.RoleAdmin || u.CanManageAllContent)
+}
+
 // kycRequired reports whether the platform currently requires approved KYC
 // before a student can access subscription-gated content.
 func kycRequired(db *gorm.DB) bool {
@@ -141,7 +145,7 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 
 	var item models.ContentItem
 	query := h.DB.Where("id = ?", id)
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 	if err := query.First(&item).Error; err != nil {
@@ -217,7 +221,7 @@ func (h *ContentHandler) SubmitContentForReview(c *gin.Context) {
 
 	var item models.ContentItem
 	query := h.DB.Where("id = ? AND status IN ?", id, []string{string(models.StatusDraft), string(models.StatusRejected)})
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 	if err := query.First(&item).Error; err != nil {
@@ -246,7 +250,7 @@ func (h *ContentHandler) PublishContent(c *gin.Context) {
 
 	var item models.ContentItem
 	query := h.DB.Where("id = ? AND status = ?", id, models.StatusApproved)
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 	if err := query.First(&item).Error; err != nil {
@@ -283,7 +287,7 @@ func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
 		Preload("Course").Preload("Chapter").Preload("Uploader").
 		Where("id = ?", id)
 
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 
@@ -347,7 +351,7 @@ func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 
 	var items []models.ContentItem
 	query := h.DB.WithContext(c.Request.Context())
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 	query.Preload("Course").Order("created_at DESC").Find(&items)
