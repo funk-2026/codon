@@ -3,6 +3,9 @@ import * as SecureStore from 'expo-secure-store';
 
 const ACCESS_TOKEN_KEY = 'codon_access_token';
 const USER_KEY = 'codon_user';
+const ADMIN_ACTIVE_ROLE_KEY = 'codon_admin_active_role';
+
+export type AdminActiveRole = 'admin' | 'teacher' | 'student';
 
 export type StoredUser = {
   id: string;
@@ -52,4 +55,19 @@ export async function getStoredUser(): Promise<StoredUser | null> {
 export async function clearSession(): Promise<void> {
   await store.deleteItemAsync(ACCESS_TOKEN_KEY);
   await store.deleteItemAsync(USER_KEY);
+  await store.deleteItemAsync(ADMIN_ACTIVE_ROLE_KEY);
+}
+
+export async function saveAdminActiveRole(role: AdminActiveRole): Promise<void> {
+  await store.setItemAsync(ADMIN_ACTIVE_ROLE_KEY, role);
+}
+
+export async function getAdminActiveRole(): Promise<AdminActiveRole | null> {
+  const raw = await store.getItemAsync(ADMIN_ACTIVE_ROLE_KEY);
+  if (raw === 'admin' || raw === 'teacher' || raw === 'student') return raw;
+  return null;
+}
+
+export async function clearAdminActiveRole(): Promise<void> {
+  await store.deleteItemAsync(ADMIN_ACTIVE_ROLE_KEY);
 }

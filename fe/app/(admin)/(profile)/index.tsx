@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { PencilSimple, CaretRight } from 'phosphor-react-native';
+import { PencilSimple, CaretRight, ArrowsClockwise } from 'phosphor-react-native';
 import { SecondaryButton, useToast } from '@/src/components';
 import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { updateMe } from '@/src/api/profile';
+import { clearAdminActiveRole } from '@/src/auth/tokenStore';
 
 export default function AdminProfileRoute() {
   const { color, type, space, radius, preference, setPreference } = useTheme();
@@ -153,6 +154,20 @@ export default function AdminProfileRoute() {
             SUPPORT
           </Text>
           <View style={{ gap: space.xs }}>
+            <Pressable
+              onPress={async () => {
+                await clearAdminActiveRole();
+                router.push('/role-picker?source=settings' as any);
+              }}
+              style={({ pressed }) => [
+                styles.row,
+                { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
+              ]}
+            >
+              <ArrowsClockwise size={20} color={color('accent/default')} weight="duotone" />
+              <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>Switch Role</Text>
+              <CaretRight size={18} color={color('text/tertiary')} />
+            </Pressable>
             <Pressable
               onPress={() => router.push('/(admin)/(profile)/manage-devices')}
               style={({ pressed }) => [
