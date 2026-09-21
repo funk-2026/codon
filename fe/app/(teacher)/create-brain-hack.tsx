@@ -135,7 +135,7 @@ export default function CreateBrainHackRoute() {
           label="Preview & Submit"
           onPress={() =>
             router.push({
-              pathname: '/(teacher)/(tabs)/(content)/content-preview',
+              pathname: '/(teacher)/content-preview',
               params: {
                 type: 'Brain Hack',
                 draftTitle: title,

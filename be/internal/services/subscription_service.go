@@ -41,6 +41,10 @@ func (s *SubscriptionService) GetActiveSubscription(ctx context.Context, userID,
 // CheckAccess verifies if a user can access an item with requires_subscription and course_id.
 // Also checks KYC if the platform setting requires it.
 func (s *SubscriptionService) CheckAccess(ctx context.Context, user *models.User, requiresSubscription bool, courseID uuid.UUID, kycRequired bool) error {
+	if user != nil && user.Role == models.RoleAdmin {
+		return nil // Admin has full access to all course content and tests
+	}
+
 	if !requiresSubscription {
 		return nil // free content, always accessible
 	}

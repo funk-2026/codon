@@ -16,6 +16,7 @@ export type ContentItem = {
   hls_playlist_url?: string;
   status: string;
   rejection_reason?: string;
+  reviewed_at?: string;
   uploader?: UserProfile;
   created_at?: string;
 };

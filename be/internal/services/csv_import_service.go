@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"strings"
 	"time"
 
 	"codon-backend/internal/jobs"
 	"codon-backend/internal/models"
+	"codon-backend/internal/storage"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -37,17 +37,17 @@ func (s *CSVImportService) HandleCSVImport(ctx context.Context, payload string) 
 		return fmt.Errorf("batch not found: %w", err)
 	}
 
-	// In a real implementation, we'd download the CSV from S3 using the file_key.
-	// For now we log and mark as completed — the actual S3 download requires the storage client.
-	// The architecture is wired; integrators should inject an S3 reader here.
-	log.Printf("[CSVImport] Batch %s: would download %s and import into test %s", p.BatchID, p.FileKey, p.TestID)
+	if storage.Client == nil {
+		return fmt.Errorf("storage not configured — cannot download %s", p.FileKey)
+	}
 
-	// Mark batch as completed (stub — real impl would parse rows)
-	now := time.Now()
-	return s.DB.WithContext(ctx).Model(&batch).Updates(map[string]interface{}{
-		"status":       models.ImportCompleted,
-		"completed_at": now,
-	}).Error
+	body, err := storage.Client.DownloadObject(ctx, p.FileKey)
+	if err != nil {
+		return fmt.Errorf("downloading CSV from storage: %w", err)
+	}
+	defer body.Close()
+
+	return s.ProcessCSVReader(ctx, p.BatchID, p.TestID, body)
 }
 
 // ProcessCSVReader parses a CSV reader and imports questions into the test.

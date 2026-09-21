@@ -75,9 +75,19 @@ export default function SplashRoute() {
 
   useEffect(() => {
     if (auth.status === 'loading') return; // still reading keychain
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       if (auth.status === 'authenticated') {
-        router.replace(ROLE_HOME[auth.user.role]);
+        if (auth.user.role === 'admin') {
+          const { getAdminActiveRole } = await import('@/src/auth/tokenStore');
+          const activeRole = await getAdminActiveRole();
+          if (activeRole) {
+            router.replace(ROLE_HOME[activeRole]);
+          } else {
+            router.replace('/role-picker' as any);
+          }
+        } else {
+          router.replace(ROLE_HOME[auth.user.role]);
+        }
       } else {
         router.replace('/onboarding');
       }

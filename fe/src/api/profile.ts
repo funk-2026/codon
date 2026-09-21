@@ -71,6 +71,11 @@ export function updateMe(data: UpdateMeRequest): Promise<UserProfile> {
   });
 }
 
+/** DELETE /api/v1/me */
+export function deleteAccount(): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/me', { method: 'DELETE' });
+}
+
 export type ProgressResponse = {
   attempted_count: number;
   avg_score: number;

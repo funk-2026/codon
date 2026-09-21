@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import {
   CheckCircle,
@@ -20,6 +20,7 @@ import { useAuth } from '@/src/auth/AuthContext';
 type Activity = {
   id: string;
   status: 'approved' | 'rejected' | 'published';
+  type: 'Test' | 'Video' | 'Document';
   text: string;
   time: string;
 };
@@ -90,7 +91,7 @@ export default function TeacherHomeRoute() {
         const acts: Activity[] = [];
         
         const processItem = (item: any) => {
-          if (item.status === 'in_review') inReview++;
+          if (item.status === 'pending_review') inReview++;
           if (item.status === 'approved') approved++;
           if (item.status === 'published') live++;
           if (item.status === 'rejected') changesNeeded++;
@@ -101,6 +102,7 @@ export default function TeacherHomeRoute() {
             acts.push({
               id: item.id,
               status: item.status as Activity['status'],
+              type: item.content_type === 'video' ? 'Video' : item.content_type === 'document' ? 'Document' : 'Test',
               text,
               time: new Date(item.updated_at || Date.now()).toLocaleDateString(),
             });
@@ -118,9 +120,11 @@ export default function TeacherHomeRoute() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const attentionCount = stats.changesNeeded;
 
@@ -216,8 +220,8 @@ export default function TeacherHomeRoute() {
                   key={a.id}
                   onPress={() =>
                     a.status === 'rejected'
-                      ? router.push({ pathname: '/(teacher)/(tabs)/(content)/rejected-content-detail', params: { id: a.id } })
-                      : router.push({ pathname: '/(teacher)/(tabs)/(content)/content-preview', params: { id: a.id } })
+                      ? router.push({ pathname: '/(teacher)/rejected-content-detail', params: { id: a.id, type: a.type } })
+                      : router.push({ pathname: '/(teacher)/content-preview', params: { id: a.id, type: a.type } })
                   }
                   style={({ pressed }) => [
                     styles.activityRow,

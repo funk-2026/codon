@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"codon-backend/internal/config"
@@ -85,6 +86,20 @@ func (s *S3Client) PresignGet(ctx context.Context, key string, expiry time.Durat
 		return "", fmt.Errorf("presigning GET: %w", err)
 	}
 	return req.URL, nil
+}
+
+// DownloadObject fetches an object's content for server-side processing
+// (e.g. the worker downloading a CSV to parse it). Caller must close the
+// returned reader.
+func (s *S3Client) DownloadObject(ctx context.Context, key string) (io.ReadCloser, error) {
+	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("downloading object %s: %w", key, err)
+	}
+	return out.Body, nil
 }
 
 // BuildObjectKey constructs a namespaced key under the given purpose prefix.

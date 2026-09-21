@@ -6,8 +6,6 @@ export default function TeacherContentStack() {
   return (
     <Stack screenOptions={base}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="content-preview" options={{ title: 'Preview' }} />
-      <Stack.Screen name="rejected-content-detail" options={{ title: 'Rejected' }} />
     </Stack>
   );
 }

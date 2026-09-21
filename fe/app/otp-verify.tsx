@@ -92,7 +92,7 @@ export default function OtpVerifyRoute() {
       if (!isProfileComplete) {
         router.replace('/profile-setup');
       } else if (role === 'admin') {
-        router.replace('/(admin)/(home)');
+        router.replace('/role-picker' as any);
       } else if (role === 'teacher') {
         router.replace('/(teacher)/(tabs)/(home)');
       } else {

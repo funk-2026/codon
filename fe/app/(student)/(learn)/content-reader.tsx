@@ -7,11 +7,13 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { CaretLeft, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
+import { CaretLeft, WarningCircle, LockSimple } from 'phosphor-react-native';
+import { WebView } from 'react-native-webview';
+import { EmptyState, PrimaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent } from '@/src/api/content';
 import type { ContentItem } from '@/src/api/content';
+import { ApiError } from '@/src/api/client';
 
 
 
@@ -24,6 +26,7 @@ export default function ContentReaderRoute() {
   
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [content, setContent] = useState<{ item: ContentItem; url?: string } | null>(null);
   const [siblings, setSiblings] = useState<ContentItem[]>([]);
 
@@ -33,6 +36,8 @@ export default function ContentReaderRoute() {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
+    setLoadError(false);
+    setAccessDenied(false);
     try {
       const res = await getContentItem(id as string);
       setContent({ item: res.content, url: res.url });
@@ -40,10 +45,13 @@ export default function ContentReaderRoute() {
         const chapRes = await getChapterContent(res.content.chapter_id);
         setSiblings(chapRes.content.filter(c => c.id !== id));
       }
-      setLoadError(false);
     } catch (err) {
       console.error('Failed to load content', err);
-      setLoadError(true);
+      if (err instanceof ApiError && err.status === 403) {
+        setAccessDenied(true);
+      } else {
+        setLoadError(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -72,8 +80,6 @@ export default function ContentReaderRoute() {
     setProgress(max > 0 ? y / max : 0);
     setScrolled(y > 40);
   };
-
-  const paragraphs = content?.url ? [`Document URL: ${content.url}`, '(In a real app, this would be a PDF viewer)'] : ['No content available'];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -156,33 +162,30 @@ export default function ContentReaderRoute() {
             action={<TextButton label="Retry" onPress={load} />}
             style={{ marginTop: space.xl }}
           />
+        ) : accessDenied ? (
+          <EmptyState
+            icon={<LockSimple size={32} color={color('text/tertiary')} weight="fill" />}
+            title="Subscription required"
+            description="Subscribe to a plan to unlock this document."
+            action={
+              <PrimaryButton
+                label="View Plans"
+                onPress={() => router.replace('/(student)/(profile)/subscription-plans')}
+              />
+            }
+            style={{ marginTop: space.xl }}
+          />
         ) : (
           <>
             {/* Body */}
-            <View style={{ marginTop: space.lg, gap: space.md }}>
-              {paragraphs.map((para, i) => {
-                if (para.startsWith('## ')) {
-                  return (
-                    <Text
-                      key={i}
-                      style={[
-                        type['type/h3'],
-                        { color: color('text/primary'), marginTop: i > 0 ? space.lg : 0 },
-                      ]}
-                    >
-                      {para.replace('## ', '')}
-                    </Text>
-                  );
-                }
-                return (
-                  <Text
-                    key={i}
-                    style={[type['type/body-l'], { color: color('text/primary') }]}
-                  >
-                    {para}
-                  </Text>
-                );
-              })}
+            <View style={{ marginTop: space.lg, height: 500 }}>
+              {content?.url ? (
+                <WebView source={{ uri: content.url }} style={styles.docView} />
+              ) : (
+                <Text style={[type['type/body-l'], { color: color('text/secondary') }]}>
+                  This document isn&apos;t available yet.
+                </Text>
+              )}
             </View>
 
             {/* End-of-content footer */}
@@ -255,4 +258,5 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   topBar: { flexDirection: 'row', alignItems: 'center' },
   siblingRow: { flexDirection: 'row', alignItems: 'center' },
+  docView: { flex: 1 },
 });

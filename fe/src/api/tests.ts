@@ -5,6 +5,7 @@ import type { UserProfile } from './profile';
 export type Test = {
   id: string;
   title: string;
+  description?: string;
   course_id: string;
   course?: Course;
   module_type: 'qbank' | 'test_series' | 'practice';
@@ -18,6 +19,8 @@ export type Test = {
   marks_per_correct: number;
   marks_per_wrong: number;
   status: string;
+  rejection_reason?: string;
+  reviewed_at?: string;
   creator?: UserProfile;
   created_at?: string;
 };

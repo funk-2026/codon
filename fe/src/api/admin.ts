@@ -1,11 +1,11 @@
 import { apiFetch } from './client';
 import { UserProfile } from './profile';
-import { Test } from './tests';
+import { Test, Question } from './tests';
 import { ContentItem } from './content';
 import { SubscriptionPlan } from './profile';
 import { KYCRecord } from './kyc';
 import { WellnessContent } from './wellness';
-import { Subject } from './courses';
+import { Subject, Chapter } from './courses';
 
 export type AdminDashboardSummary = {
   total_users: number;
@@ -93,9 +93,9 @@ export function adminListTests(status?: string): Promise<{ tests: Test[] }> {
   return apiFetch<{ tests: Test[] }>(`/admin/tests${qs}`, { method: 'GET' });
 }
 
-/** GET /api/v1/admin/tests/:id (Requires BE implementation) */
-export function adminGetTest(id: string): Promise<{ test: Test }> {
-  return apiFetch<{ test: Test }>(`/admin/tests/${id}`, { method: 'GET' });
+/** GET /api/v1/admin/tests/:id */
+export function adminGetTest(id: string): Promise<{ test: Test; questions: Question[] }> {
+  return apiFetch<{ test: Test; questions: Question[] }>(`/admin/tests/${id}`, { method: 'GET' });
 }
 
 /** POST /api/v1/admin/tests/:id/approve */
@@ -117,9 +117,9 @@ export function adminListContent(status?: string): Promise<{ content: ContentIte
   return apiFetch<{ content: ContentItem[] }>(`/admin/content${qs}`, { method: 'GET' });
 }
 
-/** GET /api/v1/admin/content/:id (Requires BE implementation) */
-export function adminGetContent(id: string): Promise<{ content: ContentItem }> {
-  return apiFetch<{ content: ContentItem }>(`/admin/content/${id}`, { method: 'GET' });
+/** GET /api/v1/admin/content/:id */
+export function adminGetContent(id: string): Promise<{ content: ContentItem; url?: string }> {
+  return apiFetch<{ content: ContentItem; url?: string }>(`/admin/content/${id}`, { method: 'GET' });
 }
 
 /** POST /api/v1/admin/content/:id/approve */
@@ -194,6 +194,25 @@ export function updateSubject(
   fields: Partial<Pick<Subject, 'name' | 'description' | 'order_index'>>
 ): Promise<Subject> {
   return apiFetch<Subject>(`/admin/subjects/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(fields),
+  });
+}
+
+/** POST /api/v1/admin/subjects/:subject_id/chapters */
+export function createChapter(subjectId: string, name: string, description: string): Promise<Chapter> {
+  return apiFetch<Chapter>(`/admin/subjects/${subjectId}/chapters`, {
+    method: 'POST',
+    body: JSON.stringify({ name, description }),
+  });
+}
+
+/** PATCH /api/v1/admin/chapters/:id */
+export function updateChapter(
+  id: string,
+  fields: Partial<Pick<Chapter, 'name' | 'description' | 'order_index'>>
+): Promise<Chapter> {
+  return apiFetch<Chapter>(`/admin/chapters/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(fields),
   });

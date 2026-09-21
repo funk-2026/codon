@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { WarningCircle } from 'phosphor-react-native';
 import { PrimaryButton, SecondaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 
-const REASON = 'Your bank declined this transaction. This is usually resolved by trying a different payment method.';
+const DEFAULT_REASON = "Your payment didn't complete. This is usually resolved by trying a different payment method.";
 
 export default function PaymentFailedRoute() {
   const { color, type, space } = useTheme();
   const router = useRouter();
+  const { reason } = useLocalSearchParams<{ reason?: string }>();
   const [retrying, setRetrying] = useState(false);
 
   const scale = useSharedValue(0.9);
@@ -50,7 +51,7 @@ export default function PaymentFailedRoute() {
         <Text
           style={[type['type/body-l'], { color: color('text/secondary'), marginTop: space.xs, textAlign: 'center' }]}
         >
-          {REASON}
+          {reason || DEFAULT_REASON}
         </Text>
         <Text
           style={[type['type/body-m'], { color: color('text/tertiary'), marginTop: space.md, textAlign: 'center' }]}

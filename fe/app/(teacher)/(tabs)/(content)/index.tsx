@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import {
   MagnifyingGlass,
@@ -132,9 +132,11 @@ export default function MyContentListRoute() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const fabProgress = useSharedValue(0);
   useEffect(() => {
@@ -154,9 +156,9 @@ export default function MyContentListRoute() {
 
   const openItem = (item: ContentItem) => {
     if (item.status === 'rejected') {
-      router.push({ pathname: '/(teacher)/(tabs)/(content)/rejected-content-detail', params: { id: item.id } });
+      router.push({ pathname: '/(teacher)/rejected-content-detail', params: { id: item.id, type: item.type } });
     } else {
-      router.push({ pathname: '/(teacher)/(tabs)/(content)/content-preview', params: { id: item.id, type: item.type } });
+      router.push({ pathname: '/(teacher)/content-preview', params: { id: item.id, type: item.type } });
     }
   };
 

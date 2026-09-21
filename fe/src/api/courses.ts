@@ -39,21 +39,5 @@ export function getCurriculum(courseId: string): Promise<CurriculumResponse> {
   return apiFetch<CurriculumResponse>(`/courses/${courseId}/curriculum`, { method: 'GET' });
 }
 
-/** POST /api/v1/teacher/subjects/:subject_id/chapters — teachers create chapters (topics) */
-export function createChapter(subjectId: string, name: string, description: string): Promise<Chapter> {
-  return apiFetch<Chapter>(`/teacher/subjects/${subjectId}/chapters`, {
-    method: 'POST',
-    body: JSON.stringify({ name, description }),
-  });
-}
-
-/** PATCH /api/v1/teacher/chapters/:id */
-export function updateChapter(
-  id: string,
-  fields: Partial<Pick<Chapter, 'name' | 'description' | 'order_index'>>
-): Promise<Chapter> {
-  return apiFetch<Chapter>(`/teacher/chapters/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(fields),
-  });
-}
+// Chapter creation/editing is admin-only — see createChapter/updateChapter in
+// @/src/api/admin.

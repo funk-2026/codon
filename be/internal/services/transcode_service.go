@@ -49,33 +49,26 @@ func (s *TranscodeService) HandleTranscode(ctx context.Context, payload string) 
 	// 3. Upload HLS playlist + segments back to S3
 	// 4. Update hls_playlist_url and video_status=ready
 	//
-	// Stub implementation below checks if ffmpeg is available and logs the command.
-
-	outputKey := strings.TrimSuffix(p.FileKey, filepath.Ext(p.FileKey)) + "/hls/playlist.m3u8"
+	// Stub implementation below checks if ffmpeg is available and logs the
+	// command, but never actually transcodes. It deliberately leaves
+	// hls_playlist_url unset either way — resolveContentURL falls back to a
+	// presigned R2 GET on the raw uploaded file when there's no HLS URL, so
+	// the video is still watchable (just not adaptive-bitrate HLS). Setting
+	// a fake hls_playlist_url here would instead break playback outright,
+	// since resolveContentURL trusts an explicit HLS URL over the R2
+	// fallback.
 
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		log.Printf("[Transcode] ffmpeg not found — marking stub ready for item %s", p.ContentItemID)
-		// Stub: mark ready with a placeholder
-		vReady := models.VideoReady
-		hlsURL := fmt.Sprintf("s3://%s", outputKey)
-		s.DB.WithContext(ctx).Model(&item).Updates(map[string]interface{}{
-			"video_status":     vReady,
-			"hls_playlist_url": hlsURL,
-			"updated_at":       time.Now(),
-		})
-		return nil
+		log.Printf("[Transcode] ffmpeg not found — marking ready without real transcode for item %s (raw upload will be served directly)", p.ContentItemID)
+	} else {
+		outputKey := strings.TrimSuffix(p.FileKey, filepath.Ext(p.FileKey)) + "/hls/playlist.m3u8"
+		log.Printf("[Transcode] Would run: ffmpeg -i <input> -codec:v libx264 -hls_time 10 -hls_list_size 0 -f hls <output>")
+		log.Printf("[Transcode] Input key: %s, Output key: %s (not actually produced by this stub)", p.FileKey, outputKey)
 	}
 
-	// Real ffmpeg transcode command (requires local file path — needs S3 download first)
-	log.Printf("[Transcode] Would run: ffmpeg -i <input> -codec:v libx264 -hls_time 10 -hls_list_size 0 -f hls <output>")
-	log.Printf("[Transcode] Input key: %s, Output key: %s", p.FileKey, outputKey)
-
-	// Mark as ready (in a real impl, this would run after ffmpeg + re-upload succeeds)
 	vReady := models.VideoReady
-	hlsURL := outputKey
 	return s.DB.WithContext(ctx).Model(&item).Updates(map[string]interface{}{
-		"video_status":     vReady,
-		"hls_playlist_url": hlsURL,
-		"updated_at":       time.Now(),
+		"video_status": vReady,
+		"updated_at":   time.Now(),
 	}).Error
 }

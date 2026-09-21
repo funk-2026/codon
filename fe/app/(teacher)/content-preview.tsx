@@ -2,15 +2,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, CaretDown, CaretUp, Play, Pause, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
+import { CaretLeft, CaretDown, CaretUp, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { EmptyState, PrimaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { submitTestForReview, submitContentForReview, publishContent, getTeacherContent } from '@/src/api/teacher';
-import { getTest, getTestQuestions, Test, Question } from '@/src/api/tests';
+import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest } from '@/src/api/teacher';
+import { Test, Question } from '@/src/api/tests';
 import { ContentItem } from '@/src/api/content';
+import { ApiError } from '@/src/api/client';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
-type Status = 'draft' | 'pending' | 'approved' | 'published';
+type Status = 'draft' | 'pending' | 'approved' | 'published' | 'rejected';
 
 const QUESTION_OPTIONS: { letter: string; key: 'option_a' | 'option_b' | 'option_c' | 'option_d' }[] = [
   { letter: 'A', key: 'option_a' },
@@ -25,6 +27,7 @@ function taxonomyBadge(status: Status): { badgeStatus: BadgeStatus; label: strin
     pending: { badgeStatus: 'pending', label: 'In Review' },
     approved: { badgeStatus: 'approved', label: 'Approved' },
     published: { badgeStatus: 'published', label: 'Live' },
+    rejected: { badgeStatus: 'rejected', label: 'Changes Needed' },
   };
   return map[status];
 }
@@ -41,6 +44,15 @@ function shadow(): {} {
 
 function breadcrumbFrom(parts: (string | undefined)[]): string {
   return parts.filter((p): p is string => !!p && p.trim().length > 0).join(' · ');
+}
+
+// The backend isn't consistent about status strings across endpoints
+// (e.g. 'pending' vs 'pending_review' for the same in-review state) —
+// normalize known variants and fall back safely for anything else.
+function normalizeStatus(raw: string): Status {
+  if (raw === 'pending_review') return 'pending';
+  const known: Status[] = ['draft', 'pending', 'approved', 'published', 'rejected'];
+  return (known as string[]).includes(raw) ? (raw as Status) : 'draft';
 }
 
 export default function ContentPreviewRoute() {
@@ -78,17 +90,20 @@ export default function ContentPreviewRoute() {
   const [status, setStatus] = useState<Status>((rawStatus as Status) ?? 'draft');
   const [questionsExpanded, setQuestionsExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [playing, setPlaying] = useState(false);
 
   const [loading, setLoading] = useState(!!id);
   const [loadError, setLoadError] = useState(false);
   const [resolvedType, setResolvedType] = useState<ContentType | null>(null);
   const [testData, setTestData] = useState<Test | null>(null);
   const [contentData, setContentData] = useState<ContentItem | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
+  const player = useVideoPlayer(videoUrl ?? null, (p) => {
+    p.loop = false;
+  });
 
   const [questions, setQuestions] = useState<Question[] | null>(null);
-  const [questionsLoading, setQuestionsLoading] = useState(false);
-  const [questionsError, setQuestionsError] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const contentType: ContentType = paramType ?? resolvedType ?? 'Test';
 
@@ -98,17 +113,21 @@ export default function ContentPreviewRoute() {
     setLoadError(false);
 
     const loadTest = () =>
-      getTest(id).then((res) => {
+      getTeacherTest(id).then((res) => {
         setTestData(res.test);
+        setQuestions(res.questions);
         setResolvedType('Test');
+        setStatus(normalizeStatus(res.test.status));
       });
     const loadContent = () =>
       getTeacherContent(id).then((res) => {
-        setContentData(res);
-        const rawContentType = String(res.content_type);
+        setContentData(res.content);
+        setVideoUrl(res.url);
+        const rawContentType = String(res.content.content_type);
         setResolvedType(
           rawContentType === 'video' ? 'Video' : rawContentType === 'brain_hack' ? 'Brain Hack' : 'Document'
         );
+        setStatus(normalizeStatus(res.content.status));
       });
 
     const run =
@@ -124,26 +143,6 @@ export default function ContentPreviewRoute() {
   useEffect(() => {
     loadItem();
   }, [loadItem]);
-
-  useEffect(() => {
-    if (!id || contentType !== 'Test' || !questionsExpanded) return;
-    if (questions !== null || questionsLoading || questionsError) return;
-    let cancelled = false;
-    setQuestionsLoading(true);
-    getTestQuestions(id)
-      .then((res) => {
-        if (!cancelled) setQuestions(res.questions);
-      })
-      .catch(() => {
-        if (!cancelled) setQuestionsError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setQuestionsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, contentType, questionsExpanded, questions, questionsLoading, questionsError]);
 
   const badge = taxonomyBadge(status);
 
@@ -170,19 +169,35 @@ export default function ContentPreviewRoute() {
     setSubmitting(true);
     try {
       if (contentType === 'Test') {
-        show('Test published (mock)', 'success');
-        setStatus('published');
+        await publishTest(id);
       } else {
         await publishContent(id);
-        setStatus('published');
-        show('Now live for students', 'success');
       }
+      setStatus('published');
+      show('Now live for students', 'success');
     } catch (err) {
-      show('Failed to publish', 'error');
+      show(err instanceof ApiError ? err.message : 'Failed to publish', 'error');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await deleteTest(id);
+      show('Test deleted', 'success');
+      router.back();
+    } catch (err) {
+      show('Failed to delete', 'error');
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
+    }
+  };
+
+  const canDelete = contentType === 'Test' && !!id && (status === 'draft' || status === 'pending' || status === 'rejected');
+  const rejectionReason = contentType === 'Test' ? testData?.rejection_reason : contentData?.rejection_reason;
 
   const questionCountNum = id ? testData?.total_questions ?? 0 : Number(draftQuestionCount || 0);
   const durationLabel = id
@@ -278,15 +293,6 @@ export default function ContentPreviewRoute() {
                         ? "Question text isn't available in this preview yet — add or review them via the question builder."
                         : 'No questions added yet.'}
                     </Text>
-                  ) : questionsLoading ? (
-                    <>
-                      <SkeletonBlock height={96} radius={radius.md} />
-                      <SkeletonBlock height={96} radius={radius.md} />
-                    </>
-                  ) : questionsError ? (
-                    <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
-                      Question preview isn&apos;t available yet.
-                    </Text>
                   ) : sortedQuestions && sortedQuestions.length > 0 ? (
                     sortedQuestions.map((q, qi) => (
                       <View
@@ -327,21 +333,32 @@ export default function ContentPreviewRoute() {
             </View>
           ) : contentType === 'Video' ? (
             <View>
-              {contentData?.hls_playlist_url ? (
-                <View style={[styles.videoFrame, { backgroundColor: '#000', borderRadius: radius.md }]}>
-                  <Pressable onPress={() => setPlaying((v) => !v)} style={styles.videoCenter}>
-                    {playing ? (
-                      <Pause size={48} color="#fff" weight="fill" />
-                    ) : (
-                      <Play size={48} color="#fff" weight="fill" />
-                    )}
-                  </Pressable>
-                </View>
+              {videoUrl ? (
+                <VideoView
+                  player={player}
+                  style={[styles.videoFrame, { backgroundColor: '#000', borderRadius: radius.md }]}
+                  contentFit="contain"
+                  nativeControls
+                />
               ) : (
                 <View style={[styles.videoFrame, { backgroundColor: color('bg/sunken'), borderRadius: radius.md }]}>
-                  <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Video not available</Text>
+                  <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>
+                    {contentData?.video_status === 'failed'
+                      ? "Video processing failed — try re-uploading."
+                      : contentData?.video_status === 'queued' || contentData?.video_status === 'transcoding'
+                        ? 'Video is still processing…'
+                        : 'Video not available'}
+                  </Text>
                 </View>
               )}
+              {__DEV__ ? (
+                <Text
+                  selectable
+                  style={[type['type/caption'], { color: color('text/tertiary'), paddingHorizontal: space.sm, paddingTop: space.xs }]}
+                >
+                  DEBUG video_status={contentData?.video_status ?? 'null'} url={videoUrl || '(none)'}
+                </Text>
+              ) : null}
               <Text style={[type['type/h3'], { color: color('text/primary'), padding: space.sm }]}>
                 {contentData?.title ?? 'Untitled Video'}
               </Text>
@@ -414,11 +431,44 @@ export default function ContentPreviewRoute() {
             </Text>
           </View>
         ) : null}
+
+        {status === 'rejected' ? (
+          <View style={[styles.rejectedCallout, { borderRadius: radius.md, marginTop: space.lg }]}>
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: color('semantic/danger'), opacity: 0.12, borderRadius: radius.md }]} />
+            <View style={{ padding: space.sm }}>
+              <Text style={[type['type/overline'], { color: color('semantic/danger') }]}>REVIEWER FEEDBACK</Text>
+              <Text style={[type['type/body-m'], { color: color('text/primary'), marginTop: 4 }]}>
+                {rejectionReason || 'No reason was provided.'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
 
-      {status === 'draft' ? (
+      {canDelete ? (
+        deleteConfirmOpen ? (
+          <View
+            style={[
+              styles.deleteConfirmRow,
+              { backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.sm, marginHorizontal: space.md, marginBottom: space.sm },
+            ]}
+          >
+            <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
+              Delete this test permanently?
+            </Text>
+            <TextButton label={deleting ? 'Deleting…' : 'Yes, delete'} onPress={handleDelete} disabled={deleting} style={{ marginRight: space.sm }} />
+            <TextButton label="Cancel" onPress={() => setDeleteConfirmOpen(false)} disabled={deleting} />
+          </View>
+        ) : (
+          <View style={{ alignItems: 'center', marginBottom: space.sm }}>
+            <TextButton label="Delete draft" onPress={() => setDeleteConfirmOpen(true)} />
+          </View>
+        )
+      ) : null}
+
+      {status === 'draft' || status === 'rejected' ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-          <PrimaryButton label="Submit for Review" onPress={handleSubmitForReview} loading={submitting} />
+          <PrimaryButton label={status === 'rejected' ? 'Resubmit for Review' : 'Submit for Review'} onPress={handleSubmitForReview} loading={submitting} />
         </View>
       ) : status === 'approved' ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
@@ -452,7 +502,8 @@ const styles = StyleSheet.create({
   statChip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, marginBottom: 6 },
   questionsToggle: { flexDirection: 'row', alignItems: 'center' },
   videoFrame: { height: 180, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  videoCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
   pill: { alignSelf: 'flex-start', paddingVertical: 4 },
   approvedCallout: { overflow: 'hidden' },
+  rejectedCallout: { overflow: 'hidden' },
+  deleteConfirmRow: { flexDirection: 'row', alignItems: 'center' },
 });

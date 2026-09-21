@@ -6,7 +6,7 @@ import { CaretLeft, CaretRight, Folder, Plus, Books, WarningCircle } from 'phosp
 import { EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listCourses, getCurriculum, type Course, type Subject } from '@/src/api/courses';
-import { createSubject } from '@/src/api/admin';
+import { createSubject, createChapter } from '@/src/api/admin';
 
 function shadow(): {} {
   return {
@@ -30,11 +30,16 @@ export default function ManageSubjectsRoute() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const [addChapterOpen, setAddChapterOpen] = useState(false);
+  const [newChapterName, setNewChapterName] = useState('');
+  const [chapterSubmitting, setChapterSubmitting] = useState(false);
 
   const loadCourses = useCallback(() => {
     setLoading(true);
@@ -64,7 +69,9 @@ export default function ManageSubjectsRoute() {
   };
 
   const goBack = () => {
-    if (selectedCourse) {
+    if (selectedSubject) {
+      setSelectedSubject(null);
+    } else if (selectedCourse) {
       setSelectedCourse(null);
       setSubjects([]);
     } else {
@@ -89,8 +96,26 @@ export default function ManageSubjectsRoute() {
     }
   };
 
-  const title = selectedCourse ? selectedCourse.name : 'Manage Subjects';
-  const subtitle = selectedCourse ? 'Subjects' : 'Select a course';
+  const submitNewChapter = async () => {
+    if (newChapterName.trim().length === 0 || chapterSubmitting || !selectedSubject) return;
+    setChapterSubmitting(true);
+    try {
+      const chapter = await createChapter(selectedSubject.id, newChapterName.trim(), '');
+      const updatedSubject = { ...selectedSubject, chapters: [...(selectedSubject.chapters ?? []), chapter] };
+      setSelectedSubject(updatedSubject);
+      setSubjects((prev) => prev.map((s) => (s.id === updatedSubject.id ? updatedSubject : s)));
+      setAddChapterOpen(false);
+      setNewChapterName('');
+      show('Chapter added', 'success');
+    } catch (e) {
+      show('Failed to add chapter', 'error');
+    } finally {
+      setChapterSubmitting(false);
+    }
+  };
+
+  const title = selectedSubject ? selectedSubject.name : selectedCourse ? selectedCourse.name : 'Manage Subjects';
+  const subtitle = selectedSubject ? 'Chapters' : selectedCourse ? 'Subjects' : 'Select a course';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -152,7 +177,7 @@ export default function ManageSubjectsRoute() {
               ))}
             </View>
           )
-        ) : (
+        ) : !selectedSubject ? (
           <>
             <Pressable
               onPress={() => setAddOpen(true)}
@@ -183,11 +208,12 @@ export default function ManageSubjectsRoute() {
             ) : (
               <View style={{ gap: space.xs }}>
                 {subjects.map((s) => (
-                  <View
+                  <Pressable
                     key={s.id}
-                    style={[
+                    onPress={() => setSelectedSubject(s)}
+                    style={({ pressed }) => [
                       styles.row,
-                      { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm },
+                      { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, opacity: pressed ? 0.94 : 1 },
                       shadow(),
                     ]}
                   >
@@ -202,6 +228,51 @@ export default function ManageSubjectsRoute() {
                         {s.chapters?.length ?? 0} chapter{(s.chapters?.length ?? 0) === 1 ? '' : 's'}
                       </Text>
                     </View>
+                    <CaretRight size={18} color={color('text/tertiary')} />
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            <Pressable
+              onPress={() => setAddChapterOpen(true)}
+              style={[
+                styles.addRow,
+                { borderRadius: radius.md, borderColor: color('border/strong'), padding: space.md, marginBottom: space.sm },
+              ]}
+            >
+              <Plus size={18} color={color('accent/default')} />
+              <Text style={[type['type/body-m-medium'], { color: color('accent/default'), marginLeft: space.xs }]}>
+                Add Chapter
+              </Text>
+            </Pressable>
+
+            {(selectedSubject.chapters?.length ?? 0) === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: space.xl, gap: space.xs }}>
+                <Folder size={28} color={color('text/tertiary')} weight="duotone" />
+                <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>
+                  Nothing here yet — add the first chapter.
+                </Text>
+              </View>
+            ) : (
+              <View style={{ gap: space.xs }}>
+                {(selectedSubject.chapters ?? []).map((ch) => (
+                  <View
+                    key={ch.id}
+                    style={[
+                      styles.row,
+                      { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm },
+                      shadow(),
+                    ]}
+                  >
+                    <View style={[styles.rowIcon, { backgroundColor: color('accent/tint'), borderRadius: radius.sm }]}>
+                      <Folder size={20} color={color('accent/default')} weight="duotone" />
+                    </View>
+                    <Text style={[type['type/h3'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]} numberOfLines={1}>
+                      {ch.name}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -236,6 +307,30 @@ export default function ManageSubjectsRoute() {
                 loading={submitting}
               />
               <SecondaryButton label="Cancel" onPress={() => setAddOpen(false)} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={addChapterOpen} transparent animationType="fade" onRequestClose={() => setAddChapterOpen(false)}>
+        <View style={[styles.scrim, { padding: space.lg }]}>
+          <View style={[styles.modalCard, { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }]}>
+            <Text style={[type['type/h3'], { color: color('text/primary') }]}>New Chapter</Text>
+            <InputField
+              value={newChapterName}
+              onChangeText={setNewChapterName}
+              placeholder="e.g. Thermodynamics"
+              autoFocus
+              containerStyle={{ marginTop: space.md }}
+            />
+            <View style={{ gap: space.sm, marginTop: space.lg }}>
+              <PrimaryButton
+                label="Add Chapter"
+                onPress={submitNewChapter}
+                disabled={newChapterName.trim().length === 0}
+                loading={chapterSubmitting}
+              />
+              <SecondaryButton label="Cancel" onPress={() => setAddChapterOpen(false)} />
             </View>
           </View>
         </View>

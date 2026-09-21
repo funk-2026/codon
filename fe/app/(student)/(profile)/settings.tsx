@@ -4,9 +4,10 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { CaretLeft, CaretRight } from 'phosphor-react-native';
 import * as SecureStore from 'expo-secure-store';
-import { SecondaryButton } from '@/src/components';
+import { SecondaryButton, useToast } from '@/src/components';
 import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
+import { deleteAccount } from '@/src/api/profile';
 
 const SOUND_EFFECTS_KEY = 'codon_pref_sound_effects';
 const NOTIFICATIONS_KEY = 'codon_pref_notifications';
@@ -68,9 +69,12 @@ export default function SettingsRoute() {
   const insets = useSafeAreaInsets();
 
   const auth = useAuth();
+  const { show } = useToast();
   const [soundEffects, setSoundEffectsState] = useState(true);
   const [notifications, setNotificationsState] = useState(true);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -103,6 +107,21 @@ export default function SettingsRoute() {
     setLogoutConfirmOpen(false);
     await auth.signOut();
     router.replace('/phone-entry');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteAccount();
+      setDeleteConfirmOpen(false);
+      await auth.signOut();
+      router.replace('/phone-entry');
+    } catch (err) {
+      show('Failed to delete account. Please try again.', 'error');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -224,6 +243,15 @@ export default function SettingsRoute() {
           </View>
         </View>
 
+        <View style={{ marginTop: space.lg }}>
+          <GroupLabel label="Danger Zone" />
+          <Row
+            label="Delete Account"
+            caption="Permanently delete your account and data"
+            onPress={() => setDeleteConfirmOpen(true)}
+          />
+        </View>
+
         <View style={{ marginTop: space['2xl'], alignItems: 'center' }}>
           <SecondaryButton
             label="Log Out"
@@ -252,6 +280,32 @@ export default function SettingsRoute() {
             <View style={{ gap: space.sm, marginTop: space.lg }}>
               <SecondaryButton label="Log Out" variant="danger" onPress={handleLogout} />
               <SecondaryButton label="Cancel" onPress={() => setLogoutConfirmOpen(false)} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={deleteConfirmOpen} transparent animationType="fade" onRequestClose={() => setDeleteConfirmOpen(false)}>
+        <View style={[styles.scrim, { padding: space.lg }]}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg },
+            ]}
+          >
+            <Text style={[type['type/h3'], { color: color('text/primary') }]}>Delete your account?</Text>
+            <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.xs }]}>
+              This permanently deletes your account, progress, and purchase history. This can&apos;t be undone.
+            </Text>
+            <View style={{ gap: space.sm, marginTop: space.lg }}>
+              <SecondaryButton
+                label="Delete Account"
+                variant="danger"
+                onPress={handleDeleteAccount}
+                loading={deleting}
+                disabled={deleting}
+              />
+              <SecondaryButton label="Cancel" onPress={() => setDeleteConfirmOpen(false)} disabled={deleting} />
             </View>
           </View>
         </View>

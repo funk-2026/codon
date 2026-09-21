@@ -1,7 +1,7 @@
 // DEV ONLY — remove when real auth exists
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, type Href } from 'expo-router';
+import { Redirect, useRouter, type Href } from 'expo-router';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth, type Role } from '@/src/auth/AuthContext';
 
@@ -15,6 +15,11 @@ export default function PreviewModeRoute() {
   const { color, type, space, radius } = useTheme();
   const { signIn } = useAuth();
   const router = useRouter();
+
+  // Reachable by deep link regardless of the phone-entry UI — block it outright in production.
+  if (!__DEV__) {
+    return <Redirect href="/phone-entry" />;
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>

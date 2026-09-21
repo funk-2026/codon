@@ -282,6 +282,7 @@ type PaymentRecord struct {
 type Test struct {
 	ID                  uuid.UUID     `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	Title               string        `gorm:"type:text;not null" json:"title"`
+	Description         *string       `gorm:"type:text" json:"description,omitempty"`
 	CourseID            uuid.UUID     `gorm:"type:uuid;not null;index" json:"course_id"`
 	Course              Course        `gorm:"foreignKey:CourseID" json:"course,omitempty"`
 	ModuleType          ModuleType    `gorm:"type:text;not null" json:"module_type"`

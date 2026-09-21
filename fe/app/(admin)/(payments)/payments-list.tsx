@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MagnifyingGlass, Tag, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
+import { MagnifyingGlass, CaretLeft } from 'phosphor-react-native';
+import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listPayments } from '@/src/api/admin';
 import type { UserProfile } from '@/src/api/profile';
@@ -44,25 +44,16 @@ export default function PaymentRecordsListRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('All');
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  useEffect(() => {
     listPayments()
-      .then(res => {
-        setPayments(res.payments || []);
-        setLoadError(false);
-      })
-      .catch(() => setLoadError(true))
+      .then(res => setPayments(res.payments || []))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const filtered = payments.filter((p) => {
     if (filter !== 'All' && p.status !== filter) return false;
@@ -78,18 +69,15 @@ export default function PaymentRecordsListRoute() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
       <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
-        <View style={styles.headerRow}>
-          <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>Payments</Text>
+        <View style={styles.header}>
           <Pressable
-            onPress={() => router.push('/(admin)/(payments)/subscription-plan-list')}
+            onPress={() => router.back()}
             hitSlop={space.xs}
-            style={({ pressed }) => [styles.plansLink, { opacity: pressed ? 0.6 : 1 }]}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, marginRight: space.sm })}
           >
-            <Tag size={18} color={color('accent/default')} />
-            <Text style={[type['type/body-m-medium'], { color: color('accent/default'), marginLeft: 4 }]}>
-              Plans
-            </Text>
+            <CaretLeft size={24} color={color('text/primary')} />
           </Pressable>
+          <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>Payments</Text>
         </View>
         <View
           style={[
@@ -164,13 +152,6 @@ export default function PaymentRecordsListRoute() {
       >
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => <SkeletonBlock key={i} height={76} radius={radius.md} />)
-        ) : loadError ? (
-          <EmptyState
-            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
-            title="Couldn't load payments"
-            description="Something went wrong fetching payment records."
-            action={<TextButton label="Retry" onPress={load} />}
-          />
         ) : filtered.length === 0 ? (
           <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center', marginTop: space.xl }]}>
             No payments match &apos;{query}&apos;.
@@ -234,8 +215,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
-  plansLink: { flexDirection: 'row', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center' },
   searchRow: { flexDirection: 'row', alignItems: 'center' },
   filterRow: { flexGrow: 0, flexShrink: 0 },
   list: { flex: 1 },

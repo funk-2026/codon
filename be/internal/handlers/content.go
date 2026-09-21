@@ -1,21 +1,44 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"codon-backend/internal/jobs"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
+	"codon-backend/internal/services"
+	"codon-backend/internal/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-type ContentHandler struct{ DB *gorm.DB }
+type ContentHandler struct {
+	DB     *gorm.DB
+	SubSvc *services.SubscriptionService
+}
 
-func NewContentHandler(db *gorm.DB) *ContentHandler { return &ContentHandler{DB: db} }
+func NewContentHandler(db *gorm.DB, subSvc *services.SubscriptionService) *ContentHandler {
+	return &ContentHandler{DB: db, SubSvc: subSvc}
+}
+
+func canManageAllContent(u *models.User) bool {
+	return u != nil && (u.Role == models.RoleAdmin || u.CanManageAllContent)
+}
+
+// kycRequired reports whether the platform currently requires approved KYC
+// before a student can access subscription-gated content.
+func kycRequired(db *gorm.DB) bool {
+	var setting models.PlatformSetting
+	if db.Where("key = ?", "kyc_required").First(&setting).Error == nil {
+		return setting.Value == "true"
+	}
+	return false
+}
 
 // CreateContent godoc
 //
@@ -85,9 +108,18 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 	}
 
 	if ct == models.ContentVideo {
-		jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
-			ContentItemID: item.ID, FileKey: item.FileKey,
-		})
+		if strings.HasPrefix(item.FileKey, "stream:") {
+			// Cloudflare Stream transcodes the upload itself — poll its API
+			// for status instead of running our own ffmpeg job against it.
+			uid := strings.TrimPrefix(item.FileKey, "stream:")
+			jobs.EnqueueJob(h.DB, jobs.JobTypeStreamStatusCheck, jobs.StreamStatusCheckPayload{
+				ContentItemID: item.ID, VideoUID: uid,
+			})
+		} else {
+			jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
+				ContentItemID: item.ID, FileKey: item.FileKey,
+			})
+		}
 	}
 
 	c.JSON(http.StatusCreated, item)
@@ -113,7 +145,7 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 
 	var item models.ContentItem
 	query := h.DB.Where("id = ?", id)
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 	if err := query.First(&item).Error; err != nil {
@@ -136,15 +168,39 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 			updates["chapter_id"] = u
 		}
 	}
-	if req.FileKey != nil {
+	fileKeyChanged := req.FileKey != nil && *req.FileKey != item.FileKey
+	if fileKeyChanged {
 		updates["file_key"] = *req.FileKey
 	}
 	if req.RequiresSubscription != nil {
 		updates["requires_subscription"] = *req.RequiresSubscription
 	}
 
+	// Replacing a video's file makes the old video_status/hls_playlist_url
+	// stale (they describe the previous file) — reset them and re-trigger
+	// transcoding/status-checking against the new file, same as CreateContent.
+	if fileKeyChanged && item.ContentType == models.ContentVideo {
+		vs := models.VideoQueued
+		updates["video_status"] = vs
+		updates["hls_playlist_url"] = nil
+	}
+
 	h.DB.WithContext(c.Request.Context()).Model(&item).Updates(updates)
 	h.DB.WithContext(c.Request.Context()).First(&item, item.ID)
+
+	if fileKeyChanged && item.ContentType == models.ContentVideo {
+		if strings.HasPrefix(item.FileKey, "stream:") {
+			uid := strings.TrimPrefix(item.FileKey, "stream:")
+			jobs.EnqueueJob(h.DB, jobs.JobTypeStreamStatusCheck, jobs.StreamStatusCheckPayload{
+				ContentItemID: item.ID, VideoUID: uid,
+			})
+		} else {
+			jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
+				ContentItemID: item.ID, FileKey: item.FileKey,
+			})
+		}
+	}
+
 	c.JSON(http.StatusOK, item)
 }
 
@@ -165,7 +221,7 @@ func (h *ContentHandler) SubmitContentForReview(c *gin.Context) {
 
 	var item models.ContentItem
 	query := h.DB.Where("id = ? AND status IN ?", id, []string{string(models.StatusDraft), string(models.StatusRejected)})
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 	if err := query.First(&item).Error; err != nil {
@@ -194,11 +250,16 @@ func (h *ContentHandler) PublishContent(c *gin.Context) {
 
 	var item models.ContentItem
 	query := h.DB.Where("id = ? AND status = ?", id, models.StatusApproved)
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 	if err := query.First(&item).Error; err != nil {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "content item not found or not approved"})
+		return
+	}
+
+	if item.ContentType == models.ContentVideo && (item.VideoStatus == nil || *item.VideoStatus != models.VideoReady) {
+		c.JSON(http.StatusConflict, errorResponse{Error: "video is still processing — try again once it's ready"})
 		return
 	}
 
@@ -226,7 +287,7 @@ func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
 		Preload("Course").Preload("Chapter").Preload("Uploader").
 		Where("id = ?", id)
 
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 
@@ -235,14 +296,44 @@ func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
 		return
 	}
 
-	url := ""
-	if item.ContentType == models.ContentVideo && item.HLSPlaylistURL != nil {
-		url = *item.HLSPlaylistURL
-	} else if item.ContentType == models.ContentDocument {
-		url = "https://s3.amazonaws.com/codon-files/" + item.FileKey
-	}
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
+}
 
-	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: url})
+func resolveContentURL(ctx context.Context, item *models.ContentItem) string {
+	if item.ContentType == models.ContentVideo {
+		// 1. Cloudflare Stream video: the real HLS manifest URL is filled in
+		// by the stream_status_check job once Cloudflare finishes
+		// transcoding — an iframe embed URL wouldn't work for a native
+		// video player, so return nothing (still processing) until then.
+		if strings.HasPrefix(item.FileKey, "stream:") {
+			if item.HLSPlaylistURL != nil && *item.HLSPlaylistURL != "" {
+				return *item.HLSPlaylistURL
+			}
+			return ""
+		}
+		// 2. Direct HLS playlist URL if stored explicitly
+		if item.HLSPlaylistURL != nil && *item.HLSPlaylistURL != "" {
+			return *item.HLSPlaylistURL
+		}
+		// 3. R2 Presigned GET URL if stored as raw MP4 file in Cloudflare R2
+		if storage.Client != nil && item.FileKey != "" {
+			url, err := storage.Client.PresignGet(ctx, item.FileKey, 2*time.Hour)
+			if err == nil && url != "" {
+				return url
+			}
+		}
+		// Fallback sample MP4 for testing when credentials are unconfigured
+		return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+	} else if item.ContentType == models.ContentDocument {
+		if storage.Client != nil && item.FileKey != "" {
+			url, err := storage.Client.PresignGet(ctx, item.FileKey, 2*time.Hour)
+			if err == nil && url != "" {
+				return url
+			}
+		}
+		return "https://s3.amazonaws.com/codon-files/" + item.FileKey
+	}
+	return ""
 }
 
 // ListTeacherContent godoc
@@ -260,7 +351,7 @@ func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 
 	var items []models.ContentItem
 	query := h.DB.WithContext(c.Request.Context())
-	if !teacher.CanManageAllContent {
+	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 	query.Preload("Course").Order("created_at DESC").Find(&items)
@@ -272,7 +363,7 @@ func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 // GetChapterContent godoc
 //
 //	@Summary		List published content items for a chapter (Student)
-//	@Description	Returns all published content items (videos, documents) for a specific chapter.
+//	@Description	Returns all published content items (videos, documents) for a specific chapter. Items the student hasn't unlocked (subscription/KYC required) are still listed but with file_key and hls_playlist_url stripped.
 //	@Tags			Content
 //	@Security		BearerAuth
 //	@Produce		json
@@ -281,27 +372,39 @@ func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 //	@Failure		401	{object}	errorResponse
 //	@Router			/api/v1/chapters/{chapter_id}/content [get]
 func (h *ContentHandler) GetChapterContent(c *gin.Context) {
+	user := middleware.GetUser(c)
 	chapterID := c.Param("chapter_id")
 	var items []models.ContentItem
 	h.DB.WithContext(c.Request.Context()).
 		Where("chapter_id = ? AND status = ?", chapterID, models.StatusPublished).
 		Order("created_at ASC").
 		Find(&items)
+
+	kycReq := kycRequired(h.DB)
+	for i := range items {
+		if h.SubSvc.CheckAccess(c.Request.Context(), user, items[i].RequiresSubscription, items[i].CourseID, kycReq) != nil {
+			items[i].FileKey = ""
+			items[i].HLSPlaylistURL = nil
+		}
+	}
+
 	c.JSON(http.StatusOK, listContentResponse{Content: items})
 }
 
 // GetContentItem godoc
 //
 //	@Summary		Get a single published content item (Student)
-//	@Description	Returns the details of a published content item. For videos, the frontend can use the HLS URL directly.
+//	@Description	Returns the details of a published content item plus a playable URL. Requires an active subscription (and approved KYC, if the platform requires it) when the item has requires_subscription set.
 //	@Tags			Content
 //	@Security		BearerAuth
 //	@Produce		json
 //	@Param			id	path		string	true	"Content item UUID"
 //	@Success		200	{object}	getContentResponse
+//	@Failure		403	{object}	errorResponse
 //	@Failure		404	{object}	errorResponse
 //	@Router			/api/v1/content/{id} [get]
 func (h *ContentHandler) GetContentItem(c *gin.Context) {
+	user := middleware.GetUser(c)
 	id := c.Param("id")
 	var item models.ContentItem
 	if err := h.DB.WithContext(c.Request.Context()).
@@ -311,15 +414,12 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 		return
 	}
 
-	url := ""
-	if item.ContentType == models.ContentVideo && item.HLSPlaylistURL != nil {
-		url = *item.HLSPlaylistURL
-	} else if item.ContentType == models.ContentDocument {
-		// Mock a pre-signed URL for document downloads for now
-		url = "https://s3.amazonaws.com/codon-files/" + item.FileKey
+	if err := h.SubSvc.CheckAccess(c.Request.Context(), user, item.RequiresSubscription, item.CourseID, kycRequired(h.DB)); err != nil {
+		c.JSON(http.StatusForbidden, errorResponse{Error: err.Error()})
+		return
 	}
 
-	c.JSON(http.StatusOK, getContentResponse{Content: item, URL: url})
+	c.JSON(http.StatusOK, getContentResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
 }
 
 // AdminGetContent godoc
@@ -344,14 +444,7 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 		return
 	}
 
-	url := ""
-	if item.ContentType == models.ContentVideo && item.HLSPlaylistURL != nil {
-		url = *item.HLSPlaylistURL
-	} else if item.ContentType == models.ContentDocument {
-		url = "https://s3.amazonaws.com/codon-files/" + item.FileKey
-	}
-
-	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: url})
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
 }
 
 // ─── Admin Content Moderation ─────────────────────────────────────────────────

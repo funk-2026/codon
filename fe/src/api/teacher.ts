@@ -4,10 +4,14 @@ import { Test, Question } from './tests';
 
 export type CreateTestRequest = {
   title: string;
+  description?: string;
   course_id: string;
   module_type: 'qbank' | 'test_series' | 'practice';
   subject_id?: string;
   chapter_id?: string;
+  duration_minutes?: number;
+  marks_per_correct?: number;
+  marks_per_wrong?: number;
   requires_subscription?: boolean;
 };
 
@@ -32,9 +36,29 @@ export function submitTestForReview(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/teacher/tests/${id}/submit-for-review`, { method: 'POST' });
 }
 
+/** DELETE /api/v1/teacher/tests/:id */
+export function deleteTest(id: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/teacher/tests/${id}`, { method: 'DELETE' });
+}
+
+/** POST /api/v1/teacher/tests/:id/publish */
+export function publishTest(id: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/teacher/tests/${id}/publish`, { method: 'POST' });
+}
+
 /** GET /api/v1/teacher/tests */
 export function listTeacherTests(): Promise<{ tests: Test[] }> {
   return apiFetch<{ tests: Test[] }>('/teacher/tests', { method: 'GET' });
+}
+
+export type TeacherTestDetail = {
+  test: Test;
+  questions: Question[];
+};
+
+/** GET /api/v1/teacher/tests/:id */
+export function getTeacherTest(id: string): Promise<TeacherTestDetail> {
+  return apiFetch<TeacherTestDetail>(`/teacher/tests/${id}`, { method: 'GET' });
 }
 
 export type CreateQuestionRequest = {
@@ -55,6 +79,19 @@ export function createQuestion(testId: string, data: CreateQuestionRequest): Pro
   });
 }
 
+/** PATCH /api/v1/teacher/questions/:id */
+export function updateQuestion(id: string, data: CreateQuestionRequest): Promise<Question> {
+  return apiFetch<Question>(`/teacher/questions/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+/** DELETE /api/v1/teacher/questions/:id */
+export function deleteQuestion(id: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/teacher/questions/${id}`, { method: 'DELETE' });
+}
+
 /** POST /api/v1/teacher/tests/:id/csv-import */
 export function importQuestionsCSV(testId: string, data: { file_key: string }): Promise<{ batch_id: string; message: string }> {
   return apiFetch<{ batch_id: string; message: string }>(`/teacher/tests/${testId}/csv-import`, {
@@ -64,8 +101,35 @@ export function importQuestionsCSV(testId: string, data: { file_key: string }): 
 }
 
 /** GET /api/v1/teacher/csv-imports/:id */
-export function getCSVImportReport(batchId: string): Promise<any> {
-  return apiFetch<any>(`/teacher/csv-imports/${batchId}`, { method: 'GET' });
+export type CSVImportStatus = 'processing' | 'completed' | 'completed_with_errors' | 'failed';
+
+export type CSVImportBatch = {
+  id: string;
+  test_id: string;
+  file_key: string;
+  total_rows: number;
+  success_rows: number;
+  error_rows: number;
+  status: CSVImportStatus;
+  created_at: string;
+  completed_at?: string;
+};
+
+export type CSVImportRowError = {
+  id: string;
+  batch_id: string;
+  row_number: number;
+  error_message: string;
+  raw_row_data: string;
+};
+
+export type GetCSVImportResponse = {
+  batch: CSVImportBatch;
+  errors: CSVImportRowError[];
+};
+
+export function getCSVImportReport(batchId: string): Promise<GetCSVImportResponse> {
+  return apiFetch<GetCSVImportResponse>(`/teacher/csv-imports/${batchId}`, { method: 'GET' });
 }
 
 export type CreateContentRequest = {
@@ -108,7 +172,12 @@ export function listTeacherContent(): Promise<{ content: ContentItem[] }> {
   return apiFetch<{ content: ContentItem[] }>('/teacher/content', { method: 'GET' });
 }
 
-/** GET /api/v1/teacher/content/:id (Requires BE implementation) */
-export function getTeacherContent(id: string): Promise<ContentItem> {
-  return apiFetch<ContentItem>(`/teacher/content/${id}`, { method: 'GET' });
+export type TeacherContentDetail = {
+  content: ContentItem;
+  url?: string;
+};
+
+/** GET /api/v1/teacher/content/:id */
+export function getTeacherContent(id: string): Promise<TeacherContentDetail> {
+  return apiFetch<TeacherContentDetail>(`/teacher/content/${id}`, { method: 'GET' });
 }

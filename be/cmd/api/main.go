@@ -70,12 +70,18 @@ func main() {
 
 	// ─── OTP Provider ────────────────────────────────────────────────────────
 	var otpProvider otp.OTPProvider
-	if config.AppConfig.TwoFactorAPIKey != "" {
+	if config.AppConfig.Msg91AuthKey != "" && config.AppConfig.Msg91TemplateID != "" {
+		otpProvider = &otp.Msg91Provider{
+			AuthKey:    config.AppConfig.Msg91AuthKey,
+			TemplateID: config.AppConfig.Msg91TemplateID,
+		}
+		log.Println("OTP provider: Msg91")
+	} else if config.AppConfig.TwoFactorAPIKey != "" {
 		otpProvider = &otp.TwoFactorProvider{APIKey: config.AppConfig.TwoFactorAPIKey}
 		log.Println("OTP provider: 2Factor.in")
 	} else {
 		otpProvider = &otp.ConsoleProvider{}
-		log.Println("OTP provider: console stub (set TWO_FACTOR_API_KEY for real OTPs)")
+		log.Println("OTP provider: console stub (set MSG91_AUTH_KEY and MSG91_TEMPLATE_ID for real OTPs)")
 	}
 
 	// ─── Services ────────────────────────────────────────────────────────────
@@ -94,7 +100,7 @@ func main() {
 	uploadH := handlers.NewUploadHandler()
 	testH := handlers.NewTestHandler(db.DB)
 	attemptH := handlers.NewAttemptHandler(db.DB, scoringSvc)
-	contentH := handlers.NewContentHandler(db.DB)
+	contentH := handlers.NewContentHandler(db.DB, subSvc)
 	wellnessH := handlers.NewWellnessHandler(db.DB)
 	adminH := handlers.NewAdminHandler(db.DB, sessionSvc)
 	curriculumH := handlers.NewCurriculumHandler(db.DB)
@@ -234,12 +240,15 @@ func main() {
 		teacher.POST("/tests", testH.CreateTest)
 		teacher.PATCH("/tests/:id", testH.UpdateTest)
 		teacher.POST("/tests/:id/questions", testH.AddQuestion)
+		teacher.PATCH("/questions/:id", testH.UpdateQuestion)
+		teacher.DELETE("/questions/:id", testH.DeleteQuestion)
 		teacher.POST("/tests/:id/csv-import", testH.CSVImport)
 		teacher.GET("/csv-imports/:id", testH.GetCSVImport)
 		teacher.POST("/tests/:id/submit-for-review", testH.SubmitForReview)
 		teacher.GET("/tests", testH.ListTeacherTests)
 		teacher.GET("/tests/:id", testH.TeacherGetTest)
 		teacher.POST("/tests/:id/publish", testH.PublishTest)
+		teacher.DELETE("/tests/:id", testH.DeleteTest)
 
 		teacher.POST("/content", contentH.CreateContent)
 		teacher.PATCH("/content/:id", contentH.UpdateContent)
@@ -247,10 +256,6 @@ func main() {
 		teacher.GET("/content", contentH.ListTeacherContent)
 		teacher.GET("/content/:id", contentH.TeacherGetContent)
 		teacher.POST("/content/:id/publish", contentH.PublishContent)
-
-		// Curriculum: teachers create chapters (topics) under an existing subject
-		teacher.POST("/subjects/:subject_id/chapters", curriculumH.CreateChapter)
-		teacher.PATCH("/chapters/:id", curriculumH.UpdateChapter)
 	}
 
 	// ─── Wellness (student) ────────────────────────────────────────────────────
@@ -263,9 +268,11 @@ func main() {
 	// ─── Admin routes ─────────────────────────────────────────────────────────
 	admin := api.Group("/admin").Use(auth).Use(middleware.RequireRole(models.RoleAdmin))
 	{
-		// Curriculum: admins create subjects under a course (chapters are teacher-owned, see /teacher group)
+		// Curriculum: admins own the whole course structure - subjects and chapters
 		admin.POST("/courses/:course_id/subjects", curriculumH.CreateSubject)
 		admin.PATCH("/subjects/:id", curriculumH.UpdateSubject)
+		admin.POST("/subjects/:subject_id/chapters", curriculumH.CreateChapter)
+		admin.PATCH("/chapters/:id", curriculumH.UpdateChapter)
 
 		// Subscription plans
 		admin.GET("/subscription-plans", planH.AdminListPlans)

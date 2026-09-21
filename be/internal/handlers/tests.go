@@ -17,6 +17,10 @@ type TestHandler struct{ DB *gorm.DB }
 
 func NewTestHandler(db *gorm.DB) *TestHandler { return &TestHandler{DB: db} }
 
+func canManageAllTests(u *models.User) bool {
+	return u != nil && (u.Role == models.RoleAdmin || u.CanManageAllContent)
+}
+
 // ListTests godoc
 //
 //	@Summary		List published tests
@@ -204,7 +208,7 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 	}
 
 	test := models.Test{
-		Title: req.Title, CourseID: courseID,
+		Title: req.Title, Description: req.Description, CourseID: courseID,
 		ModuleType: models.ModuleType(req.ModuleType),
 		SubjectID: sID, ChapterID: cID,
 		DurationMinutes: req.DurationMinutes, MarksPerCorrect: marksCorrect,
@@ -239,7 +243,7 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 
 	var test models.Test
 	query := h.DB.Where("id = ?", id)
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
@@ -261,6 +265,9 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 	updates := map[string]interface{}{}
 	if req.Title != nil {
 		updates["title"] = *req.Title
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
 	}
 	if req.SubjectID != nil {
 		if *req.SubjectID == "" {
@@ -318,7 +325,7 @@ func (h *TestHandler) AddQuestion(c *gin.Context) {
 
 	var test models.Test
 	query := h.DB.Where("id = ?", testID)
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
@@ -358,6 +365,133 @@ func (h *TestHandler) AddQuestion(c *gin.Context) {
 		UpdateColumn("total_questions", gorm.Expr("total_questions + 1"))
 
 	c.JSON(http.StatusCreated, question)
+}
+
+// UpdateQuestion godoc
+//
+//	@Summary		Update a question (Teacher)
+//	@Description	Edits a question's text, options, correct answer, or explanation. Only allowed while the parent test is in draft or rejected state.
+//	@Tags			Teacher
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string				true	"Question UUID"
+//	@Param			body	body		addQuestionRequest	true	"Question details"
+//	@Success		200		{object}	models.Question
+//	@Failure		400		{object}	errorResponse
+//	@Failure		404		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse
+//	@Router			/api/v1/teacher/questions/{id} [patch]
+func (h *TestHandler) UpdateQuestion(c *gin.Context) {
+	teacher := middleware.GetUser(c)
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid question id"})
+		return
+	}
+
+	var question models.Question
+	if err := h.DB.Where("id = ?", id).First(&question).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "question not found"})
+		return
+	}
+
+	var test models.Test
+	testQuery := h.DB.Where("id = ?", question.TestID)
+	if !canManageAllTests(teacher) {
+		testQuery = testQuery.Where("created_by = ?", teacher.ID)
+	}
+	if err := testQuery.First(&test).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "question not found"})
+		return
+	}
+	if test.Status != models.StatusDraft && test.Status != models.StatusRejected {
+		c.JSON(http.StatusConflict, errorResponse{Error: "questions can only be edited while the test is in draft or rejected state"})
+		return
+	}
+
+	var req addQuestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+
+	opt := models.CorrectOption(req.CorrectOption)
+	if opt != models.OptionA && opt != models.OptionB && opt != models.OptionC && opt != models.OptionD {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "correct_option must be A, B, C, or D"})
+		return
+	}
+
+	updates := map[string]interface{}{
+		"question_text":  req.QuestionText,
+		"option_a":       req.OptionA,
+		"option_b":       req.OptionB,
+		"option_c":       req.OptionC,
+		"option_d":       req.OptionD,
+		"correct_option": opt,
+		"explanation":    req.Explanation,
+	}
+	h.DB.WithContext(c.Request.Context()).Model(&question).Updates(updates)
+	h.DB.WithContext(c.Request.Context()).First(&question, question.ID)
+	c.JSON(http.StatusOK, question)
+}
+
+// DeleteQuestion godoc
+//
+//	@Summary		Delete a question (Teacher)
+//	@Description	Removes a question from its test and decrements the test's question count. Only allowed while the parent test is in draft or rejected state.
+//	@Tags			Teacher
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Question UUID"
+//	@Success		200	{object}	messageResponse
+//	@Failure		404	{object}	errorResponse
+//	@Failure		409	{object}	errorResponse
+//	@Router			/api/v1/teacher/questions/{id} [delete]
+func (h *TestHandler) DeleteQuestion(c *gin.Context) {
+	teacher := middleware.GetUser(c)
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid question id"})
+		return
+	}
+
+	var question models.Question
+	if err := h.DB.Where("id = ?", id).First(&question).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "question not found"})
+		return
+	}
+
+	var test models.Test
+	testQuery := h.DB.Where("id = ?", question.TestID)
+	if !canManageAllTests(teacher) {
+		testQuery = testQuery.Where("created_by = ?", teacher.ID)
+	}
+	if err := testQuery.First(&test).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "question not found"})
+		return
+	}
+	if test.Status != models.StatusDraft && test.Status != models.StatusRejected {
+		c.JSON(http.StatusConflict, errorResponse{Error: "questions can only be deleted while the test is in draft or rejected state"})
+		return
+	}
+
+	err = h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("question_id = ?", question.ID).Delete(&models.AttemptAnswer{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&question).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.Test{}).Where("id = ?", test.ID).
+			UpdateColumn("total_questions", gorm.Expr("total_questions - 1")).Error
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to delete question"})
+		return
+	}
+
+	c.JSON(http.StatusOK, messageResponse{Message: "question deleted"})
 }
 
 // CSVImport godoc
@@ -449,7 +583,7 @@ func (h *TestHandler) SubmitForReview(c *gin.Context) {
 
 	var test models.Test
 	query := h.DB.Where("id = ? AND status IN ?", id, []string{string(models.StatusDraft), string(models.StatusRejected)})
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
@@ -478,7 +612,7 @@ func (h *TestHandler) PublishTest(c *gin.Context) {
 
 	var test models.Test
 	query := h.DB.Where("id = ? AND status = ?", id, models.StatusApproved)
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
@@ -488,6 +622,69 @@ func (h *TestHandler) PublishTest(c *gin.Context) {
 
 	h.DB.WithContext(c.Request.Context()).Model(&test).Update("status", models.StatusPublished)
 	c.JSON(http.StatusOK, messageResponse{Message: "test published"})
+}
+
+// DeleteTest godoc
+//
+//	@Summary		Delete a test (Teacher)
+//	@Description	Permanently deletes a test and its questions, attempts, and CSV import history. Only allowed before the test has been approved or published.
+//	@Tags			Teacher
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Test UUID"
+//	@Success		200	{object}	messageResponse
+//	@Failure		404	{object}	errorResponse
+//	@Failure		409	{object}	errorResponse
+//	@Router			/api/v1/teacher/tests/{id} [delete]
+func (h *TestHandler) DeleteTest(c *gin.Context) {
+	teacher := middleware.GetUser(c)
+	id := c.Param("id")
+
+	var test models.Test
+	query := h.DB.Where("id = ?", id)
+	if !canManageAllTests(teacher) {
+		query = query.Where("created_by = ?", teacher.ID)
+	}
+	if err := query.First(&test).Error; err != nil {
+		c.JSON(http.StatusNotFound, errorResponse{Error: "test not found"})
+		return
+	}
+
+	if test.Status == models.StatusApproved || test.Status == models.StatusPublished {
+		c.JSON(http.StatusConflict, errorResponse{Error: "cannot delete a test that has been approved or published"})
+		return
+	}
+
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where(
+			"attempt_id IN (?)",
+			tx.Model(&models.StudentAttempt{}).Select("id").Where("test_id = ?", test.ID),
+		).Delete(&models.AttemptAnswer{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("test_id = ?", test.ID).Delete(&models.StudentAttempt{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where(
+			"batch_id IN (?)",
+			tx.Model(&models.CSVImportBatch{}).Select("id").Where("test_id = ?", test.ID),
+		).Delete(&models.CSVImportRowError{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("test_id = ?", test.ID).Delete(&models.CSVImportBatch{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("test_id = ?", test.ID).Delete(&models.Question{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&test).Error
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to delete test"})
+		return
+	}
+
+	c.JSON(http.StatusOK, messageResponse{Message: "test deleted"})
 }
 
 // TeacherGetTest godoc
@@ -510,7 +707,7 @@ func (h *TestHandler) TeacherGetTest(c *gin.Context) {
 		Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator").
 		Where("id = ?", id)
 	
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 
@@ -543,7 +740,7 @@ func (h *TestHandler) ListTeacherTests(c *gin.Context) {
 
 	var tests []models.Test
 	query := h.DB.WithContext(c.Request.Context())
-	if !teacher.CanManageAllContent {
+	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	query.Preload("Course").Order("created_at DESC").Find(&tests)
@@ -684,19 +881,21 @@ type testQuestionsResponse struct {
 }
 
 type createTestRequest struct {
-	Title               string  `json:"title"       example:"Biology Chapter 1 — Cell Structure"`
-	CourseID            string  `json:"course_id"   example:"550e8400-e29b-41d4-a716-446655440000"`
-	ModuleType          string  `json:"module_type" example:"qbank" enums:"qbank,test_series,practice"`
-	SubjectID           *string `json:"subject_id"  example:"550e8400-e29b-41d4-a716-446655440001"`
-	ChapterID           *string `json:"chapter_id"  example:"550e8400-e29b-41d4-a716-446655440002"`
-	DurationMinutes     *int    `json:"duration_minutes" example:"60"`
+	Title               string   `json:"title"       example:"Biology Chapter 1 — Cell Structure"`
+	Description         *string  `json:"description" example:"Comprehensive practice test for Cell Structure and Organelles."`
+	CourseID            string   `json:"course_id"   example:"550e8400-e29b-41d4-a716-446655440000"`
+	ModuleType          string   `json:"module_type" example:"qbank" enums:"qbank,test_series,practice"`
+	SubjectID           *string  `json:"subject_id"  example:"550e8400-e29b-41d4-a716-446655440001"`
+	ChapterID           *string  `json:"chapter_id"  example:"550e8400-e29b-41d4-a716-446655440002"`
+	DurationMinutes     *int     `json:"duration_minutes" example:"60"`
 	MarksPerCorrect     *float64 `json:"marks_per_correct" example:"4"`
 	MarksPerWrong       *float64 `json:"marks_per_wrong"   example:"-1"`
-	RequiresSubscription *bool  `json:"requires_subscription" example:"true"`
+	RequiresSubscription *bool   `json:"requires_subscription" example:"true"`
 }
 
 type updateTestRequest struct {
 	Title               *string  `json:"title"`
+	Description         *string  `json:"description"`
 	SubjectID           *string  `json:"subject_id"`
 	ChapterID           *string  `json:"chapter_id"`
 	DurationMinutes     *int     `json:"duration_minutes"`

@@ -14,9 +14,16 @@ import (
 )
 
 const (
-	JobTypeCSVImport  = "csv_import"
-	JobTypeTranscode  = "video_transcode"
+	JobTypeCSVImport         = "csv_import"
+	JobTypeTranscode         = "video_transcode"
+	JobTypeStreamStatusCheck = "stream_status_check"
 )
+
+// maxAttempts caps how many times a job is retried before it's abandoned.
+// 30 attempts at the 1-minute backoff below gives ~30 minutes of headroom —
+// long enough for a Cloudflare Stream status-check job to poll until
+// transcoding finishes, not just for quick one-shot jobs like CSV import.
+const maxAttempts = 30
 
 // EnqueueJob inserts a background job into the DB queue.
 func EnqueueJob(db *gorm.DB, jobType string, payload interface{}) error {
@@ -47,11 +54,19 @@ type TranscodePayload struct {
 	FileKey       string    `json:"file_key"`
 }
 
+// StreamStatusCheckPayload is the payload for polling a Cloudflare Stream
+// video's transcode status until it's ready to play.
+type StreamStatusCheckPayload struct {
+	ContentItemID uuid.UUID `json:"content_item_id"`
+	VideoUID      string    `json:"video_uid"`
+}
+
 // Worker polls for pending jobs and processes them.
 type Worker struct {
 	DB           *gorm.DB
 	PollInterval time.Duration
 	handlers     map[string]func(ctx context.Context, payload string) error
+	onExhausted  map[string]func(ctx context.Context, payload string)
 }
 
 func NewWorker(db *gorm.DB, pollInterval time.Duration) *Worker {
@@ -59,11 +74,21 @@ func NewWorker(db *gorm.DB, pollInterval time.Duration) *Worker {
 		DB:           db,
 		PollInterval: pollInterval,
 		handlers:     make(map[string]func(ctx context.Context, payload string) error),
+		onExhausted:  make(map[string]func(ctx context.Context, payload string)),
 	}
 }
 
 func (w *Worker) RegisterHandler(jobType string, fn func(ctx context.Context, payload string) error) {
 	w.handlers[jobType] = fn
+}
+
+// RegisterExhaustionHandler registers a callback invoked when a job of this
+// type permanently runs out of retries (see maxAttempts) without ever
+// succeeding — e.g. to mark whatever record it was processing as failed,
+// since otherwise it would silently stop being retried with no visible
+// failure state anywhere.
+func (w *Worker) RegisterExhaustionHandler(jobType string, fn func(ctx context.Context, payload string)) {
+	w.onExhausted[jobType] = fn
 }
 
 func (w *Worker) Run(ctx context.Context) {
@@ -85,8 +110,7 @@ func (w *Worker) Run(ctx context.Context) {
 func (w *Worker) processNextJob(ctx context.Context) {
 	var job models.BackgroundJob
 	err := w.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Pick one pending job that's due
-		res := tx.Where("status = ? AND run_after <= ? AND attempts < 5", models.JobPending, time.Now()).
+		res := tx.Where("status = ? AND run_after <= ? AND attempts < ?", models.JobPending, time.Now(), maxAttempts).
 			Order("created_at ASC").
 			First(&job)
 		if res.Error != nil {
@@ -128,6 +152,23 @@ func (w *Worker) processNextJob(ctx context.Context) {
 	if err := handler(jobCtx, job.Payload); err != nil {
 		log.Printf("[Worker] Job %s failed: %v", job.ID, err)
 		errMsg := err.Error()
+
+		// job.Attempts reflects the count from before this transaction's
+		// increment (GORM's gorm.Expr update doesn't refresh the in-memory
+		// struct), so the attempt just used is job.Attempts + 1.
+		attemptsUsed := job.Attempts + 1
+		if attemptsUsed >= maxAttempts {
+			log.Printf("[Worker] Job %s exhausted %d attempts — giving up", job.ID, attemptsUsed)
+			w.DB.Model(&job).Updates(map[string]interface{}{
+				"status":     models.JobFailed,
+				"last_error": errMsg,
+			})
+			if fn, ok := w.onExhausted[job.Type]; ok {
+				fn(ctx, job.Payload)
+			}
+			return
+		}
+
 		nextRun := time.Now().Add(1 * time.Minute) // backoff
 		w.DB.Model(&job).Updates(map[string]interface{}{
 			"status":     models.JobPending,

@@ -4,11 +4,23 @@
     "slug": "codon",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "icon": "./assets/images/icon-1.png",
+    "splash": {
+      "image": "./assets/images/codon-1.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAFAF9"
+    },
+    "scheme": "codon",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.codon.learn",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.codon.learn"
     },
     "web": {
       "bundler": "metro",
@@ -22,10 +34,18 @@
       "expo-secure-store",
       "expo-sharing",
       "expo-splash-screen",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5f267cc1-014c-4b37-974b-446337ba8990"
+      }
+    },
+    "owner": "vlmlokesh22"
   }
 }

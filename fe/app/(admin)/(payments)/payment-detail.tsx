@@ -58,25 +58,48 @@ export default function PaymentDetailRoute() {
     load();
   }, [load]);
 
-  if (loading) {
+  if (loading || loadError || !p) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-        <View style={{ padding: space.md, alignItems: 'center' }}>
-          <SkeletonBlock height={72} radius={36} style={{ width: 72 }} />
+        <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={space.xs}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <CaretLeft size={24} color={color('text/primary')} />
+          </Pressable>
+          <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
+            Payment Detail
+          </Text>
         </View>
-      </SafeAreaView>
-    );
-  }
 
-  if (loadError || !p) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-        <EmptyState
-          icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
-          title="Couldn't load this payment"
-          description="Something went wrong fetching the payment details."
-          action={<TextButton label="Retry" onPress={load} />}
-        />
+        {loading ? (
+          <View style={{ paddingHorizontal: space.md }}>
+            <View style={{ alignItems: 'center', marginTop: space.xl }}>
+              <SkeletonBlock height={36} width={140} radius={radius.sm} />
+            </View>
+            <View
+              style={[
+                { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, marginTop: space.xl, gap: space.sm },
+                shadow(),
+              ]}
+            >
+              <SkeletonBlock height={20} />
+              <SkeletonBlock height={20} />
+              <SkeletonBlock height={20} />
+              <SkeletonBlock height={20} />
+              <SkeletonBlock height={20} />
+            </View>
+          </View>
+        ) : (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load this payment"
+            description="Something went wrong fetching the payment details."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
+        )}
       </SafeAreaView>
     );
   }

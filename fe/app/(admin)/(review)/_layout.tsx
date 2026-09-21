@@ -6,6 +6,7 @@ export default function AdminReviewStack() {
   return (
     <Stack screenOptions={base}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="kyc-queue" options={{ title: 'KYC Queue' }} />
       <Stack.Screen name="kyc-review-detail" options={{ title: 'KYC Review' }} />
       <Stack.Screen name="moderation-tests" options={{ title: 'Moderation — Tests' }} />
       <Stack.Screen

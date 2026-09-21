@@ -286,20 +286,22 @@ export default function PhoneEntryRoute() {
           </Text>
         </Staggered>
 
-        <Staggered delayMs={460}>
-          <Pressable
-            hitSlop={space.xs}
-            onPress={() => router.push('/preview-mode')}
-            style={({ pressed }) => [
-              styles.devLink,
-              { marginTop: space.lg, opacity: pressed ? 0.6 : 1 },
-            ]}
-          >
-            <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
-              Dev: preview as a role →
-            </Text>
-          </Pressable>
-        </Staggered>
+        {__DEV__ && (
+          <Staggered delayMs={460}>
+            <Pressable
+              hitSlop={space.xs}
+              onPress={() => router.push('/preview-mode')}
+              style={({ pressed }) => [
+                styles.devLink,
+                { marginTop: space.lg, opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
+                Dev: preview as a role →
+              </Text>
+            </Pressable>
+          </Staggered>
+        )}
       </View>
     </SafeAreaView>
   );

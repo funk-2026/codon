@@ -27,6 +27,7 @@ import {
   FileText,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { SkeletonBlock } from '@/src/components';
 
 type Level = 'subject' | 'chapter' | 'subchapter' | 'leaf';
 
@@ -128,10 +129,12 @@ export default function LearnHierarchyRoute() {
   }, []);
 
   const [leafs, setLeafs] = useState<Row[]>([]);
+  const [leafsLoading, setLeafsLoading] = useState(false);
   useEffect(() => {
     if (pathIds.length === 2) {
       // Path is [subjectId, chapterId]
       const chapterId = pathIds[1];
+      setLeafsLoading(true);
       import('@/src/api/content').then(({ getChapterContent }) => {
         getChapterContent(chapterId).then(res => {
           setLeafs(res.content.map(c => ({
@@ -141,10 +144,11 @@ export default function LearnHierarchyRoute() {
             leafKind: c.content_type === 'video' ? 'video' : 'document',
             locked: c.requires_subscription, // simplified for now
           })));
-        });
+        }).finally(() => setLeafsLoading(false));
       });
     } else {
       setLeafs([]);
+      setLeafsLoading(false);
     }
   }, [pathIds]);
 
@@ -281,7 +285,13 @@ export default function LearnHierarchyRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, marginTop: space.md }}
         showsVerticalScrollIndicator={false}
       >
-        {crumbs.currentLayer.length === 0 ? (
+        {loading || (pathIds.length === 2 && leafsLoading) ? (
+          <View style={{ gap: space.xs }}>
+            <SkeletonBlock height={64} radius={radius.md} />
+            <SkeletonBlock height={64} radius={radius.md} />
+            <SkeletonBlock height={64} radius={radius.md} />
+          </View>
+        ) : crumbs.currentLayer.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: space['2xl'], gap: space.xs }}>
             <Folder size={28} color={color('text/tertiary')} weight="duotone" />
             <Text style={[type['type/h3'], { color: color('text/primary'), textAlign: 'center' }]}>
