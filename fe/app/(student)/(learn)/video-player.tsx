@@ -8,8 +8,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useEvent } from 'expo';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { CaretLeft, Play, Pause, X, GridFour, WarningCircle, LockSimple } from 'phosphor-react-native';
+import { useVideoPlayer, VideoView, VideoTrack } from 'expo-video';
+import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, CornersOut, GearSix } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat } from '@/src/api/content';
 import { ApiError } from '@/src/api/client';
@@ -77,6 +77,12 @@ export default function VideoPlayerRoute() {
   const { status: playerStatus } = useEvent(player, 'statusChange', { status: player.status });
   const duration = player.duration || 0;
 
+  const videoViewRef = useRef<VideoView>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [qualityTracks, setQualityTracks] = useState<VideoTrack[]>([]);
+  const [selectedQuality, setSelectedQuality] = useState<string | null>(null);
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+
   const [controlsVisible, setControlsVisible] = useState(true);
   const [floating, setFloating] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(2);
@@ -121,6 +127,51 @@ export default function VideoPlayerRoute() {
     setSpeedMenuOpen(false);
   };
 
+  useEffect(() => {
+    const sub = player.addListener('sourceLoad', (payload) => {
+      setQualityTracks(payload.availableVideoTracks);
+    });
+    return () => sub.remove();
+  }, [player]);
+
+  const qualityOptions = [
+    { label: 'Auto', track: null },
+    ...qualityTracks
+      .filter(t => t.size.height > 0)
+      .sort((a, b) => b.size.height - a.size.height)
+      .map(t => ({ label: `${t.size.height}p`, track: t })),
+  ];
+
+  const selectQuality = (track: VideoTrack | null) => {
+    if (!videoUrl) return;
+    const savedTime = player.currentTime;
+    const wasPlaying = player.playing;
+    
+    if (track === null) {
+      player.replace(videoUrl);
+    } else {
+      const bwHintMbps = ((track.peakBitrate ?? track.averageBitrate ?? 2_000_000) / 1_000_000).toFixed(1);
+      const separator = videoUrl.includes('?') ? '&' : '?';
+      player.replace(`${videoUrl}${separator}clientBandwidthHint=${bwHintMbps}`);
+    }
+    
+    setTimeout(() => {
+      player.currentTime = savedTime;
+      if (wasPlaying) player.play();
+    }, 300);
+    
+    setSelectedQuality(track?.id ?? null);
+    setQualityMenuOpen(false);
+  };
+
+  const toggleFullscreen = () => {
+    if (isFullscreen) {
+      videoViewRef.current?.exitFullscreen();
+    } else {
+      videoViewRef.current?.enterFullscreen();
+    }
+  };
+
   const fullStyle = useAnimatedStyle(() => ({
     opacity: 1 - floatScale.value,
     transform: [{ scale: 1 - floatScale.value * 0.04 }],
@@ -143,10 +194,14 @@ export default function VideoPlayerRoute() {
           <View style={styles.canvasInner}>
             {videoUrl ? (
               <VideoView
+                ref={videoViewRef}
                 player={player}
                 style={StyleSheet.absoluteFill}
                 contentFit="contain"
                 nativeControls={false}
+                fullscreenOptions={{ enable: true, orientation: 'landscape' }}
+                onFullscreenEnter={() => setIsFullscreen(true)}
+                onFullscreenExit={() => setIsFullscreen(false)}
               />
             ) : null}
 
@@ -223,8 +278,28 @@ export default function VideoPlayerRoute() {
                       />
                     </View>
                     <Text style={[type['type/caption'], { color: '#fff' }]}>{mm(duration)}</Text>
+                    {qualityTracks.length > 1 && (
+                      <Pressable
+                        onPress={() => { setQualityMenuOpen((o) => !o); setSpeedMenuOpen(false); }}
+                        hitSlop={space.xs}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: 'rgba(255,255,255,0.2)',
+                          borderRadius: radius.pill,
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          gap: 4,
+                        }}
+                      >
+                        <GearSix size={14} color="#fff" />
+                        <Text style={[type['type/caption'], { color: '#fff' }]}>
+                          {qualityOptions.find(o => (o.track?.id ?? null) === selectedQuality)?.label ?? 'Auto'}
+                        </Text>
+                      </Pressable>
+                    )}
                     <Pressable
-                      onPress={() => setSpeedMenuOpen((o) => !o)}
+                      onPress={() => { setSpeedMenuOpen((o) => !o); setQualityMenuOpen(false); }}
                       hitSlop={space.xs}
                       style={{
                         backgroundColor: 'rgba(255,255,255,0.2)',
@@ -235,7 +310,9 @@ export default function VideoPlayerRoute() {
                     >
                       <Text style={[type['type/caption'], { color: '#fff' }]}>{SPEEDS[speedIdx]}</Text>
                     </Pressable>
-                    <GridFour size={22} color="#fff" />
+                    <Pressable onPress={toggleFullscreen} hitSlop={space.xs}>
+                      <CornersOut size={22} color="#fff" />
+                    </Pressable>
                   </View>
                   {speedMenuOpen ? (
                     <View style={[styles.speedMenu, { gap: 4, marginTop: space.xs }]}>
@@ -251,6 +328,24 @@ export default function VideoPlayerRoute() {
                           }}
                         >
                           <Text style={[type['type/caption'], { color: '#fff' }]}>{s}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                  {qualityMenuOpen && qualityTracks.length > 1 ? (
+                    <View style={[styles.speedMenu, { gap: 4, marginTop: space.xs }]}>
+                      {qualityOptions.map((opt) => (
+                        <Pressable
+                          key={opt.label}
+                          onPress={() => selectQuality(opt.track)}
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 4,
+                            borderRadius: 6,
+                            backgroundColor: (opt.track?.id ?? null) === selectedQuality ? 'rgba(255,255,255,0.25)' : 'transparent',
+                          }}
+                        >
+                          <Text style={[type['type/caption'], { color: '#fff' }]}>{opt.label}</Text>
                         </Pressable>
                       ))}
                     </View>
