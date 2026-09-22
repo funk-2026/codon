@@ -30,11 +30,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup EAS CLI
-        uses: expo/expo-github-action@v8
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
 
       - name: Set app version
         run: |
@@ -45,16 +46,26 @@ jobs:
             fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
           "
           echo "✅ Set version to ${{ inputs.version }}"
-          cat app.json | grep '"version"'
+
+      - name: Prebuild Android
+        run: npx expo prebuild --platform android --clean
 
       - name: Build APK
-        run: eas build --platform android --profile preview-apk --non-interactive
+        run: |
+          cd android
+          ./gradlew assembleRelease
 
-      - name: Get build URL
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codon-${{ inputs.version }}-apk
+          path: fe/android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Summary
         run: |
           echo "## 📱 APK Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Download the APK from the [Expo dashboard](https://expo.dev/accounts/vlmlokesh22/projects/codon/builds)" >> $GITHUB_STEP_SUMMARY
+          echo "Download the APK from the GitHub Actions Artifacts section below." >> $GITHUB_STEP_SUMMARY
 

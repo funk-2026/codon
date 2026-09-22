@@ -35,11 +35,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup EAS CLI
-        uses: expo/expo-github-action@v8
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
 
       - name: Set app version
         run: |
@@ -51,12 +52,30 @@ jobs:
           "
           echo "✅ Set version to ${{ inputs.version }}"
 
+      - name: Prebuild Android
+        run: npx expo prebuild --platform android --clean
+
       - name: Build AAB
-        run: eas build --platform android --profile production --non-interactive
+        run: |
+          cd android
+          ./gradlew bundleRelease
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codon-${{ inputs.version }}-aab
+          path: fe/android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Setup EAS CLI (For Submission)
+        if: ${{ inputs.submit }}
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Submit to Google Play Store
         if: ${{ inputs.submit }}
-        run: eas submit --platform android --profile production --non-interactive
+        run: eas submit --platform android --path android/app/build/outputs/bundle/release/app-release.aab --non-interactive
         env:
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
 
@@ -67,5 +86,5 @@ jobs:
           echo "**Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Auto-submit**: ${{ inputs.submit }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Download the AAB from the [Expo dashboard](https://expo.dev/accounts/vlmlokesh22/projects/codon/builds)" >> $GITHUB_STEP_SUMMARY
+          echo "Download the AAB from the GitHub Actions Artifacts section below." >> $GITHUB_STEP_SUMMARY
 
