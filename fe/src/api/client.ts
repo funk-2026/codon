@@ -12,7 +12,7 @@ import { DeviceEventEmitter } from 'react-native';
 // const DEV_HOST = debuggerHost ? debuggerHost.split(':')[0] : '192.168.0.7';
 const DEV_HOST = '192.168.0.6';
 
-export const API_BASE = __DEV__
+export const API_BASE = false
   ? `http://${DEV_HOST}:8080/api/v1`
   : 'https://codon-production-2652.up.railway.app/api/v1';
 

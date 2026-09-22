@@ -8,6 +8,7 @@ import { SecondaryButton, useToast } from '@/src/components';
 import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { deleteAccount } from '@/src/api/profile';
+import { clearAdminActiveRole } from '@/src/auth/tokenStore';
 
 const SOUND_EFFECTS_KEY = 'codon_pref_sound_effects';
 const NOTIFICATIONS_KEY = 'codon_pref_notifications';
@@ -227,6 +228,15 @@ export default function SettingsRoute() {
               label="Change Course"
               onPress={() => router.push({ pathname: '/profile-setup' as any, params: { edit: '1' } })}
             />
+            {auth.user?.role === 'admin' ? (
+              <Row
+                label="Switch Role"
+                onPress={async () => {
+                  await clearAdminActiveRole();
+                  router.push('/role-picker?source=settings' as any);
+                }}
+              />
+            ) : null}
             <Row
               label="Manage Devices"
               onPress={() => router.push('/(student)/(profile)/manage-devices')}

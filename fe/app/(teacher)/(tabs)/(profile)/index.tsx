@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { PencilSimple, CaretRight, Stack } from 'phosphor-react-native';
+import { PencilSimple, CaretRight, Stack, ArrowsClockwise } from 'phosphor-react-native';
 import { ErrorBanner, SecondaryButton, useToast } from '@/src/components';
 import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { updateMe } from '@/src/api/profile';
+import { clearAdminActiveRole } from '@/src/auth/tokenStore';
 
 export default function TeacherProfileRoute() {
   const { color, type, space, radius, preference, setPreference } = useTheme();
@@ -189,6 +190,22 @@ export default function TeacherProfileRoute() {
         <View style={{ marginTop: space.lg }}>
           <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>SUPPORT</Text>
           <View style={{ gap: space.xs }}>
+            {user?.role === 'admin' ? (
+              <Pressable
+                onPress={async () => {
+                  await clearAdminActiveRole();
+                  router.push('/role-picker?source=settings' as any);
+                }}
+                style={({ pressed }) => [
+                  styles.row,
+                  { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
+                ]}
+              >
+                <ArrowsClockwise size={20} color={color('accent/default')} weight="duotone" />
+                <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>Switch Role</Text>
+                <CaretRight size={18} color={color('text/tertiary')} />
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={() => router.push('/(teacher)/(tabs)/(profile)/manage-devices')}
               style={({ pressed }) => [

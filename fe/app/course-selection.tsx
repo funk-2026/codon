@@ -6,6 +6,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  interpolateColor,
 } from 'react-native-reanimated';
 import { Atom, Flask, Leaf, CheckCircle } from 'phosphor-react-native';
 import { PrimaryButton } from '@/src/components';
@@ -134,11 +135,27 @@ function CourseCard({
     opacity: shown.value,
     transform: [{ translateY: (1 - shown.value) * 12 }],
   }));
-  const selStyle = useAnimatedStyle(() => ({
-    borderColor: selected ? color('accent/default') : color('border/subtle'),
-    backgroundColor: selected ? color('accent/tint') : color('bg/surface'),
-    borderWidth: selected ? 2 : 1,
-  }));
+
+  const borderColorSelected = color('accent/default');
+  const borderColorUnselected = color('border/subtle');
+  const bgColorSelected = color('accent/tint');
+  const bgColorUnselected = color('bg/surface');
+
+  const selStyle = useAnimatedStyle(() => {
+    return {
+      borderColor: interpolateColor(
+        sel.value,
+        [0, 1],
+        [borderColorUnselected, borderColorSelected]
+      ),
+      backgroundColor: interpolateColor(
+        sel.value,
+        [0, 1],
+        [bgColorUnselected, bgColorSelected]
+      ),
+      borderWidth: sel.value > 0.5 ? 2 : 1,
+    };
+  });
 
   return (
     <Animated.View style={enterStyle}>
