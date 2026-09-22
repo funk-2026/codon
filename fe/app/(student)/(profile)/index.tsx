@@ -17,6 +17,7 @@ import {
   ChatCircleText,
   Info,
   CaretRight,
+  ArrowsClockwise,
 } from 'phosphor-react-native';
 import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
@@ -302,6 +303,20 @@ export default function ProfileHomeRoute() {
                 label="Settings"
                 onPress={() => router.push('/(student)/(profile)/settings')}
               />
+              {user?.role === 'admin' ? (
+                <>
+                  <Divider />
+                  <MenuRow
+                    icon={<ArrowsClockwise size={20} color={color('accent/default')} weight="duotone" />}
+                    label="Switch Role"
+                    onPress={async () => {
+                      const { clearAdminActiveRole } = await import('@/src/auth/tokenStore');
+                      await clearAdminActiveRole();
+                      router.push('/role-picker?source=settings' as any);
+                    }}
+                  />
+                </>
+              ) : null}
               <Divider />
               <MenuRow
                 icon={<DeviceMobile size={20} color={color('text/secondary')} />}
