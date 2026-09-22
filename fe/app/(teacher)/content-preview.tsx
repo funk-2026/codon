@@ -339,6 +339,7 @@ export default function ContentPreviewRoute() {
                   style={[styles.videoFrame, { backgroundColor: '#000', borderRadius: radius.md }]}
                   contentFit="contain"
                   nativeControls
+                  fullscreenOptions={{ enable: true, orientation: 'landscape' }}
                 />
               ) : (
                 <View style={[styles.videoFrame, { backgroundColor: color('bg/sunken'), borderRadius: radius.md }]}>

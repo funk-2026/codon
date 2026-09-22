@@ -252,6 +252,7 @@ export default function ContentPreviewDetailRoute() {
               style={[styles.videoPreview, { borderRadius: radius.md, marginTop: space.lg }]}
               contentFit="contain"
               nativeControls
+              fullscreenOptions={{ enable: true, orientation: 'landscape' }}
             />
           ) : (
             <View
