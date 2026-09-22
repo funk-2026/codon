@@ -84,6 +84,7 @@ func (s *SubscriptionService) Checkout(ctx context.Context, user *models.User, p
 		Amount:   plan.PricePaise,
 		Currency: plan.Currency,
 		Receipt:  fmt.Sprintf("user_%s_plan_%s", user.ID, plan.ID),
+		Receipt:  fmt.Sprintf("u_%s_p_%s", user.ID.String()[:8], plan.ID.String()[:8]),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating Razorpay order: %w", err)
