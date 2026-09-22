@@ -6,9 +6,9 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon-1.png",
     "splash": {
-      "image": "./assets/images/codon-1.png",
+      "image": "./assets/images/splash-codon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FAFAF9"
+      "backgroundColor": "#0F0F13"
     },
     "scheme": "codon",
     "userInterfaceStyle": "automatic",
@@ -33,7 +33,18 @@
       "expo-web-browser",
       "expo-secure-store",
       "expo-sharing",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0F0F13",
+          "image": "./assets/images/splash-codon.png",
+          "dark": {
+            "image": "./assets/images/splash-codon.png",
+            "backgroundColor": "#0F0F13"
+          },
+          "imageWidth": 200
+        }
+      ],
       "expo-status-bar",
       "expo-video"
     ],
