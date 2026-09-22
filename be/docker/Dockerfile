@@ -22,6 +22,6 @@ WORKDIR /app
 COPY --from=builder /bin/api /bin/api
 COPY --from=builder /bin/worker /bin/worker
 
-# Default: run the API server
-# Override CMD in docker-compose for the worker container
-CMD ["/bin/api"]
+# Here removing the CMD as it is different for worker and API - Add them diretly in the railway
+# For Worker /bin/worker
+# For Api /bin/api
