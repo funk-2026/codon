@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
@@ -187,177 +187,48 @@ export default function VideoPlayerRoute() {
       {/* Full-screen mode */}
       <Animated.View style={[styles.fullWrap, fullStyle]}>
         {/* Video canvas */}
-        <Pressable
-          onPress={() => setControlsVisible((v) => !v)}
-          style={[styles.canvas, { backgroundColor: '#000', paddingTop: insets.top }]}
-        >
-          <View style={styles.canvasInner}>
-            {videoUrl ? (
-              <VideoView
-                ref={videoViewRef}
-                player={player}
-                style={StyleSheet.absoluteFill}
-                contentFit="contain"
-                nativeControls={false}
-                fullscreenOptions={{ enable: true, orientation: 'landscape' }}
-                onFullscreenEnter={() => setIsFullscreen(true)}
-                onFullscreenExit={() => setIsFullscreen(false)}
-              />
-            ) : null}
+        <View style={{ backgroundColor: '#000' }}>
+          {videoUrl && !floating ? (
+            <VideoView
+              player={player}
+              style={{ width: '100%', aspectRatio: 16 / 9 }}
+              contentFit="contain"
+              nativeControls
+              fullscreenOptions={{ enable: true, orientation: 'landscape' }}
+            />
+          ) : videoNotReady ? (
+            <View style={{ width: '100%', aspectRatio: 16 / 9, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+              <Text style={[type['type/body-m'], { color: '#fff', textAlign: 'center' }]}>
+                {content?.video_status === 'failed'
+                  ? "This video couldn't be processed."
+                  : 'This video is still processing — check back soon.'}
+              </Text>
+            </View>
+          ) : (
+            <View style={{ width: '100%', height: 200 }} />
+          )}
 
-            {videoNotReady ? (
-              <View style={styles.centerMessage}>
-                <Text style={[type['type/body-m'], { color: '#fff', textAlign: 'center' }]}>
-                  {content?.video_status === 'failed'
-                    ? "This video couldn't be processed."
-                    : 'This video is still processing — check back soon.'}
-                </Text>
-              </View>
-            ) : null}
-
-            {videoUrl && playerStatus === 'readyToPlay' && !isPlaying ? (
-              <View style={styles.centerPlay}>
-                <Pressable
-                  onPress={togglePlay}
-                  style={({ pressed }) => [
-                    styles.playBtn,
-                    {
-                      backgroundColor: pressed ? color('accent/pressed') : color('accent/default'),
-                      borderRadius: 32,
-                    },
-                  ]}
-                >
-                  <Play size={32} color={color('accent/on-accent')} weight="fill" />
-                </Pressable>
-              </View>
-            ) : null}
-
-            {controlsVisible ? (
-              <>
-                <View style={[styles.topScrim, styles.topRow, { paddingHorizontal: space.md }]}>
-                  <Pressable
-                    onPress={() => setFloating(true)}
-                    hitSlop={space.xs}
-                    style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-                  >
-                    <CaretLeft size={26} color="#fff" />
-                  </Pressable>
-                  <Text
-                    style={[type['type/body-m-medium'], { color: '#fff', flex: 1, marginLeft: space.sm }]}
-                    numberOfLines={1}
-                  >
-                    {content?.title || 'Loading...'}
-                  </Text>
-                </View>
-
-                <View style={[styles.bottomScrim, { paddingHorizontal: space.md, paddingBottom: space.sm }]}>
-                  <View style={[styles.controlsRow, { gap: space.sm }]}>
-                    <Pressable onPress={togglePlay} hitSlop={space.xs}>
-                      {isPlaying ? (
-                        <Pause size={28} color="#fff" weight="fill" />
-                      ) : (
-                        <Play size={28} color="#fff" weight="fill" />
-                      )}
-                    </Pressable>
-                    <Text style={[type['type/caption'], { color: '#fff' }]}>{mm(currentTime)}</Text>
-                    <View
-                      style={{
-                        flex: 1,
-                        height: 4,
-                        backgroundColor: 'rgba(255,255,255,0.3)',
-                        borderRadius: 2,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                          height: 4,
-                          backgroundColor: color('accent/default'),
-                          borderRadius: 2,
-                        }}
-                      />
-                    </View>
-                    <Text style={[type['type/caption'], { color: '#fff' }]}>{mm(duration)}</Text>
-                    {qualityTracks.length > 1 && (
-                      <Pressable
-                        onPress={() => { setQualityMenuOpen((o) => !o); setSpeedMenuOpen(false); }}
-                        hitSlop={space.xs}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          backgroundColor: 'rgba(255,255,255,0.2)',
-                          borderRadius: radius.pill,
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                          gap: 4,
-                        }}
-                      >
-                        <GearSix size={14} color="#fff" />
-                        <Text style={[type['type/caption'], { color: '#fff' }]}>
-                          {qualityOptions.find(o => (o.track?.id ?? null) === selectedQuality)?.label ?? 'Auto'}
-                        </Text>
-                      </Pressable>
-                    )}
-                    <Pressable
-                      onPress={() => { setSpeedMenuOpen((o) => !o); setQualityMenuOpen(false); }}
-                      hitSlop={space.xs}
-                      style={{
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        borderRadius: radius.pill,
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                      }}
-                    >
-                      <Text style={[type['type/caption'], { color: '#fff' }]}>{SPEEDS[speedIdx]}</Text>
-                    </Pressable>
-                    <Pressable onPress={toggleFullscreen} hitSlop={space.xs}>
-                      <CornersOut size={22} color="#fff" />
-                    </Pressable>
-                  </View>
-                  {speedMenuOpen ? (
-                    <View style={[styles.speedMenu, { gap: 4, marginTop: space.xs }]}>
-                      {SPEEDS.map((s, i) => (
-                        <Pressable
-                          key={s}
-                          onPress={() => selectSpeed(i)}
-                          style={{
-                            paddingHorizontal: 12,
-                            paddingVertical: 4,
-                            borderRadius: 6,
-                            backgroundColor: i === speedIdx ? 'rgba(255,255,255,0.25)' : 'transparent',
-                          }}
-                        >
-                          <Text style={[type['type/caption'], { color: '#fff' }]}>{s}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
-                  {qualityMenuOpen && qualityTracks.length > 1 ? (
-                    <View style={[styles.speedMenu, { gap: 4, marginTop: space.xs }]}>
-                      {qualityOptions.map((opt) => (
-                        <Pressable
-                          key={opt.label}
-                          onPress={() => selectQuality(opt.track)}
-                          style={{
-                            paddingHorizontal: 12,
-                            paddingVertical: 4,
-                            borderRadius: 6,
-                            backgroundColor: (opt.track?.id ?? null) === selectedQuality ? 'rgba(255,255,255,0.25)' : 'transparent',
-                          }}
-                        >
-                          <Text style={[type['type/caption'], { color: '#fff' }]}>{opt.label}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              </>
-            ) : null}
+          <View style={[styles.topRow, { position: 'absolute', top: 0, left: 0, paddingHorizontal: space.md, paddingTop: space.sm }]} pointerEvents="box-none">
+            <Pressable
+              onPress={() => setFloating(true)}
+              hitSlop={space.xs}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.6 : 1,
+                backgroundColor: 'rgba(0,0,0,0.4)',
+                borderRadius: 20,
+                width: 40,
+                height: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
+              })}
+            >
+              <CaretLeft size={24} color="#fff" />
+            </Pressable>
           </View>
-        </Pressable>
+        </View>
 
         {/* Below-canvas panel */}
-        <View style={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
           {loading ? (
             <View style={{ marginTop: space.md, gap: space.sm }}>
               <SkeletonBlock height={28} width="70%" />
@@ -435,7 +306,7 @@ export default function VideoPlayerRoute() {
               </View>
             </>
           )}
-        </View>
+        </ScrollView>
       </Animated.View>
 
       {/* Floating mini-player */}
@@ -445,8 +316,8 @@ export default function VideoPlayerRoute() {
             position: 'absolute',
             bottom: 80 + insets.bottom,
             right: space.md,
-            width: 148,
-            height: 84,
+            width: 160,
+            height: 90,
             backgroundColor: '#000',
             borderRadius: radius.md,
             overflow: 'hidden',
@@ -462,32 +333,23 @@ export default function VideoPlayerRoute() {
       >
         <Pressable
           onPress={() => setFloating(false)}
-          style={{ width: 148, height: 84, backgroundColor: '#000' }}
+          style={{ flex: 1, backgroundColor: '#000' }}
         >
-          {videoUrl ? (
+          {videoUrl && floating ? (
             <VideoView
               player={player}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
+              style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
+              contentFit="contain"
               nativeControls={false}
               pointerEvents="none"
             />
           ) : null}
-          <View style={styles.floatProgress}>
-            <View
-              style={{
-                width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                height: 2,
-                backgroundColor: color('accent/default'),
-              }}
-            />
-          </View>
-          <View style={styles.floatControls}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' }]}>
             <Pressable onPress={togglePlay} hitSlop={space.xs}>
               {isPlaying ? (
-                <Pause size={20} color="#fff" weight="fill" />
+                <Pause size={24} color="#fff" weight="fill" />
               ) : (
-                <Play size={20} color="#fff" weight="fill" />
+                <Play size={24} color="#fff" weight="fill" />
               )}
             </Pressable>
             <Pressable
@@ -496,11 +358,20 @@ export default function VideoPlayerRoute() {
                 player.pause();
                 router.back();
               }}
-              hitSlop={space.xs}
-              style={{ position: 'absolute', top: 2, right: 2 }}
+              hitSlop={space.lg}
+              style={{ position: 'absolute', top: 6, right: 6 }}
             >
-              <X size={16} color="#fff" />
+              <X size={16} color="#fff" weight="bold" />
             </Pressable>
+          </View>
+          <View style={styles.floatProgress}>
+            <View
+              style={{
+                width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                height: 2,
+                backgroundColor: color('accent/default'),
+              }}
+            />
           </View>
         </Pressable>
       </Animated.View>
