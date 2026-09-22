@@ -97,6 +97,7 @@ export default function LearnHierarchyRoute() {
   const [tree, setTree] = useState<Row[]>([]);
   const [courseName, setCourseName] = useState('Course');
   const [loading, setLoading] = useState(true);
+  const [hasSub, setHasSub] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -104,6 +105,7 @@ export default function LearnHierarchyRoute() {
         const { getMe } = await import('@/src/api/profile');
         const { getCurriculum } = await import('@/src/api/courses');
         const me = await getMe();
+        setHasSub(!!me.active_subscription);
         if (me.user.selected_course_id) {
           const cur = await getCurriculum(me.user.selected_course_id);
           setCourseName(cur.course.name);
@@ -142,7 +144,7 @@ export default function LearnHierarchyRoute() {
             title: c.title,
             level: 'leaf',
             leafKind: c.content_type === 'video' ? 'video' : 'document',
-            locked: c.requires_subscription, // simplified for now
+            locked: c.requires_subscription && !hasSub,
           })));
         }).finally(() => setLeafsLoading(false));
       });
@@ -150,7 +152,7 @@ export default function LearnHierarchyRoute() {
       setLeafs([]);
       setLeafsLoading(false);
     }
-  }, [pathIds]);
+  }, [pathIds, hasSub]);
 
   const crumbs = useMemo(() => {
     const out: { id: string; title: string; path: string }[] = [];

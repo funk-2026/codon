@@ -107,6 +107,7 @@ export default function HierarchyBrowserRoute() {
   // Tests fetched dynamically when viewing a chapter
   const [leafTests, setLeafTests] = useState<Test[]>([]);
   const [loadingTests, setLoadingTests] = useState(false);
+  const [hasSub, setHasSub] = useState(false);
 
   const pathIds = useMemo(
     () => (params.path ? params.path.split('/').filter(Boolean) : []),
@@ -117,6 +118,9 @@ export default function HierarchyBrowserRoute() {
     if (!user?.selected_course_id) return;
     setLoading(true);
     try {
+      const { getMe } = await import('@/src/api/profile');
+      const me = await getMe();
+      setHasSub(!!me.active_subscription);
       const res = await getCurriculum(user.selected_course_id);
       setSubjects(res.course.subjects || []);
       setCourseName(res.course.name);
@@ -195,7 +199,7 @@ export default function HierarchyBrowserRoute() {
           level: 'leaf',
           leafKind: 'test',
           meta: `${t.total_questions} questions · ${t.duration_minutes || 0} min`,
-          locked: t.requires_subscription,
+          locked: t.requires_subscription && !hasSub,
         }));
       }
     }
@@ -206,7 +210,7 @@ export default function HierarchyBrowserRoute() {
     }
 
     return { crumbs: out, currentLayer: currentLayerRows };
-  }, [pathIds, subjects, leafTests]);
+  }, [pathIds, subjects, leafTests, hasSub]);
 
   const currentLevel: Level = crumbs.crumbs.length === 0
     ? 'subject'
