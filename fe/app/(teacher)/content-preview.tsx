@@ -7,7 +7,8 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { EmptyState, PrimaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest } from '@/src/api/teacher';
-import { Test, Question } from '@/src/api/tests';
+import { Test, AuthoredQuestion } from '@/src/api/tests';
+import { QuestionPreviewCard, type MediaMap } from '@/src/rich';
 import { ContentItem } from '@/src/api/content';
 import { ApiError } from '@/src/api/client';
 
@@ -101,7 +102,8 @@ export default function ContentPreviewRoute() {
     p.loop = false;
   });
 
-  const [questions, setQuestions] = useState<Question[] | null>(null);
+  const [questions, setQuestions] = useState<AuthoredQuestion[] | null>(null);
+  const [questionMedia, setQuestionMedia] = useState<MediaMap>({});
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -116,6 +118,7 @@ export default function ContentPreviewRoute() {
       getTeacherTest(id).then((res) => {
         setTestData(res.test);
         setQuestions(res.questions);
+        setQuestionMedia(res.media ?? {});
         setResolvedType('Test');
         setStatus(normalizeStatus(res.test.status));
       });
@@ -294,35 +297,7 @@ export default function ContentPreviewRoute() {
                         : 'No questions added yet.'}
                     </Text>
                   ) : sortedQuestions && sortedQuestions.length > 0 ? (
-                    sortedQuestions.map((q, qi) => (
-                      <View
-                        key={q.id}
-                        style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}
-                      >
-                        <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
-                          {qi + 1}. {q.question_text}
-                        </Text>
-                        <View style={{ marginTop: space.xs, gap: 4 }}>
-                          {QUESTION_OPTIONS.map(({ letter, key }) => (
-                            <Text
-                              key={letter}
-                              style={[
-                                type['type/body-m'],
-                                { color: q.correct_option?.toUpperCase() === letter ? color('semantic/success') : color('text/secondary') },
-                              ]}
-                            >
-                              {letter}. {q[key]}
-                              {q.correct_option?.toUpperCase() === letter ? '  ✓' : ''}
-                            </Text>
-                          ))}
-                        </View>
-                        {q.explanation ? (
-                          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
-                            {q.explanation}
-                          </Text>
-                        ) : null}
-                      </View>
-                    ))
+                    sortedQuestions.map((q, qi) => <QuestionPreviewCard key={q.id} q={q} index={qi} media={questionMedia} />)
                   ) : (
                     <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
                       No questions added yet.

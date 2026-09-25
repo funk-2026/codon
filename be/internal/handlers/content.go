@@ -106,6 +106,12 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create content item"})
 		return
 	}
+	// GORM swaps a false bool on a `default:true` column for the default at
+	// INSERT, so free items used to be stored as paid; write the real value back.
+	if !requiresSub {
+		h.DB.WithContext(c.Request.Context()).Model(&item).UpdateColumn("requires_subscription", false)
+		item.RequiresSubscription = false
+	}
 
 	if ct == models.ContentVideo {
 		if strings.HasPrefix(item.FileKey, "stream:") {
@@ -375,9 +381,13 @@ func (h *ContentHandler) GetChapterContent(c *gin.Context) {
 	user := middleware.GetUser(c)
 	chapterID := c.Param("chapter_id")
 	var items []models.ContentItem
+	order := "created_at ASC"
+	if c.Query("sort") == "rating" {
+		order = "rating_avg DESC, rating_count DESC, created_at ASC"
+	}
 	h.DB.WithContext(c.Request.Context()).
 		Where("chapter_id = ? AND status = ?", chapterID, models.StatusPublished).
-		Order("created_at ASC").
+		Order(order).
 		Find(&items)
 
 	kycReq := kycRequired(h.DB)
@@ -388,7 +398,20 @@ func (h *ContentHandler) GetChapterContent(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, listContentResponse{Content: items})
+	// the caller's own ratings, keyed by content id
+	mine := map[string]int{}
+	if len(items) > 0 {
+		ids := make([]uuid.UUID, len(items))
+		for i, it := range items {
+			ids[i] = it.ID
+		}
+		var rs []models.Rating
+		h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND item_type = 'content' AND item_id IN ?", user.ID, ids).Find(&rs)
+		for _, r := range rs {
+			mine[r.ItemID.String()] = r.Value
+		}
+	}
+	c.JSON(http.StatusOK, listContentResponse{Content: items, MyRatings: mine})
 }
 
 // GetContentItem godoc
@@ -419,7 +442,13 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, getContentResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
+	resp := getContentResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)}
+	var r models.Rating
+	if h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND item_type = 'content' AND item_id = ?", user.ID, item.ID).First(&r).Error == nil {
+		v := r.Value
+		resp.MyRating = &v
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // AdminGetContent godoc
@@ -469,7 +498,7 @@ func (h *ContentHandler) AdminListContent(c *gin.Context) {
 	chapterID := c.Query("chapter_id")
 
 	query := h.DB.WithContext(c.Request.Context()).Where("status = ?", status)
-	
+
 	if courseID != "" {
 		query = query.Where("course_id = ?", courseID)
 	}
@@ -553,16 +582,17 @@ func (h *ContentHandler) AdminRejectContent(c *gin.Context) {
 // ── Request / Response types ──────────────────────────────────────────────────
 
 type listContentResponse struct {
-	Content []models.ContentItem `json:"content"`
+	Content   []models.ContentItem `json:"content"`
+	MyRatings map[string]int       `json:"my_ratings,omitempty"`
 }
 
 type createContentRequest struct {
-	Title                string  `json:"title"        example:"Cell Biology — Lecture 1"`
-	CourseID             string  `json:"course_id"    example:"550e8400-e29b-41d4-a716-446655440000"`
-	ContentType          string  `json:"content_type" example:"video" enums:"video,document"`
-	ChapterID            string  `json:"chapter_id"   example:"550e8400-e29b-41d4-a716-446655440002"`
-	FileKey              string  `json:"file_key"     example:"video/user-uuid/file-uuid.mp4"`
-	RequiresSubscription *bool   `json:"requires_subscription" example:"true"`
+	Title                string `json:"title"        example:"Cell Biology — Lecture 1"`
+	CourseID             string `json:"course_id"    example:"550e8400-e29b-41d4-a716-446655440000"`
+	ContentType          string `json:"content_type" example:"video" enums:"video,document"`
+	ChapterID            string `json:"chapter_id"   example:"550e8400-e29b-41d4-a716-446655440002"`
+	FileKey              string `json:"file_key"     example:"video/user-uuid/file-uuid.mp4"`
+	RequiresSubscription *bool  `json:"requires_subscription" example:"true"`
 }
 
 type updateContentRequest struct {
@@ -573,12 +603,12 @@ type updateContentRequest struct {
 }
 
 type getContentResponse struct {
-	Content models.ContentItem `json:"content"`
-	URL     string             `json:"url,omitempty"`
+	Content  models.ContentItem `json:"content"`
+	URL      string             `json:"url,omitempty"`
+	MyRating *int               `json:"my_rating,omitempty"`
 }
 
 type adminContentDetailResponse struct {
 	Content models.ContentItem `json:"content"`
 	URL     string             `json:"url,omitempty"`
 }
-

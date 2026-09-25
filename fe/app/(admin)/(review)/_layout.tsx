@@ -14,6 +14,8 @@ export default function AdminReviewStack() {
         options={{ title: 'Moderation — Videos/Docs' }}
       />
       <Stack.Screen name="content-preview-detail" options={{ title: 'Content Preview' }} />
+      <Stack.Screen name="reports-queue" options={{ headerShown: false }} />
+      <Stack.Screen name="corrections-queue" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -71,7 +71,7 @@ Grouped by theme so it scans as a roadmap, not a list of unrelated bullets. Each
 
 **Proposed scope:** A quick-link from the video renderer to a notes panel/screen, with markdown formatting support, scoped per video (or per chapter).
 
-**Current state:** No notes feature exists anywhere in the app. **Sequencing matters here:** the video player itself doesn't play real video yet (see the bug flagged above) and video content upload is still mocked — building a polished notes feature on top of a player that doesn't actually play anything yet means re-testing this feature once video playback is real. Worth sequencing after that gap closes, not before.
+**Current state:** No notes feature exists anywhere in the app. **Sequencing matters here:** (historical note — check whether the video player and video upload are still affected before relying on this) the video player was reported not to play real video and video upload was mocked — building a polished notes feature on top of a player that doesn't actually play anything yet means re-testing this feature once video playback is real. Worth sequencing after that gap closes, not before.
 
 ---
 
@@ -86,9 +86,11 @@ Grouped by theme so it scans as a roadmap, not a list of unrelated bullets. Each
 - Scope as a **module type** alongside Q Bank / Test Series / Practice — not a one-off bolted onto Practice — with its own generation logic pulling from the existing question bank.
 - Quick-link to custom test creation from Home, not just from within Practice.
 
-**Current state:** The `module_type` field already distinguishes `'qbank' | 'test_series' | 'practice'` on the backend `Test` model — a `'custom'` type (or a client-side generation flow assembling a `practice` test on demand) is a natural extension of that existing enum, not a parallel system.
+**Current state (updated):** **Implemented** (behind the `custom_test.enabled` flag) — a `'custom'` module type, server-side generation from a versioned blueprint, private generated tests, builder, templates, sharing, tutor mode, analytics. A *client-side* generation flow turned out not to be viable (questions are only readable per test during an attempt). See [docs/custom-test-module-fe-todo.md](docs/custom-test-module-fe-todo.md) §7 for what is verified and what still needs device QA ([docs/custom-test-module-qa.md](docs/custom-test-module-qa.md)).
 
 **Action item:** Do a structured competitive walkthrough of Marrow's custom-test flow specifically before scoping — it's the explicit reference point.
+
+**Full feature spec:** [docs/custom-test-module.md](docs/custom-test-module.md) — complete feature inventory (~220 items), current-state audit, decisions needed, and backend handoff. Note its finding that a client-side-generation approach isn't viable with today's API (questions are only readable per-test, during an attempt).
 
 ---
 
@@ -139,7 +141,7 @@ Grouped by theme so it scans as a roadmap, not a list of unrelated bullets. Each
 
 **Proposed scope:** Add video as a supported media type for Brain Hack content, alongside the existing image option.
 
-**Current state:** Brain Hack creation (`(teacher)/create-brain-hack.tsx`) and detail screens are text/image-only today. **Sequencing matters:** teacher video upload elsewhere in the app (`create-content.tsx`) is itself still using a mocked upload path — build this on top of a *working* video upload pipeline, or it inherits the same gap on day one.
+**Current state (updated):** Brain Hacks were previously **hard-coded mock screens with no backend**; they are now real (rich text + images, categories, ratings, teacher authoring → admin review; backend `/brain-hacks`). Video is still not supported. Original note: creation (`(teacher)/create-brain-hack.tsx`) and detail screens were text/image-only. **Sequencing matters:** teacher video upload elsewhere in the app (`create-content.tsx`) is itself still using a mocked upload path — build this on top of a *working* video upload pipeline, or it inherits the same gap on day one.
 
 ---
 

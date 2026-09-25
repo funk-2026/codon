@@ -1,6 +1,7 @@
 import { apiFetch } from './client';
 import { UserProfile } from './profile';
-import { Test, Question } from './tests';
+import { Test, AuthoredQuestion } from './tests';
+import type { MediaMap } from '@/src/rich/ast';
 import { ContentItem } from './content';
 import { SubscriptionPlan } from './profile';
 import { KYCRecord } from './kyc';
@@ -94,8 +95,8 @@ export function adminListTests(status?: string): Promise<{ tests: Test[] }> {
 }
 
 /** GET /api/v1/admin/tests/:id */
-export function adminGetTest(id: string): Promise<{ test: Test; questions: Question[] }> {
-  return apiFetch<{ test: Test; questions: Question[] }>(`/admin/tests/${id}`, { method: 'GET' });
+export function adminGetTest(id: string): Promise<{ test: Test; questions: AuthoredQuestion[]; media: MediaMap }> {
+  return apiFetch<{ test: Test; questions: AuthoredQuestion[]; media: MediaMap }>(`/admin/tests/${id}`, { method: 'GET' });
 }
 
 /** POST /api/v1/admin/tests/:id/approve */

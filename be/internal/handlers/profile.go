@@ -300,7 +300,7 @@ func (h *ProfileHandler) GetRecentContent(c *gin.Context) {
 		if hist.ContentItem.ID == uuid.Nil {
 			continue
 		}
-		
+
 		breadcrumb := "Subject › Chapter"
 		var chapter models.Chapter
 		if err := h.DB.Preload("Subject").Where("id = ?", hist.ContentItem.ChapterID).First(&chapter).Error; err == nil {
@@ -322,7 +322,7 @@ func (h *ProfileHandler) GetRecentContent(c *gin.Context) {
 			"pct":        pct,
 		})
 	}
-	
+
 	if recent == nil {
 		recent = []map[string]interface{}{}
 	}
@@ -351,57 +351,52 @@ type mySubscriptionResponse struct {
 func (h *ProfileHandler) GetProgressBreakdown(c *gin.Context) {
 	user := middleware.GetUser(c)
 
-	// Trend: last 10 attempts
+	// Optional segmentation: ?module=qbank|test_series|practice|custom
+	module := c.Query("module")
+	modFilter := ""
+	var modArgs []interface{}
+	if module != "" {
+		modFilter = " AND t.module_type = ?"
+		modArgs = []interface{}{module}
+	}
+
+	// Trend: the LAST 10 submitted attempts, oldest first (previously this
+	// returned the first 10 ever). No fabricated zeros when there are none.
 	var trendScores []float64
-	h.DB.WithContext(c.Request.Context()).
-		Model(&models.StudentAttempt{}).
-		Where("user_id = ? AND status = ?", user.ID, models.AttemptSubmitted).
-		Order("created_at ASC").
-		Limit(10).
-		Pluck("score", &trendScores)
-
+	trendSQL := `SELECT score FROM (
+		SELECT sa.score, sa.submitted_at FROM student_attempts sa JOIN tests t ON t.id = sa.test_id
+		WHERE sa.user_id = ? AND sa.status = ? AND sa.score IS NOT NULL` + modFilter + `
+		ORDER BY sa.submitted_at DESC NULLS LAST LIMIT 10) x ORDER BY submitted_at ASC NULLS LAST`
+	h.DB.WithContext(c.Request.Context()).Raw(trendSQL, append([]interface{}{user.ID, models.AttemptSubmitted}, modArgs...)...).Scan(&trendScores)
 	trend := make([]int, len(trendScores))
-	for i, s := range trendScores {
-		trend[i] = int(s)
-	}
-	if len(trend) == 0 {
-		trend = []int{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	for i, sc := range trendScores {
+		trend[i] = int(sc)
 	}
 
-	// Subjects Accuracy
+	// Subject accuracy from QUESTION-level subject (custom tests span several
+	// subjects), correct ÷ attempted (unattempted rows no longer dilute it).
 	type subjectStat struct {
 		Name     string
 		Accuracy float64
 	}
 	var subStats []subjectStat
-
 	query := `
-		SELECT s.name as name,
-		       (COUNT(CASE WHEN aa.selected_option = q.correct_option THEN 1 END) * 100.0) / NULLIF(COUNT(aa.id), 0) as accuracy
+		SELECT s.name AS name,
+		       (COUNT(CASE WHEN aa.is_correct IS TRUE THEN 1 END) * 100.0) / NULLIF(COUNT(aa.id), 0) AS accuracy
 		FROM attempt_answers aa
 		JOIN questions q ON aa.question_id = q.id
 		JOIN student_attempts sa ON aa.attempt_id = sa.id
 		JOIN tests t ON sa.test_id = t.id
-		JOIN subjects s ON t.subject_id = s.id
-		WHERE sa.user_id = ? AND sa.status = ?
+		JOIN subjects s ON q.subject_id = s.id
+		WHERE sa.user_id = ? AND sa.status = ? AND aa.selected_option IS NOT NULL` + modFilter + `
 		GROUP BY s.id, s.name
-	`
-	h.DB.WithContext(c.Request.Context()).Raw(query, user.ID, models.AttemptSubmitted).Scan(&subStats)
+		ORDER BY s.name`
+	h.DB.WithContext(c.Request.Context()).Raw(query, append([]interface{}{user.ID, models.AttemptSubmitted}, modArgs...)...).Scan(&subStats)
 
+	// Empty (never a fake Physics/Chemistry/Botany/Zoology placeholder).
 	subjects := make([]progressSubject, len(subStats))
 	for i, s := range subStats {
-		subjects[i] = progressSubject{
-			Name:     s.Name,
-			Accuracy: int(s.Accuracy),
-		}
-	}
-	if len(subjects) == 0 {
-		subjects = []progressSubject{
-			{Name: "Physics", Accuracy: 0},
-			{Name: "Chemistry", Accuracy: 0},
-			{Name: "Botany", Accuracy: 0},
-			{Name: "Zoology", Accuracy: 0},
-		}
+		subjects[i] = progressSubject{Name: s.Name, Accuracy: int(s.Accuracy)}
 	}
 
 	// Real streak calculation

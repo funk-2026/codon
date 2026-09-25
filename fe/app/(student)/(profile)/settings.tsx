@@ -9,9 +9,10 @@ import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { deleteAccount } from '@/src/api/profile';
 import { clearAdminActiveRole } from '@/src/auth/tokenStore';
+import { usePush } from '@/src/notifications/PushProvider';
+import { pushStatusCopy } from '@/src/notifications/logic';
 
 const SOUND_EFFECTS_KEY = 'codon_pref_sound_effects';
-const NOTIFICATIONS_KEY = 'codon_pref_notifications';
 
 function GroupLabel({ label }: { label: string }) {
   const { color, type, space } = useTheme();
@@ -72,19 +73,14 @@ export default function SettingsRoute() {
   const auth = useAuth();
   const { show } = useToast();
   const [soundEffects, setSoundEffectsState] = useState(true);
-  const [notifications, setNotificationsState] = useState(true);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const [storedSound, storedNotifications] = await Promise.all([
-        SecureStore.getItemAsync(SOUND_EFFECTS_KEY),
-        SecureStore.getItemAsync(NOTIFICATIONS_KEY),
-      ]);
+      const storedSound = await SecureStore.getItemAsync(SOUND_EFFECTS_KEY);
       if (storedSound != null) setSoundEffectsState(storedSound === 'true');
-      if (storedNotifications != null) setNotificationsState(storedNotifications === 'true');
     })();
   }, []);
 
@@ -93,9 +89,19 @@ export default function SettingsRoute() {
     SecureStore.setItemAsync(SOUND_EFFECTS_KEY, String(value));
   };
 
-  const setNotifications = (value: boolean) => {
-    setNotificationsState(value);
-    SecureStore.setItemAsync(NOTIFICATIONS_KEY, String(value));
+  const push = usePush();
+  const pushOn = push.permission === 'granted' && push.prefs?.push_enabled !== false;
+  const pushCopy = pushStatusCopy(push.permission, pushOn);
+  const onPushToggle = async (want: boolean) => {
+    if (push.permission === 'denied') return push.openSystemSettings();
+    if (!want) {
+      await push.disable();
+      return;
+    }
+    const r = await push.enable();
+    if (r === 'denied') show('Notifications are off for Codon in your phone’s settings.', 'error');
+    else if (r === 'error') show('Couldn’t turn on notifications. Try again.', 'error');
+    else if (r === 'unavailable') show('Notifications aren’t available on this build.', 'error');
   };
 
   const segments: { key: ThemePreference; label: string }[] = [
@@ -106,6 +112,7 @@ export default function SettingsRoute() {
 
   const handleLogout = async () => {
     setLogoutConfirmOpen(false);
+    await push.unregister();
     await auth.signOut();
     router.replace('/phone-entry');
   };
@@ -114,6 +121,7 @@ export default function SettingsRoute() {
     if (deleting) return;
     setDeleting(true);
     try {
+      await push.unregister();
       await deleteAccount();
       setDeleteConfirmOpen(false);
       await auth.signOut();
@@ -207,17 +215,34 @@ export default function SettingsRoute() {
               }
             />
             <Row
-              label="Notifications"
-              caption="Coming soon"
+              label="Push notifications"
+              caption={pushCopy.caption}
               trailing={
                 <Switch
-                  value={notifications}
-                  onValueChange={setNotifications}
+                  value={pushOn}
+                  disabled={!pushCopy.canToggle}
+                  onValueChange={onPushToggle}
+                  accessibilityLabel="Push notifications"
                   trackColor={{ false: color('border/strong'), true: color('accent/default') }}
                   thumbColor={color('bg/surface')}
                 />
               }
             />
+            {pushOn ? (
+              <>
+                <Row
+                  label="Streak reminders"
+                  caption="A nudge if you’re about to lose your streak"
+                  trailing={<Switch value={push.prefs?.streak_nudges !== false} onValueChange={(v) => push.setPref({ streak_nudges: v }).catch(() => show('Couldn’t save.', 'error'))} accessibilityLabel="Streak reminders" trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />}
+                />
+                <Row
+                  label="Updates on my reports"
+                  caption="When a question you reported is reviewed"
+                  trailing={<Switch value={push.prefs?.report_updates !== false} onValueChange={(v) => push.setPref({ report_updates: v }).catch(() => show('Couldn’t save.', 'error'))} accessibilityLabel="Updates on my reports" trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />}
+                />
+              </>
+            ) : null}
+            <Row label="Notification inbox" onPress={() => router.push('/(student)/(profile)/notifications')} />
           </View>
         </View>
 

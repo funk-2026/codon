@@ -1,4 +1,278 @@
 definitions:
+  codon-backend_internal_blueprint.Blueprint:
+    properties:
+      count:
+        type: integer
+      course_id:
+        type: string
+      difficulty_mix:
+        additionalProperties:
+          format: float64
+          type: number
+        type: object
+      fallback:
+        description: '"fewer" (default) | "fail"'
+        type: string
+      filters:
+        $ref: '#/definitions/codon-backend_internal_blueprint.Filters'
+      marking:
+        $ref: '#/definitions/codon-backend_internal_blueprint.Marking'
+      mode:
+        type: string
+      order:
+        type: string
+      schema_version:
+        type: integer
+      seed:
+        type: integer
+      strategy:
+        type: string
+      subject_weights:
+        description: '"even" | "proportional" | {"<subject_id>": weight}'
+        items:
+          type: integer
+        type: array
+      timing:
+        $ref: '#/definitions/codon-backend_internal_blueprint.Timing'
+      title:
+        type: string
+    type: object
+  codon-backend_internal_blueprint.Filters:
+    properties:
+      bookmark_collection_ids:
+        items:
+          type: string
+        type: array
+      chapter_ids:
+        items:
+          type: string
+        type: array
+      difficulty:
+        items:
+          type: string
+        type: array
+      exclude_attempted_within_days:
+        type: integer
+      exclude_tag_ids:
+        items:
+          type: string
+        type: array
+      ncert:
+        $ref: '#/definitions/codon-backend_internal_blueprint.NCERT'
+      source_types:
+        items:
+          type: string
+        type: array
+      status:
+        items:
+          type: string
+        type: array
+      subject_ids:
+        items:
+          type: string
+        type: array
+      tag_ids:
+        items:
+          type: string
+        type: array
+      topic_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  codon-backend_internal_blueprint.Marking:
+    properties:
+      correct:
+        type: number
+      preset:
+        type: string
+      wrong:
+        type: number
+    type: object
+  codon-backend_internal_blueprint.NCERT:
+    properties:
+      class:
+        type: integer
+      page_from:
+        type: integer
+      page_to:
+        type: integer
+    type: object
+  codon-backend_internal_blueprint.Timing:
+    properties:
+      duration_minutes:
+        type: integer
+      timed:
+        type: boolean
+    type: object
+  codon-backend_internal_generation.Bottleneck:
+    properties:
+      filter:
+        type: string
+      reason:
+        type: string
+      with_filter:
+        type: integer
+      without_filter:
+        type: integer
+    type: object
+  codon-backend_internal_generation.CountBucket:
+    properties:
+      count:
+        type: integer
+      id:
+        type: string
+      key:
+        type: string
+      name:
+        type: string
+    type: object
+  codon-backend_internal_generation.CountResult:
+    properties:
+      available:
+        type: integer
+      bottleneck:
+        $ref: '#/definitions/codon-backend_internal_generation.Bottleneck'
+      by_difficulty:
+        items:
+          $ref: '#/definitions/codon-backend_internal_generation.CountBucket'
+        type: array
+      by_subject:
+        items:
+          $ref: '#/definitions/codon-backend_internal_generation.CountBucket'
+        type: array
+      clamped_to:
+        type: integer
+      entitlement:
+        $ref: '#/definitions/codon-backend_internal_generation.Entitlement'
+      feasible_count:
+        type: integer
+      requested:
+        type: integer
+      suggestions:
+        items:
+          $ref: '#/definitions/codon-backend_internal_generation.Suggestion'
+        type: array
+    type: object
+  codon-backend_internal_generation.Entitlement:
+    properties:
+      course_id:
+        type: string
+      tier:
+        $ref: '#/definitions/codon-backend_internal_generation.Tier'
+    type: object
+  codon-backend_internal_generation.Relaxation:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  codon-backend_internal_generation.Result:
+    properties:
+      relaxations:
+        items:
+          $ref: '#/definitions/codon-backend_internal_generation.Relaxation'
+        type: array
+      replayed:
+        type: boolean
+      test:
+        $ref: '#/definitions/codon-backend_internal_models.Test'
+    type: object
+  codon-backend_internal_generation.Suggestion:
+    properties:
+      code:
+        type: string
+      gain:
+        type: integer
+      label:
+        type: string
+      patch:
+        additionalProperties: true
+        type: object
+    type: object
+  codon-backend_internal_generation.Tier:
+    enum:
+    - admin
+    - paid
+    - free
+    type: string
+    x-enum-varnames:
+    - TierAdmin
+    - TierPaid
+    - TierFree
+  codon-backend_internal_media.PresignRequest:
+    properties:
+      bytes:
+        type: integer
+      content_type:
+        type: string
+      file_name:
+        type: string
+      purpose:
+        type: string
+      sha256:
+        type: string
+    type: object
+  codon-backend_internal_media.PresignResult:
+    properties:
+      expires_in:
+        type: integer
+      file_key:
+        type: string
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      media_id:
+        type: string
+      upload_url:
+        type: string
+    type: object
+  codon-backend_internal_media.View:
+    properties:
+      alt:
+        type: string
+      height:
+        type: integer
+      id:
+        type: string
+      thumb_url:
+        type: string
+      url:
+        type: string
+      width:
+        type: integer
+    type: object
+  codon-backend_internal_models.AttemptAnswer:
+    properties:
+      answered_at:
+        type: string
+      attempt_id:
+        type: string
+      confidence:
+        type: string
+      id:
+        type: string
+      is_correct:
+        type: boolean
+      marked_for_review:
+        type: boolean
+      marks_awarded:
+        type: number
+      position:
+        type: integer
+      question:
+        $ref: '#/definitions/codon-backend_internal_models.Question'
+      question_id:
+        type: string
+      revealed_at:
+        type: string
+      selected_option:
+        $ref: '#/definitions/codon-backend_internal_models.CorrectOption'
+      time_spent_seconds:
+        type: integer
+    type: object
   codon-backend_internal_models.AttemptStatus:
     enum:
     - in_progress
@@ -7,8 +281,84 @@ definitions:
     x-enum-varnames:
     - AttemptInProgress
     - AttemptSubmitted
+  codon-backend_internal_models.Bookmark:
+    properties:
+      collection_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      item_id:
+        type: string
+      item_type:
+        type: string
+      note:
+        type: string
+      user_id:
+        type: string
+    type: object
+  codon-backend_internal_models.BookmarkCollection:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      key:
+        type: string
+      label:
+        type: string
+      order_index:
+        type: integer
+      owner_id:
+        description: null = system collection
+        type: string
+    type: object
+  codon-backend_internal_models.BrainHack:
+    properties:
+      author_id:
+        type: string
+      body:
+        type: string
+      category:
+        type: string
+      content_format:
+        type: string
+      cover_media_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      rating_avg:
+        type: number
+      rating_count:
+        type: integer
+      read_minutes:
+        type: integer
+      rejection_reason:
+        type: string
+      reviewed_at:
+        type: string
+      reviewed_by:
+        type: string
+      status:
+        $ref: '#/definitions/codon-backend_internal_models.ContentStatus'
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
   codon-backend_internal_models.CSVImportBatch:
     properties:
+      allow_content_update:
+        type: boolean
+      applied:
+        type: boolean
+      bundle_key:
+        type: string
       completed_at:
         type: string
       created_at:
@@ -17,26 +367,44 @@ definitions:
         type: integer
       file_key:
         type: string
+      file_sha256:
+        type: string
       id:
+        type: string
+      mode:
+        type: string
+      parent_batch_id:
         type: string
       status:
         $ref: '#/definitions/codon-backend_internal_models.ImportStatus'
       success_rows:
         type: integer
+      summary:
+        items:
+          type: integer
+        type: array
       teacher_id:
         type: string
+      template_version:
+        type: integer
       test:
         $ref: '#/definitions/codon-backend_internal_models.Test'
       test_id:
         type: string
       total_rows:
         type: integer
+      warning_rows:
+        type: integer
     type: object
   codon-backend_internal_models.CSVImportRowError:
     properties:
       batch_id:
         type: string
+      code:
+        type: string
       error_message:
+        type: string
+      field:
         type: string
       id:
         type: string
@@ -44,6 +412,8 @@ definitions:
         type: string
       row_number:
         type: integer
+      severity:
+        type: string
     type: object
   codon-backend_internal_models.Chapter:
     properties:
@@ -82,6 +452,10 @@ definitions:
         type: string
       id:
         type: string
+      rating_avg:
+        type: number
+      rating_count:
+        type: integer
       rejection_reason:
         type: string
       requires_subscription:
@@ -98,8 +472,43 @@ definitions:
         type: string
       uploaded_by:
         type: string
+      uploader:
+        $ref: '#/definitions/codon-backend_internal_models.User'
       video_status:
         $ref: '#/definitions/codon-backend_internal_models.VideoStatus'
+    type: object
+  codon-backend_internal_models.ContentReport:
+    properties:
+      assignee_id:
+        type: string
+      attempt_id:
+        type: string
+      context:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      item_id:
+        type: string
+      item_type:
+        type: string
+      item_version:
+        type: integer
+      note:
+        type: string
+      reason:
+        type: string
+      reporter_id:
+        type: string
+      resolution_note:
+        type: string
+      resolved_at:
+        type: string
+      resolved_by:
+        type: string
+      status:
+        type: string
     type: object
   codon-backend_internal_models.ContentStatus:
     enum:
@@ -152,6 +561,142 @@ definitions:
       updated_at:
         type: string
     type: object
+  codon-backend_internal_models.CustomTestPreset:
+    properties:
+      blueprint:
+        items:
+          type: integer
+        type: array
+      course_id:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      order_index:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  codon-backend_internal_models.CustomTestTemplate:
+    properties:
+      blueprint:
+        items:
+          type: integer
+        type: array
+      created_at:
+        type: string
+      id:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  codon-backend_internal_models.Flashcard:
+    properties:
+      back:
+        type: string
+      content_format:
+        type: string
+      created_at:
+        type: string
+      deck_id:
+        type: string
+      front:
+        type: string
+      id:
+        type: string
+      position:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  codon-backend_internal_models.FlashcardDeck:
+    properties:
+      author_id:
+        type: string
+      card_count:
+        type: integer
+      chapter_id:
+        type: string
+      course_id:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      rating_avg:
+        type: number
+      rating_count:
+        type: integer
+      rejection_reason:
+        type: string
+      requires_subscription:
+        type: boolean
+      status:
+        $ref: '#/definitions/codon-backend_internal_models.ContentStatus'
+      subject_id:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  codon-backend_internal_models.FlashcardState:
+    properties:
+      card_id:
+        type: string
+      due_at:
+        type: string
+      interval_days:
+        type: integer
+      last_result:
+        type: string
+      reps:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  codon-backend_internal_models.HomeUpdate:
+    properties:
+      body:
+        type: string
+      created_at:
+        type: string
+      cta_label:
+        type: string
+      cta_route:
+        type: string
+      ends_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      media_id:
+        type: string
+      order_index:
+        type: integer
+      starts_at:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
   codon-backend_internal_models.IDType:
     enum:
     - aadhaar
@@ -196,6 +741,8 @@ definitions:
         type: string
       updated_at:
         type: string
+      user:
+        $ref: '#/definitions/codon-backend_internal_models.User'
       user_id:
         type: string
     type: object
@@ -211,16 +758,64 @@ definitions:
     - KYCPending
     - KYCApproved
     - KYCRejected
+  codon-backend_internal_models.MediaAsset:
+    properties:
+      alt:
+        type: string
+      bytes:
+        type: integer
+      created_at:
+        type: string
+      file_name:
+        type: string
+      height:
+        type: integer
+      id:
+        type: string
+      mime:
+        type: string
+      owner_id:
+        type: string
+      purpose:
+        type: string
+      ready_at:
+        type: string
+      reject_reason:
+        type: string
+      sha256:
+        type: string
+      source:
+        type: string
+      status:
+        type: string
+      width:
+        type: integer
+    type: object
   codon-backend_internal_models.ModuleType:
     enum:
     - qbank
     - test_series
     - practice
+    - custom
     type: string
     x-enum-varnames:
     - ModuleQBank
     - ModuleTestSeries
     - ModulePractice
+    - ModuleCustom
+  codon-backend_internal_models.NotificationPref:
+    properties:
+      push_enabled:
+        type: boolean
+      report_updates:
+        type: boolean
+      streak_nudges:
+        type: boolean
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
   codon-backend_internal_models.PaymentRecord:
     properties:
       amount_paise:
@@ -243,10 +838,14 @@ definitions:
         type: string
       status:
         $ref: '#/definitions/codon-backend_internal_models.PaymentStatus'
+      subscription:
+        $ref: '#/definitions/codon-backend_internal_models.Subscription'
       subscription_id:
         type: string
       updated_at:
         type: string
+      user:
+        $ref: '#/definitions/codon-backend_internal_models.User'
       user_id:
         type: string
     type: object
@@ -264,14 +863,33 @@ definitions:
     - PayRefunded
   codon-backend_internal_models.Question:
     properties:
+      chapter_id:
+        type: string
+      content_format:
+        description: |-
+          Rich-content + metadata (custom test module). All optional/defaulted so
+          legacy rows keep working exactly as before.
+        type: string
       correct_option:
         $ref: '#/definitions/codon-backend_internal_models.CorrectOption'
       created_at:
         type: string
+      custom_eligible:
+        type: boolean
+      difficulty:
+        type: string
       explanation:
+        type: string
+      flag_status:
         type: string
       id:
         type: string
+      lang:
+        type: string
+      ncert_class:
+        type: integer
+      ncert_page:
+        type: integer
       option_a:
         type: string
       option_b:
@@ -284,40 +902,114 @@ definitions:
         type: integer
       question_text:
         type: string
+      question_type:
+        type: string
+      source_label:
+        type: string
+      source_type:
+        type: string
+      source_year:
+        type: integer
+      subject_id:
+        type: string
+      tags:
+        items:
+          $ref: '#/definitions/codon-backend_internal_models.Tag'
+        type: array
       test_id:
+        type: string
+      topic_id:
         type: string
       updated_at:
         type: string
+      version:
+        type: integer
+    type: object
+  codon-backend_internal_models.QuestionNote:
+    properties:
+      body:
+        type: string
+      created_at:
+        type: string
+      question_id:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  codon-backend_internal_models.QuestionRevision:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      id:
+        type: string
+      proposed:
+        items:
+          type: integer
+        type: array
+      question_id:
+        type: string
+      reason:
+        type: string
+      reject_reason:
+        type: string
+      rescore:
+        type: boolean
+      reviewed_at:
+        type: string
+      reviewed_by:
+        type: string
+      snapshot_before:
+        items:
+          type: integer
+        type: array
+      status:
+        type: string
+      version_from:
+        type: integer
     type: object
   codon-backend_internal_models.Session:
     properties:
-      createdAt:
+      created_at:
         type: string
-      deviceID:
+      device_id:
         type: string
-      deviceInfo:
+      device_info:
         type: string
-      expiresAt:
+      expires_at:
         type: string
       id:
         description: also the JWT jti
         type: string
-      lastUsedAt:
+      last_used_at:
         type: string
-      revokedAt:
+      revoked_at:
         type: string
-      user:
-        $ref: '#/definitions/codon-backend_internal_models.User'
-      userID:
+      user_id:
         type: string
     type: object
   codon-backend_internal_models.StudentAttempt:
     properties:
+      attempt_no:
+        type: integer
+      auto_submitted:
+        type: boolean
+      config_snapshot:
+        items:
+          type: integer
+        type: array
       correct_count:
         type: integer
       created_at:
         type: string
+      expires_at:
+        type: string
       id:
+        type: string
+      mode:
         type: string
       score:
         type: number
@@ -427,8 +1119,29 @@ definitions:
     - SubActive
     - SubExpired
     - SubCancelled
+  codon-backend_internal_models.Tag:
+    properties:
+      alias_of:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      label:
+        type: string
+      slug:
+        type: string
+    type: object
   codon-backend_internal_models.Test:
     properties:
+      archived_at:
+        type: string
+      blueprint:
+        items:
+          type: integer
+        type: array
+      blueprint_schema_version:
+        type: integer
       chapter:
         $ref: '#/definitions/codon-backend_internal_models.Chapter'
       chapter_id:
@@ -441,16 +1154,35 @@ definitions:
         type: string
       created_by:
         type: string
+      creator:
+        $ref: '#/definitions/codon-backend_internal_models.User'
+      description:
+        type: string
       duration_minutes:
         type: integer
+      expires_at:
+        type: string
       id:
         type: string
       marks_per_correct:
         type: number
       marks_per_wrong:
         type: number
+      mode:
+        type: string
       module_type:
         $ref: '#/definitions/codon-backend_internal_models.ModuleType'
+      origin:
+        description: |-
+          Custom-test module: authored tests are public; generated tests are private
+          to their owner and never appear in shared lists.
+        type: string
+      owner_user_id:
+        type: string
+      rating_avg:
+        type: number
+      rating_count:
+        type: integer
       rejection_reason:
         type: string
       requires_subscription:
@@ -471,6 +1203,21 @@ definitions:
         type: integer
       updated_at:
         type: string
+      visibility:
+        type: string
+    type: object
+  codon-backend_internal_models.Topic:
+    properties:
+      chapter_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      order_index:
+        type: integer
     type: object
   codon-backend_internal_models.User:
     properties:
@@ -499,6 +1246,23 @@ definitions:
       updated_at:
         type: string
     type: object
+  codon-backend_internal_models.UserFeedback:
+    properties:
+      app_version:
+        type: string
+      category:
+        type: string
+      created_at:
+        type: string
+      device_os:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      user_id:
+        type: string
+    type: object
   codon-backend_internal_models.UserRole:
     enum:
     - student
@@ -509,6 +1273,23 @@ definitions:
     - RoleStudent
     - RoleTeacher
     - RoleAdmin
+  codon-backend_internal_models.VideoNote:
+    properties:
+      body:
+        type: string
+      content_item_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      timestamp_seconds:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
   codon-backend_internal_models.VideoStatus:
     enum:
     - queued
@@ -537,6 +1318,10 @@ definitions:
         type: string
       category:
         $ref: '#/definitions/codon-backend_internal_models.WellnessCategory'
+      content_format:
+        description: Rich body + optional cover image (media asset). Legacy rows stay
+          `plain`.
+        type: string
       created_at:
         type: string
       created_by:
@@ -545,11 +1330,42 @@ definitions:
         type: string
       is_active:
         type: boolean
+      media_id:
+        type: string
       media_url:
         type: string
       title:
         type: string
       updated_at:
+        type: string
+    type: object
+  codon-backend_internal_services.RevealResult:
+    properties:
+      correct_option:
+        type: string
+      explanation:
+        type: string
+      is_correct:
+        type: boolean
+      marks:
+        type: number
+      question_id:
+        type: string
+    type: object
+  codon-backend_internal_services.StartResult:
+    properties:
+      active_elsewhere:
+        description: |-
+          ActiveElsewhere is true when the attempt is open on another device: this
+          device should show it read-only and offer takeover.
+        type: boolean
+      answers:
+        items:
+          $ref: '#/definitions/codon-backend_internal_models.AttemptAnswer'
+        type: array
+      attempt:
+        $ref: '#/definitions/codon-backend_internal_models.StudentAttempt'
+      server_now:
         type: string
     type: object
   internal_handlers.addQuestionRequest:
@@ -581,6 +1397,156 @@ definitions:
         example: Which organelle is known as the powerhouse of the cell?
         type: string
     type: object
+  internal_handlers.adminContentDetailResponse:
+    properties:
+      content:
+        $ref: '#/definitions/codon-backend_internal_models.ContentItem'
+      url:
+        type: string
+    type: object
+  internal_handlers.adminTestDetailResponse:
+    properties:
+      media:
+        additionalProperties:
+          $ref: '#/definitions/codon-backend_internal_media.View'
+        type: object
+      questions:
+        items:
+          $ref: '#/definitions/codon-backend_internal_models.Question'
+        type: array
+      test:
+        $ref: '#/definitions/codon-backend_internal_models.Test'
+    type: object
+  internal_handlers.adminUserSessionsResponse:
+    properties:
+      active_count:
+        type: integer
+      sessions:
+        items:
+          $ref: '#/definitions/codon-backend_internal_models.Session'
+        type: array
+    type: object
+  internal_handlers.adminUserSubscriptionResponse:
+    properties:
+      subscription:
+        $ref: '#/definitions/codon-backend_internal_models.Subscription'
+    type: object
+  internal_handlers.analyticsOverviewResponse:
+    properties:
+      active_subscriptions:
+        type: integer
+      active_subscriptions_delta:
+        type: string
+      active_subscriptions_positive:
+        type: boolean
+      new_users:
+        type: integer
+      new_users_delta:
+        type: string
+      new_users_positive:
+        type: boolean
+      pending_reviews:
+        type: integer
+      published_brain_hacks:
+        type: integer
+      published_content:
+        type: integer
+      published_tests:
+        type: integer
+      revenue:
+        type: integer
+      revenue_bars:
+        items:
+          type: integer
+        type: array
+      revenue_delta:
+        type: string
+      revenue_positive:
+        type: boolean
+      student_bars:
+        items:
+          type: integer
+        type: array
+      teacher_bars:
+        items:
+          type: integer
+        type: array
+      tests_attempted:
+        type: integer
+      tests_attempted_delta:
+        type: string
+      tests_attempted_positive:
+        type: boolean
+    type: object
+  internal_handlers.batchAnswerItem:
+    properties:
+      answered_at:
+        type: string
+      confidence:
+        enum:
+        - sure
+        - unsure
+        - guess
+        type: string
+      marked_for_review:
+        type: boolean
+      question_id:
+        type: string
+      selected_option:
+        example: B
+        type: string
+      time_spent_seconds:
+        example: 42
+        type: integer
+      time_taken_seconds:
+        description: legacy alias sent by older app builds
+        example: 42
+        type: integer
+    type: object
+  internal_handlers.batchAnswersRequest:
+    properties:
+      answers:
+        items:
+          $ref: '#/definitions/internal_handlers.batchAnswerItem'
+        type: array
+    type: object
+  internal_handlers.bulkPatch:
+    properties:
+      chapter_id:
+        type: string
+      custom_eligible:
+        type: boolean
+      difficulty:
+        type: string
+      move_to_test_id:
+        type: string
+      subject_id:
+        type: string
+      tags_add:
+        items:
+          type: string
+        type: array
+      tags_remove:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_handlers.bulkUpdateRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
+      patch:
+        $ref: '#/definitions/internal_handlers.bulkPatch'
+    type: object
+  internal_handlers.cardRequest:
+    properties:
+      back:
+        type: string
+      front:
+        type: string
+    type: object
   internal_handlers.checkoutRequest:
     properties:
       plan_id:
@@ -601,6 +1567,15 @@ definitions:
       razorpay_order_id:
         example: order_Abc123
         type: string
+    type: object
+  internal_handlers.correctionRequest:
+    properties:
+      proposed:
+        $ref: '#/definitions/internal_handlers.questionRequest'
+      reason:
+        type: string
+      rescore:
+        type: boolean
     type: object
   internal_handlers.createChapterRequest:
     properties:
@@ -657,12 +1632,42 @@ definitions:
       duration_days:
         example: 90
         type: integer
+      is_active:
+        example: true
+        type: boolean
       name:
         example: 3 Months NEET UG
         type: string
       price_paise:
         example: 299900
         type: integer
+    type: object
+  internal_handlers.createReportRequest:
+    properties:
+      attempt_id:
+        type: string
+      context:
+        enum:
+        - runtime
+        - review
+        - tutor
+        type: string
+      item_id:
+        type: string
+      item_type:
+        example: question
+        type: string
+      note:
+        type: string
+      reason:
+        enum:
+        - wrong_answer
+        - typo_unclear
+        - duplicate
+        - outdated
+        - image_issue
+        - other
+        type: string
     type: object
   internal_handlers.createSubjectRequest:
     properties:
@@ -683,6 +1688,9 @@ definitions:
         type: string
       course_id:
         example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      description:
+        example: Comprehensive practice test for Cell Structure and Organelles.
         type: string
       duration_minutes:
         example: 60
@@ -722,6 +1730,13 @@ definitions:
         - reflection_prompt
         example: guidance
         type: string
+      content_format:
+        enum:
+        - plain
+        - rich_v1
+        type: string
+      media_id:
+        type: string
       media_url:
         example: https://cdn.codon.app/wellness/calm.mp3
         type: string
@@ -739,8 +1754,19 @@ definitions:
     type: object
   internal_handlers.csvImportRequest:
     properties:
+      allow_content_update:
+        type: boolean
+      bundle_key:
+        example: import_bundle/user-uuid/file-uuid.zip
+        type: string
       file_key:
         example: csv/user-uuid/file-uuid.csv
+        type: string
+      mode:
+        enum:
+        - validate
+        - commit
+        - update
         type: string
     type: object
   internal_handlers.csvImportStatusResponse:
@@ -819,10 +1845,72 @@ definitions:
         example: 1420
         type: integer
     type: object
+  internal_handlers.deckRequest:
+    properties:
+      chapter_id:
+        type: string
+      course_id:
+        type: string
+      description:
+        type: string
+      requires_subscription:
+        type: boolean
+      subject_id:
+        type: string
+      title:
+        type: string
+    type: object
+  internal_handlers.duplicateRequest:
+    properties:
+      content_format:
+        type: string
+      exclude_id:
+        type: string
+      option_a:
+        type: string
+      option_b:
+        type: string
+      option_c:
+        type: string
+      option_d:
+        type: string
+      question_text:
+        type: string
+    type: object
   internal_handlers.errorResponse:
     properties:
+      code:
+        example: pool_too_small
+        type: string
+      details: {}
       error:
         example: descriptive error message
+        type: string
+    type: object
+  internal_handlers.fromAttemptRequest:
+    properties:
+      include:
+        enum:
+        - wrong
+        - unattempted
+        - both
+        type: string
+      marking:
+        $ref: '#/definitions/codon-backend_internal_blueprint.Marking'
+      mode:
+        type: string
+      timing:
+        $ref: '#/definitions/codon-backend_internal_blueprint.Timing'
+      title:
+        type: string
+    type: object
+  internal_handlers.getContentResponse:
+    properties:
+      content:
+        $ref: '#/definitions/codon-backend_internal_models.ContentItem'
+      my_rating:
+        type: integer
+      url:
         type: string
     type: object
   internal_handlers.getMeResponse:
@@ -834,6 +1922,38 @@ definitions:
         type: boolean
       user:
         $ref: '#/definitions/codon-backend_internal_models.User'
+    type: object
+  internal_handlers.hackRequest:
+    properties:
+      body:
+        type: string
+      category:
+        type: string
+      cover_media_id:
+        type: string
+      title:
+        type: string
+    type: object
+  internal_handlers.homeUpdateRequest:
+    properties:
+      body:
+        type: string
+      cta_label:
+        type: string
+      cta_route:
+        type: string
+      ends_at:
+        type: string
+      is_active:
+        type: boolean
+      media_id:
+        type: string
+      order_index:
+        type: integer
+      starts_at:
+        type: string
+      title:
+        type: string
     type: object
   internal_handlers.kycRequiredResponse:
     properties:
@@ -854,6 +1974,10 @@ definitions:
         items:
           $ref: '#/definitions/codon-backend_internal_models.ContentItem'
         type: array
+      my_ratings:
+        additionalProperties:
+          type: integer
+        type: object
     type: object
   internal_handlers.listCoursesResponse:
     properties:
@@ -885,6 +2009,10 @@ definitions:
     type: object
   internal_handlers.listPromptsResponse:
     properties:
+      media:
+        additionalProperties:
+          $ref: '#/definitions/codon-backend_internal_media.View'
+        type: object
       prompts:
         items:
           $ref: '#/definitions/codon-backend_internal_models.WellnessContent'
@@ -917,6 +2045,15 @@ definitions:
         items:
           $ref: '#/definitions/codon-backend_internal_models.WellnessContent'
         type: array
+      media:
+        additionalProperties:
+          $ref: '#/definitions/codon-backend_internal_media.View'
+        type: object
+    type: object
+  internal_handlers.mergeTagRequest:
+    properties:
+      into_id:
+        type: string
     type: object
   internal_handlers.messageResponse:
     properties:
@@ -928,6 +2065,53 @@ definitions:
     properties:
       subscription:
         $ref: '#/definitions/codon-backend_internal_models.Subscription'
+    type: object
+  internal_handlers.noteRequest:
+    properties:
+      body:
+        type: string
+    type: object
+  internal_handlers.patchCollectionRequest:
+    properties:
+      is_active:
+        type: boolean
+      label:
+        type: string
+      order_index:
+        type: integer
+    type: object
+  internal_handlers.patchSettingsRequest:
+    properties:
+      values:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  internal_handlers.prefsRequest:
+    properties:
+      push_enabled:
+        type: boolean
+      report_updates:
+        type: boolean
+      streak_nudges:
+        type: boolean
+    type: object
+  internal_handlers.presetRequest:
+    properties:
+      blueprint:
+        items:
+          type: integer
+        type: array
+      course_id:
+        type: string
+      description:
+        type: string
+      is_active:
+        type: boolean
+      order_index:
+        type: integer
+      title:
+        type: string
     type: object
   internal_handlers.presignRequest:
     properties:
@@ -956,6 +2140,23 @@ definitions:
         example: https://s3.amazonaws.com/codon/video/...?X-Amz-Signature=...
         type: string
     type: object
+  internal_handlers.progressBreakdownResponse:
+    properties:
+      day_streak:
+        type: integer
+      last_7_days:
+        items:
+          type: boolean
+        type: array
+      subjects:
+        items:
+          $ref: '#/definitions/internal_handlers.progressSubject'
+        type: array
+      trend:
+        items:
+          type: integer
+        type: array
+    type: object
   internal_handlers.progressResponse:
     properties:
       attempted_count:
@@ -964,6 +2165,120 @@ definitions:
       avg_score:
         example: 72.5
         type: number
+    type: object
+  internal_handlers.progressSubject:
+    properties:
+      accuracy:
+        type: integer
+      name:
+        type: string
+    type: object
+  internal_handlers.pushTokenRequest:
+    properties:
+      device_id:
+        type: string
+      platform:
+        enum:
+        - ios
+        - android
+        type: string
+      token:
+        type: string
+    type: object
+  internal_handlers.putBookmarkRequest:
+    properties:
+      collection_id:
+        type: string
+      item_id:
+        type: string
+      item_type:
+        enum:
+        - question
+        - flashcard
+        - content
+        type: string
+      note:
+        type: string
+    type: object
+  internal_handlers.putRatingRequest:
+    properties:
+      item_id:
+        type: string
+      item_type:
+        enum:
+        - test
+        - content
+        - brain_hack
+        - flashcard_deck
+        - question
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      value:
+        type: integer
+    type: object
+  internal_handlers.questionRequest:
+    properties:
+      chapter_id:
+        type: string
+      content_format:
+        enum:
+        - plain
+        - rich_v1
+        type: string
+      correct_option:
+        enum:
+        - A
+        - B
+        - C
+        - D
+        type: string
+      custom_eligible:
+        type: boolean
+      difficulty:
+        enum:
+        - easy
+        - medium
+        - hard
+        type: string
+      explanation:
+        type: string
+      ncert_class:
+        type: integer
+      ncert_page:
+        type: integer
+      option_a:
+        type: string
+      option_b:
+        type: string
+      option_c:
+        type: string
+      option_d:
+        type: string
+      question_text:
+        type: string
+      source_label:
+        type: string
+      source_type:
+        enum:
+        - qbank
+        - practice
+        - test_series
+        - pyq
+        - other
+        type: string
+      source_year:
+        type: integer
+      subject_id:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      topic_id:
+        type: string
     type: object
   internal_handlers.razorpayWebhookBody:
     properties:
@@ -986,10 +2301,29 @@ definitions:
             type: object
         type: object
     type: object
+  internal_handlers.readRequest:
+    properties:
+      all:
+        type: boolean
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_handlers.reassignRequest:
+    properties:
+      assignee_id:
+        type: string
+    type: object
   internal_handlers.rejectContentRequest:
     properties:
       reason:
         example: Questions contain formatting errors
+        type: string
+    type: object
+  internal_handlers.rejectCorrectionRequest:
+    properties:
+      reason:
         type: string
     type: object
   internal_handlers.rejectKYCRequest:
@@ -998,11 +2332,43 @@ definitions:
         example: Document is blurry or unreadable
         type: string
     type: object
-  internal_handlers.reviewResponse:
+  internal_handlers.renameRequest:
     properties:
-      attempt_id:
+      title:
         type: string
-      review: {}
+    type: object
+  internal_handlers.renameTagRequest:
+    properties:
+      label:
+        type: string
+    type: object
+  internal_handlers.reorderRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_handlers.resolveReportRequest:
+    properties:
+      note:
+        type: string
+      status:
+        enum:
+        - fixed
+        - no_change
+        - dismissed
+        type: string
+    type: object
+  internal_handlers.reviewCardRequest:
+    properties:
+      result:
+        enum:
+        - again
+        - hard
+        - good
+        - easy
+        type: string
     type: object
   internal_handlers.sendOTPRequest:
     properties:
@@ -1022,6 +2388,24 @@ definitions:
         example: 1800
         type: integer
     type: object
+  internal_handlers.submitFeedbackRequest:
+    properties:
+      app_version:
+        example: 1.0.0
+        type: string
+      category:
+        example: bug
+        type: string
+      device_os:
+        example: Android 14
+        type: string
+      message:
+        example: The timer freezes on submit
+        type: string
+    required:
+    - category
+    - message
+    type: object
   internal_handlers.submitKYCRequest:
     properties:
       document_file_key:
@@ -1034,11 +2418,27 @@ definitions:
         example: aadhaar
         type: string
     type: object
+  internal_handlers.templateRequest:
+    properties:
+      blueprint:
+        items:
+          type: integer
+        type: array
+      title:
+        type: string
+    type: object
   internal_handlers.testQuestionsResponse:
     properties:
       attempt_id:
         type: string
       questions: {}
+    type: object
+  internal_handlers.topicRequest:
+    properties:
+      name:
+        type: string
+      order_index:
+        type: integer
     type: object
   internal_handlers.updateChapterRequest:
     properties:
@@ -1070,6 +2470,11 @@ definitions:
         type: string
       selected_course_id:
         example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  internal_handlers.updateMediaRequest:
+    properties:
+      alt:
         type: string
     type: object
   internal_handlers.updatePlanRequest:
@@ -1118,6 +2523,8 @@ definitions:
     properties:
       chapter_id:
         type: string
+      description:
+        type: string
       duration_minutes:
         type: integer
       marks_per_correct:
@@ -1135,8 +2542,12 @@ definitions:
     properties:
       body_text:
         type: string
+      content_format:
+        type: string
       is_active:
         type: boolean
+      media_id:
+        type: string
       media_url:
         type: string
       title:
@@ -1144,14 +2555,26 @@ definitions:
     type: object
   internal_handlers.upsertAnswerRequest:
     properties:
-      selected_option:
+      answered_at:
+        type: string
+      confidence:
         enum:
-        - A
-        - B
-        - C
-        - D
+        - sure
+        - unsure
+        - guess
+        type: string
+      marked_for_review:
+        type: boolean
+      selected_option:
         example: B
         type: string
+      time_spent_seconds:
+        example: 42
+        type: integer
+      time_taken_seconds:
+        description: legacy alias sent by older app builds
+        example: 42
+        type: integer
     type: object
   internal_handlers.verifyOTPRequest:
     properties:
@@ -1188,6 +2611,15 @@ definitions:
         example: abcdef1234...
         type: string
     type: object
+  internal_handlers.videoNoteRequest:
+    properties:
+      body:
+        type: string
+      content_id:
+        type: string
+      timestamp_seconds:
+        type: integer
+    type: object
   internal_handlers.webhookAckResponse:
     properties:
       status:
@@ -1197,43 +2629,164 @@ definitions:
 info:
   contact: {}
 paths:
-  /api/v1/admin/chapters/{id}:
-    patch:
-      consumes:
-      - application/json
-      description: Partially updates a chapter.
+  /api/v1/admin/analytics:
+    get:
+      description: Returns analytics data for charts and stats, with computed deltas
+        based on date ranges
       parameters:
-      - description: Chapter UUID
-        in: path
-        name: id
-        required: true
+      - default: 7D
+        description: Time range (7D, 30D, All Time)
+        in: query
+        name: range
         type: string
-      - description: Fields to update
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handlers.updateChapterRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/codon-backend_internal_models.Chapter'
-        "400":
-          description: Bad Request
+            $ref: '#/definitions/internal_handlers.analyticsOverviewResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_handlers.errorResponse'
-        "404":
-          description: Not Found
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_handlers.errorResponse'
       security:
       - BearerAuth: []
-      summary: Update a Chapter (Admin)
+      summary: Get admin analytics overview
       tags:
-      - Curriculum
+      - Admin
+  /api/v1/admin/bookmark-collections:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List system bookmark collections (Admin)
+      tags:
+      - Bookmarks
+  /api/v1/admin/bookmark-collections/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Deactivating moves its bookmarks to the first remaining active
+        collection; the last active collection can't be deactivated.
+      parameters:
+      - description: Collection UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.patchCollectionRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.BookmarkCollection'
+      security:
+      - BearerAuth: []
+      summary: Rename / reorder / deactivate a system collection (Admin)
+      tags:
+      - Bookmarks
+  /api/v1/admin/brain-hacks:
+    get:
+      parameters:
+      - description: Default pending_review
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Brain Hacks awaiting review (Admin)
+      tags:
+      - BrainHacks
+  /api/v1/admin/brain-hacks/{id}:
+    get:
+      parameters:
+      - description: Brain hack UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: One Brain Hack with images (Admin)
+      tags:
+      - BrainHacks
+  /api/v1/admin/brain-hacks/{id}/approve:
+    post:
+      parameters:
+      - description: Brain hack UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve a Brain Hack (Admin)
+      tags:
+      - BrainHacks
+  /api/v1/admin/brain-hacks/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Brain hack UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.rejectContentRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject a Brain Hack (Admin)
+      tags:
+      - BrainHacks
   /api/v1/admin/content:
     get:
       description: Returns content items filterable by status. Defaults to pending_review.
@@ -1242,6 +2795,14 @@ paths:
         description: Filter by status
         in: query
         name: status
+        type: string
+      - description: Filter by course ID
+        in: query
+        name: course_id
+        type: string
+      - description: Filter by chapter ID
+        in: query
+        name: chapter_id
         type: string
       produces:
       - application/json
@@ -1261,6 +2822,32 @@ paths:
       security:
       - BearerAuth: []
       summary: List content items by status (Admin)
+      tags:
+      - Admin
+  /api/v1/admin/content/{id}:
+    get:
+      description: Returns full content item details regardless of status, including
+        the file URL for review.
+      parameters:
+      - description: Content item UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.adminContentDetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a content item (Admin)
       tags:
       - Admin
   /api/v1/admin/content/{id}/approve:
@@ -1326,6 +2913,69 @@ paths:
       summary: Reject a content item (Admin)
       tags:
       - Admin
+  /api/v1/admin/corrections:
+    get:
+      description: Default status filter is pending. Each row carries the CURRENT
+        question so the reviewer can diff it against `proposed`.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Corrections awaiting review (Admin)
+      tags:
+      - Corrections
+  /api/v1/admin/corrections/{id}/approve:
+    post:
+      parameters:
+      - description: Correction UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.QuestionRevision'
+      security:
+      - BearerAuth: []
+      summary: Approve a correction (Admin)
+      tags:
+      - Corrections
+  /api/v1/admin/corrections/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Correction UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.rejectCorrectionRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.QuestionRevision'
+      security:
+      - BearerAuth: []
+      summary: Reject a correction (Admin)
+      tags:
+      - Corrections
   /api/v1/admin/courses/{course_id}/subjects:
     post:
       consumes:
@@ -1363,6 +3013,112 @@ paths:
       summary: Create a Subject (Admin)
       tags:
       - Curriculum
+  /api/v1/admin/custom-test/metrics:
+    get:
+      description: 'Process-local generation counters (latency, relaxations, empty-pool
+        rejections) plus database-derived figures for the last 24 h: generated tests,
+        auto-submitted attempts, questions held under review, rejected uploads, open
+        reports.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Custom-test health metrics (Admin)
+      tags:
+      - CustomTests
+  /api/v1/admin/custom-test/presets:
+    get:
+      parameters:
+      - description: Course UUID
+        in: query
+        name: course_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: System presets (Admin)
+      tags:
+      - CustomTests
+    post:
+      consumes:
+      - application/json
+      description: 'Presets are data, not code: title, description and a blueprint
+        validated exactly like a student''s.'
+      parameters:
+      - description: Preset
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.presetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.CustomTestPreset'
+      security:
+      - BearerAuth: []
+      summary: Create a system preset (Admin)
+      tags:
+      - CustomTests
+  /api/v1/admin/custom-test/presets/{id}:
+    delete:
+      parameters:
+      - description: Preset UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a system preset (Admin)
+      tags:
+      - CustomTests
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Preset UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.presetRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.CustomTestPreset'
+      security:
+      - BearerAuth: []
+      summary: Update a system preset (Admin)
+      tags:
+      - CustomTests
   /api/v1/admin/dashboard/summary:
     get:
       description: 'Returns live counts for the admin dashboard: total users, active
@@ -1387,6 +3143,168 @@ paths:
       summary: Get admin dashboard summary
       tags:
       - Admin
+  /api/v1/admin/flashcard-decks:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Decks by status (Admin) — default pending review
+      tags:
+      - Flashcards
+  /api/v1/admin/flashcard-decks/{id}:
+    get:
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: A deck with all cards for review (Admin)
+      tags:
+      - Flashcards
+  /api/v1/admin/flashcard-decks/{id}/approve:
+    post:
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve a deck (Admin)
+      tags:
+      - Flashcards
+  /api/v1/admin/flashcard-decks/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.rejectContentRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject a deck (Admin)
+      tags:
+      - Flashcards
+  /api/v1/admin/home-updates:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: All home "Updates" items (Admin)
+      tags:
+      - HomeUpdates
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.homeUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.HomeUpdate'
+      security:
+      - BearerAuth: []
+      summary: Create a home update (Admin)
+      tags:
+      - HomeUpdates
+  /api/v1/admin/home-updates/{id}:
+    delete:
+      parameters:
+      - description: Update UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a home update (Admin)
+      tags:
+      - HomeUpdates
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Update UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.homeUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.HomeUpdate'
+      security:
+      - BearerAuth: []
+      summary: Edit a home update (Admin)
+      tags:
+      - HomeUpdates
   /api/v1/admin/kyc:
     get:
       description: Returns KYC records filterable by status. Defaults to 'pending'
@@ -1543,6 +3461,128 @@ paths:
       summary: Get a payment record by ID (Admin)
       tags:
       - Subscriptions & Payments
+  /api/v1/admin/pool-health:
+    get:
+      description: Eligible question counts per subject/chapter with difficulty split,
+        metadata completeness (missing topic/tags/NCERT/difficulty), questions under
+        review, open reports and a `low_inventory` alert below `pool.low_inventory_floor`.
+      parameters:
+      - description: Course UUID
+        in: query
+        name: course_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Question-pool health by chapter (Admin)
+      tags:
+      - Analytics
+  /api/v1/admin/reports:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: All question reports (Admin)
+      tags:
+      - Reports
+  /api/v1/admin/reports/{id}/dismiss:
+    post:
+      parameters:
+      - description: Report UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.ContentReport'
+      security:
+      - BearerAuth: []
+      summary: Dismiss a report (Admin)
+      tags:
+      - Reports
+  /api/v1/admin/reports/{id}/reassign:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Report UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Assignee
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.reassignRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.ContentReport'
+      security:
+      - BearerAuth: []
+      summary: Assign a report to a teacher (Admin)
+      tags:
+      - Reports
+  /api/v1/admin/settings/custom-test:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List tunable settings with current + default values (Admin)
+      tags:
+      - Admin
+    patch:
+      consumes:
+      - application/json
+      description: Unknown keys and values that don't parse as the setting's type
+        are rejected; every change is written to the admin audit log.
+      parameters:
+      - description: key → value
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.patchSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Change tunable settings (Admin)
+      tags:
+      - Admin
   /api/v1/admin/settings/kyc-required:
     patch:
       consumes:
@@ -1617,44 +3657,21 @@ paths:
       summary: Update a Subject (Admin)
       tags:
       - Curriculum
-  /api/v1/admin/subjects/{subject_id}/chapters:
-    post:
-      consumes:
-      - application/json
-      description: Creates a new chapter under a specific subject.
-      parameters:
-      - description: Subject UUID
-        in: path
-        name: subject_id
-        required: true
-        type: string
-      - description: Chapter details
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handlers.createChapterRequest'
+  /api/v1/admin/subscription-plans:
+    get:
+      description: Returns all subscription plans, including inactive ones.
       produces:
       - application/json
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           schema:
-            $ref: '#/definitions/codon-backend_internal_models.Chapter'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_handlers.errorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/internal_handlers.errorResponse'
+            $ref: '#/definitions/internal_handlers.listPlansResponse'
       security:
       - BearerAuth: []
-      summary: Create a Chapter (Admin)
+      summary: List all subscription plans (Admin)
       tags:
-      - Curriculum
-  /api/v1/admin/subscription-plans:
+      - Subscription Plans
     post:
       consumes:
       - application/json
@@ -1753,6 +3770,93 @@ paths:
       summary: Update a subscription plan (Admin)
       tags:
       - Subscription Plans
+  /api/v1/admin/tags:
+    get:
+      parameters:
+      - description: Search
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all tags with usage (Admin)
+      tags:
+      - Taxonomy
+  /api/v1/admin/tags/{id}:
+    delete:
+      parameters:
+      - description: Tag UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an unused tag (Admin)
+      tags:
+      - Taxonomy
+    patch:
+      parameters:
+      - description: Tag UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Label
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.renameTagRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Tag'
+      security:
+      - BearerAuth: []
+      summary: Change a tag's display label (Admin)
+      tags:
+      - Taxonomy
+  /api/v1/admin/tags/{id}/merge:
+    post:
+      description: Re-points every question of the source tag to the target, then
+        turns the source into an alias so future `#source` input resolves to the target.
+      parameters:
+      - description: Source tag UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Target
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.mergeTagRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Merge a tag into another (Admin)
+      tags:
+      - Taxonomy
   /api/v1/admin/tests:
     get:
       description: Returns tests filterable by status. Defaults to pending_review
@@ -1781,6 +3885,33 @@ paths:
       security:
       - BearerAuth: []
       summary: List tests by status (Admin)
+      tags:
+      - Admin
+  /api/v1/admin/tests/{id}:
+    get:
+      description: Returns full test metadata plus all questions with correct answers
+        and explanations. No status filter — admin can view any test regardless of
+        status.
+      parameters:
+      - description: Test UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.adminTestDetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a test with questions (Admin)
       tags:
       - Admin
   /api/v1/admin/tests/{id}/approve:
@@ -1846,6 +3977,47 @@ paths:
       summary: Reject a test (Admin)
       tags:
       - Admin
+  /api/v1/admin/topics/{id}:
+    delete:
+      parameters:
+      - description: Topic UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a topic (Admin) — 409 if questions still use it
+      tags:
+      - Taxonomy
+    patch:
+      parameters:
+      - description: Topic UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.topicRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Topic'
+      security:
+      - BearerAuth: []
+      summary: Rename / reorder a topic (Admin)
+      tags:
+      - Taxonomy
   /api/v1/admin/users:
     get:
       description: Returns all users filterable by role and searchable by phone number
@@ -1904,6 +4076,28 @@ paths:
       summary: Get a user by ID (Admin)
       tags:
       - Admin
+  /api/v1/admin/users/{id}/purge-personal-data:
+    post:
+      description: Deletes bookmarks, notes, ratings, reports they filed, templates,
+        generated custom tests (with their attempts), question state, flashcard state,
+        video notes, push tokens and notifications. Account/profile, payments and
+        authored content are untouched. Audit-logged.
+      parameters:
+      - description: User UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Erase a user's personal study data (Admin)
+      tags:
+      - Admin
   /api/v1/admin/users/{id}/role:
     patch:
       consumes:
@@ -1940,6 +4134,58 @@ paths:
       security:
       - BearerAuth: []
       summary: Update a user's role (Admin)
+      tags:
+      - Admin
+  /api/v1/admin/users/{id}/sessions:
+    get:
+      description: Returns the list of active (non-revoked, non-expired) device sessions
+        for a user.
+      parameters:
+      - description: User UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.adminUserSessionsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a user's active sessions (Admin)
+      tags:
+      - Admin
+  /api/v1/admin/users/{id}/subscription:
+    get:
+      description: Returns the active subscription for the specified user, or null
+        if none.
+      parameters:
+      - description: User UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.adminUserSubscriptionResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a user's active subscription (Admin)
       tags:
       - Admin
   /api/v1/admin/users/{id}/teacher-permissions:
@@ -2072,13 +4318,69 @@ paths:
       summary: Update wellness content (Admin)
       tags:
       - Wellness
+  /api/v1/app-config:
+    get:
+      description: Feature flags (default off), limits, report reasons, rating rules
+        and bookmark collection labels. Sent with an ETag; send `If-None-Match` to
+        get 304.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "304":
+          description: Not Modified
+      security:
+      - BearerAuth: []
+      summary: App configuration
+      tags:
+      - Config
+  /api/v1/attempts/{id}/answers:
+    put:
+      consumes:
+      - application/json
+      description: Applies up to 200 answer updates at once. Each item carries an
+        optional client `answered_at`; an update older than what the server already
+        has is ignored (last-write-wins). Returns a per-item result; one bad item
+        never fails the batch.
+      parameters:
+      - description: Attempt UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Answers
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.batchAnswersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Batch-sync answers (offline recovery)
+      tags:
+      - Attempts
   /api/v1/attempts/{id}/answers/{question_id}:
     put:
       consumes:
       - application/json
-      description: Upserts the student's selected option for a question within an
-        in-progress attempt. Safe to call repeatedly (supports save-as-you-go). Requires
-        the attempt to be in_progress and owned by the caller.
+      description: 'Partial update of one answer inside an in-progress attempt. `selected_option:
+        "A".."D"` sets it, `null` clears it; omitted fields are left untouched, so
+        toggling `marked_for_review` never wipes the answer. The question must belong
+        to the attempt''s test (422 `invalid_question`), the attempt must not be past
+        its deadline (409 `attempt_expired`), and in tutor mode a revealed answer
+        is locked (409 `answer_locked`).'
       parameters:
       - description: Attempt UUID
         in: path
@@ -2090,7 +4392,7 @@ paths:
         name: question_id
         required: true
         type: string
-      - description: Selected option
+      - description: Answer fields
         in: body
         name: body
         required: true
@@ -2111,15 +4413,60 @@ paths:
           description: Forbidden
           schema:
             $ref: '#/definitions/internal_handlers.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
       security:
       - BearerAuth: []
-      summary: Save / update an answer
+      summary: Save / update / clear an answer
+      tags:
+      - Attempts
+  /api/v1/attempts/{id}/answers/{question_id}/reveal:
+    post:
+      description: Only valid for attempts started in tutor mode, after an answer
+        has been selected. Locks the answer and returns the correct option and explanation
+        for that single question. Exam-mode attempts get 403 `not_tutor_mode`.
+      parameters:
+      - description: Attempt UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Question UUID
+        in: path
+        name: question_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_services.RevealResult'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reveal the answer for one question (tutor mode)
       tags:
       - Attempts
   /api/v1/attempts/{id}/result:
     get:
-      description: 'Returns the scored summary for a submitted attempt: total score,
-        marks, correct/wrong/unattempted counts, and time taken.'
+      description: Scored summary for a submitted attempt plus a `breakdown` by subject,
+        chapter and difficulty computed from question-level metadata. Accuracy = correct
+        ÷ attempted.
       parameters:
       - description: Attempt UUID
         in: path
@@ -2132,7 +4479,8 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/codon-backend_internal_models.StudentAttempt'
+            additionalProperties: true
+            type: object
         "404":
           description: Not Found
           schema:
@@ -2144,21 +4492,37 @@ paths:
       - Attempts
   /api/v1/attempts/{id}/review:
     get:
-      description: 'Returns per-question review for a submitted attempt: the student''s
-        answer vs. the correct answer, explanation, and marks awarded for each question.'
+      description: Per-question review for a submitted attempt, ordered by question
+        position. `filter` = all|correct|wrong|unattempted|marked|bookmarked. Without
+        `limit` all items are returned (backwards compatible); with `limit` + `cursor`
+        (the last `position` seen) it paginates. Rich-text fields come with a resolved
+        `media` map.
       parameters:
       - description: Attempt UUID
         in: path
         name: id
         required: true
         type: string
+      - description: all|correct|wrong|unattempted|marked|bookmarked
+        in: query
+        name: filter
+        type: string
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Last position from the previous page
+        in: query
+        name: cursor
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_handlers.reviewResponse'
+            additionalProperties: true
+            type: object
         "404":
           description: Not Found
           schema:
@@ -2172,9 +4536,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Finalizes the attempt. Server computes the score from the test's
-        marks_per_correct/marks_per_wrong settings. Returns the scored attempt. Unattempted
-        questions are counted but score 0.
+      description: Finalizes the attempt. The score is computed server-side from the
+        test's marks settings. Unattempted questions score 0. Submitting after the
+        deadline still works (the server clamps time taken to the test duration).
       parameters:
       - description: Attempt UUID
         in: path
@@ -2200,6 +4564,27 @@ paths:
       security:
       - BearerAuth: []
       summary: Submit a test attempt
+      tags:
+      - Attempts
+  /api/v1/attempts/{id}/takeover:
+    post:
+      description: An attempt is bound to the login session that started it. If it
+        is open on another device, writes from this one fail with 409 `attempt_active_elsewhere`
+        until this call moves it here.
+      parameters:
+      - description: Attempt UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Move an in-progress attempt to this device
       tags:
       - Attempts
   /api/v1/auth/logout:
@@ -2339,6 +4724,128 @@ paths:
       summary: Revoke a specific session
       tags:
       - Auth
+  /api/v1/brain-hacks:
+    get:
+      description: Cursor-paginated; `category` filter; `sort=rating`. Cards carry
+        rating aggregates and the caller's own rating.
+      parameters:
+      - description: Category
+        in: query
+        name: category
+        type: string
+      - description: rating
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Published Brain Hacks (Student)
+      tags:
+      - BrainHacks
+  /api/v1/brain-hacks/{id}:
+    get:
+      parameters:
+      - description: Brain hack UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: One published Brain Hack (Student)
+      tags:
+      - BrainHacks
+  /api/v1/brain-hacks/categories:
+    get:
+      description: 'Categories are data: the defaults (Focus, Memory, Exam Day) plus
+        any others in published hacks.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Brain Hack categories in use
+      tags:
+      - BrainHacks
+  /api/v1/chapters/{chapter_id}/content:
+    get:
+      description: Returns all published content items (videos, documents) for a specific
+        chapter. Items the student hasn't unlocked (subscription/KYC required) are
+        still listed but with file_key and hls_playlist_url stripped.
+      parameters:
+      - description: Chapter UUID
+        in: path
+        name: chapter_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.listContentResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List published content items for a chapter (Student)
+      tags:
+      - Content
+  /api/v1/content/{id}:
+    get:
+      description: Returns the details of a published content item plus a playable
+        URL. Requires an active subscription (and approved KYC, if the platform requires
+        it) when the item has requires_subscription set.
+      parameters:
+      - description: Content item UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.getContentResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a single published content item (Student)
+      tags:
+      - Content
   /api/v1/courses:
     get:
       description: 'Returns the fixed set of 3 active courses: NEET UG, 9th Standard,
@@ -2400,6 +4907,625 @@ paths:
       summary: Get course curriculum hierarchy
       tags:
       - Curriculum
+  /api/v1/courses/{id}/topics:
+    get:
+      parameters:
+      - description: Course UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Chapter UUID
+        in: query
+        name: chapter_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List topics of a course (optionally one chapter)
+      tags:
+      - Taxonomy
+  /api/v1/custom-tests:
+    get:
+      description: 'Cursor-paginated. `state` filter: not_started | in_progress |
+        completed. Each row carries the derived state, attempt count and last attempt
+        summary. Archived tests are hidden.'
+      parameters:
+      - description: not_started|in_progress|completed
+        in: query
+        name: state
+        type: string
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My custom tests
+      tags:
+      - CustomTests
+    post:
+      consumes:
+      - application/json
+      description: 'Selects questions server-side, freezes them (order, marks, mode,
+        duration, blueprint) into a private test owned by the caller and returns it
+        with any `relaxations` applied (never silent). The test then runs through
+        the normal attempt endpoints. Send an `Idempotency-Key` header so a retried
+        request returns the same test. Errors: `invalid_blueprint`, `pool_too_small`
+        (with suggestions), `quota_exceeded` (free tier, with `resets_at`), `rate_limited`,
+        `too_many_tests`.'
+      parameters:
+      - description: Client-generated key
+        in: header
+        name: Idempotency-Key
+        type: string
+      - description: Blueprint
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/codon-backend_internal_blueprint.Blueprint'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: replayed
+          schema:
+            $ref: '#/definitions/codon-backend_internal_generation.Result'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_generation.Result'
+      security:
+      - BearerAuth: []
+      summary: Generate a custom test from a blueprint
+      tags:
+      - CustomTests
+  /api/v1/custom-tests/{id}:
+    delete:
+      description: 'Soft delete: the test disappears from lists but its attempts,
+        scores and analytics are kept. (The teacher DeleteTest path hard-deletes attempts
+        and is deliberately not used here.)'
+      parameters:
+      - description: Test UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete (archive) a custom test
+      tags:
+      - CustomTests
+    get:
+      parameters:
+      - description: Test UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: One custom test with its blueprint and attempts
+      tags:
+      - CustomTests
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Test UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Title
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.renameRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Test'
+      security:
+      - BearerAuth: []
+      summary: Rename a custom test
+      tags:
+      - CustomTests
+  /api/v1/custom-tests/{id}/regenerate:
+    post:
+      description: Runs the stored blueprint again with a new random seed and returns
+        a NEW test. (Retaking the SAME questions is just starting another attempt
+        on the same test — attempts are numbered `attempt_no`.)
+      parameters:
+      - description: Test UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_generation.Result'
+      security:
+      - BearerAuth: []
+      summary: '"New set": same blueprint, fresh questions'
+      tags:
+      - CustomTests
+  /api/v1/custom-tests/builder-config:
+    get:
+      description: 'Server-driven builder schema for one course and this user''s entitlement:
+        the subject → chapter → topic tree with eligible question counts, difficulty
+        levels with counts, status filters (and whether they are enabled), allowed
+        sources, popular tags, limits, modes, marking presets, orders, strategies,
+        system presets, entitlement/quota and feature flags. Cached ~60 s per (course,
+        tier).'
+      parameters:
+      - description: Course UUID
+        in: query
+        name: course_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Everything the custom-test builder renders
+      tags:
+      - CustomTests
+  /api/v1/custom-tests/count:
+    post:
+      consumes:
+      - application/json
+      description: Runs the same pool query as generation but persists nothing. Returns
+        matches by subject and difficulty, the tightest filter (`bottleneck`) and
+        ready-to-apply `suggestions` (each verified to increase the match count).
+        Rate-limited per user. Free-tier requests report the clamped count (`clamped_to`).
+      parameters:
+      - description: Blueprint
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/codon-backend_internal_blueprint.Blueprint'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_generation.CountResult'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 'Dry-run a blueprint: how many questions match?'
+      tags:
+      - CustomTests
+  /api/v1/custom-tests/from-attempt/{attempt_id}:
+    post:
+      consumes:
+      - application/json
+      description: Builds a new custom test from the wrong and/or unattempted questions
+        of one of the caller's submitted attempts. Eligibility and entitlement rules
+        still apply (a question that was since held for review is skipped).
+      parameters:
+      - description: Attempt UUID
+        in: path
+        name: attempt_id
+        required: true
+        type: string
+      - description: Options
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_handlers.fromAttemptRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_generation.Result'
+      security:
+      - BearerAuth: []
+      summary: '"Practise my mistakes"'
+      tags:
+      - CustomTests
+  /api/v1/custom-tests/share:
+    post:
+      consumes:
+      - application/json
+      description: The recipient receives the BLUEPRINT (filters, count, mode…), never
+        the questions — they generate their own test. Codes expire after 30 days;
+        bookmarks/status filters are personal, so they are stripped from what is shared.
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Share a blueprint by short code
+      tags:
+      - CustomTests
+  /api/v1/custom-tests/shared/{code}:
+    get:
+      description: Returns the blueprint for the app to pre-fill the builder. Re-validated
+        against the current limits; 410 once expired.
+      parameters:
+      - description: Share code
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Open a shared blueprint
+      tags:
+      - CustomTests
+  /api/v1/custom-tests/templates:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My saved blueprints (templates)
+      tags:
+      - CustomTests
+    post:
+      consumes:
+      - application/json
+      description: The blueprint is validated like a generation request; users may
+        keep a limited number of templates (default 30).
+      parameters:
+      - description: Template
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.templateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.CustomTestTemplate'
+      security:
+      - BearerAuth: []
+      summary: Save a blueprint as a template
+      tags:
+      - CustomTests
+  /api/v1/custom-tests/templates/{id}:
+    delete:
+      parameters:
+      - description: Template UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a template
+      tags:
+      - CustomTests
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Template UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.templateRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.CustomTestTemplate'
+      security:
+      - BearerAuth: []
+      summary: Rename or replace a template's blueprint
+      tags:
+      - CustomTests
+  /api/v1/explore:
+    get:
+      description: 'One composite response for a course: `continue` (in-progress attempts),
+        `recommended` (rule-based practice suggestions), `qbank` (chapters with the
+        most eligible questions), `presets` (custom-test presets, when the module
+        is enabled), `flashcard_decks` (newest and top-rated) and `brain_hacks` (newest).
+        Sections that have nothing are empty arrays — the app hides them rather than
+        showing placeholders.'
+      parameters:
+      - description: Course UUID
+        in: query
+        name: course_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Discovery feed for the Explore section
+      tags:
+      - Explore
+  /api/v1/feedback:
+    post:
+      consumes:
+      - application/json
+      description: Submits a feedback entry from the authenticated user.
+      parameters:
+      - description: Feedback payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.submitFeedbackRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.UserFeedback'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit feedback
+      tags:
+      - Feedback
+  /api/v1/flashcards/cards/{id}/review:
+    post:
+      consumes:
+      - application/json
+      description: '`again` (due in 10 min, streak resets), `hard` (×1.2), `good`
+        (1 d, then ×2), `easy` (3 d, then ×3); interval capped at 180 days. Counts
+        toward the daily streak.'
+      parameters:
+      - description: Card UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.reviewCardRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.FlashcardState'
+      security:
+      - BearerAuth: []
+      summary: Grade a card (Student)
+      tags:
+      - Flashcards
+  /api/v1/flashcards/decks:
+    get:
+      description: 'Filters: course_id, subject_id, chapter_id, q (title). `sort=rating`.
+        Each deck carries `locked` (subscription), and the caller''s progress: new
+        / due / learned cards. Decks the student can''t open are still listed (locked)
+        so they can be discovered.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Browse published decks (Student)
+      tags:
+      - Flashcards
+  /api/v1/flashcards/decks/{id}/cards:
+    get:
+      description: Ordered by position, cursor = last position. Subject to the deck's
+        subscription rule.
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Last position
+        in: query
+        name: cursor
+        type: integer
+      - description: Default 50
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Browse all cards of a deck (Student)
+      tags:
+      - Flashcards
+  /api/v1/flashcards/decks/{id}/study:
+    get:
+      description: Cards whose review is due (oldest first), then unseen cards in
+        deck order, up to `limit` (default 20, max 50) — the deck's spaced-repetition
+        queue.
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Default 20
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Next cards to study in a deck (Student)
+      tags:
+      - Flashcards
+  /api/v1/flashcards/quick:
+    get:
+      description: A short, time-boxed set (default 10, max 30) of due-then-new cards
+        from decks the student can open, optionally limited to a course/chapter —
+        distinct from a full Q Bank session.
+      parameters:
+      - description: Course UUID
+        in: query
+        name: course_id
+        type: string
+      - description: Chapter UUID
+        in: query
+        name: chapter_id
+        type: string
+      - description: Default 10
+        in: query
+        name: count
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Quick-questions session across decks (Student)
+      tags:
+      - Flashcards
+  /api/v1/home/updates:
+    get:
+      description: Active items inside their optional start/end window, ordered. Empty
+        means the app should hide the carousel — there is no placeholder content.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Active home carousel items
+      tags:
+      - HomeUpdates
   /api/v1/me:
     get:
       description: Returns the authenticated user's profile, active subscription summary,
@@ -2452,6 +5578,98 @@ paths:
       summary: Update my profile
       tags:
       - Profile
+  /api/v1/me/analytics/coverage:
+    get:
+      description: 'Distinct questions answered ÷ eligible questions, overall and
+        per subject, for one course (entitlement-aware: free students are measured
+        against the free pool).'
+      parameters:
+      - description: Course UUID
+        in: query
+        name: course_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: How much of the question bank the student has seen
+      tags:
+      - Analytics
+  /api/v1/me/analytics/mastery:
+    get:
+      description: 'Per chapter: how many distinct questions the student has answered,
+        total answers, accuracy (correct ÷ answered), last practised date and a bucket
+        — weak / improving / strong / not_enough_data (thresholds and minimum sample
+        come from settings).'
+      parameters:
+      - description: Restrict to a subject
+        in: query
+        name: subject_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Topic mastery map
+      tags:
+      - Analytics
+  /api/v1/me/analytics/trend:
+    get:
+      description: Percentage score (score ÷ total marks) of the last N (default 20,
+        max 100) submitted attempts, oldest first, optionally for one module.
+      parameters:
+      - description: qbank|test_series|practice|custom
+        in: query
+        name: module
+        type: string
+      - description: Default 20
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Score trend over the last attempts
+      tags:
+      - Analytics
+  /api/v1/me/analytics/weak-areas:
+    get:
+      description: Chapters where the student has answered at least `analytics.min_answers`
+        questions with accuracy below `analytics.weak_accuracy_threshold`, weakest
+        first. Each carries a ready-to-use blueprint patch.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Weak areas with a one-tap practice suggestion
+      tags:
+      - Analytics
   /api/v1/me/attempts:
     get:
       description: Returns the full attempt history for the authenticated student,
@@ -2472,6 +5690,122 @@ paths:
       summary: List my test attempts
       tags:
       - Profile
+  /api/v1/me/bookmark-collections:
+    get:
+      description: The system collections (admin-configurable labels) plus any the
+        student created. Bookmarks live in exactly one collection.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My bookmark collections
+      tags:
+      - Bookmarks
+  /api/v1/me/bookmarks:
+    get:
+      description: 'Cursor-paginated. Filters: collection_id, item_type, subject_id,
+        chapter_id, q. Questions come with their content; the answer key and explanation
+        are included ONLY for questions the student has finished (submitted attempt)
+        or revealed in tutor mode.'
+      parameters:
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My bookmarks
+      tags:
+      - Bookmarks
+    put:
+      consumes:
+      - application/json
+      description: Creates or moves a bookmark. Without `collection_id` the first
+        system collection is used. For questions the student must have been exposed
+        to the question in one of their attempts (403 `not_exposed`) so the pool can't
+        be enumerated by guessing ids.
+      parameters:
+      - description: Bookmark
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.putBookmarkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Bookmark'
+      security:
+      - BearerAuth: []
+      summary: Bookmark an item (idempotent)
+      tags:
+      - Bookmarks
+  /api/v1/me/bookmarks/{item_type}/{item_id}:
+    delete:
+      parameters:
+      - description: question|flashcard|content
+        in: path
+        name: item_type
+        required: true
+        type: string
+      - description: Item UUID
+        in: path
+        name: item_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Remove a bookmark (idempotent)
+      tags:
+      - Bookmarks
+  /api/v1/me/bookmarks/ids:
+    get:
+      description: All bookmarked ids of one type, grouped by collection — the app
+        keeps this in memory to show bookmark state instantly.
+      parameters:
+      - description: 'Default: question'
+        in: query
+        name: item_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Compact bookmark id sets
+      tags:
+      - Bookmarks
   /api/v1/me/kyc:
     get:
       description: Returns the authenticated student's most recent KYC record and
@@ -2533,6 +5867,80 @@ paths:
       summary: Submit KYC document
       tags:
       - KYC
+  /api/v1/me/notification-preferences:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.NotificationPref'
+      security:
+      - BearerAuth: []
+      summary: My notification preferences
+      tags:
+      - Notifications
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.prefsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.NotificationPref'
+      security:
+      - BearerAuth: []
+      summary: Change my notification preferences
+      tags:
+      - Notifications
+  /api/v1/me/notifications:
+    get:
+      description: Newest first, cursor-paginated; `unread=true` filters. Includes
+        `unread_count`.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My in-app notifications
+      tags:
+      - Notifications
+  /api/v1/me/notifications/read:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Which
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.readRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Mark notifications read (ids, or all)
+      tags:
+      - Notifications
   /api/v1/me/progress:
     get:
       description: Returns the number of tests attempted and the average score for
@@ -2553,6 +5961,160 @@ paths:
       summary: Get my progress metrics
       tags:
       - Profile
+  /api/v1/me/progress/breakdown:
+    get:
+      description: Returns detailed progress metrics including trend, subject accuracy,
+        and streaks.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.progressBreakdownResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my progress breakdown
+      tags:
+      - Profile
+  /api/v1/me/push-tokens:
+    post:
+      consumes:
+      - application/json
+      description: 'Idempotent upsert. A token is owned by exactly one user: registering
+        it from another account moves it there. Expo push tokens only (`ExponentPushToken[...]`).'
+      parameters:
+      - description: Token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.pushTokenRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Register this device for push notifications
+      tags:
+      - Notifications
+  /api/v1/me/push-tokens/{token}:
+    delete:
+      parameters:
+      - description: Expo push token
+        in: path
+        name: token
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Unregister a device token (call on logout)
+      tags:
+      - Notifications
+  /api/v1/me/question-notes:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My question notes
+      tags:
+      - Notes
+  /api/v1/me/question-notes/{question_id}:
+    delete:
+      parameters:
+      - description: Question UUID
+        in: path
+        name: question_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete my note on a question
+      tags:
+      - Notes
+    put:
+      consumes:
+      - application/json
+      description: Private to the student, up to 4000 characters of plain text/markdown
+        (no images in v1). Only for questions the student has been shown.
+      parameters:
+      - description: Question UUID
+        in: path
+        name: question_id
+        required: true
+        type: string
+      - description: Note
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.noteRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.QuestionNote'
+      security:
+      - BearerAuth: []
+      summary: Save my private note on a question
+      tags:
+      - Notes
+  /api/v1/me/recommendations:
+    get:
+      description: 'Up to 3 suggestions, each with a title, reason and a blueprint
+        patch the app can pre-fill: revisit the weakest chapter; work through questions
+        due for spaced revision; or (for new students) start with unseen questions.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Rule-based practice suggestions
+      tags:
+      - Analytics
+  /api/v1/me/reports:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My reports and their outcome
+      tags:
+      - Reports
   /api/v1/me/subscription:
     get:
       description: Returns the student's current active subscription with plan and
@@ -2573,6 +6135,188 @@ paths:
       summary: Get my active subscription
       tags:
       - Profile
+  /api/v1/me/video-notes:
+    get:
+      parameters:
+      - description: Content item UUID
+        in: query
+        name: content_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My notes on a video/document, in time order
+      tags:
+      - VideoNotes
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Note
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.videoNoteRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.VideoNote'
+      security:
+      - BearerAuth: []
+      summary: Add a note at a moment of a video (markdown text, ≤4000 chars)
+      tags:
+      - VideoNotes
+  /api/v1/me/video-notes/{id}:
+    delete:
+      parameters:
+      - description: Note UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete my video note
+      tags:
+      - VideoNotes
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Note UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.videoNoteRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.VideoNote'
+      security:
+      - BearerAuth: []
+      summary: Edit my video note
+      tags:
+      - VideoNotes
+  /api/v1/media/{id}:
+    get:
+      parameters:
+      - description: Media UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get one media asset with signed URLs (author preview)
+      tags:
+      - Media
+  /api/v1/media/{id}/complete:
+    post:
+      description: 'Verifies the uploaded object (real size, magic-byte sniffing —
+        the declared content type is not trusted — dimensions, decompression-bomb
+        guard), strips EXIF/GPS by re-encoding, generates the display (≤1600px) and
+        thumbnail (≤400px) variants and returns the ready asset. A byte-identical
+        re-upload by the same owner returns the existing asset. Rejections carry a
+        `code`: too_large, too_large_dimensions, unsupported_type, corrupt_image.'
+      parameters:
+      - description: Media UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Finish an image upload
+      tags:
+      - Media
+  /api/v1/media/presign:
+    post:
+      consumes:
+      - application/json
+      description: Creates a pending media asset and returns a presigned PUT URL that
+        only accepts exactly `bytes` bytes of the declared type. After uploading,
+        call `POST /media/{id}/complete`. Allowed purposes and roles are enforced
+        server-side; limits (size, mime, quota, rate) come from platform settings.
+        `import_bundle` returns just a `file_key` for a zip (no media row).
+      parameters:
+      - description: Upload details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/codon-backend_internal_media.PresignRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_media.PresignResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Presign an image upload
+      tags:
+      - Media
   /api/v1/platform-settings/kyc-required:
     get:
       description: Returns whether the KYC feature is currently enabled platform-wide.
@@ -2587,6 +6331,97 @@ paths:
       summary: Get KYC required flag
       tags:
       - KYC
+  /api/v1/ratings:
+    put:
+      consumes:
+      - application/json
+      description: Stars 1-5 for tests, videos/documents, brain hacks and flashcard
+        decks; thumbs (-1/+1) for a question's explanation. Only after the student
+        actually did the thing (submitted the test, watched the video, saw the question)
+        — else 403 `not_eligible`. No free text; `tags` come from a fixed list. Rating
+        twice updates the rating.
+      parameters:
+      - description: Rating
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.putRatingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Rate an item (create or change)
+      tags:
+      - Ratings
+  /api/v1/ratings/{item_type}/{item_id}:
+    delete:
+      parameters:
+      - description: Item type
+        in: path
+        name: item_type
+        required: true
+        type: string
+      - description: Item UUID
+        in: path
+        name: item_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Remove my rating
+      tags:
+      - Ratings
+  /api/v1/reports:
+    post:
+      consumes:
+      - application/json
+      description: 'Reasons come from /app-config. One open report per (student, item):
+        reporting again returns the existing report with `already_reported: true`.
+        Students can only report questions they have seen. Enough distinct reporters
+        for a hold reason (default 3× wrong_answer/image_issue) put the question under
+        review, which excludes it from custom-test generation (existing tests are
+        unaffected).'
+      parameters:
+      - description: Report
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.createReportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: already reported
+          schema:
+            additionalProperties: true
+            type: object
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Report a question
+      tags:
+      - Reports
   /api/v1/subscription-plans:
     get:
       description: Returns all active subscription plans. Plans are admin-managed
@@ -2673,6 +6508,232 @@ paths:
       summary: Verify Razorpay payment (client-side fallback)
       tags:
       - Subscriptions & Payments
+  /api/v1/tags:
+    get:
+      description: Canonical tags (aliases excluded) matching `q` by prefix or substring,
+        most-used first. Max 20.
+      parameters:
+      - description: Search text
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Tag autocomplete
+      tags:
+      - Taxonomy
+  /api/v1/teacher/brain-hacks:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My Brain Hacks (Teacher)
+      tags:
+      - BrainHacks
+    post:
+      consumes:
+      - application/json
+      description: Body is rich text v1 (images via uploaded `brain_hack_image` media);
+        optional cover image. Goes through draft → review → approved → published like
+        other content.
+      parameters:
+      - description: Hack
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.hackRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.BrainHack'
+      security:
+      - BearerAuth: []
+      summary: Create a Brain Hack draft (Teacher)
+      tags:
+      - BrainHacks
+  /api/v1/teacher/brain-hacks/{id}:
+    delete:
+      parameters:
+      - description: Brain hack UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a draft/rejected Brain Hack (Teacher)
+      tags:
+      - BrainHacks
+    get:
+      parameters:
+      - description: Brain hack UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: One of my Brain Hacks (Teacher)
+      tags:
+      - BrainHacks
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Brain hack UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.hackRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.BrainHack'
+      security:
+      - BearerAuth: []
+      summary: Edit a Brain Hack (Teacher) — draft or rejected only
+      tags:
+      - BrainHacks
+  /api/v1/teacher/brain-hacks/{id}/publish:
+    post:
+      parameters:
+      - description: Brain hack UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Publish an approved Brain Hack (Teacher)
+      tags:
+      - BrainHacks
+  /api/v1/teacher/brain-hacks/{id}/submit-for-review:
+    post:
+      parameters:
+      - description: Brain hack UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit a Brain Hack for review (Teacher)
+      tags:
+      - BrainHacks
+  /api/v1/teacher/chapters/{chapter_id}/topics:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Chapter UUID
+        in: path
+        name: chapter_id
+        required: true
+        type: string
+      - description: Topic
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.topicRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Topic'
+      security:
+      - BearerAuth: []
+      summary: Create a topic under a chapter (Teacher/Admin)
+      tags:
+      - Taxonomy
+  /api/v1/teacher/chapters/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates a chapter. Callable by teachers and admins.
+      parameters:
+      - description: Chapter UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.updateChapterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Chapter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a Chapter (Teacher)
+      tags:
+      - Curriculum
   /api/v1/teacher/content:
     get:
       description: Returns all content items uploaded by the authenticated teacher.
@@ -2727,6 +6788,31 @@ paths:
       tags:
       - Teacher
   /api/v1/teacher/content/{id}:
+    get:
+      description: Returns full content item details. A teacher can view their own
+        content (or all content if they have platform-wide permission).
+      parameters:
+      - description: Content item UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.adminContentDetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a content item (Teacher)
+      tags:
+      - Teacher
     patch:
       consumes:
       - application/json
@@ -2815,6 +6901,21 @@ paths:
       summary: Submit content for admin review (Teacher)
       tags:
       - Teacher
+  /api/v1/teacher/corrections:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My corrections and their status (Teacher)
+      tags:
+      - Corrections
   /api/v1/teacher/csv-imports/{id}:
     get:
       description: Returns the current status and per-row error log for a CSV import
@@ -2841,6 +6942,719 @@ paths:
       summary: Get CSV import batch status (Teacher)
       tags:
       - Teacher
+  /api/v1/teacher/csv-imports/{id}/commit:
+    post:
+      description: Creates a commit-mode batch from a completed validate-mode batch.
+        The commit re-reads the same file and refuses to run if its hash changed since
+        validation. Replaying the call returns the same child batch (idempotent).
+      parameters:
+      - description: Validate batch UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/internal_handlers.csvImportAcceptedResponse'
+      security:
+      - BearerAuth: []
+      summary: Commit a validated CSV import (Teacher)
+      tags:
+      - Teacher
+  /api/v1/teacher/csv-template:
+    get:
+      description: Columns, required flags, allowed values and example values for
+        a template version (1 = legacy plain text, 2 = metadata + images). Lets the
+        app stop hard-coding column names.
+      parameters:
+      - description: Template version (default 2)
+        in: query
+        name: version
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: CSV import template (Teacher)
+      tags:
+      - Teacher
+  /api/v1/teacher/flashcard-decks:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My decks (Teacher)
+      tags:
+      - Flashcards
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Deck
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.deckRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.FlashcardDeck'
+      security:
+      - BearerAuth: []
+      summary: Create a flashcard deck (Teacher)
+      tags:
+      - Flashcards
+  /api/v1/teacher/flashcard-decks/{id}:
+    delete:
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a draft/rejected deck (Teacher)
+      tags:
+      - Flashcards
+    get:
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: One of my decks with all cards (Teacher)
+      tags:
+      - Flashcards
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.deckRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.FlashcardDeck'
+      security:
+      - BearerAuth: []
+      summary: Edit a deck (Teacher) — draft/rejected only
+      tags:
+      - Flashcards
+  /api/v1/teacher/flashcard-decks/{id}/cards:
+    post:
+      consumes:
+      - application/json
+      description: Both sides are rich text v1 and may contain images (`flashcard_image`
+        media).
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Card
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.cardRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Flashcard'
+      security:
+      - BearerAuth: []
+      summary: Add a card to a deck (Teacher)
+      tags:
+      - Flashcards
+  /api/v1/teacher/flashcard-decks/{id}/publish:
+    post:
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Publish an approved deck (Teacher)
+      tags:
+      - Flashcards
+  /api/v1/teacher/flashcard-decks/{id}/reorder:
+    post:
+      consumes:
+      - application/json
+      description: Send every card id of the deck in the new order.
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Ordered ids
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.reorderRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Reorder a deck's cards (Teacher)
+      tags:
+      - Flashcards
+  /api/v1/teacher/flashcard-decks/{id}/submit-for-review:
+    post:
+      parameters:
+      - description: Deck UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit a deck for review (Teacher)
+      tags:
+      - Flashcards
+  /api/v1/teacher/flashcards/{id}:
+    delete:
+      parameters:
+      - description: Card UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a card (Teacher)
+      tags:
+      - Flashcards
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Card UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.cardRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Flashcard'
+      security:
+      - BearerAuth: []
+      summary: Edit a card (Teacher)
+      tags:
+      - Flashcards
+  /api/v1/teacher/inventory:
+    get:
+      description: The chapters with the fewest eligible questions (below the inventory
+        floor), scoped to the teacher's own questions unless they have platform-wide
+        permission — so authors fill real gaps.
+      parameters:
+      - description: Course UUID
+        in: query
+        name: course_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Which chapters need more questions (Teacher)
+      tags:
+      - Analytics
+  /api/v1/teacher/media:
+    get:
+      description: Cursor-paginated list of my uploads. `unreferenced=true` shows
+        assets not used by any content (safe to delete).
+      parameters:
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
+      - description: Only unreferenced assets
+        in: query
+        name: unreferenced
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My media library (Teacher)
+      tags:
+      - Media
+  /api/v1/teacher/media/{id}:
+    delete:
+      description: 409 `media_in_use` if any content still references it.
+      parameters:
+      - description: Media UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an unused media asset
+      tags:
+      - Media
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Media UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Alt text
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.updateMediaRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.MediaAsset'
+      security:
+      - BearerAuth: []
+      summary: Update a media asset's default alt text
+      tags:
+      - Media
+  /api/v1/teacher/questions:
+    get:
+      description: 'Cursor-paginated question-bank list across all my tests (or everyone''s
+        for teachers with platform-wide permission). Filters: course_id, subject_id,
+        chapter_id, test_id, difficulty, tag_id, eligible, flag_status, reported=true,
+        missing=difficulty|chapter|topic|tags|ncert|alt_text, q (text search).'
+      parameters:
+      - description: Page size (max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Cursor from previous page
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Browse my questions (Teacher)
+      tags:
+      - Teacher
+  /api/v1/teacher/questions/{id}:
+    delete:
+      description: Removes a question from its test and decrements the test's question
+        count. Only allowed while the parent test is in draft or rejected state.
+      parameters:
+      - description: Question UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a question (Teacher)
+      tags:
+      - Teacher
+    patch:
+      consumes:
+      - application/json
+      description: Edits a question's text, options, correct answer, or explanation.
+        Only allowed while the parent test is in draft or rejected state.
+      parameters:
+      - description: Question UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Question details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.addQuestionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Question'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a question (Teacher)
+      tags:
+      - Teacher
+  /api/v1/teacher/questions/{id}/corrections:
+    post:
+      consumes:
+      - application/json
+      description: Live questions can't be edited directly. A correction carries the
+        proposed content/answer/metadata, a required reason, and whether past attempts
+        should be re-scored (only meaningful when the answer key changes). Admins
+        and teachers with platform-wide permission are applied immediately; others
+        go to admin review. Applying bumps the question `version`, resolves its open
+        reports as fixed (reporters are notified) and lifts any auto-hold.
+      parameters:
+      - description: Question UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Correction
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.correctionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.QuestionRevision'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Propose a correction to a LIVE question (Teacher)
+      tags:
+      - Corrections
+  /api/v1/teacher/questions/{id}/stats:
+    get:
+      description: 'Attempts, correct, accuracy, average time, open reports and an
+        empirical difficulty — shown only once at least `analytics.cohort_min_attempts`
+        students answered it. Outlier flags: `low_accuracy` (< 20 % with n ≥ 50 —
+        likely a wrong key) and `too_easy` (> 95 %).'
+      parameters:
+      - description: Question UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cohort statistics for one of my questions (Teacher)
+      tags:
+      - Analytics
+  /api/v1/teacher/questions/bulk-update:
+    post:
+      consumes:
+      - application/json
+      description: 'Applies one metadata patch to up to 200 questions in a single
+        all-or-nothing transaction: chapter/subject, difficulty, tags add/remove,
+        custom_eligible, or move to another draft test. Every id must be owned by
+        the caller (or the caller must have platform-wide permission) or nothing is
+        applied (403 `not_owner`). Metadata-only edits on live questions are allowed
+        and audited; content is never changed here.'
+      parameters:
+      - description: Ids + patch
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.bulkUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Bulk-edit question metadata (Teacher)
+      tags:
+      - Teacher
+  /api/v1/teacher/questions/check-duplicate:
+    post:
+      consumes:
+      - application/json
+      description: Hashes the normalised text (markup stripped, case/spacing/Unicode-insensitive,
+        images by content hash) and returns matching questions. Warn-only — near duplicates
+        across courses are legitimate.
+      parameters:
+      - description: Question content
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.duplicateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Check whether a question already exists (Teacher)
+      tags:
+      - Teacher
+  /api/v1/teacher/questions/completeness:
+    get:
+      description: Counts of questions missing difficulty / chapter / topic / tags
+        / NCERT page / image alt text, grouped by chapter — drives the quick-tag backfill
+        queue. Counts match the `missing=` list filter exactly.
+      parameters:
+      - description: Course UUID
+        in: query
+        name: course_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Metadata completeness by chapter (Teacher)
+      tags:
+      - Teacher
+  /api/v1/teacher/reports:
+    get:
+      description: 'Filters: status (open|fixed|no_change|dismissed|all, default open),
+        reason.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reports on my questions (Teacher)
+      tags:
+      - Reports
+  /api/v1/teacher/reports/{id}/resolve:
+    post:
+      consumes:
+      - application/json
+      description: The reporter is notified. Resolving may release an auto-held question.
+      parameters:
+      - description: Report UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Outcome
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.resolveReportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.ContentReport'
+      security:
+      - BearerAuth: []
+      summary: Resolve a report (Teacher/Admin)
+      tags:
+      - Reports
+  /api/v1/teacher/subjects/{subject_id}/chapters:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new chapter (topic) under a specific subject. Callable
+        by teachers and admins.
+      parameters:
+      - description: Subject UUID
+        in: path
+        name: subject_id
+        required: true
+        type: string
+      - description: Chapter details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.createChapterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/codon-backend_internal_models.Chapter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a Chapter (Teacher)
+      tags:
+      - Curriculum
   /api/v1/teacher/tests:
     get:
       description: Returns all tests created by the authenticated teacher across all
@@ -2898,6 +7712,60 @@ paths:
       tags:
       - Teacher
   /api/v1/teacher/tests/{id}:
+    delete:
+      description: Permanently deletes a test and its questions, attempts, and CSV
+        import history. Only allowed before the test has been approved or published.
+      parameters:
+      - description: Test UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.messageResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a test (Teacher)
+      tags:
+      - Teacher
+    get:
+      description: Returns full test metadata plus all questions. A teacher can view
+        their own tests (or all tests if they have platform-wide permission).
+      parameters:
+      - description: Test UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.adminTestDetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a test with questions (Teacher)
+      tags:
+      - Teacher
     patch:
       consumes:
       - application/json
@@ -3111,7 +7979,8 @@ paths:
   /api/v1/tests/{id}:
     get:
       description: Returns metadata for a single published test (no questions or answers
-        included).
+        included). When the caller has an in-progress attempt, `active_attempt` reports
+        its id, progress and deadline so the client can offer Resume.
       parameters:
       - description: Test UUID
         in: path
@@ -3136,9 +8005,12 @@ paths:
       - Tests
   /api/v1/tests/{id}/attempts:
     post:
-      description: Starts a new attempt for the given test. If the student already
-        has an in-progress attempt on this test, the existing attempt is returned
-        (resume). Subscription gating is checked before creation.
+      description: Starts a new attempt for the given test, or resumes the in-progress
+        one. Timed tests get a server-side deadline (`attempt.expires_at`); `server_now`
+        lets the client correct for clock skew. If the previous attempt already ran
+        out of time it is auto-submitted and 409 `attempt_expired` (with the attempt
+        id) is returned. Subscription gating is checked by the route before this handler
+        runs.
       parameters:
       - description: Test UUID
         in: path
@@ -3151,13 +8023,17 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/codon-backend_internal_models.StudentAttempt'
+            $ref: '#/definitions/codon-backend_internal_services.StartResult'
         "403":
           description: Subscription required
           schema:
             $ref: '#/definitions/internal_handlers.errorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+        "409":
+          description: attempt_expired
           schema:
             $ref: '#/definitions/internal_handlers.errorResponse'
       security:
@@ -3200,10 +8076,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: Returns a presigned S3 PUT URL valid for 15 minutes. The client
-        uses this URL to upload the file directly to object storage without routing
-        it through the backend. After upload, use the returned file_key when referencing
-        the file in other API calls.
+      description: Returns a presigned S3 PUT URL (for Cloudflare R2 files) or Cloudflare
+        Stream Direct Upload URL (for videos) valid for 15 minutes. The client uses
+        this URL to upload the file directly without routing through backend. After
+        upload, use the returned file_key when referencing the file in other API calls.
       parameters:
       - description: Upload details
         in: body
@@ -3291,6 +8167,32 @@ paths:
       security:
       - BearerAuth: []
       summary: List wellness content
+      tags:
+      - Wellness
+  /api/v1/wellness/content/{id}:
+    get:
+      description: Returns an active wellness item with its resolved body/cover images.
+      parameters:
+      - description: Wellness content UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get one wellness item (Student/Admin)
       tags:
       - Wellness
   /api/v1/wellness/reflection-prompts:

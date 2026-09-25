@@ -1,381 +1,214 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, PencilSimple, Trash } from 'phosphor-react-native';
-import { InputField, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { CaretLeft, ImageSquare, PencilSimple, Plus, Trash, UploadSimple, WarningCircle } from 'phosphor-react-native';
+import { BottomSheet, EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { createQuestion, updateQuestion, deleteQuestion, getTeacherTest } from '@/src/api/teacher';
+import { ApiError } from '@/src/api/client';
+import { deleteQuestion, getTeacherTest, submitTestForReview, type TeacherTestDetail } from '@/src/api/teacher';
+import type { AuthoredQuestion } from '@/src/api/tests';
+import { mediaRefs, plainText } from '@/src/rich';
 
-type Question = {
-  id: string;
-  text: string;
-  options: [string, string, string, string];
-  correct: 0 | 1 | 2 | 3;
-  explanation: string;
-};
+type Missing = { question_id: string; fields: string[] };
 
-const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
+const FIELD_LABEL: Record<string, string> = { chapter: 'chapter', difficulty: 'difficulty', image_not_ready: 'an image that isn’t ready' };
 
-const EMPTY_FORM = { text: '', options: ['', '', '', ''] as [string, string, string, string], correct: null as 0 | 1 | 2 | 3 | null, explanation: '' };
-
+/**
+ * The questions of one test (FE-2.1/2.13): review, add, edit, delete, then submit
+ * for review. Editing happens in the dedicated question editor; this screen is
+ * the overview, so a 50-question test never becomes one giant form.
+ */
 export default function QuestionBuilderRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { prefillText, testId, testTitle } = useLocalSearchParams<{ prefillText?: string; testId?: string; testTitle?: string }>();
+  const { testId, testTitle } = useLocalSearchParams<{ testId?: string; testTitle?: string; prefillText?: string }>();
 
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState(prefillText ? { ...EMPTY_FORM, text: prefillText } : EMPTY_FORM);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [data, setData] = useState<TeacherTestDetail | null>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [toDelete, setToDelete] = useState<AuthoredQuestion | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [missing, setMissing] = useState<Missing[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Load existing questions for this test draft
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!testId) return;
-    setLoading(true);
-    getTeacherTest(testId)
-      .then((res) => {
-        const loaded: Question[] = (res.questions || []).map((q) => {
-          const opt = q.correct_option?.trim().toUpperCase();
-          const correctIdx = opt === 'A' ? 0 : opt === 'B' ? 1 : opt === 'C' ? 2 : 3;
-          return {
-            id: q.id,
-            text: q.question_text,
-            options: [q.option_a, q.option_b, q.option_c, q.option_d],
-            correct: correctIdx as 0 | 1 | 2 | 3,
-            explanation: q.explanation || '',
-          };
-        });
-        setQuestions(loaded);
-      })
-      .catch(() => { })
-      .finally(() => setLoading(false));
+    try {
+      setData(await getTeacherTest(testId));
+      setStatus('ready');
+    } catch {
+      setStatus((s) => (s === 'ready' ? s : 'error'));
+    }
   }, [testId]);
 
-  const resetForm = () => setForm(EMPTY_FORM);
+  // refresh whenever we come back from the editor
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const setOption = (i: number, value: string) => {
-    setForm((f) => {
-      const next = [...f.options] as [string, string, string, string];
-      next[i] = value;
-      return { ...f, options: next };
-    });
-  };
+  const test = data?.test;
+  const editable = test ? test.status === 'draft' || test.status === 'rejected' : true;
+  const questions = useMemo(() => [...(data?.questions ?? [])].sort((a, b) => (a.position ?? a.order_index) - (b.position ?? b.order_index)), [data]);
+  const missingById = useMemo(() => new Map(missing.map((m) => [m.question_id, m.fields])), [missing]);
+  const unclassified = questions.filter((q) => !q.chapter_id || !q.difficulty).length;
 
-  const valid = form.text.trim().length > 0 && form.options.every((o) => o.trim().length > 0) && form.correct !== null;
+  const edit = (q?: AuthoredQuestion) =>
+    router.push({ pathname: '/(teacher)/question-editor', params: { testId: testId!, ...(q ? { questionId: q.id } : {}) } });
 
-  const handleSubmit = async () => {
-    if (!valid || saving) {
-      if (!valid) setError('Fill in the question, all four options, and mark the correct answer before adding.');
-      return;
-    }
-    if (!testId) {
-      setError('Test ID missing. Please save draft first.');
-      return;
-    }
-    setError(null);
-    setSaving(true);
-
+  const doDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
     try {
-      if (editingId) {
-        await updateQuestion(editingId, {
-          question_text: form.text,
-          option_a: form.options[0],
-          option_b: form.options[1],
-          option_c: form.options[2],
-          option_d: form.options[3],
-          correct_option: form.correct === 0 ? 'A' : form.correct === 1 ? 'B' : form.correct === 2 ? 'C' : 'D',
-          explanation: form.explanation,
-        });
-        setQuestions((prev) =>
-          prev.map((q) =>
-            q.id === editingId
-              ? { ...q, text: form.text, options: form.options, correct: form.correct as 0 | 1 | 2 | 3, explanation: form.explanation }
-              : q
-          )
-        );
-        setEditingId(null);
-        resetForm();
-        show('Changes saved', 'success');
-        return;
-      }
-
-      const res = await createQuestion(testId, {
-        question_text: form.text,
-        option_a: form.options[0],
-        option_b: form.options[1],
-        option_c: form.options[2],
-        option_d: form.options[3],
-        correct_option: form.correct === 0 ? 'A' : form.correct === 1 ? 'B' : form.correct === 2 ? 'C' : 'D',
-        explanation: form.explanation,
-      });
-
-      const newQuestion: Question = {
-        id: res.id,
-        text: form.text,
-        options: form.options,
-        correct: form.correct as 0 | 1 | 2 | 3,
-        explanation: form.explanation,
-      };
-      setQuestions((prev) => [...prev, newQuestion]);
-      resetForm();
-      show(`Question ${questions.length + 1} added`, 'success');
-    } catch (err: any) {
-      setError(err?.message || 'Failed to save question to database.');
+      await deleteQuestion(toDelete.id);
+      setData((d) => (d ? { ...d, questions: d.questions.filter((q) => q.id !== toDelete.id) } : d));
+      setToDelete(null);
+    } catch (e) {
+      show(e instanceof ApiError && e.code === 'test_locked' ? 'This test is locked — questions can’t be deleted.' : 'Couldn’t delete. Try again.', 'error');
     } finally {
-      setSaving(false);
+      setDeleting(false);
     }
   };
 
-  const startEdit = (q: Question) => {
-    setEditingId(q.id);
-    setForm({ text: q.text, options: q.options, correct: q.correct, explanation: q.explanation });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    resetForm();
-    setError(null);
-  };
-
-  const confirmDelete = async (id: string) => {
-    setDeletingId(id);
+  const submit = async () => {
+    if (!testId) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    setMissing([]);
     try {
-      await deleteQuestion(id);
-      setQuestions((prev) => prev.filter((q) => q.id !== id));
-      setDeleteConfirmId(null);
-      if (editingId === id) cancelEdit();
-    } catch (err: any) {
-      show(err?.message || 'Failed to delete question.', 'error');
+      await submitTestForReview(testId);
+      show('Submitted for review', 'success');
+      router.replace('/(teacher)/(tabs)/(content)');
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'incomplete_questions') {
+        const m = ((e.details as any)?.missing ?? []) as Missing[];
+        setMissing(m);
+        setSubmitError(m.length === 0 ? 'Add at least one question before submitting.' : `${m.length} question${m.length > 1 ? 's need' : ' needs'} more details before this can be submitted.`);
+      } else setSubmitError('Couldn’t submit. Check your connection and try again.');
     } finally {
-      setDeletingId(null);
+      setSubmitting(false);
     }
-  };
-
-  const handleDone = () => {
-    if (questions.length === 0) {
-      show('Add at least one question before finishing.', 'error');
-      return;
-    }
-    router.push({
-      pathname: '/(teacher)/content-preview',
-      params: { id: testId, type: 'Test' },
-    });
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={space.xs}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
+    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
+        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
           <CaretLeft size={24} color={color('text/primary')} />
         </Pressable>
-        <View style={{ marginLeft: space.sm }}>
-          <Text style={[type['type/h1'], { color: color('text/primary') }]}>Question Builder</Text>
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            {testTitle || 'Test Draft'} · {questions.length} question{questions.length === 1 ? '' : 's'} added
-          </Text>
+        <View style={{ flex: 1 }}>
+          <Text accessibilityRole="header" style={[type['type/h2'], { color: color('text/primary') }]} numberOfLines={1}>{test?.title ?? testTitle ?? 'Questions'}</Text>
+          <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{questions.length} question{questions.length === 1 ? '' : 's'}</Text>
         </View>
+        {test ? <StatusBadge status={(test.status as any) ?? 'draft'} /> : null}
       </View>
 
-      {loading ? (
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'] + insets.bottom }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={{ gap: space.xs, marginBottom: space.xl }}>
-            <SkeletonBlock height={56} radius={radius.md} />
-            <SkeletonBlock height={56} radius={radius.md} />
-            <SkeletonBlock height={56} radius={radius.md} />
-          </View>
-          <SkeletonBlock height={220} radius={radius.md} />
-        </ScrollView>
-      ) : (
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'] + insets.bottom }}
-          showsVerticalScrollIndicator={false}
-        >
-          {questions.length > 0 ? (
-            <View style={{ gap: space.xs, marginBottom: space.xl }}>
-              {questions.map((q, i) =>
-                editingId === q.id ? (
-                  <View
+      <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: 160 + insets.bottom }} showsVerticalScrollIndicator={false}>
+        {status === 'loading' ? (
+          [0, 1, 2].map((i) => <SkeletonBlock key={i} height={84} radius={radius.md} />)
+        ) : status === 'error' ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn’t load the questions"
+            description="Check your connection and try again."
+            action={<TextButton label="Retry" onPress={load} />}
+          />
+        ) : (
+          <>
+            {test?.status === 'rejected' && test.rejection_reason ? (
+              <View style={{ backgroundColor: color('semantic/danger-tint'), borderRadius: radius.md, padding: space.md }}>
+                <Text style={[type['type/caption'], { color: color('semantic/danger') }]}>REVIEWER’S NOTE</Text>
+                <Text style={[type['type/body-m'], { color: color('text/primary') }]}>{test.rejection_reason}</Text>
+              </View>
+            ) : null}
+            {!editable ? (
+              <View style={{ backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.md }}>
+                <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>This test is {test?.status?.replace('_', ' ')}. You can send corrections for individual questions; adding or removing questions is locked.</Text>
+              </View>
+            ) : null}
+            {editable && unclassified > 0 && test?.module_type !== 'test_series' ? (
+              <View style={{ backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.md }}>
+                <Text style={[type['type/body-m'], { color: color('text/primary') }]}>
+                  {unclassified} question{unclassified > 1 ? 's' : ''} still need a chapter and difficulty — required before submitting.
+                </Text>
+              </View>
+            ) : null}
+
+            {questions.length === 0 ? (
+              <EmptyState
+                icon={<PencilSimple size={32} color={color('text/tertiary')} />}
+                title="No questions yet"
+                description="Add questions one by one — with images if you need — or import many at once from a CSV."
+              />
+            ) : (
+              questions.map((q, i) => {
+                const need = missingById.get(q.id);
+                const imgs = new Set([q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.explanation ?? ''].flatMap((t) => mediaRefs(t, q.content_format))).size;
+                const summary = plainText(q.question_text, q.content_format) || (imgs > 0 ? '(image question)' : '(empty)');
+                return (
+                  <Pressable
                     key={q.id}
-                    style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}
+                    onPress={() => edit(q)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Question ${i + 1}: ${summary}`}
+                    style={({ pressed }) => ({
+                      backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, gap: space.xs, opacity: pressed ? 0.94 : 1,
+                      borderWidth: need ? 1.5 : 0, borderColor: need ? color('semantic/danger') : 'transparent',
+                    })}
                   >
-                    <QuestionForm
-                      form={form}
-                      setForm={setForm}
-                      setOption={setOption}
-                      error={error}
-                    />
-                    <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.md, alignItems: 'center' }}>
-                      <PrimaryButton label="Save Changes" onPress={handleSubmit} loading={saving} style={{ flex: 1 }} />
-                      <TextButton label="Cancel" onPress={cancelEdit} disabled={saving} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                      <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>Q{i + 1}</Text>
+                      {imgs > 0 ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                          <ImageSquare size={14} color={color('text/tertiary')} />
+                          <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{imgs}</Text>
+                        </View>
+                      ) : null}
+                      {q.difficulty ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{q.difficulty}</Text> : null}
+                      <View style={{ flex: 1 }} />
+                      <Text style={[type['type/caption'], { color: color('semantic/success') }]}>Answer {q.correct_option}</Text>
                     </View>
-                  </View>
-                ) : (
-                  <View key={q.id}>
-                    <Pressable
-                      onPress={() => startEdit(q)}
-                      style={({ pressed }) => [
-                        styles.qRow,
-                        { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, opacity: pressed ? 0.94 : 1 },
-                        shadow(),
-                      ]}
-                    >
-                      <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]} numberOfLines={1}>
-                        Q{i + 1}. {q.text}
-                      </Text>
-                      <Pressable onPress={() => startEdit(q)} hitSlop={space.xs} style={{ marginLeft: space.sm }}>
-                        <PencilSimple size={18} color={color('text/tertiary')} />
-                      </Pressable>
-                      <Pressable onPress={() => setDeleteConfirmId(q.id)} hitSlop={space.xs} style={{ marginLeft: space.sm }}>
-                        <Trash size={18} color={color('text/tertiary')} />
-                      </Pressable>
-                    </Pressable>
-                    {deleteConfirmId === q.id ? (
-                      <View
-                        style={[
-                          styles.deleteConfirm,
-                          { backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.sm, marginTop: 4 },
-                        ]}
-                      >
-                        <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
-                          Delete this question?
-                        </Text>
-                        <TextButton
-                          label={deletingId === q.id ? 'Deleting…' : 'Yes'}
-                          onPress={() => confirmDelete(q.id)}
-                          disabled={deletingId === q.id}
-                          style={{ marginRight: space.sm }}
-                        />
-                        <TextButton label="No" onPress={() => setDeleteConfirmId(null)} disabled={deletingId === q.id} />
+                    <Text style={[type['type/body-m'], { color: color('text/primary') }]} numberOfLines={3}>{summary}</Text>
+                    {need ? (
+                      <Text style={[type['type/caption'], { color: color('semantic/danger') }]}>Needs: {need.map((f) => FIELD_LABEL[f] ?? f).join(', ')}</Text>
+                    ) : !q.chapter_id || !q.difficulty ? (
+                      <Text style={[type['type/caption'], { color: color('semantic/warning') }]}>Add {[!q.chapter_id && 'chapter', !q.difficulty && 'difficulty'].filter(Boolean).join(' & ')}</Text>
+                    ) : null}
+                    {editable ? (
+                      <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                        <Pressable onPress={() => setToDelete(q)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Delete question ${i + 1}`} style={{ minWidth: 44, minHeight: 36, alignItems: 'center', justifyContent: 'center' }}>
+                          <Trash size={18} color={color('text/tertiary')} />
+                        </Pressable>
                       </View>
                     ) : null}
-                  </View>
-                )
-              )}
-            </View>
-          ) : null}
+                  </Pressable>
+                );
+              })
+            )}
+          </>
+        )}
+      </ScrollView>
 
-          {!editingId ? (
-            <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}>
-              <QuestionForm
-                form={form}
-                setForm={setForm}
-                setOption={setOption}
-                error={error}
-              />
-              <PrimaryButton label="Add Question" onPress={handleSubmit} loading={saving} style={{ marginTop: space.md }} />
+      {status === 'ready' && editable ? (
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: color('bg/surface'), borderTopWidth: 1, borderTopColor: color('border/subtle'), padding: space.md, paddingBottom: space.md + insets.bottom, gap: space.sm }}>
+          {submitError ? <ErrorBanner message={submitError} /> : null}
+          <View style={{ flexDirection: 'row', gap: space.sm }}>
+            <View style={{ flex: 1 }}><SecondaryButton label="Add question" onPress={() => edit()} /></View>
+            <View style={{ flex: 1 }}>
+              <SecondaryButton label="Import CSV" onPress={() => router.push({ pathname: '/(teacher)/csv-upload', params: { testId: testId!, testTitle: test?.title ?? '' } })} />
             </View>
-          ) : null}
-        </ScrollView>
-      )}
-
-      {!loading && !editingId && testId ? (
-        <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-          <PrimaryButton label="Done" onPress={handleDone} disabled={questions.length === 0} />
+          </View>
+          <PrimaryButton label="Submit for review" onPress={submit} loading={submitting} disabled={questions.length === 0} />
         </View>
       ) : null}
+
+      <BottomSheet visible={!!toDelete} onClose={() => setToDelete(null)} title="Delete this question?" dismissable={!deleting}>
+        <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>This removes it from the test. This can’t be undone.</Text>
+        <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.lg }}>
+          <SecondaryButton label="Cancel" onPress={() => setToDelete(null)} />
+          <PrimaryButton label="Delete" onPress={doDelete} loading={deleting} />
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
-
-function QuestionForm({
-  form,
-  setForm,
-  setOption,
-  error,
-}: {
-  form: typeof EMPTY_FORM;
-  setForm: React.Dispatch<React.SetStateAction<typeof EMPTY_FORM>>;
-  setOption: (i: number, value: string) => void;
-  error: string | null;
-}) {
-  const { color, type, space, radius } = useTheme();
-  return (
-    <View style={{ gap: space.md }}>
-      <InputField
-        label="Question Text"
-        multiline
-        value={form.text}
-        onChangeText={(v) => setForm((f) => ({ ...f, text: v }))}
-        placeholder="Enter question statement…"
-      />
-      {OPTION_LABELS.map((label, i) => (
-        <InputField
-          key={label}
-          label={`Option ${label}`}
-          value={form.options[i]}
-          onChangeText={(v) => setOption(i, v)}
-          placeholder={`Enter option ${label}…`}
-        />
-      ))}
-      <View>
-        <Text style={[type['type/caption'], { color: color('text/secondary'), marginBottom: space.xs }]}>
-          Correct Answer *
-        </Text>
-        <View style={{ flexDirection: 'row', gap: space.xs }}>
-          {OPTION_LABELS.map((label, i) => {
-            const active = form.correct === i;
-            return (
-              <Pressable
-                key={label}
-                onPress={() => setForm((f) => ({ ...f, correct: i as 0 | 1 | 2 | 3 }))}
-                style={[
-                  styles.answerChip,
-                  {
-                    borderRadius: radius.pill,
-                    backgroundColor: active ? color('semantic/success') : color('bg/sunken'),
-                  },
-                ]}
-              >
-                <Text style={[type['type/body-m-medium'], { color: active ? color('text/inverse') : color('text/primary') }]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-      <InputField
-        label="Explanation (optional)"
-        multiline
-        value={form.explanation}
-        onChangeText={(v) => setForm((f) => ({ ...f, explanation: v }))}
-        placeholder="Shown to students after they submit."
-      />
-      {error ? (
-        <Text style={[type['type/caption'], { color: color('semantic/danger') }]}>{error}</Text>
-      ) : null}
-    </View>
-  );
-}
-
-function shadow(): {} {
-  return {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  };
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center' },
-  qRow: { flexDirection: 'row', alignItems: 'center' },
-  deleteConfirm: { flexDirection: 'row', alignItems: 'center' },
-  answerChip: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-});

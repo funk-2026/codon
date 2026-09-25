@@ -17,6 +17,9 @@ export default function StudentProfileStack() {
       <Stack.Screen name="kyc-submission" options={{ title: 'KYC Submission' }} />
       <Stack.Screen name="kyc-status" options={{ title: 'KYC Status' }} />
       <Stack.Screen name="progress-detail" options={{ title: 'Progress' }} />
+      <Stack.Screen name="bookmarks" options={{ headerShown: false }} />
+      <Stack.Screen name="my-reports" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
     </Stack>
   );
 }

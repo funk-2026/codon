@@ -12,14 +12,19 @@ import {
   Exam,
   Lightning,
   CaretRight,
+  Sliders,
+  PlayCircle,
+  Cards,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { getAttempts } from '@/src/api/profile';
 import type { StudentAttempt } from '@/src/api/attempts';
+import { useFlag } from '@/src/config/AppConfigContext';
+import { visibleModules } from '@/src/modules/registry';
 
 type Category = {
-  id: 'qbank' | 'test_series' | 'practice';
+  id: string;
   title: string;
   descriptor: string;
   icon: React.ReactNode;
@@ -46,6 +51,7 @@ function Stagger({ delayMs, children }: { delayMs: number; children: React.React
 export default function PracticeHubRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const customOn = useFlag('custom_test.enabled');
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -70,42 +76,33 @@ export default function PracticeHubRoute() {
 
   const isNewUser = !loading && attempts.length === 0;
 
-  // Let's compute some basic stats if we have attempts
-  const completed = attempts.filter(a => a.status === 'submitted');
-  const avgScore = completed.length > 0 
-    ? completed.reduce((acc, a) => acc + ((a.score || 0) / (a.total_marks || 1)) * 100, 0) / completed.length 
-    : 0;
-  
-  // To get weekly count, count attempts in last 7 days
+  const completed = attempts.filter((a) => a.status === 'submitted');
+  // accuracy = correct ÷ attempted across submitted tests (skipped questions don't count against you)
+  const correctSum = completed.reduce((n, a) => n + (a.correct_count ?? 0), 0);
+  const attemptedSum = completed.reduce((n, a) => n + (a.correct_count ?? 0) + (a.wrong_count ?? 0), 0);
+  const accuracy = attemptedSum > 0 ? Math.round((correctSum / attemptedSum) * 100) : null;
+  const scored = completed.filter((a) => (a.total_marks ?? 0) > 0);
+  const avgScore = scored.length > 0 ? scored.reduce((acc, a) => acc + Math.max(0, ((a.score ?? 0) / (a.total_marks as number)) * 100), 0) / scored.length : null;
+
   const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const weeklyCount = attempts.filter(a => new Date(a.started_at).getTime() > oneWeekAgo).length;
+  const weeklyCount = attempts.filter((a) => new Date(a.started_at).getTime() > oneWeekAgo).length;
 
-  // Just grab top 4 for recent
   const recentAttempts = attempts.slice(0, 4);
+  const inProgress = attempts.find((a) => a.status === 'in_progress');
 
-  const categories: Category[] = [
-    {
-      id: 'qbank',
-      title: 'Q Bank',
-      descriptor: 'Topic-wise questions to build your foundation, chapter by chapter.',
-      icon: <Stack size={28} color={color('accent/default')} weight="duotone" />,
-      href: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'qbank' } },
-    },
-    {
-      id: 'test_series',
-      title: 'Test Series',
-      descriptor: 'Full-length, exam-pattern tests that simulate the real thing.',
-      icon: <Exam size={28} color={color('accent/default')} weight="duotone" />,
-      href: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'test_series' } },
-    },
-    {
-      id: 'practice',
-      title: 'Practice',
-      descriptor: 'Short, low-pressure sets to warm up or review a single topic.',
-      icon: <Lightning size={28} color={color('accent/default')} weight="duotone" />,
-      href: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'practice' } },
-    },
-  ];
+  const ICONS: Record<string, React.ReactNode> = {
+    qbank: <Stack size={28} color={color('accent/default')} weight="duotone" />,
+    test_series: <Exam size={28} color={color('accent/default')} weight="duotone" />,
+    practice: <Lightning size={28} color={color('accent/default')} weight="duotone" />,
+    custom: <Sliders size={28} color={color('accent/default')} weight="duotone" />,
+  };
+  const categories: Category[] = visibleModules((f) => (f === 'custom_test.enabled' ? customOn : false)).map((m) => ({
+    id: m.key,
+    title: m.label,
+    descriptor: m.descriptor,
+    icon: ICONS[m.key] ?? ICONS.practice,
+    href: m.hubRoute as Href,
+  }));
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -122,6 +119,24 @@ export default function PracticeHubRoute() {
           <View style={{ marginTop: space.md }}>
             <ErrorBanner onRetry={load} />
           </View>
+        ) : null}
+
+        {inProgress ? (
+          <Pressable
+            onPress={() => router.push({ pathname: '/(student)/(practice)/test-pre-start', params: { id: inProgress.test_id } })}
+            accessibilityRole="button"
+            accessibilityLabel={`Continue ${inProgress.test?.title ?? 'your test'}`}
+            style={({ pressed }) => [
+              { backgroundColor: color('accent/tint'), borderRadius: radius.lg, padding: space.md, marginTop: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.sm, opacity: pressed ? 0.94 : 1 },
+            ]}
+          >
+            <PlayCircle size={32} weight="fill" color={color('accent/default')} />
+            <View style={{ flex: 1 }}>
+              <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>CONTINUE</Text>
+              <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]} numberOfLines={1}>{inProgress.test?.title ?? 'Your test'}</Text>
+            </View>
+            <CaretRight size={20} color={color('text/tertiary')} />
+          </Pressable>
         ) : null}
 
         <View style={{ gap: space.md, marginTop: space.lg }}>
@@ -171,6 +186,21 @@ export default function PracticeHubRoute() {
           ))}
         </View>
 
+        <Pressable
+          onPress={() => router.push('/(student)/(learn)/flashcards')}
+          accessibilityRole="button"
+          style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, marginTop: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
+        >
+          <View style={{ width: 48, height: 48, backgroundColor: color('accent/tint'), borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}>
+            <Cards size={28} color={color('accent/default')} weight="duotone" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[type['type/h3'], { color: color('text/primary') }]}>Flashcards</Text>
+            <Text style={[type['type/body-m'], { color: color('text/secondary') }]} numberOfLines={1}>Spaced-repetition review for quick recall.</Text>
+          </View>
+          <CaretRight size={20} color={color('text/tertiary')} />
+        </Pressable>
+
         {loading ? (
           <View style={{ marginTop: space.xl }}>
             <SkeletonBlock height={72} radius={radius.md} />
@@ -189,9 +219,9 @@ export default function PracticeHubRoute() {
                   shadow(),
                 ]}
               >
-                <SummaryStat label="Accuracy" value={completed.length > 0 ? "82%" : "—"} />
+                <SummaryStat label="Accuracy" value={accuracy != null ? `${accuracy}%` : '—'} />
                 <Divider />
-                <SummaryStat label="Avg. Score" value={completed.length > 0 ? `${Math.round(avgScore)}%` : "—"} />
+                <SummaryStat label="Avg. Score" value={avgScore != null ? `${Math.round(avgScore)}%` : '—'} />
                 <Divider />
                 <SummaryStat label="This Week" value={`${weeklyCount}`} />
               </View>
@@ -248,8 +278,8 @@ export default function PracticeHubRoute() {
                   onPress={() =>
                     t.status === 'submitted'
                       ? router.push({
-                          pathname: '/(student)/(practice)/test-review',
-                          params: { id: t.id },
+                          pathname: '/(student)/(practice)/test-result',
+                          params: { id: t.id, fromHistory: '1' },
                         })
                       : router.push({
                           pathname: '/(student)/(practice)/test-question',
@@ -294,7 +324,7 @@ export default function PracticeHubRoute() {
                       <Text
                         style={[type['type/caption'], { color: color('accent/default') }]}
                       >
-                        {t.score}/{t.total_marks}
+                        {t.total_marks ? `${t.score ?? 0}/${t.total_marks}` : `${t.score ?? 0}`}
                       </Text>
                     </View>
                   ) : (

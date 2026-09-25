@@ -1,176 +1,144 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { CaretLeft, Sparkle } from 'phosphor-react-native';
+import { CaretLeft, Sparkle, Star, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { useAppConfig } from '@/src/config/AppConfigContext';
+import { getBrainHackCategories, listBrainHacks, type BrainHack } from '@/src/api/discover';
+import { MediaImage, type MediaMap } from '@/src/rich';
 
-type Hack = { id: string; title: string; tag: string };
-
-const HACKS: Hack[] = [
-  { id: '1', title: 'Beat exam-day anxiety in 5 minutes', tag: 'Exam Day' },
-  { id: '2', title: 'The 2-minute recall trick', tag: 'Memory' },
-  { id: '3', title: 'How to read a question twice, not once', tag: 'Focus' },
-  { id: '4', title: 'Build a study playlist that actually helps', tag: 'Focus' },
-  { id: '5', title: 'What to eat before a 3-hour test', tag: 'Exam Day' },
-  { id: '6', title: 'The Pomodoro method, adapted for NEET prep', tag: 'Focus' },
-];
-
-function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
-  const shown = useSharedValue(0);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      shown.value = withTiming(1, { duration: 280 });
-    }, delayMs);
-    return () => clearTimeout(t);
-  }, [delayMs, shown]);
-  const style = useAnimatedStyle(() => ({
-    opacity: shown.value,
-    transform: [{ translateY: (1 - shown.value) * 10 }],
-  }));
-  return <Animated.View style={style}>{children}</Animated.View>;
-}
+const norm = (c: any): { key: string; label: string } => (typeof c === 'string' ? { key: c, label: c } : c);
 
 export default function BrainHacksListRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
-  const [loading, setLoading] = useState(true);
+  const { width } = useWindowDimensions();
+  const minCount = useAppConfig().config?.limits.ratings.min_count_display ?? 5;
 
-  const GRID_GAP = space.sm;
-  const cardWidth = (screenWidth - space.md * 2 - GRID_GAP) / 2;
+  const [cats, setCats] = useState<{ key: string; label: string }[]>([]);
+  const [category, setCategory] = useState<string | undefined>();
+  const [rows, setRows] = useState<BrainHack[]>([]);
+  const [media, setMedia] = useState<MediaMap>({});
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [more, setMore] = useState(false);
+  const [error, setError] = useState(false);
+  const seq = useRef(0);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 600);
-    return () => clearTimeout(t);
+    getBrainHackCategories().then((r) => setCats((r.categories as any[]).map(norm))).catch(() => {});
   }, []);
 
-  const empty = HACKS.length === 0;
+  const load = useCallback(async () => {
+    const my = ++seq.current;
+    setLoading(true);
+    setError(false);
+    try {
+      const r = await listBrainHacks({ category, limit: 20 });
+      if (my !== seq.current) return;
+      setRows(r.brain_hacks);
+      setMedia(r.media ?? {});
+      setCursor(r.next_cursor);
+    } catch {
+      if (my === seq.current) setError(true);
+    } finally {
+      if (my === seq.current) setLoading(false);
+    }
+  }, [category]);
+  useEffect(() => { void load(); }, [load]);
+
+  const loadMore = async () => {
+    if (!cursor || more) return;
+    setMore(true);
+    try {
+      const r = await listBrainHacks({ category, limit: 20, cursor });
+      setRows((p) => [...p, ...r.brain_hacks]);
+      setMedia((m) => ({ ...m, ...(r.media ?? {}) }));
+      setCursor(r.next_cursor);
+    } finally {
+      setMore(false);
+    }
+  };
+
+  const GAP = space.sm;
+  const cardW = (width - space.md * 2 - GAP) / 2;
+  const chip = (on: boolean) => ({
+    minHeight: 36, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center' as const,
+    backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle'),
+  });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-      <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
-        <View style={styles.headerRow}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={space.xs}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          >
-            <CaretLeft size={24} color={color('text/primary')} />
-          </Pressable>
-          <Text style={[type['type/h1'], { color: color('text/primary'), marginLeft: space.xs }]}>
-            Free Brain Hacks.
-          </Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, marginTop: space.lg }}>
+        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
+          <CaretLeft size={24} color={color('text/primary')} />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary') }]}>Free Brain Hacks.</Text>
+          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Quick, practical tips — no course or subscription needed.</Text>
         </View>
-        <Text
-          style={[
-            type['type/body-m'],
-            { color: color('text/secondary'), marginTop: space['2xs'], marginLeft: 32 },
-          ]}
-        >
-          Quick, practical tips — no course or subscription needed.
-        </Text>
       </View>
 
-      {loading ? (
-        <View style={[styles.grid, { paddingHorizontal: space.md, marginTop: space.lg, gap: space.sm }]}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <View
-              key={i}
-              style={{
-                width: cardWidth,
-                backgroundColor: color('bg/surface'),
-                borderRadius: radius.md,
-                padding: space.sm,
-                minHeight: 150,
-                opacity: 0.6,
-              }}
-            >
-              <View style={{ width: 48, height: 48, borderRadius: radius.sm, backgroundColor: color('bg/sunken') }} />
-              <View style={{ height: 14, backgroundColor: color('bg/sunken'), borderRadius: 6, marginTop: space.sm, width: '90%' }} />
-              <View style={{ height: 14, backgroundColor: color('bg/sunken'), borderRadius: 6, marginTop: 6, width: '60%' }} />
-              <View style={{ height: 12, backgroundColor: color('bg/sunken'), borderRadius: 6, marginTop: space.sm, width: '40%' }} />
+      {cats.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.md }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+          <Pressable onPress={() => setCategory(undefined)} accessibilityRole="button" accessibilityState={{ selected: !category }} style={chip(!category)}>
+            <Text style={[type['type/caption'], { color: !category ? color('accent/default') : color('text/secondary') }]}>All</Text>
+          </Pressable>
+          {cats.map((c) => (
+            <Pressable key={c.key} onPress={() => setCategory(c.key)} accessibilityRole="button" accessibilityState={{ selected: category === c.key }} style={chip(category === c.key)}>
+              <Text style={[type['type/caption'], { color: category === c.key ? color('accent/default') : color('text/secondary') }]}>{c.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}>
+            {[0, 1, 2, 3].map((i) => <SkeletonBlock key={i} width={cardW} height={170} radius={radius.md} />)}
+          </View>
+        ) : error ? (
+          <EmptyState icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />} title="Couldn’t load Brain Hacks" description="Check your connection and try again." action={<TextButton label="Retry" onPress={load} />} />
+        ) : rows.length === 0 ? (
+          <EmptyState icon={<Sparkle size={32} color={color('text/tertiary')} weight="duotone" />} title="New Brain Hacks are on the way" description={category ? 'Nothing in this category yet.' : 'Check back soon.'} />
+        ) : (
+          <>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}>
+              {rows.map((h) => (
+                <Pressable
+                  key={h.id}
+                  onPress={() => router.push({ pathname: '/(student)/(home)/brain-hack-detail', params: { id: h.id } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${h.title}. ${h.category}. ${h.read_minutes} minute read`}
+                  style={({ pressed }) => ({ width: cardW, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, minHeight: 150, opacity: pressed ? 0.94 : 1, gap: space.xs })}
+                >
+                  {h.cover_media_id && media[h.cover_media_id] ? (
+                    <MediaImage media={media[h.cover_media_id]} variant="thumb" maxHeight={90} />
+                  ) : (
+                    <View style={{ width: 48, height: 48, backgroundColor: color('accent/tint'), borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' }}>
+                      <Sparkle size={24} color={color('accent/default')} weight="duotone" />
+                    </View>
+                  )}
+                  <Text style={[type['type/h3'], { color: color('text/primary'), fontSize: 15 }]} numberOfLines={2}>{h.title}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{h.category} · {h.read_minutes} min</Text>
+                    {h.rating_count >= minCount ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                        <Star size={12} weight="fill" color={color('semantic/warning')} />
+                        <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{h.rating_avg.toFixed(1)}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </Pressable>
+              ))}
             </View>
-          ))}
-        </View>
-      ) : empty ? (
-        <View style={{ alignItems: 'center', paddingVertical: space['3xl'], gap: space.xs }}>
-          <Sparkle size={32} color={color('text/tertiary')} weight="duotone" />
-          <Text style={[type['type/h3'], { color: color('text/primary'), textAlign: 'center' }]}>
-            New Brain Hacks are on the way — check back soon.
-          </Text>
-        </View>
-      ) : (
-        <View style={[styles.grid, { paddingHorizontal: space.md, marginTop: space.lg, gap: space.sm, paddingBottom: space['3xl'] + insets.bottom }]}>
-          {HACKS.map((h, i) => (
-            <Stagger key={h.id} delayMs={i * 60}>
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: '/(student)/(home)/brain-hack-detail',
-                    params: { id: h.id },
-                  })
-                }
-                style={({ pressed }) => [
-                  styles.card,
-                  {
-                    width: cardWidth,
-                    backgroundColor: color('bg/surface'),
-                    borderRadius: radius.md,
-                    padding: space.sm,
-                    opacity: pressed ? 0.94 : 1,
-                  },
-                  shadow(),
-                ]}
-              >
-                <View
-                  style={[
-                    styles.cardIcon,
-                    { backgroundColor: color('accent/tint'), borderRadius: radius.sm },
-                  ]}
-                >
-                  <Sparkle size={24} color={color('accent/default')} weight="duotone" />
-                </View>
-                <Text
-                  style={[type['type/h3'], { color: color('text/primary'), marginTop: space.xs, fontSize: 15 }]}
-                  numberOfLines={2}
-                >
-                  {h.title}
-                </Text>
-                <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 4 }]}>
-                  {h.tag}
-                </Text>
-              </Pressable>
-            </Stagger>
-          ))}
-        </View>
-      )}
+            {cursor ? <SecondaryButton label={more ? 'Loading…' : 'Load more'} onPress={loadMore} loading={more} style={{ marginTop: space.md }} /> : null}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-function shadow() {
-  return {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  };
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  card: { minHeight: 150 },
-  cardIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-});

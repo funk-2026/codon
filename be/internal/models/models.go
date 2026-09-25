@@ -64,6 +64,7 @@ const (
 	ModuleQBank      ModuleType = "qbank"
 	ModuleTestSeries ModuleType = "test_series"
 	ModulePractice   ModuleType = "practice"
+	ModuleCustom     ModuleType = "custom"
 )
 
 type ContentStatus string
@@ -302,6 +303,20 @@ type Test struct {
 	Reviewer            *User         `gorm:"foreignKey:ReviewedBy" json:"-"`
 	ReviewedAt          *time.Time    `json:"reviewed_at,omitempty"`
 	RejectionReason     *string       `gorm:"type:text" json:"rejection_reason,omitempty"`
+
+	// Custom-test module: authored tests are public; generated tests are private
+	// to their owner and never appear in shared lists.
+	Origin                 string     `gorm:"type:text;not null;default:'authored';index" json:"origin"`
+	OwnerUserID            *uuid.UUID `gorm:"type:uuid;index" json:"owner_user_id,omitempty"`
+	Visibility             string     `gorm:"type:text;not null;default:'public'" json:"visibility"`
+	Blueprint              JSONB      `gorm:"type:jsonb" json:"blueprint,omitempty"`
+	BlueprintSchemaVersion *int       `json:"blueprint_schema_version,omitempty"`
+	Mode                   string     `gorm:"type:text;not null;default:'exam'" json:"mode"`
+	ExpiresAt              *time.Time `json:"expires_at,omitempty"`
+	ArchivedAt             *time.Time `gorm:"index" json:"archived_at,omitempty"`
+	RatingAvg              float64    `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
+	RatingCount            int        `gorm:"not null;default:0" json:"rating_count"`
+
 	CreatedAt           time.Time     `json:"created_at"`
 	UpdatedAt           time.Time     `json:"updated_at"`
 }
@@ -318,6 +333,27 @@ type Question struct {
 	CorrectOption CorrectOption `gorm:"type:text;not null" json:"correct_option"`
 	Explanation   *string       `gorm:"type:text" json:"explanation,omitempty"`
 	OrderIndex    int           `gorm:"not null" json:"order_index"`
+
+	// Rich-content + metadata (custom test module). All optional/defaulted so
+	// legacy rows keep working exactly as before.
+	ContentFormat string     `gorm:"type:text;not null;default:'plain'" json:"content_format"`
+	SubjectID     *uuid.UUID `gorm:"type:uuid;index" json:"subject_id,omitempty"`
+	ChapterID     *uuid.UUID `gorm:"type:uuid;index" json:"chapter_id,omitempty"`
+	TopicID       *uuid.UUID `gorm:"type:uuid" json:"topic_id,omitempty"`
+	Difficulty    *string    `gorm:"type:text" json:"difficulty,omitempty"`
+	NCERTClass    *int       `json:"ncert_class,omitempty"`
+	NCERTPage     *int       `json:"ncert_page,omitempty"`
+	SourceType    string     `gorm:"type:text;not null;default:'qbank'" json:"source_type"`
+	SourceYear    *int       `json:"source_year,omitempty"`
+	SourceLabel   *string    `gorm:"type:text" json:"source_label,omitempty"`
+	CustomEligible bool      `gorm:"not null;default:true" json:"custom_eligible"`
+	ContentHash   string     `gorm:"type:text;index" json:"-"`
+	QuestionType  string     `gorm:"type:text;not null;default:'mcq_single'" json:"question_type"`
+	Version       int        `gorm:"not null;default:1" json:"version"`
+	Lang          string     `gorm:"type:text;not null;default:'en'" json:"lang"`
+	FlagStatus    string     `gorm:"type:text;not null;default:'active'" json:"flag_status"`
+	Tags          []Tag      `gorm:"-" json:"tags,omitempty"`
+
 	CreatedAt     time.Time     `json:"created_at"`
 	UpdatedAt     time.Time     `json:"updated_at"`
 }
@@ -337,6 +373,14 @@ type StudentAttempt struct {
 	CorrectCount     *int          `json:"correct_count,omitempty"`
 	WrongCount       *int          `json:"wrong_count,omitempty"`
 	UnattemptedCount *int          `json:"unattempted_count,omitempty"`
+
+	Mode            string     `gorm:"type:text;not null;default:'exam'" json:"mode"`
+	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
+	ConfigSnapshot  JSONB      `gorm:"type:jsonb" json:"config_snapshot,omitempty"`
+	AttemptNo       int        `gorm:"not null;default:1" json:"attempt_no"`
+	AutoSubmitted   bool       `gorm:"not null;default:false" json:"auto_submitted"`
+	ActiveSessionID *uuid.UUID `gorm:"type:uuid" json:"-"`
+
 	CreatedAt        time.Time     `json:"created_at"`
 }
 
@@ -350,6 +394,12 @@ type AttemptAnswer struct {
 	IsCorrect      *bool         `json:"is_correct,omitempty"`
 	MarksAwarded   *float64      `gorm:"type:numeric(5,2)" json:"marks_awarded,omitempty"`
 	AnsweredAt     *time.Time    `json:"answered_at,omitempty"`
+
+	Position         int        `gorm:"not null;default:0" json:"position"`
+	MarkedForReview  bool       `gorm:"not null;default:false" json:"marked_for_review"`
+	TimeSpentSeconds *int       `json:"time_spent_seconds,omitempty"`
+	Confidence       *string    `gorm:"type:text" json:"confidence,omitempty"`
+	RevealedAt       *time.Time `json:"revealed_at,omitempty"`
 }
 
 type ContentItem struct {
@@ -371,6 +421,8 @@ type ContentItem struct {
 	Reviewer             *User         `gorm:"foreignKey:ReviewedBy" json:"-"`
 	ReviewedAt           *time.Time    `json:"reviewed_at,omitempty"`
 	RejectionReason      *string       `gorm:"type:text" json:"rejection_reason,omitempty"`
+	RatingAvg            float64       `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
+	RatingCount          int           `gorm:"not null;default:0" json:"rating_count"`
 	CreatedAt            time.Time     `json:"created_at"`
 	UpdatedAt            time.Time     `json:"updated_at"`
 }
@@ -388,6 +440,16 @@ type CSVImportBatch struct {
 	Status      ImportStatus `gorm:"type:text;not null" json:"status"`
 	CreatedAt   time.Time    `json:"created_at"`
 	CompletedAt *time.Time   `json:"completed_at,omitempty"`
+
+	Mode            string  `gorm:"type:text;not null;default:'commit'" json:"mode"`
+	TemplateVersion int     `gorm:"not null;default:1" json:"template_version"`
+	BundleKey       *string `gorm:"type:text" json:"bundle_key,omitempty"`
+	FileSHA256      string  `gorm:"type:text" json:"file_sha256,omitempty"`
+	WarningRows     int     `gorm:"not null;default:0" json:"warning_rows"`
+	Applied         bool    `gorm:"not null;default:false" json:"applied"`
+	Summary         JSONB   `gorm:"type:jsonb" json:"summary,omitempty"`
+	ParentBatchID       *uuid.UUID `gorm:"type:uuid" json:"parent_batch_id,omitempty"`
+	AllowContentUpdate  bool       `gorm:"not null;default:false" json:"allow_content_update"`
 }
 
 type CSVImportRowError struct {
@@ -397,6 +459,9 @@ type CSVImportRowError struct {
 	RowNumber    int       `json:"row_number"`
 	ErrorMessage string    `gorm:"type:text" json:"error_message"`
 	RawRowData   string    `gorm:"type:jsonb" json:"raw_row_data"`
+	Code         string    `gorm:"type:text" json:"code,omitempty"`
+	Field        string    `gorm:"type:text" json:"field,omitempty"`
+	Severity     string    `gorm:"type:text;not null;default:'error'" json:"severity"`
 }
 
 type KYCRecord struct {
@@ -422,6 +487,9 @@ type WellnessContent struct {
 	Category  WellnessCategory `gorm:"type:text;not null" json:"category"`
 	BodyText  string           `gorm:"type:text;not null" json:"body_text"`
 	MediaURL  *string          `gorm:"type:text" json:"media_url,omitempty"`
+	// Rich body + optional cover image (media asset). Legacy rows stay `plain`.
+	ContentFormat string     `gorm:"type:text;not null;default:'plain'" json:"content_format"`
+	MediaID       *uuid.UUID `gorm:"type:uuid" json:"media_id,omitempty"`
 	IsActive  bool             `gorm:"not null;default:true" json:"is_active"`
 	CreatedBy uuid.UUID        `gorm:"type:uuid;not null" json:"created_by"`
 	Creator   User             `gorm:"foreignKey:CreatedBy" json:"-"`

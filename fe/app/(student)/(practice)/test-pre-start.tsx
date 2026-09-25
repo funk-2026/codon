@@ -11,22 +11,32 @@ import { CaretLeft, Check } from 'phosphor-react-native';
 import { ErrorBanner, PrimaryButton, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getTest } from '@/src/api/tests';
-import type { Test } from '@/src/api/tests';
+import type { ActiveAttempt, Test } from '@/src/api/tests';
+import { getModule } from '@/src/modules/registry';
+import { getCustomTest } from '@/src/api/customTests';
 
 const INSTRUCTIONS_TIMED = [
-  'Once started, a timed test\u2019s clock cannot be paused.',
+  'Once started, a timed test’s clock cannot be paused — it keeps running even if you leave.',
   'You can move between questions freely and change your answers anytime before submitting.',
-  'Unanswered questions score zero \u2014 they\u2019re not counted as wrong.',
-  'You can end the test early from the question palette.',
+  'Unanswered questions score zero — they’re not counted as wrong.',
+  'When time runs out, your answers so far are submitted automatically.',
 ];
 const INSTRUCTIONS_UNTIMED = [
-  'This is untimed \u2014 take the time you need.',
+  'This is untimed — take the time you need.',
   'You can move between questions freely and change your answers anytime before submitting.',
-  'Unanswered questions score zero \u2014 they\u2019re not counted as wrong.',
+  'Unanswered questions score zero — they’re not counted as wrong.',
   'You can end the test early from the question palette.',
 ];
+const INSTRUCTIONS_TUTOR = [
+  'Tutor mode: after choosing an answer you can check it straight away and read the explanation.',
+  'Once you’ve checked a question its answer is locked.',
+];
 
-type TestKind = 'qbank' | 'test_series' | 'practice';
+/** +4 / −1 style label: no double minus when the backend stores the penalty as a negative number. */
+function marksLabel(n: number, sign: '+' | '-'): string {
+  const abs = Math.abs(n);
+  return `${sign === '+' ? '+' : abs === 0 ? '' : '−'}${abs}`;
+}
 
 function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
   const shown = useSharedValue(0);
@@ -52,6 +62,8 @@ export default function TestPreStartRoute() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [test, setTest] = useState<Test | null>(null);
+  const [active, setActive] = useState<ActiveAttempt | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -59,7 +71,12 @@ export default function TestPreStartRoute() {
     try {
       const res = await getTest(id as string);
       setTest(res.test);
+      setActive(res.active_attempt ?? null);
       setLoadError(false);
+      // a generated test shows what it was built from (best-effort; the screen works without it)
+      if (res.test.module_type === 'custom') {
+        getCustomTest(id as string).then((d) => setSummary(d.summary)).catch(() => setSummary(null));
+      }
     } catch (err) {
       console.error('Failed to load test', err);
       setLoadError(true);
@@ -72,12 +89,12 @@ export default function TestPreStartRoute() {
     load();
   }, [load]);
 
-  const isResume = false; // We can detect in-progress attempt later if needed
+  const isResume = !!active;
   const timed = !!(test && test.duration_minutes && test.duration_minutes > 0);
-  const moduleType = test?.module_type || 'test_series';
-  const moduleLabel = moduleType === 'test_series' ? 'Test Series' : moduleType === 'qbank' ? 'Q Bank' : 'Practice';
+  const moduleLabel = getModule(test?.module_type).label;
+  const tutor = test?.mode === 'tutor';
 
-  const instructions = timed ? INSTRUCTIONS_TIMED : INSTRUCTIONS_UNTIMED;
+  const instructions = [...(timed ? INSTRUCTIONS_TIMED : INSTRUCTIONS_UNTIMED), ...(tutor ? INSTRUCTIONS_TUTOR : [])];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -147,9 +164,9 @@ export default function TestPreStartRoute() {
                       Marking
                     </Text>
                     <Text style={[type['type/h3'], { color: color('text/primary') }]}>
-                      <Text style={{ color: color('semantic/success') }}>+{test.marks_per_correct}</Text>
+                      <Text style={{ color: color('semantic/success') }}>{marksLabel(test.marks_per_correct, '+')}</Text>
                       {' / '}
-                      <Text style={{ color: color('semantic/danger') }}>-{test.marks_per_wrong}</Text>
+                      <Text style={{ color: color('semantic/danger') }}>{marksLabel(test.marks_per_wrong, '-') || '0'}</Text>
                     </Text>
                   </View>
                   <View style={{ width: 1, backgroundColor: color('border/subtle') }} />
@@ -166,7 +183,7 @@ export default function TestPreStartRoute() {
                       }}
                     >
                       <Text style={[type['type/caption'], { color: color('accent/default') }]}>
-                        {moduleLabel}
+                        {moduleLabel}{tutor ? ' · Tutor' : ''}
                       </Text>
                     </View>
                   </View>
@@ -175,6 +192,10 @@ export default function TestPreStartRoute() {
             )}
           </View>
         </Stagger>
+
+        {summary ? (
+          <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.md }]}>Built from: {summary}</Text>
+        ) : null}
 
         {isResume ? (
           <Stagger delayMs={80}>
@@ -191,7 +212,7 @@ export default function TestPreStartRoute() {
               ]}
             >
               <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
-                You answered 7 of 20 questions. Pick up where you left off.
+                You answered {active?.answered ?? 0} of {active?.total || test?.total_questions || 0} questions. Pick up where you left off.
               </Text>
             </View>
           </Stagger>
@@ -243,7 +264,8 @@ export default function TestPreStartRoute() {
       >
         <PrimaryButton
           label={isResume ? 'Resume Test' : 'Start Test'}
-          onPress={() => router.push({ pathname: '/(student)/(practice)/test-question', params: { id: id ?? '1' } })}
+          disabled={loading || !test}
+          onPress={() => router.push({ pathname: '/(student)/(practice)/test-question', params: { id: id as string } })}
         />
       </View>
     </SafeAreaView>

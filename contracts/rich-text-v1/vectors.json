@@ -1,0 +1,743 @@
+{
+ "version": 1,
+ "description": "Golden vectors for rich text v1. Both the Go parser (be/internal/richtext) and the app parser (fe/src/rich/parse.ts) must produce exactly `ast`, `plain` and `refs` for every input. `issues` (when present) lists the validation codes Validate() must report.",
+ "vectors": [
+  {
+   "name": "plain_is_never_interpreted",
+   "format": "plain",
+   "input": "Cost is $5 and *x* ~y~",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "Cost is $5 and *x* ~y~"
+      }
+     ]
+    }
+   ],
+   "plain": "Cost is $5 and *x* ~y~",
+   "refs": []
+  },
+  {
+   "name": "empty",
+   "format": "rich_v1",
+   "input": "",
+   "ast": [],
+   "plain": "",
+   "refs": []
+  },
+  {
+   "name": "simple_paragraph",
+   "format": "rich_v1",
+   "input": "Hello world",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "Hello world"
+      }
+     ]
+    }
+   ],
+   "plain": "Hello world",
+   "refs": []
+  },
+  {
+   "name": "bold",
+   "format": "rich_v1",
+   "input": "a **b** c",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "a "
+      },
+      {
+       "type": "text",
+       "text": "b",
+       "bold": true
+      },
+      {
+       "type": "text",
+       "text": " c"
+      }
+     ]
+    }
+   ],
+   "plain": "a b c",
+   "refs": []
+  },
+  {
+   "name": "italic",
+   "format": "rich_v1",
+   "input": "a *b* c",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "a "
+      },
+      {
+       "type": "text",
+       "text": "b",
+       "italic": true
+      },
+      {
+       "type": "text",
+       "text": " c"
+      }
+     ]
+    }
+   ],
+   "plain": "a b c",
+   "refs": []
+  },
+  {
+   "name": "bold_italic_nested",
+   "format": "rich_v1",
+   "input": "**a *b* c**",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "a ",
+       "bold": true
+      },
+      {
+       "type": "text",
+       "text": "b",
+       "bold": true,
+       "italic": true
+      },
+      {
+       "type": "text",
+       "text": " c",
+       "bold": true
+      }
+     ]
+    }
+   ],
+   "plain": "a b c",
+   "refs": []
+  },
+  {
+   "name": "subscript",
+   "format": "rich_v1",
+   "input": "H~2~O",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "H"
+      },
+      {
+       "type": "sub",
+       "text": "2"
+      },
+      {
+       "type": "text",
+       "text": "O"
+      }
+     ]
+    }
+   ],
+   "plain": "H2O",
+   "refs": []
+  },
+  {
+   "name": "superscript",
+   "format": "rich_v1",
+   "input": "x^2^ + 1",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "x"
+      },
+      {
+       "type": "sup",
+       "text": "2"
+      },
+      {
+       "type": "text",
+       "text": " + 1"
+      }
+     ]
+    }
+   ],
+   "plain": "x2 + 1",
+   "refs": []
+  },
+  {
+   "name": "chemistry_ions",
+   "format": "rich_v1",
+   "input": "Ca^2+^ and SO~4~^2-^",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "Ca"
+      },
+      {
+       "type": "sup",
+       "text": "2+"
+      },
+      {
+       "type": "text",
+       "text": " and SO"
+      },
+      {
+       "type": "sub",
+       "text": "4"
+      },
+      {
+       "type": "sup",
+       "text": "2-"
+      }
+     ]
+    }
+   ],
+   "plain": "Ca2+ and SO42-",
+   "refs": []
+  },
+  {
+   "name": "inline_math",
+   "format": "rich_v1",
+   "input": "Solve $x^2 = 4$ now",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "Solve "
+      },
+      {
+       "type": "math",
+       "tex": "x^2 = 4"
+      },
+      {
+       "type": "text",
+       "text": " now"
+      }
+     ]
+    }
+   ],
+   "plain": "Solve x^2 = 4 now",
+   "refs": []
+  },
+  {
+   "name": "currency_is_not_math",
+   "format": "rich_v1",
+   "input": "Costs $5 and $10 total",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "Costs $5 and $10 total"
+      }
+     ]
+    }
+   ],
+   "plain": "Costs $5 and $10 total",
+   "refs": []
+  },
+  {
+   "name": "block_math",
+   "format": "rich_v1",
+   "input": "$$E = mc^2$$",
+   "ast": [
+    {
+     "type": "math_block",
+     "tex": "E = mc^2"
+    }
+   ],
+   "plain": "E = mc^2",
+   "refs": []
+  },
+  {
+   "name": "block_math_multiline",
+   "format": "rich_v1",
+   "input": "$$\na + b\n$$",
+   "ast": [
+    {
+     "type": "math_block",
+     "tex": "a + b"
+    }
+   ],
+   "plain": "a + b",
+   "refs": []
+  },
+  {
+   "name": "image_block",
+   "format": "rich_v1",
+   "input": "![Diagram](media:11111111-1111-1111-1111-111111111111)",
+   "ast": [
+    {
+     "type": "image_block",
+     "media_id": "11111111-1111-1111-1111-111111111111",
+     "alt": "Diagram"
+    }
+   ],
+   "plain": "[image]",
+   "refs": [
+    "11111111-1111-1111-1111-111111111111"
+   ]
+  },
+  {
+   "name": "image_block_no_alt",
+   "format": "rich_v1",
+   "input": "![](media:11111111-1111-1111-1111-111111111111)",
+   "ast": [
+    {
+     "type": "image_block",
+     "media_id": "11111111-1111-1111-1111-111111111111"
+    }
+   ],
+   "plain": "[image]",
+   "refs": [
+    "11111111-1111-1111-1111-111111111111"
+   ]
+  },
+  {
+   "name": "image_inline",
+   "format": "rich_v1",
+   "input": "See ![fig](media:11111111-1111-1111-1111-111111111111) below",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "See "
+      },
+      {
+       "type": "image",
+       "media_id": "11111111-1111-1111-1111-111111111111",
+       "alt": "fig"
+      },
+      {
+       "type": "text",
+       "text": " below"
+      }
+     ]
+    }
+   ],
+   "plain": "See [image] below",
+   "refs": [
+    "11111111-1111-1111-1111-111111111111"
+   ]
+  },
+  {
+   "name": "image_id_is_lowercased",
+   "format": "rich_v1",
+   "input": "![x](media:AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA)",
+   "ast": [
+    {
+     "type": "image_block",
+     "media_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+     "alt": "x"
+    }
+   ],
+   "plain": "[image]",
+   "refs": [
+    "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+   ]
+  },
+  {
+   "name": "two_paragraphs",
+   "format": "rich_v1",
+   "input": "First\n\nSecond",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "First"
+      }
+     ]
+    },
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "Second"
+      }
+     ]
+    }
+   ],
+   "plain": "First\nSecond",
+   "refs": []
+  },
+  {
+   "name": "crlf_normalised",
+   "format": "rich_v1",
+   "input": "a\r\n\r\nb",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "a"
+      }
+     ]
+    },
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "b"
+      }
+     ]
+    }
+   ],
+   "plain": "a\nb",
+   "refs": []
+  },
+  {
+   "name": "soft_line_break",
+   "format": "rich_v1",
+   "input": "Line1\nLine2",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "Line1"
+      },
+      {
+       "type": "break"
+      },
+      {
+       "type": "text",
+       "text": "Line2"
+      }
+     ]
+    }
+   ],
+   "plain": "Line1\nLine2",
+   "refs": []
+  },
+  {
+   "name": "unordered_list",
+   "format": "rich_v1",
+   "input": "- one\n- two",
+   "ast": [
+    {
+     "type": "list",
+     "items": [
+      [
+       {
+        "type": "text",
+        "text": "one"
+       }
+      ],
+      [
+       {
+        "type": "text",
+        "text": "two"
+       }
+      ]
+     ]
+    }
+   ],
+   "plain": "one\ntwo",
+   "refs": []
+  },
+  {
+   "name": "ordered_list",
+   "format": "rich_v1",
+   "input": "1. a\n2. b",
+   "ast": [
+    {
+     "type": "list",
+     "ordered": true,
+     "items": [
+      [
+       {
+        "type": "text",
+        "text": "a"
+       }
+      ],
+      [
+       {
+        "type": "text",
+        "text": "b"
+       }
+      ]
+     ]
+    }
+   ],
+   "plain": "a\nb",
+   "refs": []
+  },
+  {
+   "name": "list_then_paragraph",
+   "format": "rich_v1",
+   "input": "- a\n\nafter",
+   "ast": [
+    {
+     "type": "list",
+     "items": [
+      [
+       {
+        "type": "text",
+        "text": "a"
+       }
+      ]
+     ]
+    },
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "after"
+      }
+     ]
+    }
+   ],
+   "plain": "a\nafter",
+   "refs": []
+  },
+  {
+   "name": "paragraph_then_list",
+   "format": "rich_v1",
+   "input": "a\n- b",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "a"
+      }
+     ]
+    },
+    {
+     "type": "list",
+     "items": [
+      [
+       {
+        "type": "text",
+        "text": "b"
+       }
+      ]
+     ]
+    }
+   ],
+   "plain": "a\nb",
+   "refs": []
+  },
+  {
+   "name": "list_item_with_bold",
+   "format": "rich_v1",
+   "input": "- **Bold** item",
+   "ast": [
+    {
+     "type": "list",
+     "items": [
+      [
+       {
+        "type": "text",
+        "text": "Bold",
+        "bold": true
+       },
+       {
+        "type": "text",
+        "text": " item"
+       }
+      ]
+     ]
+    }
+   ],
+   "plain": "Bold item",
+   "refs": []
+  },
+  {
+   "name": "escapes",
+   "format": "rich_v1",
+   "input": "\\*not italic\\* and \\$5",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "*not italic* and $5"
+      }
+     ]
+    }
+   ],
+   "plain": "*not italic* and $5",
+   "refs": []
+  },
+  {
+   "name": "lone_delimiters_are_literal",
+   "format": "rich_v1",
+   "input": "2 * 3 = 6 and a^b",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "2 * 3 = 6 and a^b"
+      }
+     ]
+    }
+   ],
+   "plain": "2 * 3 = 6 and a^b",
+   "refs": []
+  },
+  {
+   "name": "script_with_spaces_is_literal",
+   "format": "rich_v1",
+   "input": "a ~b c~ d",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "a ~b c~ d"
+      }
+     ]
+    }
+   ],
+   "plain": "a ~b c~ d",
+   "refs": []
+  },
+  {
+   "name": "external_image_is_literal",
+   "format": "rich_v1",
+   "input": "![x](https://evil.example/a.png)",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "![x](https://evil.example/a.png)"
+      }
+     ]
+    }
+   ],
+   "plain": "![x](https://evil.example/a.png)",
+   "refs": [],
+   "issues": [
+    "UNKNOWN_MEDIA_SCHEME"
+   ]
+  },
+  {
+   "name": "html_is_literal",
+   "format": "rich_v1",
+   "input": "<script>alert(1)</script>",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "<script>alert(1)</script>"
+      }
+     ]
+    }
+   ],
+   "plain": "<script>alert(1)</script>",
+   "refs": [],
+   "issues": [
+    "HTML_NOT_ALLOWED"
+   ]
+  },
+  {
+   "name": "javascript_link_rejected",
+   "format": "rich_v1",
+   "input": "[x](javascript:alert(1))",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "[x](javascript:alert(1))"
+      }
+     ]
+    }
+   ],
+   "plain": "[x](javascript:alert(1))",
+   "refs": [],
+   "issues": [
+    "LINKS_NOT_ALLOWED"
+   ]
+  },
+  {
+   "name": "emphasis_does_not_cross_paragraphs",
+   "format": "rich_v1",
+   "input": "**a\n\nb**",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "**a"
+      }
+     ]
+    },
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "text",
+       "text": "b**"
+      }
+     ]
+    }
+   ],
+   "plain": "**a\nb**",
+   "refs": []
+  },
+  {
+   "name": "math_inside_bold",
+   "format": "rich_v1",
+   "input": "**$x$**",
+   "ast": [
+    {
+     "type": "paragraph",
+     "children": [
+      {
+       "type": "math",
+       "tex": "x"
+      }
+     ]
+    }
+   ],
+   "plain": "x",
+   "refs": []
+  }
+ ]
+}

@@ -90,6 +90,7 @@ export default function AdminHomeRoute() {
     { key: 'structure', label: 'Manage Subjects', icon: <TreeStructure size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/manage-subjects' },
     { key: 'course-structure', label: 'Course Structure', icon: <FolderOpen size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/course-structure' },
     { key: 'settings', label: 'Platform Settings', icon: <GearSix size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/platform-settings' },
+    { key: 'custom-test', label: 'Custom Tests & Pool', icon: <GearSix size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/custom-test-admin' },
     { key: 'analytics', label: 'Analytics', icon: <ChartBar size={26} color={color('accent/default')} weight="duotone" />, href: '/(admin)/(home)/analytics-overview' },
   ];
 

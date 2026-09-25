@@ -365,14 +365,17 @@ func (h *AdminHandler) AnalyticsOverview(c *gin.Context) {
 	// Keep these as global counts (or adjust if needed)
 
 	var publishedTests, publishedContent, publishedBrainHacks, pendingReviews int64
-	h.DB.Model(&models.Test{}).Where("status = ?", models.StatusPublished).Count(&publishedTests)
+	h.DB.Model(&models.Test{}).Where("status = ? AND origin = ?", models.StatusPublished, models.OriginAuthored).Count(&publishedTests)
 	h.DB.Model(&models.ContentItem{}).Where("status = ? AND content_type != ?", models.StatusPublished, "brain_hack").Count(&publishedContent)
-	h.DB.Model(&models.ContentItem{}).Where("status = ? AND content_type = ?", models.StatusPublished, "brain_hack").Count(&publishedBrainHacks)
+	// Brain hacks live in their own table (the old query counted a content_type that can't exist).
+	h.DB.Model(&models.BrainHack{}).Where("status = ?", models.StatusPublished).Count(&publishedBrainHacks)
 
 	var pt, pc int64
 	h.DB.Model(&models.Test{}).Where("status = ?", models.StatusPendingReview).Count(&pt)
 	h.DB.Model(&models.ContentItem{}).Where("status = ?", models.StatusPendingReview).Count(&pc)
-	pendingReviews = pt + pc
+	var pb int64
+	h.DB.Model(&models.BrainHack{}).Where("status = ?", models.StatusPendingReview).Count(&pb)
+	pendingReviews = pt + pc + pb
 
 	// Chart Bucketing Logic
 	var numBars int

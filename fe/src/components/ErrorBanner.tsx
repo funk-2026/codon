@@ -4,7 +4,8 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 
 export type ErrorBannerProps = {
   message?: string;
-  onRetry: () => void;
+  /** Omit for a non-retryable notice. */
+  onRetry?: () => void;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -16,6 +17,7 @@ export function ErrorBanner({ message = "Couldn't load the latest data.", onRetr
 
   return (
     <View
+      accessibilityRole="alert"
       style={[
         {
           flexDirection: 'row',
@@ -34,11 +36,13 @@ export function ErrorBanner({ message = "Couldn't load the latest data.", onRetr
       <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
         {message}
       </Text>
-      <Pressable onPress={onRetry} hitSlop={space.xs}>
-        <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>
-          Retry
-        </Text>
-      </Pressable>
+      {onRetry ? (
+        <Pressable onPress={onRetry} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Retry" style={{ minHeight: 44, justifyContent: 'center' }}>
+          <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>
+            Retry
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

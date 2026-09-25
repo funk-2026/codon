@@ -13,6 +13,9 @@ import {
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { ThemeProvider } from '@/src/theme/ThemeProvider';
 import { AuthProvider, useAuth } from '@/src/auth/AuthContext';
+import { AppConfigProvider } from '@/src/config/AppConfigContext';
+import { BookmarksProvider } from '@/src/bookmarks/BookmarksContext';
+import { PushProvider } from '@/src/notifications/PushProvider';
 import { ToastProvider } from '@/src/components';
 import { stackAnimation } from '@/src/components/ThemedStack';
 
@@ -69,10 +72,16 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <ToastProvider>
-          <RootNavigator />
-          <StatusBar style="auto" />
-        </ToastProvider>
+        <AppConfigProvider>
+          <BookmarksProvider>
+            <PushProvider>
+              <ToastProvider>
+                <RootNavigator />
+                <StatusBar style="auto" />
+              </ToastProvider>
+            </PushProvider>
+          </BookmarksProvider>
+        </AppConfigProvider>
       </AuthProvider>
     </ThemeProvider>
   );

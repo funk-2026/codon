@@ -1,207 +1,212 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { CaretLeft, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, PrimaryButton, SkeletonBlock, TextButton } from '@/src/components';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { CaretLeft, CheckCircle, WarningCircle, XCircle } from 'phosphor-react-native';
+import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { useLocalSearchParams } from 'expo-router';
-import { getCSVImportReport, type GetCSVImportResponse } from '@/src/api/teacher';
+import { ApiError } from '@/src/api/client';
+import { commitCSVImport, getCSVImportReport, type GetCSVImportResponse } from '@/src/api/teacher';
+import { track } from '@/src/analytics/track';
 
-type ErrorRow = { row: number; reason: string; preview: string };
+const POLL_MS = 1200;
+const MAX_POLLS = 200;
 
-function formatRawRow(raw: string): string {
+function rawPreview(raw: string): string {
   try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.join(', ');
-  } catch {
-    // fall through to raw string below
-  }
+    const p = JSON.parse(raw);
+    if (Array.isArray(p)) return p.join(', ');
+    if (p && typeof p === 'object') return Object.values(p).filter(Boolean).join(', ');
+  } catch { /* not JSON */ }
   return raw;
 }
 
+/**
+ * Import report (FE-2.5): the same screen shows the CHECK (validate) result — with
+ * a clear "Import N questions" step — and the final import result. Nothing is
+ * saved until the teacher confirms.
+ */
 export default function CsvImportReportRoute() {
   const { color, type, space, radius } = useTheme();
-
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { batchId } = useLocalSearchParams<{ batchId?: string }>();
+  const { show } = useToast();
+  const { batchId, testId } = useLocalSearchParams<{ batchId?: string; testId?: string }>();
 
-  const [processing, setProcessing] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  const [current, setCurrent] = useState<string | undefined>(batchId);
   const [report, setReport] = useState<GetCSVImportResponse | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
+  const [state, setState] = useState<'processing' | 'ready' | 'error'>('processing');
+  const [committing, setCommitting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const polls = useRef(0);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    if (!batchId) {
-      setProcessing(false);
-      return;
+    if (!current) return setState('error');
+    setState('processing');
+    polls.current = 0;
+    let stop = false;
+    const run = async () => {
+      if (stop) return;
+      try {
+        const r = await getCSVImportReport(current);
+        if (stop) return;
+        if (r.batch.status !== 'processing') {
+          setReport(r);
+          setState('ready');
+          return;
+        }
+      } catch {
+        if (!stop) setState('error');
+        return;
+      }
+      if (++polls.current > MAX_POLLS) return setState('error');
+      setTimeout(run, POLL_MS);
+    };
+    void run();
+    return () => { stop = true; };
+  }, [current, tick]);
+
+  const batch = report?.batch;
+  const isValidate = batch?.mode === 'validate';
+  const sum = batch?.summary;
+  const rows = report?.errors ?? [];
+  const errors = useMemo(() => rows.filter((e) => (e.severity ?? 'error') === 'error'), [rows]);
+  const warnings = useMemo(() => rows.filter((e) => e.severity === 'warning'), [rows]);
+  const okRows = sum?.ok ?? batch?.success_rows ?? 0;
+  const total = sum?.rows ?? batch?.total_rows ?? 0;
+  const failed = batch?.status === 'failed';
+  const tid = testId ?? batch?.test_id;
+
+  const goToTest = useCallback(() => {
+    if (tid) router.replace({ pathname: '/(teacher)/question-builder', params: { testId: tid } });
+    else router.back();
+  }, [router, tid]);
+
+  const commit = async () => {
+    if (!current) return;
+    setCommitting(true);
+    try {
+      const r = await commitCSVImport(current);
+      track('import.committed', { ok: okRows });
+      setConfirmOpen(false);
+      setCurrent(r.batch_id);
+    } catch (e) {
+      show(
+        e instanceof ApiError && e.code === 'file_changed' ? 'The file changed since it was checked. Please check it again.'
+        : e instanceof ApiError && e.code === 'test_locked' ? 'This test is no longer editable.'
+        : 'Couldn’t start the import. Try again.',
+        'error',
+      );
+    } finally {
+      setCommitting(false);
     }
-    setProcessing(true);
-    setLoadError(false);
-    const interval = setInterval(() => {
-      getCSVImportReport(batchId)
-        .then((res) => {
-          if (res.batch.status !== 'processing') {
-            setReport(res);
-            setProcessing(false);
-            clearInterval(interval);
-          }
-        })
-        .catch(() => {
-          setProcessing(false);
-          setLoadError(true);
-          clearInterval(interval);
-        });
-    }, 1000);
+  };
 
-    return () => clearInterval(interval);
-  }, [batchId, retryKey]);
-
-  const retry = useCallback(() => setRetryKey((k) => k + 1), []);
-
-  const totalRows = report?.batch?.total_rows || 0;
-  const successCount = report?.batch?.success_rows || 0;
-  const errors: ErrorRow[] = (report?.errors || []).map((e) => ({
-    row: e.row_number,
-    reason: e.error_message,
-    preview: formatRawRow(e.raw_row_data),
-  }));
-
-  const allSucceeded = errors.length === 0;
-  const allFailed = successCount === 0 && totalRows > 0;
+  const Group = ({ title, list, tone }: { title: string; list: typeof rows; tone: 'semantic/danger' | 'semantic/warning' }) =>
+    list.length === 0 ? null : (
+      <View style={{ marginTop: space.lg }}>
+        <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>{title}</Text>
+        <View style={{ gap: space.sm }}>
+          {list.slice(0, 100).map((e) => (
+            <View key={e.id} style={{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, gap: 2 }}>
+              <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{e.row_number > 0 ? `Row ${e.row_number}` : 'File'}{e.field ? ` · ${e.field}` : ''}</Text>
+              <Text style={[type['type/body-m'], { color: color(tone) }]}>{e.error_message}</Text>
+              {e.raw_row_data ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]} numberOfLines={1}>{rawPreview(e.raw_row_data)}</Text> : null}
+            </View>
+          ))}
+          {list.length > 100 ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>…and {list.length - 100} more. Fix these and check the file again.</Text> : null}
+        </View>
+      </View>
+    );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
-        {!processing ? (
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={space.xs}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          >
+    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
+        {state !== 'processing' ? (
+          <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
             <CaretLeft size={24} color={color('text/primary')} />
           </Pressable>
-        ) : (
-          <View style={{ width: 24 }} />
-        )}
-        <Text style={[type['type/h1'], { color: color('text/primary'), marginLeft: space.sm }]}>
-          Import Results
-        </Text>
+        ) : <View style={{ width: 44 }} />}
+        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary') }]}>{isValidate ? 'Check results' : 'Import results'}</Text>
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View
-          style={[
-            styles.summaryCard,
-            { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, marginTop: space.xl },
-            shadow(),
-          ]}
-        >
-          {processing ? (
-            <View style={{ alignItems: 'center', gap: space.sm }}>
-              <SkeletonBlock width={72} height={40} radius={radius.sm} />
-              <SkeletonBlock width={160} height={16} radius={radius.sm} />
-            </View>
-          ) : loadError ? (
-            <EmptyState
-              icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
-              title="Couldn't load import results"
-              description="Something went wrong checking your CSV import status."
-              action={<TextButton label="Retry" onPress={retry} />}
-            />
-          ) : (
-            <>
-              <Text
-                style={[
-                  type['type/numeral-display'],
-                  { color: allFailed ? color('text/primary') : successCount > 0 ? color('semantic/success') : color('text/primary') },
-                ]}
-              >
-                {successCount}
-              </Text>
-              <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
-                of {totalRows} rows imported
-              </Text>
-              {!allSucceeded ? (
-                <Text style={[type['type/body-m-medium'], { color: color('semantic/warning'), marginTop: space.sm }]}>
-                  {errors.length} rows need attention
-                </Text>
-              ) : null}
-            </>
-          )}
-        </View>
-
-        {!processing && allFailed ? (
-          <View style={[styles.failBanner, { borderRadius: radius.md, marginTop: space.lg }]}>
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: color('semantic/danger'), opacity: 0.12, borderRadius: radius.md }]} />
-            <View style={{ padding: space.md }}>
-              <Text style={[type['type/body-m-medium'], { color: color('semantic/danger') }]}>
-                None of these rows could be read — check that you&apos;re using the correct template.
-              </Text>
-              <TextButton label="Download Template" onPress={() => {}} style={{ alignSelf: 'flex-start', marginTop: space.xs }} />
-            </View>
+      <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: 160 + insets.bottom }} showsVerticalScrollIndicator={false}>
+        {state === 'processing' ? (
+          <View style={{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, alignItems: 'center', gap: space.sm }} accessibilityLiveRegion="polite">
+            <SkeletonBlock width={72} height={40} radius={radius.sm} />
+            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>{committing ? 'Importing…' : 'Reading your file…'}</Text>
           </View>
-        ) : null}
-
-        {!processing && errors.length > 0 ? (
-          <View style={{ marginTop: space.xl }}>
-            <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>
-              ROWS TO FIX
-            </Text>
-            <View style={{ gap: space.sm }}>
-              {errors.map((e) => (
-                <View
-                  key={e.row}
-                  style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}
-                >
-                  <View style={styles.errorRowHeader}>
-                    <Text style={[type['type/h3'], { color: color('text/primary') }]}>Row {e.row}</Text>
-                    <Pressable
-                      onPress={() =>
-                        router.push({ pathname: '/(teacher)/question-builder', params: { prefillText: e.preview } })
-                      }
-                    >
-                      <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>Fix & Retry</Text>
-                    </Pressable>
-                  </View>
-                  <Text style={[type['type/body-m'], { color: color('semantic/danger'), marginTop: 2 }]}>{e.reason}</Text>
-                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]} numberOfLines={1}>
-                    {e.preview}
-                  </Text>
-                </View>
-              ))}
-            </View>
+        ) : state === 'error' || !batch ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn’t load the results"
+            description="Something went wrong checking on your file."
+            action={<TextButton label="Retry" onPress={() => setTick((t) => t + 1)} />}
+          />
+        ) : failed ? (
+          <View style={{ backgroundColor: color('semantic/danger-tint'), borderRadius: radius.lg, padding: space.lg, gap: space.xs }}>
+            <XCircle size={28} weight="fill" color={color('semantic/danger')} />
+            <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>We couldn’t read this file.</Text>
+            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>{errors[0]?.error_message ?? 'Check that it is a CSV made from our template.'}</Text>
           </View>
-        ) : null}
+        ) : (
+          <>
+            <View style={{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, alignItems: 'center', gap: 4 }}>
+              {errors.length === 0 ? <CheckCircle size={28} weight="fill" color={color('semantic/success')} /> : <WarningCircle size={28} weight="fill" color={color('semantic/warning')} />}
+              <Text style={[type['type/numeral-display'], { color: errors.length === 0 ? color('semantic/success') : color('text/primary') }]}>{okRows}</Text>
+              <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+                of {total} rows {isValidate ? 'are ready to import' : batch.mode === 'update' ? 'updated' : 'imported'}
+              </Text>
+              {errors.length > 0 ? <Text style={[type['type/body-m-medium'], { color: color('semantic/warning') }]}>{errors.length} row{errors.length > 1 ? 's' : ''} need attention</Text> : null}
+              {warnings.length > 0 ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{warnings.length} warning{warnings.length > 1 ? 's' : ''}</Text> : null}
+            </View>
+
+            {(sum?.images_found ?? 0) > 0 || (sum?.images_missing?.length ?? 0) > 0 ? (
+              <View style={{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.md, gap: 4 }}>
+                <Text style={[type['type/body-m'], { color: color('text/primary') }]}>{sum?.images_found ?? 0} image{(sum?.images_found ?? 0) === 1 ? '' : 's'} found in your ZIP</Text>
+                {(sum?.images_missing?.length ?? 0) > 0 ? (
+                  <Text style={[type['type/body-m'], { color: color('semantic/danger') }]}>Missing: {sum!.images_missing!.slice(0, 6).join(', ')}{sum!.images_missing!.length > 6 ? '…' : ''}</Text>
+                ) : null}
+                {(sum?.unreferenced_images?.length ?? 0) > 0 ? (
+                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{sum!.unreferenced_images!.length} image(s) in the ZIP aren’t used by any row.</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            <Group title="ROWS TO FIX" list={errors} tone="semantic/danger" />
+            <Group title="WARNINGS (STILL IMPORTED)" list={warnings} tone="semantic/warning" />
+          </>
+        )}
       </ScrollView>
 
-      {!processing ? (
-        <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-          <PrimaryButton label="Done" onPress={() => router.push('/(teacher)/create-test')} />
+      {state === 'ready' && batch && !failed ? (
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: color('bg/surface'), borderTopWidth: 1, borderTopColor: color('border/subtle'), padding: space.md, paddingBottom: space.md + insets.bottom, gap: space.sm }}>
+          {isValidate ? (
+            <>
+              <PrimaryButton
+                label={okRows > 0 ? `Import ${okRows} question${okRows > 1 ? 's' : ''}` : 'Nothing to import'}
+                disabled={okRows === 0}
+                onPress={() => (errors.length > 0 ? setConfirmOpen(true) : void commit())}
+                loading={committing}
+              />
+              <SecondaryButton label="Choose a different file" onPress={() => router.back()} />
+            </>
+          ) : (
+            <PrimaryButton label="Back to the test" onPress={goToTest} />
+          )}
         </View>
       ) : null}
+
+      <BottomSheet visible={confirmOpen} onClose={() => setConfirmOpen(false)} title="Import the valid rows?" dismissable={!committing}>
+        <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+          {okRows} row{okRows > 1 ? 's' : ''} will be imported. The {errors.length} row{errors.length > 1 ? 's' : ''} with problems will be skipped — you can fix them in your CSV and import them afterwards.
+        </Text>
+        <View style={{ gap: space.sm, marginTop: space.lg }}>
+          <PrimaryButton label={`Import ${okRows}`} onPress={() => void commit()} loading={committing} />
+          <SecondaryButton label="Cancel" onPress={() => setConfirmOpen(false)} disabled={committing} />
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
-
-function shadow(): {} {
-  return {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  };
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center' },
-  summaryCard: { alignItems: 'center' },
-  failBanner: { overflow: 'hidden' },
-  errorRowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-});

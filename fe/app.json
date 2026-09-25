@@ -20,7 +20,10 @@
       }
     },
     "android": {
-      "package": "com.codon.learn"
+      "package": "com.codon.learn",
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -46,7 +49,21 @@
         }
       ],
       "expo-status-bar",
-      "expo-video"
+      "expo-video",
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Codon needs access to your photos so you can attach images to questions.",
+          "cameraPermission": "Codon needs the camera so you can photograph a diagram for a question."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#4B3FE4"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -9,6 +9,8 @@ export default function StudentLearnStack() {
       <Stack.Screen name="hierarchy" options={{ title: 'Browse' }} />
       <Stack.Screen name="video-player" options={{ title: 'Video' }} />
       <Stack.Screen name="content-reader" options={{ title: 'Notes' }} />
+      <Stack.Screen name="flashcards" options={{ headerShown: false }} />
+      <Stack.Screen name="flashcard-study" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -14,7 +14,11 @@ export default function TeacherLayout() {
     <Stack screenOptions={base}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="create-test" options={{ title: 'Create Test', presentation: 'modal' }} />
-      <Stack.Screen name="question-builder" options={{ title: 'Question Builder' }} />
+      <Stack.Screen name="question-builder" options={{ title: 'Question Builder', headerShown: false }} />
+      <Stack.Screen name="question-editor" options={{ headerShown: false }} />
+      <Stack.Screen name="question-bank" options={{ headerShown: false }} />
+      <Stack.Screen name="reports" options={{ headerShown: false }} />
+      <Stack.Screen name="corrections" options={{ headerShown: false }} />
       <Stack.Screen name="csv-upload" options={{ title: 'CSV Bulk Upload' }} />
       <Stack.Screen name="csv-import-report" options={{ title: 'Import Report' }} />
       <Stack.Screen name="create-content" options={{ title: 'Create Content', presentation: 'modal' }} />

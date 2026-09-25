@@ -1,196 +1,181 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { X, GridFour, CaretLeft, CaretRight, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
+import { X, GridFour, WarningCircle, FlagPennant, FlagBanner, Lock } from 'phosphor-react-native';
+import {
+  BottomSheet, EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast,
+} from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { getTestQuestions } from '@/src/api/tests';
-import { startAttempt, upsertAnswer } from '@/src/api/attempts';
-import type { Question } from '@/src/api/tests';
-import type { StudentAttempt, AttemptAnswer } from '@/src/api/attempts';
+import { RichContent, OptionCard, type OptionState } from '@/src/rich';
+import { BookmarkButton } from '@/src/bookmarks/BookmarkButton';
+import { ReportSheet } from '@/src/social/ReportSheet';
+import { submitAttempt, type Option } from '@/src/api/attempts';
+import { ApiError } from '@/src/api/client';
+import { useAttemptSession } from '@/src/attempt/useAttemptSession';
+import { useAttemptTimer } from '@/src/attempt/useAttemptTimer';
+import { formatClock, nextUnanswered, paletteCounts, paletteStatus, timerLevel } from '@/src/attempt/logic';
+import { track } from '@/src/analytics/track';
+import { useScreenProtection } from '@/src/security/useScreenProtection';
+
+const LETTERS: Option[] = ['A', 'B', 'C', 'D'];
 
 export default function TestQuestionRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { show } = useToast();
   const { id } = useLocalSearchParams<{ id?: string }>();
 
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [saveError, setSaveError] = useState(false);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
+  useScreenProtection();
+  const S = useAttemptSession(id as string | undefined);
+  const { questions, ids, answers, media, attempt, tutor, sync } = S;
 
   const [current, setCurrent] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
-
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [submitOpen, setSubmitOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  
-  const [slideDir, setSlideDir] = useState<1 | -1>(1);
-  const slideX = useSharedValue(0);
-  const sheetRise = useSharedValue(0);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  const [tookOver, setTookOver] = useState(false);
+  const [busyTakeover, setBusyTakeover] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
-  const timed = attempt?.test?.duration_minutes && attempt.test.duration_minutes > 0;
   const q = questions[current];
-  const TOTAL = questions.length;
+  const total = questions.length;
+  const a = q ? answers[q.id] : undefined;
+  const reveal = q ? S.reveals[q.id] : undefined;
+  const counts = useMemo(() => paletteCounts(ids, answers), [ids, answers]);
 
-  const init = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    try {
-      const [attRes, qRes] = await Promise.all([
-        startAttempt(id as string),
-        getTestQuestions(id as string)
-      ]);
-      setAttempt(attRes.attempt);
-      setQuestions(qRes.questions);
+  // ── navigation between questions ──
+  const go = useCallback(
+    (idx: number) => {
+      if (idx < 0 || idx >= total) return;
+      setCurrent(idx);
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    },
+    [total],
+  );
 
-      // Pre-fill answers from previous session
-      const ansMap: Record<string, number> = {};
-      attRes.answers.forEach((a: AttemptAnswer) => {
-         if (a.selected_option) {
-           // We need to map options like 'A', 'B' to index 0, 1
-           const idx = a.selected_option.charCodeAt(0) - 65;
-           if (idx >= 0 && idx <= 3) {
-             ansMap[a.question_id] = idx;
-           }
-         }
-      });
-      setAnswers(ansMap);
-
-      if (attRes.attempt.test?.duration_minutes) {
-        const totalSec = attRes.attempt.test.duration_minutes * 60;
-        const startedAt = new Date(attRes.attempt.started_at).getTime();
-        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-        setSecondsLeft(Math.max(0, totalSec - elapsed));
-      }
-      setLoadError(false);
-    } catch (err) {
-      console.error('Failed to init test', err);
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
+  // bank time spent on the question we just left
   useEffect(() => {
-    init();
-  }, [init]);
+    S.visit(q?.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q?.id]);
+  useEffect(() => () => S.visit(undefined), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!timed) return;
-    const t = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(t);
-          router.push({
-            pathname: '/(student)/(practice)/test-submit-confirm',
-            params: { id: id ?? '1', expired: '1' },
-          });
-          return 0;
+  // ── finishing ──
+  const toResult = useCallback(
+    (attemptId: string, expired = false) => {
+      router.replace({ pathname: '/(student)/(practice)/test-result', params: { id: attemptId, ...(expired ? { expired: '1' } : {}) } });
+    },
+    [router],
+  );
+
+  const finish = useCallback(
+    async (opts: { force?: boolean; expired?: boolean } = {}) => {
+      if (!attempt) return;
+      setSubmitting(true);
+      setSubmitError(null);
+      try {
+        const saved = await sync.flushNow();
+        if (!saved && !opts.force) {
+          setSubmitError(`${sync.pending || 'Some'} answer${sync.pending === 1 ? '' : 's'} haven't saved yet — check your connection.`);
+          setSubmitting(false);
+          return;
         }
-        return s - 1;
-      });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [timed, router, id]);
+        await submitAttempt(attempt.id);
+        track('custom.submitted', { mode: attempt.mode ?? 'exam', answered: counts.answered, total: counts.total, expired: !!opts.expired });
+        setSubmitOpen(false);
+        toResult(attempt.id, opts.expired);
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'attempt_expired') {
+          // the server already finalised it — that's a success from the student's point of view
+          toResult(attempt.id, true);
+          return;
+        }
+        setSubmitError('Couldn’t submit. Check your connection and try again.');
+        setSubmitting(false);
+      }
+    },
+    [attempt, sync, counts, toResult],
+  );
 
-  const selectOption = async (optIdx: number) => {
-    if (!q || !attempt) return;
-    setAnswers((a) => ({ ...a, [q.id]: optIdx }));
-    try {
-      await upsertAnswer(attempt.id, q.id, {
-        selected_option: String.fromCharCode(65 + optIdx)
-      });
-      setSaveError(false);
-    } catch (e) {
-      console.error('Failed to save answer', e);
-      setSaveError(true);
-    }
-  };
-
-  const clearResponse = async () => {
-    if (!q || !attempt) return;
-    setAnswers((a) => {
-      const copy = { ...a };
-      delete copy[q.id];
-      return copy;
-    });
-    try {
-      await upsertAnswer(attempt.id, q.id, {
-        selected_option: null
-      });
-      setSaveError(false);
-    } catch (e) {
-      console.error('Failed to clear answer', e);
-      setSaveError(true);
-    }
-  };
-
-  const retrySave = () => {
-    if (!q) return;
-    const sel = answers[q.id];
-    if (sel != null) {
-      selectOption(sel);
-    } else {
-      clearResponse();
-    }
-  };
-
-  const goNext = () => {
-    if (current >= TOTAL - 1) {
-      router.push({ pathname: '/(student)/(practice)/test-submit-confirm', params: { id: attempt?.id ?? '1' } });
-      return;
-    }
-    setSlideDir(1);
-    slideX.value = 0;
-    setCurrent((c) => c + 1);
-  };
-
-  const goPrev = () => {
-    if (current <= 0) return;
-    setSlideDir(-1);
-    slideX.value = 0;
-    setCurrent((c) => c - 1);
-  };
-
-  const jumpTo = (idx: number) => {
-    setPaletteOpen(false);
-    setSlideDir(idx > current ? 1 : -1);
-    slideX.value = 0;
-    setCurrent(idx);
-  };
-
-  const answeredCount = Object.keys(answers).length;
-  const selectedOpt = q ? answers[q.id] : undefined;
-  const mm = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  const timerWarning = timed && secondsLeft <= 300 && secondsLeft > 60;
-  const timerDanger = timed && secondsLeft <= 60 && secondsLeft > 0;
-
-  const slideStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: slideX.value }],
-  }));
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: (1 - sheetRise.value) * 400 }],
-  }));
-
+  // server said the deadline passed while we were saving
   useEffect(() => {
-    if (paletteOpen) {
-      sheetRise.value = withTiming(1, { duration: 260 });
-      slideX.value = withTiming(slideDir * 12, { duration: 200 });
-    } else {
-      sheetRise.value = withTiming(0, { duration: 200 });
+    if (S.phase === 'expired' && S.expiredAttemptId) toResult(S.expiredAttemptId, true);
+  }, [S.phase, S.expiredAttemptId, toResult]);
+
+  const left = useAttemptTimer(S.phase === 'ready' ? S.deadline : null, () => {
+    void finish({ force: true, expired: true });
+  });
+  const level = timerLevel(left);
+  useEffect(() => {
+    if (left === 300) AccessibilityInfo.announceForAccessibility('5 minutes left');
+    if (left === 60) AccessibilityInfo.announceForAccessibility('1 minute left');
+  }, [left]);
+
+  // permanently-refused saves (e.g. answer already revealed) → resync from the server
+  useEffect(() => {
+    if (S.rejected.length > 0) {
+      show('Some answers couldn’t be saved and were refreshed.', 'error');
+      void S.reload();
     }
-  }, [paletteOpen, sheetRise, slideDir, slideX]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [S.rejected.length]);
+
+  // Android back → exit dialog, never a silent exit mid-test
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (paletteOpen || submitOpen || reportOpen) return false; // sheets handle their own back
+      setExitOpen(true);
+      return true;
+    });
+    return () => sub.remove();
+  }, [paletteOpen, submitOpen, reportOpen]);
+
+  const locked = S.lockedElsewhere;
+
+  const onReveal = async () => {
+    if (!q) return;
+    setRevealing(true);
+    try {
+      await S.reveal(q.id);
+    } catch {
+      show('Couldn’t check the answer. Try again.', 'error');
+    } finally {
+      setRevealing(false);
+    }
+  };
+
+  const doTakeover = async () => {
+    setBusyTakeover(true);
+    try {
+      await S.takeover();
+      setTookOver(true);
+    } catch {
+      show('Couldn’t switch to this device. Try again.', 'error');
+    } finally {
+      setBusyTakeover(false);
+    }
+  };
+
+  const optionState = (letter: Option): OptionState => {
+    const selected = a?.selected === letter;
+    if (reveal) {
+      if (reveal.correct_option === letter) return selected ? 'correct' : 'missed';
+      return selected ? 'wrong' : 'idle';
+    }
+    return selected ? 'selected' : 'idle';
+  };
+
+  const opts: [Option, string][] = q
+    ? [['A', q.option_a], ['B', q.option_b], ['C', q.option_c], ['D', q.option_d]]
+    : [];
+
+  const isLast = current >= total - 1;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -200,389 +185,321 @@ export default function TestQuestionRoute() {
           <Pressable
             onPress={() => setExitOpen(true)}
             hitSlop={space.xs}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            accessibilityRole="button"
+            accessibilityLabel="Exit test"
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, justifyContent: 'center' })}
           >
             <X size={24} color={color('text/primary')} />
           </Pressable>
           <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
-            Question {current + 1} of {TOTAL}
+            {total > 0 ? `Question ${current + 1} of ${total}` : 'Loading…'}
           </Text>
-          {timed ? (
+          {left != null ? (
             <View
-              style={[
-                styles.timerChip,
-                {
-                  backgroundColor: timerDanger
-                    ? color('semantic/danger')
-                    : timerWarning
-                      ? color('semantic/warning')
-                      : color('bg/sunken'),
-                  borderRadius: radius.pill,
-                  paddingHorizontal: space.sm,
-                  paddingVertical: 4,
-                },
-              ]}
+              accessible
+              accessibilityRole="timer"
+              accessibilityLabel={`Time left ${formatClock(left)}`}
+              style={{
+                backgroundColor: level === 'danger' ? color('semantic/danger') : level === 'warning' ? color('semantic/warning') : color('bg/sunken'),
+                borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 4, minWidth: 64, alignItems: 'center',
+              }}
             >
-              <Text
-                style={[
-                  type['type/body-m-medium'],
-                  {
-                    color: timerDanger || timerWarning ? color('text/inverse') : color('text/primary'),
-                  },
-                ]}
-              >
-                {mm(secondsLeft)}
+              <Text style={[type['type/body-m-medium'], { color: level === 'normal' ? color('text/primary') : color('text/inverse') }]}>
+                {formatClock(left)}
               </Text>
             </View>
           ) : (
-            <View style={{ width: 24 }} />
+            <View style={{ width: 44 }} />
           )}
         </View>
-        {/* Progress bar */}
-        <View
-          style={{
-            height: 3,
-            backgroundColor: color('bg/sunken'),
-            borderRadius: 2,
-            marginTop: space.xs,
-          }}
-        >
-          <View
-            style={{
-              width: `${((current + 1) / TOTAL) * 100}%`,
-              height: 3,
-              backgroundColor: color('accent/default'),
-              borderRadius: 2,
-            }}
-          />
+        <View style={{ height: 3, backgroundColor: color('bg/sunken'), borderRadius: 2, marginTop: space.xs }}>
+          <View style={{ width: `${total ? ((current + 1) / total) * 100 : 0}%`, height: 3, backgroundColor: color('accent/default'), borderRadius: 2 }} />
         </View>
       </View>
 
-      {loading ? (
+      {S.phase === 'loading' ? (
         <View style={{ flex: 1, paddingHorizontal: space.md, marginTop: space.xl }}>
           <SkeletonBlock height={120} radius={radius.lg} />
           <View style={{ gap: space.sm, marginTop: space.lg }}>
-            <SkeletonBlock height={56} radius={radius.md} />
-            <SkeletonBlock height={56} radius={radius.md} />
-            <SkeletonBlock height={56} radius={radius.md} />
-            <SkeletonBlock height={56} radius={radius.md} />
+            {[0, 1, 2, 3].map((i) => <SkeletonBlock key={i} height={56} radius={radius.md} />)}
           </View>
         </View>
-      ) : loadError ? (
+      ) : S.phase === 'error' || S.phase === 'expired' ? (
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
-          title="Couldn't load this test"
-          description="Something went wrong loading your questions. Check your connection and try again."
-          action={<TextButton label="Retry" onPress={init} />}
+          title="Couldn’t load this test"
+          description={
+            S.error instanceof ApiError && S.error.status === 403
+              ? 'This test needs an active subscription.'
+              : 'Something went wrong loading your questions. Check your connection and try again.'
+          }
+          action={<TextButton label="Retry" onPress={S.reload} />}
           style={{ flex: 1, justifyContent: 'center' }}
         />
       ) : !q ? (
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
           title="No questions available"
-          description="This test doesn't have any questions to show right now."
-          action={<TextButton label="Retry" onPress={init} />}
+          description="This test doesn’t have any questions to show right now."
+          action={<TextButton label="Retry" onPress={S.reload} />}
           style={{ flex: 1, justifyContent: 'center' }}
         />
       ) : (
-      <>
-        {/* Question + options */}
-        <View style={{ flex: 1, paddingHorizontal: space.md, marginTop: space.xl }}>
-        {saveError ? (
-          <ErrorBanner
-            message="Couldn't save your last answer."
-            onRetry={retrySave}
-            style={{ marginBottom: space.md }}
-          />
-        ) : null}
-        <Animated.View style={slideStyle}>
+        <>
+          <ScrollView
+            ref={scrollRef}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space.xl }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {locked ? (
+              <View style={[styles.banner, { backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.md, marginBottom: space.md }]}>
+                <Lock size={20} color={color('semantic/warning')} weight="fill" />
+                <View style={{ flex: 1 }}>
+                  <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>This test is open on another device</Text>
+                  <Text style={[type['type/caption'], { color: color('text/secondary') }]}>You can look around, but answers can only be changed from one device.</Text>
+                </View>
+                <SecondaryButton label="Continue here" onPress={doTakeover} loading={busyTakeover} />
+              </View>
+            ) : null}
+            {tookOver && !locked ? (
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginBottom: space.sm }]}>Moved to this device.</Text>
+            ) : null}
+            {sync.pending > 0 && sync.status === 'retrying' ? (
+              <ErrorBanner
+                message={`${sync.pending} answer${sync.pending === 1 ? '' : 's'} not saved yet — retrying.`}
+                onRetry={() => void sync.flushNow()}
+                style={{ marginBottom: space.md }}
+              />
+            ) : null}
+
+            {/* Question tools */}
+            <View style={[styles.tools, { marginBottom: space.xs }]}>
+              <Pressable
+                onPress={() => S.toggleMark(q.id)}
+                disabled={locked}
+                accessibilityRole="button"
+                accessibilityState={{ selected: !!a?.marked, disabled: locked }}
+                accessibilityLabel={a?.marked ? 'Remove mark for review' : 'Mark for review'}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: space.xs, opacity: locked ? 0.4 : 1 }}
+              >
+                <FlagPennant size={20} weight={a?.marked ? 'fill' : 'regular'} color={a?.marked ? color('semantic/warning') : color('text/secondary')} />
+                <Text style={[type['type/body-m'], { color: a?.marked ? color('semantic/warning') : color('text/secondary') }]}>
+                  {a?.marked ? 'Marked for review' : 'Mark for review'}
+                </Text>
+              </Pressable>
+              <View style={{ flex: 1 }} />
+              <BookmarkButton questionId={q.id} />
+              <Pressable
+                onPress={() => setReportOpen(true)}
+                hitSlop={space.xs}
+                accessibilityRole="button"
+                accessibilityLabel="Report a problem with this question"
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' })}
+              >
+                <FlagBanner size={22} color={color('text/secondary')} />
+              </Pressable>
+            </View>
+
+            <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }, shadow()]}>
+              <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space['2xs'] }]}>QUESTION {current + 1}</Text>
+              <RichContent value={q.question_text} format={q.content_format} media={media} variant="stem" />
+            </View>
+
+            <View style={{ gap: space.sm, marginTop: space.lg }} accessibilityRole="radiogroup">
+              {opts.map(([letter, val]) => (
+                <OptionCard
+                  key={letter}
+                  letter={letter}
+                  value={val}
+                  format={q.content_format}
+                  media={media}
+                  state={optionState(letter)}
+                  disabled={locked || !!reveal}
+                  onPress={() => S.select(q.id, letter)}
+                />
+              ))}
+            </View>
+
+            {a?.selected && !reveal && !locked ? (
+              <View style={{ alignItems: 'center', marginTop: space.sm }}>
+                <TextButton label="Clear my response" onPress={() => S.clear(q.id)} />
+              </View>
+            ) : null}
+
+            {tutor && !reveal ? (
+              <PrimaryButton
+                label="Check answer"
+                onPress={onReveal}
+                loading={revealing}
+                disabled={!a?.selected || locked}
+                style={{ marginTop: space.lg }}
+              />
+            ) : null}
+
+            {reveal ? (
+              <View style={{ marginTop: space.lg, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, gap: space.xs, borderWidth: 1, borderColor: color('border/subtle') }}>
+                <Text style={[type['type/body-m-medium'], { color: reveal.is_correct ? color('semantic/success') : color('semantic/danger') }]}>
+                  {reveal.is_correct ? 'Correct' : `Incorrect — the answer is ${reveal.correct_option}`}
+                </Text>
+                {reveal.explanation ? (
+                  <RichContent value={reveal.explanation} format={reveal.content_format} media={media} variant="explanation" />
+                ) : (
+                  <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>No explanation for this question.</Text>
+                )}
+              </View>
+            ) : null}
+          </ScrollView>
+
+          {/* Bottom bar */}
           <View
             style={[
-              styles.questionCard,
+              styles.bottomBar,
               {
-                backgroundColor: color('bg/surface'),
-                borderRadius: radius.lg,
-                padding: space.lg,
+                backgroundColor: color('bg/surface'), borderTopColor: color('border/subtle'), borderTopWidth: 1,
+                paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.sm + insets.bottom,
               },
-              shadow(),
             ]}
           >
-            <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>
-              QUESTION {current + 1}
-            </Text>
-            <Text
-              style={[type['type/body-l'], { color: color('text/primary'), marginTop: space['2xs'] }]}
+            {current > 0 ? <SecondaryButton label="Previous" onPress={() => go(current - 1)} /> : <View style={{ width: 100 }} />}
+            <Pressable
+              onPress={() => setPaletteOpen(true)}
+              hitSlop={space.xs}
+              accessibilityRole="button"
+              accessibilityLabel={`Question palette. ${counts.answered} of ${counts.total} answered`}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' })}
             >
-              {q.question_text}
-            </Text>
+              <GridFour size={26} color={color('text/primary')} />
+            </Pressable>
+            <PrimaryButton
+              label={isLast ? 'Review & Submit' : 'Next'}
+              onPress={() => (isLast ? setSubmitOpen(true) : go(current + 1))}
+            />
           </View>
 
-          <View style={{ gap: space.sm, marginTop: space.lg }}>
-            {[q.option_a, q.option_b, q.option_c, q.option_d].map((opt, i) => {
-              const isSel = selectedOpt === i;
-              return (
-                <Pressable
-                  key={i}
-                  onPress={() => selectOption(i)}
-                  style={({ pressed }) => [
-                    styles.optionRow,
-                    {
-                      backgroundColor: isSel ? color('accent/tint') : color('bg/surface'),
-                      borderRadius: radius.md,
-                      borderWidth: isSel ? 2 : 1.5,
-                      borderColor: isSel ? color('accent/default') : color('border/subtle'),
-                      padding: space.md,
-                      minHeight: 56,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.letterBadge,
-                      {
-                        width: 28,
-                        height: 28,
-                        borderRadius: 14,
-                        backgroundColor: isSel ? color('accent/default') : color('bg/sunken'),
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        type['type/body-m-medium'],
-                        { color: isSel ? color('accent/on-accent') : color('text/secondary') },
-                      ]}
-                    >
-                      {String.fromCharCode(65 + i)}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      type['type/body-l'],
-                      { color: color('text/primary'), flex: 1, marginLeft: space.sm },
-                    ]}
-                  >
-                    {opt}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {selectedOpt != null ? (
-            <View style={{ alignItems: 'center', marginTop: space.sm }}>
-              <TextButton label="Clear my response" onPress={clearResponse} />
+          {/* Palette */}
+          <BottomSheet visible={paletteOpen} onClose={() => setPaletteOpen(false)} title="Question Palette">
+            <View style={[styles.legendRow, { gap: space.md, flexWrap: 'wrap' }]}>
+              <LegendDot label="Answered" bg={color('accent/default')} border={color('accent/default')} />
+              <LegendDot label="Not answered" bg={color('bg/sunken')} border={color('border/strong')} />
+              <LegendDot label="Marked" bg="transparent" border={color('semantic/warning')} />
             </View>
-          ) : null}
-        </Animated.View>
-      </View>
-
-      {/* Bottom bar */}
-      <View
-        style={[
-          styles.bottomBar,
-          {
-            backgroundColor: color('bg/surface'),
-            borderTopColor: color('border/subtle'),
-            borderTopWidth: 1,
-            paddingHorizontal: space.md,
-            paddingTop: space.sm,
-            paddingBottom: space.sm + insets.bottom,
-          },
-        ]}
-      >
-        {current > 0 ? (
-          <SecondaryButton label="Previous" onPress={goPrev} />
-        ) : (
-          <View style={{ width: 100 }} />
-        )}
-        <Pressable
-          onPress={() => setPaletteOpen(true)}
-          hitSlop={space.xs}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
-          <GridFour size={26} color={color('text/primary')} />
-        </Pressable>
-        <PrimaryButton
-          label={current >= TOTAL - 1 ? 'Review & Submit' : 'Next'}
-          onPress={goNext}
-        />
-      </View>
-
-      {/* Question Palette sheet */}
-      {paletteOpen ? (
-        <View style={StyleSheet.absoluteFill}>
-          <Pressable
-            onPress={() => setPaletteOpen(false)}
-            style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.4)' }]}
-          />
-          <Animated.View
-            style={[
-              {
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                backgroundColor: color('bg/surface'),
-                borderTopLeftRadius: radius.lg,
-                borderTopRightRadius: radius.lg,
-                padding: space.lg,
-                paddingBottom: space.lg + insets.bottom,
-              },
-              sheetStyle,
-            ]}
-          >
-            <View style={styles.sheetHandle} />
-            <Text style={[type['type/h3'], { color: color('text/primary'), marginTop: space.md }]}>
-              Question Palette
+            <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: space.xs }]}>
+              {counts.answered} answered · {counts.unanswered} not answered · {counts.marked} marked
             </Text>
-            <View style={[styles.legendRow, { gap: space.md, marginTop: space.sm }]}>
-              <LegendDot color={color('accent/default')} label="Answered" filled />
-              <LegendDot color={color('border/strong')} label="Unanswered" />
-              <LegendDot color={color('accent/default')} label="Current" ring />
-            </View>
             <View style={[styles.paletteGrid, { marginTop: space.md, gap: space.sm }]}>
-              {Array.from({ length: TOTAL }).map((_, i) => {
-                const answered = answers[i] != null;
+              {ids.map((qid, i) => {
+                const st = paletteStatus(answers[qid]);
+                const answered = st === 'answered' || st === 'answered_marked';
+                const marked = st === 'marked' || st === 'answered_marked';
                 const isCurrent = i === current;
                 return (
                   <Pressable
-                    key={i}
-                    onPress={() => jumpTo(i)}
-                    style={[
-                      styles.chip,
-                      {
-                        width: 40,
-                        height: 40,
-                        borderRadius: 10,
-                        backgroundColor: answered ? color('accent/default') : color('bg/sunken'),
-                        borderWidth: isCurrent ? 2 : 1,
-                        borderColor: isCurrent ? color('accent/default') : color('border/strong'),
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      },
-                    ]}
+                    key={qid}
+                    onPress={() => { setPaletteOpen(false); go(i); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Question ${i + 1}, ${answered ? 'answered' : 'not answered'}${marked ? ', marked for review' : ''}${isCurrent ? ', current' : ''}`}
+                    style={{
+                      width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: answered ? color('accent/default') : color('bg/sunken'),
+                      borderWidth: isCurrent || marked ? 2 : 1,
+                      borderColor: marked ? color('semantic/warning') : isCurrent ? color('text/primary') : color('border/strong'),
+                    }}
                   >
-                    <Text
-                      style={[
-                        type['type/body-m-medium'],
-                        {
-                          color: answered ? color('text/inverse') : color('text/secondary'),
-                        },
-                      ]}
-                    >
-                      {i + 1}
-                    </Text>
+                    <Text style={[type['type/body-m-medium'], { color: answered ? color('accent/on-accent') : color('text/secondary') }]}>{i + 1}</Text>
                   </Pressable>
                 );
               })}
             </View>
-              <PrimaryButton
-                label="Submit Test"
+            <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.lg }}>
+              <SecondaryButton
+                label="Next unanswered"
+                disabled={counts.unanswered === 0}
                 onPress={() => {
+                  const n = nextUnanswered(ids, answers, current);
                   setPaletteOpen(false);
-                  router.push({ pathname: '/(student)/(practice)/test-submit-confirm', params: { id: attempt?.id ?? '1' } });
+                  if (n >= 0) go(n);
                 }}
-                style={{ marginTop: space.lg }}
               />
-            </Animated.View>
-          </View>
-        ) : null}
-      </>
+              <PrimaryButton label="Submit Test" onPress={() => { setPaletteOpen(false); setSubmitOpen(true); }} />
+            </View>
+          </BottomSheet>
+
+          {/* Submit confirmation */}
+          <BottomSheet visible={submitOpen} onClose={() => setSubmitOpen(false)} title={counts.unanswered === 0 ? 'All done — ready to submit?' : 'Ready to submit?'} dismissable={!submitting}>
+            <View style={{ gap: space.xs }}>
+              <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+                You answered {counts.answered} of {counts.total} questions.
+                {counts.unanswered > 0 ? ` ${counts.unanswered} unanswered ${counts.unanswered === 1 ? 'question scores' : 'questions score'} zero — they’re not counted as wrong.` : ''}
+              </Text>
+              {counts.marked > 0 ? (
+                <Text style={[type['type/body-m'], { color: color('semantic/warning') }]}>{counts.marked} still marked for review.</Text>
+              ) : null}
+              {submitError ? (
+                <Text style={[type['type/body-m'], { color: color('semantic/danger') }]} accessibilityLiveRegion="polite">{submitError}</Text>
+              ) : null}
+            </View>
+            <View style={{ gap: space.sm, marginTop: space.lg }}>
+              <PrimaryButton label="Submit" onPress={() => void finish()} loading={submitting} />
+              {submitError && sync.pending > 0 ? (
+                <TextButton label={`Submit anyway (${sync.pending} unsaved answer${sync.pending === 1 ? '' : 's'} won’t count)`} onPress={() => void finish({ force: true })} />
+              ) : null}
+              <SecondaryButton label="Keep working" onPress={() => setSubmitOpen(false)} disabled={submitting} />
+            </View>
+          </BottomSheet>
+
+          <ReportSheet
+            visible={reportOpen}
+            onClose={() => setReportOpen(false)}
+            questionId={q.id}
+            attemptId={attempt?.id}
+            context={tutor && reveal ? 'tutor' : 'runtime'}
+          />
+        </>
       )}
 
       {/* Exit confirmation */}
-      {exitOpen ? (
-        <View style={StyleSheet.absoluteFill}>
-          <Pressable
-            onPress={() => setExitOpen(false)}
-            style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.4)' }]}
-          />
-          <View
-            style={{
-              position: 'absolute',
-              top: '35%',
-              left: space.lg,
-              right: space.lg,
-              backgroundColor: color('bg/surface'),
-              borderRadius: radius.lg,
-              padding: space.lg,
-              gap: space.sm,
+      <BottomSheet visible={exitOpen} onClose={() => setExitOpen(false)} title="Exit test?">
+        <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+          Your answers are saved — you can resume anytime from Practice.
+          {left != null ? ' The clock keeps running while you’re away.' : ''}
+        </Text>
+        <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.lg }}>
+          <SecondaryButton
+            label="Exit"
+            onPress={() => {
+              void sync.flushNow();
+              router.replace('/(student)/(practice)');
             }}
-          >
-            <Text style={[type['type/h2'], { color: color('text/primary') }]}>Exit test?</Text>
-            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
-              Your answers are saved \u2014 you can resume anytime from Practice.
-            </Text>
-            <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.xs }}>
-              <SecondaryButton label="Exit" onPress={() => router.replace('/(student)/(practice)')} />
-              <PrimaryButton label="Stay" onPress={() => setExitOpen(false)} />
-            </View>
-          </View>
+          />
+          <PrimaryButton label="Stay" onPress={() => setExitOpen(false)} />
         </View>
-      ) : null}
+      </BottomSheet>
     </SafeAreaView>
   );
 }
 
-function LegendDot({
-  color: ink,
-  label,
-  filled,
-  ring,
-}: {
-  color: string;
-  label: string;
-  filled?: boolean;
-  ring?: boolean;
-}) {
-  const { type } = useTheme();
+function LegendDot({ label, bg, border }: { label: string; bg: string; border: string }) {
+  const { color, type } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <View
-        style={{
-          width: 14,
-          height: 14,
-          borderRadius: 7,
-          backgroundColor: filled ? ink : 'transparent',
-          borderWidth: ring ? 2 : 1,
-          borderColor: ink,
-        }}
-      />
-      <Text style={[type['type/caption'], { color: ink }]}>{label}</Text>
+      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: bg, borderWidth: 2, borderColor: border }} />
+      <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{label}</Text>
     </View>
   );
 }
 
 function shadow() {
-  return {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  };
+  return { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 };
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  timerChip: {},
-  questionCard: {},
-  optionRow: { flexDirection: 'row', alignItems: 'center' },
-  letterBadge: {},
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  tools: { flexDirection: 'row', alignItems: 'center' },
   bottomBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#CFCCC3',
-    alignSelf: 'center',
-  },
   legendRow: { flexDirection: 'row', alignItems: 'center' },
   paletteGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  chip: {},
 });

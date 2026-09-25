@@ -328,3 +328,29 @@ ngrok http 8080
 ```
 
 Then use Razorpay's test mode to fire `payment.captured` and `payment.failed` events.
+
+---
+
+## Custom test module, rich content & platform features
+
+Implemented per `fe/docs/custom-test-module-be-todo.md` (every task there has a *Business overview* and *How to test*).
+
+| Area | Where |
+|---|---|
+| Versioned SQL migrations (run after GORM AutoMigrate, API process only; the worker waits) | `internal/db/migrations`, `internal/db/migrate.go` |
+| Tunable settings + feature flags (default **off**), `GET /app-config` | `internal/settings`, `internal/handlers/appconfig.go` |
+| Rich text v1 (closed markdown subset) + golden vectors | `internal/richtext`, `../contracts/rich-text-v1` |
+| Image pipeline (presign → complete → variants, EXIF stripped) | `internal/media`, `internal/handlers/media.go` |
+| Question authoring, CSV/ZIP import v2, corrections | `internal/services/{question,csv_import,correction}_service.go`, `internal/handlers/{teacher_questions,corrections}.go` |
+| Custom tests (blueprint, generation engine, builder-config, presets) | `internal/blueprint`, `internal/generation`, `internal/handlers/custom_tests.go` |
+| Bookmarks · reports · ratings · notes | `internal/items`, `internal/handlers/{bookmarks,reports,ratings,analytics}.go` |
+| Brain Hacks · Flashcards · Explore · video notes · push · home updates | `internal/handlers/{brain_hacks,flashcards,extras}.go`, `internal/services/push_service.go` |
+| Routes for all of the above | `internal/router` (shared with the integration tests) |
+
+**Feature flags to turn on** (admin → `PATCH /api/v1/admin/settings/custom-test`): `custom_test.enabled`, `custom_test.tutor_mode`, `custom_test.status_filters`, `bookmarks.enabled`, `reports.enabled`, `ratings.enabled`, `rich_content.math`.
+
+**Run the tests:** `make test-db && make test` (needs Docker for the Postgres); `make test-load` for the 100 k-question generation benchmark; `make swagger` after editing annotations.
+
+**Worker jobs/tickers:** attempt auto-submit (60 s), orphan-media GC (6 h), retention sweep (24 h), push dispatch (30 s), streak nudges (1 h), CSV import, media processing, question re-scoring.
+
+**Gotcha found during this work:** GORM replaces a `false`/`0` value on a column tagged `default:true`/`default:-1` with the default at INSERT (even with `Select("*")`) and writes it back into the struct. Capture the intended value *before* `Create` and persist it with `UpdateColumn(s)` afterwards (see `CreateTest`, `CreateContent`, generation, flashcard decks, home updates, notification prefs).

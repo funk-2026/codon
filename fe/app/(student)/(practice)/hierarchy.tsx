@@ -29,6 +29,7 @@ import {
   WarningCircle,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { getModule } from '@/src/modules/registry';
 import { useAuth } from '@/src/auth/AuthContext';
 import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { getCurriculum } from '@/src/api/courses';
@@ -220,7 +221,7 @@ export default function HierarchyBrowserRoute() {
 
   const currentTitle = crumbs.crumbs.length
     ? crumbs.crumbs[crumbs.crumbs.length - 1].title
-    : (params.kind === 'test_series' ? 'Test Series' : params.kind === 'qbank' ? 'Q Bank' : 'Practice');
+    : getModule(params.kind).label;
 
   const [query, setQuery] = useState('');
   const [sheetVisible, setSheetVisible] = useState(false);

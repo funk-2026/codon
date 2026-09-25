@@ -17,6 +17,8 @@ const (
 	JobTypeCSVImport         = "csv_import"
 	JobTypeTranscode         = "video_transcode"
 	JobTypeStreamStatusCheck = "stream_status_check"
+	JobTypeMediaProcess      = "media_process"
+	JobTypeRescoreQuestion   = "rescore_question"
 )
 
 // maxAttempts caps how many times a job is retried before it's abandoned.
@@ -67,6 +69,20 @@ type Worker struct {
 	PollInterval time.Duration
 	handlers     map[string]func(ctx context.Context, payload string) error
 	onExhausted  map[string]func(ctx context.Context, payload string)
+	tickers      []ticker
+}
+
+type ticker struct {
+	name  string
+	every time.Duration
+	fn    func(ctx context.Context)
+}
+
+// RegisterTicker runs fn every `every` for as long as the worker runs. Use it
+// for recurring maintenance (sweepers, GC) that is idempotent and safe to run
+// from several worker replicas at once; it needs no rows in background_jobs.
+func (w *Worker) RegisterTicker(name string, every time.Duration, fn func(ctx context.Context)) {
+	w.tickers = append(w.tickers, ticker{name, every, fn})
 }
 
 func NewWorker(db *gorm.DB, pollInterval time.Duration) *Worker {
@@ -93,6 +109,27 @@ func (w *Worker) RegisterExhaustionHandler(jobType string, fn func(ctx context.C
 
 func (w *Worker) Run(ctx context.Context) {
 	log.Printf("[Worker] Starting — polling every %v", w.PollInterval)
+	for _, t := range w.tickers {
+		go func(t ticker) {
+			tk := time.NewTicker(t.every)
+			defer tk.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-tk.C:
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								log.Printf("[Worker] ticker %s panicked: %v", t.name, r)
+							}
+						}()
+						t.fn(ctx)
+					}()
+				}
+			}
+		}(t)
+	}
 	ticker := time.NewTicker(w.PollInterval)
 	defer ticker.Stop()
 

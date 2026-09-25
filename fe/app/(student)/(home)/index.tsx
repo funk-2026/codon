@@ -27,25 +27,13 @@ import { useAuth } from '@/src/auth/AuthContext';
 import { ErrorBanner } from '@/src/components';
 import { getMe, getProgress, getProgressBreakdown, getRecentContent } from '@/src/api/profile';
 import type { Subscription } from '@/src/api/profile';
+import { BrainHacksShelf, HomeUpdatesCarousel } from '@/src/home/HomeShelves';
 
 type SubState = 'active' | 'expiring' | 'none';
 
-const UPDATES = [
-  { overline: 'NEW', headline: 'Full-Length NEET Mock Test 4 is live', tone: 'accent' as const },
-  { overline: 'PROGRESS', headline: 'Your Chemistry accuracy is up 8% this week — keep going', tone: 'accent' as const },
-  { overline: 'SUPPORT', headline: 'One step at a time. Visit Support for today\u2019s guidance.', tone: 'wellness' as const },
-  { overline: 'OFFER', headline: 'Refer a friend, both of you get 7 days free.', tone: 'accent' as const },
-];
-
-const BRAIN_HACKS = [
-  { id: '1', title: 'Beat exam-day anxiety in 5 minutes' },
-  { id: '2', title: 'The 2-minute recall trick' },
-  { id: '3', title: 'How to read a question twice, not once' },
-];
-
 const QUICK_ACCESS: { label: string; href: Href; icon: React.ReactNode; wellness?: boolean }[] = [
-  { label: 'Q Bank', href: '/(student)/(practice)', icon: <Exam size={24} color="#000" weight="duotone" /> },
-  { label: 'Test Series', href: '/(student)/(practice)', icon: <Exam size={24} color="#000" weight="duotone" /> },
+  { label: 'Q Bank', href: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'qbank' } }, icon: <Exam size={24} color="#000" weight="duotone" /> },
+  { label: 'Test Series', href: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'test_series' } }, icon: <Exam size={24} color="#000" weight="duotone" /> },
   { label: 'Video Classes', href: '/(student)/(learn)', icon: <BookOpen size={24} color="#000" weight="duotone" /> },
   { label: 'Support', href: '/(student)/(support)', icon: <HandHeart size={24} color="#000" weight="duotone" />, wellness: true },
 ];
@@ -90,10 +78,6 @@ export default function HomeDashboardRoute() {
   const [isNewUser, setIsNewUser] = useState(true);
   const [recentItem, setRecentItem] = useState<any>(null);
   const [loadError, setLoadError] = useState(false);
-
-  const flatRef = useRef<FlatList<typeof UPDATES[number]>>(null);
-  const [slide, setSlide] = useState(0);
-  const paused = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -140,22 +124,6 @@ export default function HomeDashboardRoute() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  useEffect(() => {
-    if (paused.current) return;
-    const t = setInterval(() => {
-      flatRef.current?.scrollToIndex({
-        index: (slide + 1) % UPDATES.length,
-        animated: true,
-      });
-    }, 5000);
-    return () => clearInterval(t);
-  }, [slide]);
-
-  const onViewable = useRef((info: { viewableItems: ViewToken[] }) => {
-    const first = info.viewableItems[0];
-    if (first?.index != null) setSlide(first.index);
-  }).current;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -207,43 +175,8 @@ export default function HomeDashboardRoute() {
               </View>
             ) : null}
 
-            {/* Updates carousel */}
-            {/* <Stagger delayMs={80}>
-              <View style={{ marginTop: space.lg }}>
-                <FlatList
-                  ref={flatRef}
-                  data={UPDATES}
-                  keyExtractor={(_, i) => String(i)}
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onScrollToIndexFailed={() => {}}
-                  getItemLayout={(_, i) => ({ length: cardWidth, offset: cardWidth * i, index: i })}
-                  onViewableItemsChanged={onViewable}
-                  viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-                  onScrollBeginDrag={() => (paused.current = true)}
-                  onScrollEndDrag={() => (paused.current = false)}
-                  renderItem={({ item }) => (
-                    <UpdateCard item={item} width={cardWidth - 12} />
-                  )}
-                  style={{ width: cardWidth }}
-                />
-                <View style={[styles.dots, { gap: space.xs, marginTop: space.xs }]}>
-                  {UPDATES.map((_, i) => (
-                    <View
-                      key={i}
-                      style={{
-                        width: i === slide ? 24 : 8,
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor:
-                          i === slide ? color('accent/default') : color('border/strong'),
-                      }}
-                    />
-                  ))}
-                </View>
-              </View>
-            </Stagger> */}
+            {/* Updates carousel — admin-curated; renders nothing when empty */}
+            <HomeUpdatesCarousel />
 
             {/* Continue Learning */}
             {recentItem ? (
@@ -424,72 +357,13 @@ export default function HomeDashboardRoute() {
                 <View style={[styles.statRow, { gap: space.xs }]}>
                   <StatTile label="Tests Taken" value={isNewUser ? '0' : stats.attempted.toString()} />
                   <StatTile label="Avg. Score" value={isNewUser ? '—' : `${Math.round(stats.avgScore)}%`} />
-                  <StatTile label="Day Streak" value={isNewUser ? '0' : '12'} />
+                  <StatTile label="Day Streak" value={String(streak)} />
                 </View>
               </View>
             </Stagger>
 
-            {/* Brain Hacks shelf */}
-            <Stagger delayMs={480}>
-              <View style={{ marginTop: space.xl }}>
-                <View style={[styles.sectionRow, { marginBottom: space.sm }]}>
-                  <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>
-                    FREE BRAIN HACKS
-                  </Text>
-                  <Pressable onPress={() => router.push('/(student)/(home)/brain-hacks')}>
-                    <Text style={[type['type/caption'], { color: color('accent/default') }]}>
-                      See all →
-                    </Text>
-                  </Pressable>
-                </View>
-                <FlatList
-                  data={BRAIN_HACKS}
-                  keyExtractor={(item) => item.id}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      onPress={() =>
-                        router.push({
-                          pathname: '/(student)/(home)/brain-hack-detail',
-                          params: { id: item.id },
-                        })
-                      }
-                      style={({ pressed }) => [
-                        styles.bhCard,
-                        {
-                          width: bhCardWidth,
-                          backgroundColor: color('bg/surface'),
-                          borderRadius: radius.md,
-                          padding: space.sm,
-                          marginRight: space.sm,
-                          opacity: pressed ? 0.92 : 1,
-                        },
-                        shadow(),
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.bhIcon,
-                          { backgroundColor: color('accent/tint'), borderRadius: radius.sm },
-                        ]}
-                      >
-                        <Flame size={20} color={color('accent/default')} weight="duotone" />
-                      </View>
-                      <Text
-                        style={[
-                          type['type/h3'],
-                          { color: color('text/primary'), marginTop: space.xs, fontSize: 15 },
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {item.title}
-                      </Text>
-                    </Pressable>
-                  )}
-                />
-              </View>
-            </Stagger>
+            {/* Brain Hacks shelf — real data, hidden when empty */}
+            <BrainHacksShelf />
           </View>
         )}
       />
@@ -505,44 +379,6 @@ function shadow(): {} {
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   };
-}
-
-function UpdateCard({
-  item,
-  width,
-}: {
-  item: (typeof UPDATES)[number];
-  width: number;
-}) {
-  const { color, type, space, radius } = useTheme();
-  const ink = item.tone === 'wellness' ? color('wellness/accent') : color('accent/default');
-  const bg = item.tone === 'wellness' ? color('wellness/bg') : color('accent/tint');
-  return (
-    <View
-      style={[
-        styles.updateCard,
-        {
-          width,
-          height: 140,
-          backgroundColor: bg,
-          borderRadius: radius.lg,
-          padding: space.md,
-          marginRight: 12,
-        },
-      ]}
-    >
-      <Text style={[type['type/overline'], { color: ink }]}>{item.overline}</Text>
-      <Text
-        style={[
-          type['type/h3'],
-          { color: color('text/primary'), marginTop: space['2xs'], flexShrink: 1 },
-        ]}
-        numberOfLines={3}
-      >
-        {item.headline}
-      </Text>
-    </View>
-  );
 }
 
 function SubscriptionStrip({
