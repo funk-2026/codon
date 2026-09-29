@@ -129,8 +129,17 @@ export default function CustomBuilderRoute() {
         }
         if (e.code === 'rate_limited') return setGenError('You’re generating too quickly. Wait a moment and try again.');
         if (e.code === 'too_many_tests') return setGenError('You have too many saved tests. Delete some in My custom tests first.');
+        if (e.code === 'feature_disabled') return setGenError('Custom tests aren’t turned on for your account yet.');
+        if (e.code === 'course_not_found' || e.code === 'test_not_found') return setGenError('Something about your course setup isn’t right — try again or contact support.');
+        // The server responded but with a code we don't have specific copy for (e.g. an
+        // unexpected 500). Show what it actually said instead of a generic "check your
+        // connection" — that message is actively misleading when the server DID respond.
+        console.error('Generate failed', { status: e.status, code: e.code, message: e.message });
+        return setGenError(`Couldn’t build your test (${e.code ?? e.status}): ${e.message}`);
       }
-      setGenError('Couldn’t build your test. Check your connection and try again.');
+      // Only a true network failure (request never reached the server) gets here.
+      console.error('Generate failed (network)', e);
+      setGenError('Couldn’t reach the server. Check your connection and try again.');
     }
   };
 
