@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { getAccessToken } from '../auth/tokenStore';
 import { DeviceEventEmitter } from 'react-native';
+import { buildHeaders } from './headers';
 
 /**
  * Resolve the API base URL dynamically.
@@ -26,13 +27,12 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
   const token = await getAccessToken();
+  // `...options` MUST come before `headers` here — options.headers (e.g. a
+  // caller's Idempotency-Key) must be merged BY buildHeaders, never allowed to
+  // replace the whole headers object outright (see headers.ts for why).
   const res = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers as Record<string, string> | undefined),
-    },
     ...options,
+    headers: buildHeaders(token, options.headers as Record<string, string> | undefined),
   });
 
   const body = await res.json().catch(() => ({}));
