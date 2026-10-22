@@ -18,3 +18,10 @@ npm run build:android:apk # For Prod apk
 npm run build:android:aab # For Prod aab
 npm run build:android:debug # For Debug apk
 ```
+
+Scripts For IOS Dev build 
+```
+npx expo run:ios
+```
+
+// brew link node (if any node problem in mac)
