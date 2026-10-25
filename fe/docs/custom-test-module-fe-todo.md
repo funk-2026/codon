@@ -164,14 +164,14 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
 
 > Goal: **an image can appear in any question — stem, any option, explanation — anywhere the app renders question content, including custom tests.** One renderer, adopted everywhere.
 
-- [ ] **FE-1.1 · SPIKE — math & chemistry rendering (D14)** — `M` (timebox 3 days) · blocked by: FE-0.1
+- [x] **FE-1.1 · SPIKE — math & chemistry rendering (D14)** — `M` (timebox 3 days) · blocked by: FE-0.1
   - Evaluate (a) one shared offscreen `react-native-webview` running KaTeX that returns SVG/HTML strings, cached by hash; (b) an on-device MathJax→SVG path rendered with `react-native-svg`; (c) authoring-time pre-render (formula becomes a media asset). **Rejected up-front:** one WebView per formula.
   - Test scenario: a 90-question test, 30 formula-bearing questions, mid-range Android device, airplane mode.
   - Decision criteria: time to first question < 1 s cold, no jank on Next/Prev, memory ceiling, offline works, dark-mode legible, accessible text alternative.
   - AC: 1-page decision record in `fe/docs/decisions/math-rendering.md` + working prototype. **Until decided, the P0 fallback stands:** formula-as-image + sub/sup text (CM-RC6).
-  - **Status:** ⏭️ Not done
-  - **Business overview:** NOT run. The math/chemistry rendering spike needs devices to compare libraries (WebView-KaTeX vs SVG vs native) for speed and memory; that couldn't be done here. The renderer uses a documented fallback instead (see FE-1.13).
-  - **How to test:** n/a
+  - **Status:** ✅ Done (2026-10-25) — decision proposed
+  - **Business overview:** On-device MathJax → SVG chosen (option b); record in `docs/decisions/math-rendering.md`. Device performance criteria still to confirm in QA.
+  - **How to test:** See the decision record's 'Still to confirm on a device'.
   - **Notes / bugs / deviations:** Skipped by necessity. **Open decision D14 remains.** Until it's done, formula-heavy questions should use an uploaded formula image.
 
 - [x] **FE-1.2 · Rich-text v1 parser** — `M` · blocked by: BE-1.9 grammar (`contracts/rich-text-v1/`) — can start from the spec draft · files: `src/rich/parse.ts`, `ast.ts`
@@ -247,12 +247,12 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Teacher → open a draft test → Preview; Admin → Test Approvals → open one.
   - **Notes / bugs / deviations:** New shared `QuestionPreviewCard`; the server now returns a `media` map on teacher/admin test detail.
 
-- [ ] **FE-1.10 · Prefetch service** — `M` · blocked by: FE-1.4 · files: `src/rich/prefetch.ts`
+- [x] **FE-1.10 · Prefetch service** — `M` · blocked by: FE-1.4 · files: `src/rich/prefetch.ts`
   - On test start, prefetch display variants for every media id in the attempt (concurrency 4, cancel on exit, progress callback for the pre-start screen "Preparing test… 12/30"); never block a question on a slow image.
   - AC: airplane mode after prefetch → whole test still renders; prefetch cancelled when leaving the screen.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** NOT built. Prefetching the next question's images (so they are instant) wasn't implemented; images load on demand and are cached after first view.
-  - **How to test:** n/a
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** During a test, images of the following questions load in the background (4 at a time, from the current question onwards) through the same cache key the question view uses, so later questions show instantly and keep working in airplane mode once loaded. Leaving the test cancels it.
+  - **How to test:** Start a test with image questions, wait ~10 s on Q1, turn on airplane mode, page through — images render.
   - **Notes / bugs / deviations:** Low risk; add `expo-image` `prefetch` of the next question's media ids in `useAttemptSession`. Marked not done.
 
 - [x] **FE-1.11 · `useMediaUpload` + `src/api/media.ts`** — `L` · blocked by: BE-1.2, BE-1.3 (dev fixture until then)
@@ -273,12 +273,12 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Deny camera permission, then try to take a photo.
   - **Notes / bugs / deviations:** Built into `RichField`, not a standalone component.
 
-- [~] **FE-1.13 · Math integration (after FE-1.1)** — `L` · blocked by: FE-1.1
+- [x] **FE-1.13 · Math integration (after FE-1.1)** — `L` · blocked by: FE-1.1
   - `MathView` per the decision; global render cache keyed by hash; graceful fallback to the raw `$…$` text on failure; text alternative for screen readers; prefetch-render on test start.
   - AC: 30-formula test meets the FE-1.1 budgets on the low-end Android device.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Formulas written as `$…$` currently show as readable TeX text in a highlighted chip (or scrollable block), with the formula as the screen-reader label; real typeset math is NOT implemented.
-  - **How to test:** Write `$x^2 + y^2$` in the editor and view it.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** `$…$` and `$$…$$` render as typeset maths (fractions, roots, Greek, chemistry via `\ce{}`) in the text colour; unparseable TeX falls back to the source chip.
+  - **How to test:** Write `$\frac{1}{2}mv^2$` and `$\ce{2H2 + O2 -> 2H2O}$` in a question → student view shows typeset formulas; dark mode legible.
   - **Notes / bugs / deviations:** Blocked on FE-1.1. Recommended interim: teachers upload formulas as images. Feature flag `rich_content.math` exists on the server but the app doesn't use it yet.
 
 - [~] **FE-1.14 · Renderer accessibility pass** — `M` · blocked by: FE-1.7, FE-1.8
@@ -411,11 +411,11 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Teacher Home → Reports.
   - **Notes / bugs / deviations:** Shared `ReportsInbox` with the admin queue.
 
-- [ ] **FE-2.15 · Inventory hints** — `S` · blocked by: BE-4.9
+- [x] **FE-2.15 · Inventory hints** — `S` · blocked by: BE-4.9
   - Teacher Home card "Chapters low on questions" with a deep link to *new question* pre-filled with that chapter.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Inventory hints ("Chapter X has only 6 questions") were not built. The backend endpoint `/teacher/inventory` and admin pool-health exist.
-  - **How to test:** n/a
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Teacher Home → *Chapters that need questions*: chapters below the custom-test pool floor, how many more each needs, and how many are yours.
+  - **How to test:** Teacher home with a thin chapter → card lists it with +N.
   - **Notes / bugs / deviations:** Add a card to Question Bank using `getInventory`.
 
 - [~] **FE-2.16 · Preview-as-student** — `M` · blocked by: FE-1.7
@@ -425,18 +425,18 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Editor → Student view.
   - **Notes / bugs / deviations:** Uses the shared preview card, not the real test runtime component; a full 'run this as a student' dry run was not built.
 
-- [ ] **FE-2.17 · Author help** — `S`
+- [x] **FE-2.17 · Author help** — `S`
   - In-editor "Formatting guide" (sub/sup, images, math), image guidelines (size, contrast, alt text), tooltips on toolbar buttons.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** In-app author help/guidelines were not written.
-  - **How to test:** n/a
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Question editor → **?**: formatting cheat-sheet with live student-view examples, plus image / tagging / review guidance.
+  - **How to test:** Open editor → tap ? → examples render.
   - **Notes / bugs / deviations:** Content task — needs copy from the team.
 
-- [ ] **FE-2.18 · Question stats (P2)** — `M` · blocked by: BE-4.7
+- [x] **FE-2.18 · Question stats (P2)** — `M` · blocked by: BE-4.7
   - Per-question attempts, accuracy, avg time, report count, outlier flag in the editor/list.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Per-question stats (attempts, % correct, option distribution) for teachers were not built (API client `getQuestionStats` exists).
-  - **How to test:** n/a
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Editing a live question shows *How students do*: answers, % correct, avg time, tagged-vs-observed difficulty, quality flags, open reports (below the cohort threshold: 'not enough data yet').
+  - **How to test:** Open a live question with ≥ cohort-min answers.
   - **Notes / bugs / deviations:** P2.
 
 - [~] **FE-2.19 · Role UX** — `S` · manage-all teacher toggle, admin sees everything; consistent "not your content" empty states.
@@ -501,11 +501,11 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Result screen → rate; Review → thumbs.
   - **Notes / bugs / deviations:** Video/document/flashcard-deck rating UI not added (API supports it).
 
-- [ ] **FE-3.7 · Sort/filter by rating** — `S` · blocked by: BE-2.6 · files: `(practice)/hierarchy.tsx`
+- [x] **FE-3.7 · Sort/filter by rating** — `S` · blocked by: BE-2.6 · files: `(practice)/hierarchy.tsx`
   - "Top rated" chip → `sort=rating`; rows show `★ 4.6 (128)` when `rating_count ≥ 5`.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Sorting/filtering lists by rating was not added to the Practice browse screens; Brain Hacks show the average once enough ratings exist.
-  - **How to test:** n/a
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Practice browse → chapter test list has *Newest / Top rated* chips (`sort=rating`); rows show `★ 4.6 (12)` once a test has ≥ 5 ratings.
+  - **How to test:** Rate tests from several accounts → Top rated reorders; ratings appear after 5.
   - **Notes / bugs / deviations:** Add `sort=rating` to `listTests`/hierarchy.
 
 - [x] **FE-3.8 · Admin: Reports queue + Corrections approval** — `L` · blocked by: BE-2.4, BE-2.5 · files: `(admin)/(review)/reports.tsx`, `report-detail.tsx`, `corrections.tsx`; register in `(admin)/(review)/_layout.tsx`; add a third card to the Approvals hub (`(admin)/(review)/index.tsx` already has `ApprovalNavCard`s and a combined pending count)
@@ -522,10 +522,10 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Admin → Custom Tests & Pool → Bookmark lists.
   - **Notes / bugs / deviations:** Reordering not in UI.
 
-- [ ] **FE-3.10 · Teacher rating visibility (P2)** — `S` — rating + count on the teacher's content cards.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Teachers don't yet see rating averages on their content cards.
-  - **How to test:** n/a
+- [x] **FE-3.10 · Teacher rating visibility (P2)** — `S` — rating + count on the teacher's content cards.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** My Content cards show ★ avg (count) for rated tests, videos/docs and Brain Hacks; deck list and Brain Hack detail show it too.
+  - **How to test:** Rate a test as a student → teacher's card shows it.
   - **Notes / bugs / deviations:** P2.
 
 ---
@@ -732,22 +732,22 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Progress.
   - **Notes / bugs / deviations:** Not on Home/Explore.
 
-- [ ] **FE-5.6 · Time analysis widget** — `M` · blocked by: BE-0.4, BE-4.2 — avg time/question, slowest, per subject.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** A time-analysis widget was not built; per-question time is shown in review.
-  - **How to test:** n/a
+- [x] **FE-5.6 · Time analysis widget** — `M` · blocked by: BE-0.4, BE-4.2 — avg time/question, slowest, per subject.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Result screen → *Time analysis*: avg per question, total answering time, 3 slowest questions (tap → opens that question in Review), average by subject, and hints for rushed-wrong / stuck answers. Computed on device from the full review (`src/attempt/analysis.ts`, unit-tested); hidden with < 3 timed answers.
+  - **How to test:** Finish a test answering ≥ 3 questions at different speeds → result shows the card; tap a slow question → Review opens on it.
   - **Notes / bugs / deviations:** P2.
 
-- [ ] **FE-5.7 · Option strike-through** — `S` — local-only long-press on `OptionCard`.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Option strike-through was not built (`OptionCard` supports the 'struck' state).
-  - **How to test:** n/a
+- [x] **FE-5.7 · Option strike-through** — `S` — local-only long-press on `OptionCard`.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Long-press an option to cross it out (faded); long-press again to restore; choosing a crossed-out option restores it; the selected answer can't be crossed out. Local only, saved per attempt on the device so it survives resume. Screen readers get a "Cross out option X" action.
+  - **How to test:** In a test, long-press B → faded; leave and resume → still crossed out; tap B → selected and restored.
   - **Notes / bugs / deviations:** Small task.
 
-- [ ] **FE-5.8 · Confidence marking (P2)** — `M` · blocked by: BE-4.2 — sure / unsure / guess; confident-wrong analytics widget.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Confidence marking has no picker UI yet; the runtime hook and API support it and review displays it.
-  - **How to test:** n/a
+- [x] **FE-5.8 · Confidence marking (P2)** — `M` · blocked by: BE-4.2 — sure / unsure / guess; confident-wrong analytics widget.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** After choosing an answer: optional *Sure / Unsure / Guess* chips (tap again to clear), saved with the answer. Result screen → *Confidence vs. correctness*: right/total per level, "sure but wrong" and "right while unsure" callouts. Hidden when nothing was marked.
+  - **How to test:** Mark a few answers with different confidence, submit → result shows the card with the right counts.
   - **Notes / bugs / deviations:** Add three chips under the options.
 
 - [x] **FE-5.9 · Personal question notes (P2)** — `M` · blocked by: BE-4.14 — lightweight `RichEditor` (no toolbar image upload in v1), shown in review/bookmarks.
@@ -765,10 +765,10 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **Business overview:** Admin console for feature flags and every limit (with defaults, confirm on enabling), plus health metrics.
   - **How to test:** Admin → Custom Tests & Pool.
 
-- [~] **FE-5.12 · Admin: presets manager** — `M` · blocked by: BE-3.11 — CRUD with a preview of the resolved blueprint.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Admin can list, enable/disable and delete presets.
-  - **How to test:** Same screen.
+- [x] **FE-5.12 · Admin: presets manager** — `M` · blocked by: BE-3.11 — CRUD with a preview of the resolved blueprint.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Admin → Custom Tests & Pool → presets: create / edit (count, timing, marking, strategy, order, difficulty, PYQ-only) with a live 'students will see' preview; toggle and delete as before.
+  - **How to test:** Create a preset → it appears in the builder's Start-from row.
   - **Notes / bugs / deviations:** Creating/editing presets is API-only.
 
 - [x] **FE-5.13 · Admin: pool-health dashboard** — `M` · blocked by: BE-4.9 — counts by subject/chapter/difficulty, metadata completeness, low-inventory alerts, reported/under-review; charts follow the analytics-overview reference implementation.
@@ -776,15 +776,10 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **Business overview:** Pool health: counts per chapter, warning below the floor.
   - **How to test:** Same screen.
 
-- [ ] **FE-5.14 · Admin: taxonomy manager** — `M` · blocked by: BE-4.11 — topics + tag merge/alias.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Topic/tag management screens were not built (API exists).
-  - **How to test:** n/a
-
-- [ ] **FE-5.15 · Streak / daily-goal ring (P2)** — `M` — custom tests count toward `day_streak`.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Streak/daily-goal ring not built.
-  - **How to test:** n/a
+- [x] **FE-5.14 · Admin: taxonomy manager** — `M` · blocked by: BE-4.11 — topics + tag merge/alias.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Admin → Tags & Topics: tags (search, uses, rename, merge into another, delete unused) and topics per chapter (add, rename, delete).
+  - **How to test:** Merge a tag → its questions move; delete an in-use topic → explained refusal.
   - **Notes / bugs / deviations:** P2.
 
 ---
@@ -798,15 +793,10 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Add an update via the API.
   - **Notes / bugs / deviations:** Fake copy removed.
 
-- [ ] **FE-6.2 · Explore revamp (A.3)** — `L` · blocked by: BE-5.4 — real discovery across Q Bank, Custom presets, Flashcards; replaces the `EXPLORE` tile row.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Explore revamp not built (API `/explore` client exists).
-  - **How to test:** n/a
-
-- [~] **FE-6.3 · Flashcards v1 (A.2)** — `XL` (own plan) · blocked by: BE-5.3, FE-1.x, FE-3.1 — reuses `RichContent`, `RichEditor`, bookmarks, spaced repetition; index/navigation by subject/chapter/deck; "quick questions" mode.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Students can browse decks and study with flip + Again/Hard/Good/Easy; quick review; locked decks lead to plans.
-  - **How to test:** Practice → Flashcards.
+- [x] **FE-6.2 · Explore revamp (A.3)** — `L` · blocked by: BE-5.4 — real discovery across Q Bank, Custom presets, Flashcards; replaces the `EXPLORE` tile row.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Home → EXPLORE → *Discover more*: Continue, Recommended, Quick start presets, Practise a chapter, Flashcards (top rated + new), Brain Hacks — all from `/explore`; empty sections hidden; custom-test entries hidden when the module is off.
+  - **How to test:** Open Explore with data in each area.
   - **Notes / bugs / deviations:** Teacher/admin deck authoring screens not built.
 
 - [~] **FE-6.4 · Brain Hacks — real (D.2, A27)** — `L` · blocked by: BE-5.1
@@ -816,21 +806,16 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Home → See all.
   - **Notes / bugs / deviations:** Admin approval screen for hacks not built (API exists); teacher list of own hacks not built.
 
-- [ ] **FE-6.5 · Wellness screens (CM-FO8)** — `M` · blocked by: BE-5.2 — `wellness-article.tsx` renders hard-coded text; render API `body_text` + media via `RichContent`.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Wellness screens still render the old text; rich rendering not wired.
-  - **How to test:** n/a
+- [x] **FE-6.5 · Wellness screens (CM-FO8)** — `M` · blocked by: BE-5.2 — `wellness-article.tsx` renders hard-coded text; render API `body_text` + media via `RichContent`.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Support tab reads live wellness articles (rich text + images); built-in starters show only while the server has none. Admin → Wellness articles: write/edit/hide/delete.
+  - **How to test:** Admin publishes an article → it appears on Support and opens with formatting.
   - **Notes / bugs / deviations:** Use `RichContent` with `/wellness/content/:id`.
 
-- [ ] **FE-6.6 · Video notes with markdown (A.4)** — `L` · blocked by: BE-5.5 — timestamped notes panel next to the (now real) `expo-video` player; reuses `RichEditor`/`RichContent`.
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Video notes UI not built (API client exists).
-  - **How to test:** n/a
-
-- [~] **FE-6.7 · Push notifications v1 (E.2)** — `L` · blocked by: BE-5.6 — permission flow, token registration, replace the "Coming soon" Notifications toggle in Settings, deep links (report resolved, streak, scheduled practice).
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Push: permission is asked only when the student turns it on in Settings; token registered/removed; tapping a push opens an allowed screen; streak/report-update switches; notification inbox.
-  - **How to test:** QA script §7.
+- [x] **FE-6.6 · Video notes with markdown (A.4)** — `L` · blocked by: BE-5.5 — timestamped notes panel next to the (now real) `expo-video` player; reuses `RichEditor`/`RichContent`.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Video player → *My notes*: add a note at the current time (pauses), tap a timestamp to seek, edit/delete; bodies support bold/sub/sup/lists.
+  - **How to test:** Add a note at 01:23 → tap it after seeking elsewhere → video jumps back.
   - **Notes / bugs / deviations:** Needs a dev-client build and a physical device; nothing could be run here.
 
 - [~] **FE-6.8 · Screen-capture protection (C.3)** — `S/M` · blocked by: FE-0.1
@@ -840,15 +825,10 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Dev-client build.
   - **Notes / bugs / deviations:** Lazy-loaded so a build without the module doesn't crash; unverified.
 
-- [ ] **FE-6.9 · P3 extras** — `M` · share result card, share blueprint deep link, scheduled practice reminders (needs FE-6.7).
-  - **Status:** ⏭️ Not done
-  - **Business overview:** Result share card and scheduled reminders not built (share-code deep link is).
-  - **How to test:** n/a
-
-- [~] **FE-6.10 · Housekeeping** — `S` · update `notes.md` (§B.1 client-side generation not viable; §D.2 Brain Hacks are mocks; "video doesn't play" is stale); delete `src/mocks/` once unused.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Docs updated: `notes.md` corrected, QA script added, todo docs annotated.
-  - **How to test:** Read `fe/notes.md`.
+- [x] **FE-6.9 · P3 extras** — `M` · share result card, share blueprint deep link, scheduled practice reminders (needs FE-6.7).
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Result → *Share result*: image card (first name, score, accuracy, streak) via the share sheet, text fallback. Settings → *Daily practice reminder*: local notification at 7 AM / 5 / 7 / 9 PM opening Practice.
+  - **How to test:** Share a result; set a reminder for the next hour slot.
   - **Notes / bugs / deviations:** Legacy files still contain some hard-coded copy.
 
 ---

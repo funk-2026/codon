@@ -70,6 +70,50 @@
 - [ ] Flashcards: deck list (locked decks lead to plans), study session flip → rate; failure keeps the card.
 - [ ] Notifications: Settings → Push notifications → OS permission prompt appears **only now**; token registers; tapping a push opens the right screen; toggling off stops pushes; logout removes the token.
 
+## 8. Pending features built 2026-10-25 (one pass)
+Use **two students** (one with attempts, one brand-new), **one teacher**, **one admin**. Restart the local API first (backend changed: flashcard deck subject/chapter clearing).
+
+### 8A. Student test experience
+- [ ] **Strike-through:** in a test, long-press option B → faded; long-press again → restored. Cross out C, leave the test, resume → C still crossed out. Tap C → selected and restored. Long-press your selected answer → nothing. TalkBack/VoiceOver: an option offers "Cross out option X".
+- [ ] **Confidence:** after choosing an answer, *How sure are you?* chips appear; tap Sure, tap again → cleared. Tutor mode: chips gone once the answer is checked.
+- [ ] **Result → Confidence vs. correctness:** mark ~5 answers (mix of right/wrong) → counts match; "sure but wrong" callout appears when relevant. Hidden if nothing was marked.
+- [ ] **Result → Time analysis:** linger on one question → it is listed under *Slowest questions*; tap it → Review opens **on that question**. Hidden with < 3 timed answers.
+- [ ] **Home → daily goal ring:** note the number, submit a test → ring grows by the questions answered. Tap → choose 10 → ring rescales (green when reached). Kill/reopen → goal kept.
+- [ ] **Practice → chapter → Newest / Top rated:** order changes; ★ avg (count) shows once a test has ≥ 5 ratings.
+
+### 8B. Teacher tools
+- [ ] **Flashcard decks:** Upload → *Flashcard Decks* → + → create a deck (title, course, optional subject/chapter, free toggle) → add 3 cards (one with an image), edit one, move one up/down, delete one → *Submit for review*. Editing is locked while in review.
+- [ ] **Deck subject/chapter:** set a chapter, then clear it → saved without the chapter; clear the subject → both cleared (was impossible before).
+- [ ] **Brain Hacks in My Content:** My Content → Brain Hacks filter now lists your hacks. Open a draft → *Edit* reopens it in the editor; *Submit for review* works for a **brand-new** hack (was broken: "undefined" id).
+- [ ] After admin approval (8C): Brain Hack detail and deck screen show **Publish** → publish → students can see it.
+- [ ] **Question editor → ?**: help sheet shows formatting examples rendered as students see them (formula example typeset — see 8E).
+- [ ] **Live question stats:** open a live question in the editor → *How students do* (or "stats appear after N answers").
+- [ ] **Teacher Home → Chapters that need questions:** lists thin chapters with "+N"; hidden when every chapter is healthy.
+- [ ] **My Content ratings:** rate a test/Brain Hack as a student → teacher's card shows ★ avg (count).
+
+### 8C. Admin tools
+- [ ] **Review → Hacks & Flashcards:** both tabs list pending items; expand to read the hack / every card; *Approve* → gone from queue; *Reject* requires a reason → teacher sees it on the item.
+- [ ] **Home → Tags & Topics:** search tags; rename; *Merge into…* another tag (its questions move); delete an unused tag (in-use → explained, button disabled). Topics: pick course/subject/chapter → add, rename, delete (in-use → explained).
+- [ ] **Custom Tests & Pool → presets:** *+ New preset* (e.g. 15 hard PYQs, timed 20 min) → preview line updates → create → appears in the student builder's *Start from* row. *Edit* an existing preset; course can't change.
+- [ ] **Home → Wellness articles:** write an article with bold text and an image on the *Guidance* shelf → publish. Edit it. *Hide* another (warning that it can't be restored from the app). Delete one.
+
+### 8D. Student content
+- [ ] **Support tab:** with admin articles present, shelves and *Today* show them; an article opens with formatting and images. With **no** articles on the server, the built-in starter articles still show.
+- [ ] **Explore:** Home → EXPLORE → *Discover more* → sections: Continue (in-progress test), Recommended, Quick start, Practise a chapter, Flashcards, Brain Hacks. Each opens the right screen; empty sections are hidden; with custom tests OFF the builder sections disappear.
+- [ ] **Video notes:** play a video → *+ Note at mm:ss* (video pauses) → save. Seek elsewhere → tap the note's time → video jumps back. Edit, delete. Typing an image link is refused with a clear message.
+- [ ] **Share result:** Result → *Share result* → card preview (first name, score, accuracy, streak) → Share → the image appears in the share sheet (WhatsApp etc.). Dark mode: the card still looks the same.
+- [ ] **Practice reminder:** Settings → *Daily practice reminder* on → OS permission prompt → pick the next hour slot → notification arrives at that time → tap → opens Practice. Turn off → no more reminders. (Works in Expo Go; Android shows it under "Practice reminders".)
+
+### 8E. Math (decision D14 — see `docs/decisions/math-rendering.md`)
+- [ ] Teacher writes `$\frac{1}{2}mv^2$`, `$\sqrt{\frac{GM}{r}}$` and `$\ce{2H2 + O2 -> 2H2O}$` in a question/option/explanation → student view shows **typeset** formulas inline, baseline-aligned, in the text colour (check dark mode).
+- [ ] A block formula on its own line (`$$ … $$`) renders centred and scrolls horizontally if wide.
+- [ ] A broken formula (`$\frac{1}{$`) shows the TeX source chip — the question still works.
+- [ ] Performance: a test with many formula questions → first question appears quickly, Next/Prev doesn't stutter; airplane mode → formulas still render.
+- [ ] TalkBack/VoiceOver reads "Formula: …".
+
+### 8F. Image prefetch
+- [ ] Start a test with images on later questions, wait ~10 s on Q1, enable airplane mode → page through → later images render.
+
 ## Bug log (fill in while testing)
 | # | Screen | Device / theme | What happened | Severity | Fixed? |
 |---|--------|----------------|---------------|----------|--------|
