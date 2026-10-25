@@ -609,3 +609,19 @@ func TestProgressBreakdownUsesQuestionSubjectsAndNeverFabricates(t *testing.T) {
 	}
 	_ = fmt.Sprint
 }
+
+// Lists in the count response must encode as [] — never null — even when
+// nothing can be suggested (the app iterates them; null crashed the builder).
+func TestCountListsAreNeverNull(t *testing.T) {
+	e := newEnv(t)
+	e.buildPool(0, 2, 0, 0) // fewer than the minimum, and no filters to relax → no suggestions at all
+	cnt := e.mustDo(200, "POST", "/custom-tests/count", &e.w.Student, bp(e, map[string]interface{}{"count": 10}))
+	for _, k := range []string{"suggestions", "by_subject", "by_difficulty"} {
+		if _, ok := cnt[k].([]interface{}); !ok {
+			t.Fatalf("%s must be a JSON array, got %#v", k, cnt[k])
+		}
+	}
+	if len(cnt["suggestions"].([]interface{})) != 0 {
+		t.Fatalf("expected no suggestions here: %v", cnt["suggestions"])
+	}
+}

@@ -875,3 +875,11 @@ BE-4.x ─► FE-5.x     BE-5.x ─► FE-6.x
 | `gofmt` applied to `internal/handlers/*.go`; Swagger regenerated | consistency | `go build`, `go vet`, full `go test ./...` green |
 
 Full suite at the end of the session: `go vet ./...` clean; `go test ./...` all packages ok (router integration suite ≈ 20 s against real Postgres).
+
+### Post-QA fixes (2026-10-25)
+Go encodes a nil slice as JSON `null`; the app iterates these lists, so `null` crashed the builder ("Cannot read property 'length' of null").
+- `generation.analyse()` started its suggestion list as `nil` and its result *replaces* `CountResult.Suggestions` — so `/custom-tests/count` (and `pool_too_small` details) sent `"suggestions": null` whenever nothing could be suggested. Now `[]Suggestion{}`.
+- `GET /custom-tests/shared/:code` could send `"issues": null` → now `[]`.
+- `builder-config` `sources` could be `null` when no eligible sources are configured → now `[]`.
+- Regression test `TestCountListsAreNeverNull` (fails on the old code). Full suite green on Postgres (`make test`).
+- The app also normalises `null` lists defensively in `src/api/*` (shared `arr()` helper in `client.ts`).

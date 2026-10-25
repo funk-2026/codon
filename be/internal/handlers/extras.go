@@ -706,5 +706,8 @@ func (h *CustomTestHandler) GetShared(c *gin.Context) {
 	if len(issues) == 0 {
 		issues = blueprint.Normalize(&bp, generation.Limits())
 	}
+	if issues == nil {
+		issues = []blueprint.Issue{} // encode as [] — clients iterate it
+	}
 	c.JSON(http.StatusOK, gin.H{"blueprint": bp, "still_valid": len(issues) == 0, "issues": issues})
 }

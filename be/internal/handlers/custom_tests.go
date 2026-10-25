@@ -542,7 +542,7 @@ func (h *CustomTestHandler) BuilderConfig(c *gin.Context) {
 	for i, s := range statusLabels {
 		stOut[i] = gin.H{"key": s["key"], "label": s["label"], "supported": statusEnabled}
 	}
-	var srcOut []gin.H
+	srcOut := []gin.H{} // [] not null when no sources are configured
 	for _, sname := range settings.List("custom_test.eligible_sources") {
 		srcOut = append(srcOut, gin.H{"key": sname, "label": sourceLabels[sname]})
 	}

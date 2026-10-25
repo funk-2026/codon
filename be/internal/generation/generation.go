@@ -312,7 +312,7 @@ func (e *Engine) analyse(ctx context.Context, user *models.User, ent Entitlement
 			map[string]interface{}{"filters": map[string]interface{}{"chapter_ids": []string{}, "topic_ids": []string{}}}, len(f.ChapterIDs) > 0},
 	}
 	var best *Bottleneck
-	var sugg []Suggestion
+	sugg := []Suggestion{} // never nil: it replaces CountResult.Suggestions and must encode as [] (not null)
 	for _, r := range rs {
 		if !r.set {
 			continue
