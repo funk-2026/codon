@@ -142,6 +142,18 @@ func (h *FlashcardHandler) setTaxonomy(c *gin.Context, d *models.FlashcardDeck, 
 			return false
 		}
 		d.SubjectID = &sub.ID
+		if d.ChapterID != nil { // a chapter from the previous subject no longer applies
+			var n int64
+			h.DB.Model(&models.Chapter{}).Where("id = ? AND subject_id = ?", *d.ChapterID, sub.ID).Count(&n)
+			if n == 0 {
+				d.ChapterID = nil
+			}
+		}
+	} else if req.SubjectID != nil { // "" clears the subject (and so the chapter)
+		d.SubjectID, d.ChapterID = nil, nil
+	}
+	if req.ChapterID != nil && *req.ChapterID == "" {
+		d.ChapterID = nil // "" clears just the chapter
 	}
 	return true
 }

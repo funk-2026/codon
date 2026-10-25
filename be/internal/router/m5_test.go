@@ -428,3 +428,33 @@ func TestHomeUpdatesAndShareBlueprint(t *testing.T) {
 		t.Fatalf("expired: %d %v", code2, o)
 	}
 }
+
+// Deck subject/chapter can be cleared with "" and never end up pointing at a
+// chapter outside the deck's subject.
+func TestDeckTaxonomyCanBeCleared(t *testing.T) {
+	e := newEnv(t)
+	tch := &e.w.Teacher
+	deck := e.mustDo(201, "POST", "/teacher/flashcard-decks", tch, map[string]interface{}{
+		"title": "Cells", "course_id": e.w.Course.ID.String(), "chapter_id": e.w.Chapter.ID.String(),
+	})
+	id := str(deck, "id")
+	if str(deck, "subject_id") != e.w.Subject.ID.String() || str(deck, "chapter_id") != e.w.Chapter.ID.String() {
+		t.Fatalf("chapter implies subject: %v", deck)
+	}
+	// clearing just the chapter keeps the subject
+	d := e.mustDo(200, "PATCH", "/teacher/flashcard-decks/"+id, tch, map[string]interface{}{"chapter_id": ""})
+	if d["chapter_id"] != nil || str(d, "subject_id") != e.w.Subject.ID.String() {
+		t.Fatalf("clear chapter: %v", d)
+	}
+	// clearing the subject clears both
+	e.mustDo(200, "PATCH", "/teacher/flashcard-decks/"+id, tch, map[string]interface{}{"chapter_id": e.w.Chapter.ID.String()})
+	d = e.mustDo(200, "PATCH", "/teacher/flashcard-decks/"+id, tch, map[string]interface{}{"subject_id": "", "chapter_id": ""})
+	if d["chapter_id"] != nil || d["subject_id"] != nil {
+		t.Fatalf("clear subject: %v", d)
+	}
+	// re-picking the subject alone does not resurrect a chapter
+	d = e.mustDo(200, "PATCH", "/teacher/flashcard-decks/"+id, tch, map[string]interface{}{"subject_id": e.w.Subject.ID.String()})
+	if d["chapter_id"] != nil || str(d, "subject_id") != e.w.Subject.ID.String() {
+		t.Fatalf("subject only: %v", d)
+	}
+}
