@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, Eye, WarningCircle } from 'phosphor-react-native';
+import { CaretLeft, Eye, WarningCircle, Question } from 'phosphor-react-native';
 import {
   BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast,
 } from '@/src/components';
@@ -18,6 +18,8 @@ import {
   contentChanged, DEFAULT_LIMITS, EMPTY_DRAFT, fromQuestion, isDirty, isValid, softWarnings, toRequest, validateDraft, type FormDraft,
 } from '@/src/teacher/questionForm';
 import { clearDraft, isBlankDraft, loadDraft, saveDraft } from '@/src/storage/drafts';
+import { QuestionStatsCard } from '@/src/teacher/QuestionStatsCard';
+import { AuthorHelpSheet } from '@/src/teacher/AuthorHelpSheet';
 
 const LETTERS = ['A', 'B', 'C', 'D'] as const;
 const OPTION_KEYS = ['option_a', 'option_b', 'option_c', 'option_d'] as const;
@@ -53,6 +55,7 @@ export default function QuestionEditorRoute() {
   const [preview, setPreview] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [restore, setRestore] = useState<FormDraft | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [metaOpen, setMetaOpen] = useState(false);
@@ -211,6 +214,9 @@ export default function QuestionEditorRoute() {
       <Text accessibilityRole="header" style={[type['type/h2'], { color: color('text/primary'), flex: 1 }]} numberOfLines={1}>
         {editing ? 'Edit question' : 'New question'}
       </Text>
+      <Pressable onPress={() => setHelpOpen(true)} accessibilityRole="button" accessibilityLabel="Writing help" hitSlop={space.xs} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+        <Question size={22} color={color('text/secondary')} />
+      </Pressable>
       <Pressable onPress={() => setPreview((p) => !p)} accessibilityRole="button" accessibilityState={{ selected: preview }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: space.xs }}>
         <Eye size={20} color={preview ? color('accent/default') : color('text/secondary')} />
         <Text style={[type['type/body-m'], { color: preview ? color('accent/default') : color('text/secondary') }]}>{preview ? 'Editing' : 'Student view'}</Text>
@@ -254,6 +260,8 @@ export default function QuestionEditorRoute() {
             </View>
           </View>
         ) : null}
+
+        {live && questionId ? <QuestionStatsCard questionId={questionId} /> : null}
 
         {live ? (
           <View style={{ backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.md }}>
@@ -403,6 +411,7 @@ export default function QuestionEditorRoute() {
           <PrimaryButton label="Send for review" onPress={() => void doSave(false, reason.trim())} loading={saving} disabled={reason.trim().length < 5} />
         </View>
       </BottomSheet>
+      <AuthorHelpSheet visible={helpOpen} onClose={() => setHelpOpen(false)} />
     </SafeAreaView>
   );
 }

@@ -107,6 +107,7 @@ export default function HierarchyBrowserRoute() {
 
   // Tests fetched dynamically when viewing a chapter
   const [leafTests, setLeafTests] = useState<Test[]>([]);
+  const [topRated, setTopRated] = useState(false);
   const [loadingTests, setLoadingTests] = useState(false);
   const [hasSub, setHasSub] = useState(false);
 
@@ -140,7 +141,7 @@ export default function HierarchyBrowserRoute() {
 
   const loadTests = useCallback(() => {
     setLoadingTests(true);
-    listTests({ chapter_id: pathIds[1], module_type: params.kind })
+    listTests({ chapter_id: pathIds[1], module_type: params.kind, sort: topRated ? 'rating' : undefined })
       .then(res => {
         setLeafTests(res.tests || []);
         setLoadError(false);
@@ -150,7 +151,7 @@ export default function HierarchyBrowserRoute() {
         setLoadError(true);
       })
       .finally(() => setLoadingTests(false));
-  }, [pathIds[1], params.kind]);
+  }, [pathIds[1], params.kind, topRated]);
 
   useEffect(() => {
     if (pathIds.length === 2) {
@@ -158,7 +159,7 @@ export default function HierarchyBrowserRoute() {
     } else {
       setLeafTests([]);
     }
-  }, [pathIds.length, pathIds[1], params.kind]);
+  }, [pathIds.length, pathIds[1], params.kind, topRated]);
 
   const retryLoad = () => {
     if (pathIds.length === 2) {
@@ -199,7 +200,8 @@ export default function HierarchyBrowserRoute() {
           title: t.title,
           level: 'leaf',
           leafKind: 'test',
-          meta: `${t.total_questions} questions · ${t.duration_minutes || 0} min`,
+          // ratings show once there are enough to mean something (≥ 5)
+          meta: `${t.total_questions} questions · ${t.duration_minutes || 0} min${(t.rating_count ?? 0) >= 5 ? ` · ★ ${(t.rating_avg ?? 0).toFixed(1)} (${t.rating_count})` : ''}`,
           locked: t.requires_subscription && !hasSub,
         }));
       }
@@ -324,6 +326,25 @@ export default function HierarchyBrowserRoute() {
           />
         </View>
       </View>
+
+      {pathIds.length === 2 ? (
+        <View style={{ flexDirection: 'row', gap: space.xs, paddingHorizontal: space.md, marginTop: space.sm }}>
+          {([['newest', 'Newest'], ['rating', 'Top rated']] as const).map(([k, label]) => {
+            const on = (k === 'rating') === topRated;
+            return (
+              <Pressable
+                key={k}
+                onPress={() => setTopRated(k === 'rating')}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                style={{ minHeight: 36, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center', borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle'), backgroundColor: on ? color('accent/tint') : color('bg/surface') }}
+              >
+                <Text style={[type['type/caption'], { color: on ? color('accent/default') : color('text/secondary') }]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
 
       {/* Rows */}
       <ScrollView

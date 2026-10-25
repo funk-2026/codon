@@ -41,7 +41,9 @@ export default function TestReviewRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, position } = useLocalSearchParams<{ id?: string; position?: string }>();
+  // Opened at a specific question (e.g. "slowest questions" on the result screen) — first load only.
+  const startAt = useRef(position ? Number(position) : null);
 
   useScreenProtection();
   const [filter, setFilter] = useState<ReviewFilter>('all');
@@ -68,12 +70,17 @@ export default function TestReviewRoute() {
       setLoading(true);
       setLoadError(false);
       try {
-        const res = await getAttemptReview(id, { filter: f, limit: PAGE });
+        const target = startAt.current;
+        // load far enough to include the requested question (server caps a page at 200)
+        const limit = target && f === 'all' ? Math.min(200, Math.max(PAGE, target)) : PAGE;
+        const res = await getAttemptReview(id, { filter: f, limit });
         if (seq !== reqSeq.current) return; // a newer filter tap won
         setItems(res.review);
         setMedia(res.media ?? {});
         setCursor(res.next_cursor);
-        setCurrent(0);
+        const at = target ? res.review.findIndex((r) => r.position === target) : -1;
+        setCurrent(at >= 0 ? at : 0);
+        startAt.current = null;
       } catch (e) {
         if (seq !== reqSeq.current) return;
         console.error('Failed to load review', e);

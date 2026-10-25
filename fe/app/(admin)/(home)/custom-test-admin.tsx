@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { CaretLeft, WarningCircle } from 'phosphor-react-native';
 import { BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { PresetEditorSheet } from '@/src/custom/PresetEditorSheet';
 import { useAppConfig } from '@/src/config/AppConfigContext';
 import {
   deletePreset, getCustomTestMetrics, getCustomTestSettings, getPoolHealth, listAdminCollections, listPresets, patchCollection, patchCustomTestSettings, updatePreset,
@@ -39,6 +40,7 @@ export default function CustomTestAdminRoute() {
   const [metrics, setMetrics] = useState<Load<Metrics>>(L());
   const [pool, setPool] = useState<Load<{ chapters: PoolChapter[]; floor: number; low: number }>>(L());
   const [presets, setPresets] = useState<Load<AdminPreset[]>>(L());
+  const [editing, setEditing] = useState<AdminPreset | 'new' | null>(null);
   const [collections, setCollections] = useState<Load<CollectionAdmin[]>>(L());
   const [edit, setEdit] = useState<AdminSetting | null>(null);
   const [val, setVal] = useState('');
@@ -174,7 +176,7 @@ export default function CustomTestAdminRoute() {
 
         <Card title="Presets shown in the builder">
           {presets.s === 'loading' ? <SkeletonBlock height={60} radius={radius.md} /> : presets.s === 'error' || !presets.d ? <Failed what="presets" /> : presets.d.length === 0 ? (
-            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>No presets yet. Add them through the API; they appear in the builder’s “Start from” row.</Text>
+            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>No presets yet. They appear in the builder’s “Start from” row.</Text>
           ) : presets.d.map((p) => (
             <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
               <View style={{ flex: 1 }}>
@@ -182,9 +184,11 @@ export default function CustomTestAdminRoute() {
                 {p.description ? <Text style={[type['type/caption'], { color: color('text/secondary') }]} numberOfLines={1}>{p.description}</Text> : null}
               </View>
               <Switch value={p.is_active} onValueChange={async (v) => { try { await updatePreset(p.id, { is_active: v }); setPresets((c) => ({ s: 'ready', d: c.d!.map((x) => (x.id === p.id ? { ...x, is_active: v } : x)) })); } catch { show('Couldn’t update the preset.', 'error'); } }} accessibilityLabel={`${p.title} active`} />
+              <TextButton label="Edit" onPress={() => setEditing(p)} />
               <TextButton label="Delete" onPress={async () => { try { await deletePreset(p.id); setPresets((c) => ({ s: 'ready', d: c.d!.filter((x) => x.id !== p.id) })); } catch { show('Couldn’t delete.', 'error'); } }} />
             </View>
           ))}
+          {presets.s === 'ready' ? <TextButton label="+ New preset" onPress={() => setEditing('new')} /> : null}
         </Card>
 
         <Card title="Bookmark lists">
@@ -210,6 +214,12 @@ export default function CustomTestAdminRoute() {
           <PrimaryButton label="Confirm" onPress={() => confirm && save(confirm.key, String(confirm.to))} loading={saving} />
         </View>
       </BottomSheet>
+      <PresetEditorSheet
+        visible={editing != null}
+        preset={editing === 'new' ? null : editing}
+        onClose={() => setEditing(null)}
+        onSaved={(p) => setPresets((c) => ({ s: 'ready', d: c.d?.some((x) => x.id === p.id) ? c.d.map((x) => (x.id === p.id ? p : x)) : [...(c.d ?? []), p] }))}
+      />
     </SafeAreaView>
   );
 }

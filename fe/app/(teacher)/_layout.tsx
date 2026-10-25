@@ -23,6 +23,9 @@ export default function TeacherLayout() {
       <Stack.Screen name="csv-import-report" options={{ title: 'Import Report' }} />
       <Stack.Screen name="create-content" options={{ title: 'Create Content', presentation: 'modal' }} />
       <Stack.Screen name="create-brain-hack" options={{ title: 'Create Brain Hack', presentation: 'modal' }} />
+      <Stack.Screen name="flashcard-decks" options={{ headerShown: false }} />
+      <Stack.Screen name="flashcard-deck" options={{ headerShown: false }} />
+      <Stack.Screen name="brain-hack-detail" options={{ headerShown: false }} />
       <Stack.Screen name="content-preview" options={{ title: 'Preview' }} />
       <Stack.Screen name="rejected-content-detail" options={{ title: 'Rejected' }} />
     </Stack>

@@ -11,6 +11,8 @@ export default function AdminHomeStack() {
       <Stack.Screen name="manage-subjects" options={{ headerShown: false }} />
       <Stack.Screen name="course-structure" options={{ headerShown: false }} />
       <Stack.Screen name="custom-test-admin" options={{ headerShown: false }} />
+      <Stack.Screen name="taxonomy" options={{ headerShown: false }} />
+      <Stack.Screen name="wellness" options={{ headerShown: false }} />
     </Stack>
   );
 }

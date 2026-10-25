@@ -1,4 +1,4 @@
-import { apiFetch, qs, type Paginated } from './client';
+import { apiFetch, arr, qs, type Paginated } from './client';
 import type { MediaMap, MediaView } from '@/src/rich/ast';
 
 // ── Home updates (admin-curated carousel) ───────────────────────────────────
@@ -34,9 +34,21 @@ export const getBrainHack = (id: string) => apiFetch<{ brain_hack: BrainHack; me
 
 // Teacher authoring
 export type BrainHackInput = { title: string; category: string; body: string; content_format?: 'rich_v1'; cover_media_id?: string; read_minutes?: number };
-export const createBrainHackApi = (b: BrainHackInput) => apiFetch<BrainHack & { id: string }>('/teacher/brain-hacks', { method: 'POST', body: JSON.stringify({ content_format: 'rich_v1', ...b }) });
-export const updateBrainHackApi = (id: string, b: Partial<BrainHackInput>) => apiFetch<BrainHack>(`/teacher/brain-hacks/${id}`, { method: 'PATCH', body: JSON.stringify(b) });
+// Teacher Brain Hacks. The server wraps one hack as `{ brain_hack, media }` — unwrap it here
+// (reading `.id` off the envelope was undefined, which broke "Submit for review" on new hacks).
+export type TeacherBrainHack = BrainHack & { status: 'draft' | 'pending_review' | 'approved' | 'published' | 'rejected'; rejection_reason?: string; created_at?: string };
+type HackEnvelope = { brain_hack: TeacherBrainHack; media: MediaMap };
+export const createBrainHackApi = (b: BrainHackInput) =>
+  apiFetch<HackEnvelope>('/teacher/brain-hacks', { method: 'POST', body: JSON.stringify({ content_format: 'rich_v1', ...b }) }).then((r) => r.brain_hack);
+export const updateBrainHackApi = (id: string, b: Partial<BrainHackInput>) =>
+  apiFetch<HackEnvelope>(`/teacher/brain-hacks/${id}`, { method: 'PATCH', body: JSON.stringify(b) }).then((r) => r.brain_hack);
 export const submitBrainHack = (id: string) => apiFetch<{ message: string }>(`/teacher/brain-hacks/${id}/submit-for-review`, { method: 'POST' });
+export const listTeacherBrainHacks = () =>
+  apiFetch<{ brain_hacks: TeacherBrainHack[]; media: MediaMap }>('/teacher/brain-hacks').then((r) => ({ brain_hacks: arr(r.brain_hacks), media: r.media ?? {} }));
+export const getTeacherBrainHack = (id: string) =>
+  apiFetch<HackEnvelope>(`/teacher/brain-hacks/${id}`).then((r) => ({ ...r, media: r.media ?? {} }));
+export const publishBrainHack = (id: string) => apiFetch<{ message: string }>(`/teacher/brain-hacks/${id}/publish`, { method: 'POST' });
+export const deleteBrainHack = (id: string) => apiFetch<{ message: string }>(`/teacher/brain-hacks/${id}`, { method: 'DELETE' });
 
 // ── Flashcards ──────────────────────────────────────────────────────────────
 export type Deck = {
@@ -67,16 +79,33 @@ export const reviewCard = (id: string, result: ReviewResult) =>
   apiFetch<unknown>(`/flashcards/cards/${id}/review`, { method: 'POST', body: JSON.stringify({ result }) });
 
 // ── Explore ─────────────────────────────────────────────────────────────────
+export type ExploreContinue = { attempt_id: string; test_id: string; title: string; module: string; expires_at?: string | null };
+export type ExploreRecommendation = { code: string; title: string; reason: string; patch: Record<string, unknown> };
+export type ExploreQbank = { chapter_id: string; chapter: string; subject: string; questions: number };
+export type ExplorePreset = { id: string; title: string; description?: string; blueprint: Record<string, unknown> };
+
+/** GET /explore — discovery for the student's course. Every list may be empty. */
 export type Explore = {
-  continue?: { attempt_id: string; test_id: string; title: string; module: string; expires_at?: string }[];
-  recommended?: { code: string; title: string; reason: string; patch: Record<string, unknown> }[];
-  qbank?: { chapter_id: string; chapter: string; subject: string; questions: number }[];
-  presets?: { id: string; title: string; description?: string; blueprint: any }[];
-  flashcard_decks?: Deck[];
-  brain_hacks?: BrainHack[];
-  [k: string]: unknown;
+  continue: ExploreContinue[];
+  recommended: ExploreRecommendation[];
+  /** Chapters with the most custom-test-eligible questions (max 8). */
+  qbank: ExploreQbank[];
+  /** Active builder presets (empty when custom tests are off). */
+  presets: ExplorePreset[];
+  flashcard_decks: { newest: Deck[]; top_rated: Deck[] };
+  brain_hacks: BrainHack[];
+  media: MediaMap;
 };
-export const getExplore = (courseId: string) => apiFetch<Explore>(`/explore${qs({ course_id: courseId })}`);
+export const getExplore = (courseId: string) =>
+  apiFetch<Explore>(`/explore${qs({ course_id: courseId })}`).then((r) => ({
+    continue: arr(r.continue),
+    recommended: arr(r.recommended),
+    qbank: arr(r.qbank),
+    presets: arr(r.presets),
+    flashcard_decks: { newest: arr(r.flashcard_decks?.newest), top_rated: arr(r.flashcard_decks?.top_rated) },
+    brain_hacks: arr(r.brain_hacks),
+    media: r.media ?? {},
+  }));
 
 // ── Notifications & push ────────────────────────────────────────────────────
 export type NotificationItem = { id: string; type: string; title: string; body: string; data?: Record<string, unknown>; read_at?: string | null; pushed_at?: string | null; created_at: string };
@@ -92,8 +121,10 @@ export const getNotificationPrefs = () => apiFetch<NotificationPrefs>('/me/notif
 export const putNotificationPrefs = (p: Partial<NotificationPrefs>) => apiFetch<NotificationPrefs>('/me/notification-preferences', { method: 'PUT', body: JSON.stringify(p) });
 
 // ── Video notes ─────────────────────────────────────────────────────────────
-export type VideoNote = { id: string; content_id: string; timestamp_seconds: number; body: string; created_at: string };
-export const listVideoNotes = (contentId: string) => apiFetch<{ notes: VideoNote[] }>(`/me/video-notes${qs({ content_id: contentId })}`);
+export type VideoNote = { id: string; content_item_id: string; timestamp_seconds: number; body: string; created_at: string; updated_at?: string };
+/** My notes on one video, ordered by timestamp. Bodies are rich text v1 (formatting, no images). */
+export const listVideoNotes = (contentId: string) =>
+  apiFetch<{ notes: VideoNote[] }>(`/me/video-notes${qs({ content_id: contentId })}`).then((r) => ({ notes: arr(r.notes) }));
 export const createVideoNote = (b: { content_id: string; timestamp_seconds: number; body: string }) => apiFetch<VideoNote>('/me/video-notes', { method: 'POST', body: JSON.stringify(b) });
 export const updateVideoNote = (id: string, body: string) => apiFetch<VideoNote>(`/me/video-notes/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) });
 export const deleteVideoNote = (id: string) => apiFetch<{ message: string }>(`/me/video-notes/${id}`, { method: 'DELETE' });

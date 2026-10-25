@@ -1,4 +1,4 @@
-import { apiFetch, qs } from './client';
+import { apiFetch, arr, qs } from './client';
 import type { MediaMap, RichFormat } from '@/src/rich/ast';
 import { Course, Subject, Chapter } from './courses';
 import type { UserProfile } from './profile';
@@ -42,8 +42,10 @@ export function listTests(params?: {
   subject_id?: string;
   chapter_id?: string;
   module_type?: string;
+  /** `rating` → highest rated first (ties: most ratings). */
+  sort?: 'rating';
 }): Promise<ListTestsResponse> {
-  return apiFetch<ListTestsResponse>(`/tests${qs(params ?? {})}`, { method: 'GET' });
+  return apiFetch<ListTestsResponse>(`/tests${qs(params ?? {})}`, { method: 'GET' }).then((r) => ({ tests: arr(r.tests) }));
 }
 
 export type ActiveAttempt = {

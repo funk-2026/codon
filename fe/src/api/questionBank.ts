@@ -1,4 +1,4 @@
-import { apiFetch, qs, type Paginated } from './client';
+import { apiFetch, arr, qs, type Paginated } from './client';
 import type { MediaMap } from '@/src/rich/ast';
 import type { AuthoredQuestion, Difficulty } from './tests';
 
@@ -110,14 +110,60 @@ export const listMyCorrections = () => apiFetch<{ items?: CorrectionRow[]; corre
 // ── Stats / inventory ───────────────────────────────────────────────────────
 
 export type QuestionStats = {
-  attempts?: number;
-  correct_pct?: number;
+  question_id: string;
+  /** Submitted answers by students. */
+  attempts: number;
+  /** false until `attempts ≥ min_attempts` — then accuracy etc. are shown. */
+  sufficient_data: boolean;
+  min_attempts: number;
+  open_reports: number;
+  /** Difficulty the author tagged ('' when untagged). */
+  authored_difficulty: string;
+  correct?: number;
+  /** correct ÷ attempts, 0–1 */
+  accuracy?: number;
   avg_time_seconds?: number;
-  option_distribution?: Record<string, number>;
-  reports?: number;
-  usage?: { custom_tests?: number };
-} & Record<string, unknown>;
+  /** What the accuracy suggests, independent of the tagged difficulty. */
+  empirical_difficulty?: 'easy' | 'medium' | 'hard';
+  flags?: ('low_accuracy' | 'too_easy')[];
+};
 
-export const getQuestionStats = (id: string) => apiFetch<QuestionStats>(`/teacher/questions/${id}/stats`);
+export const getQuestionStats = (id: string) =>
+  apiFetch<QuestionStats>(`/teacher/questions/${id}/stats`).then((r) => ({ ...r, flags: arr(r.flags) }));
 
-export const getInventory = (courseId?: string) => apiFetch<Record<string, unknown>>(`/teacher/inventory${qs({ course_id: courseId })}`);
+export type LowInventoryChapter = {
+  course_id: string; subject: string; chapter_id: string; chapter: string;
+  /** Questions eligible for custom tests in this chapter. */
+  eligible: number;
+  /** Of those, written by me. */
+  mine: number;
+  /** How many more reach the floor. */
+  needed: number;
+};
+
+/** Chapters below the custom-test pool floor, thinnest first (max 20). */
+export const getInventory = (courseId?: string) =>
+  apiFetch<{ low_inventory: LowInventoryChapter[]; floor: number }>(`/teacher/inventory${qs({ course_id: courseId })}`).then((r) => ({
+    ...r,
+    low_inventory: arr(r.low_inventory),
+  }));
+
+// ── Admin taxonomy (tags & topics) ─────────────────────────────────────────
+
+export type AdminTag = { id: string; slug: string; label: string; alias_of?: string; uses: number };
+
+/** Up to 200 tags, most used first; `q` filters by slug. */
+export const adminListTags = (q?: string) =>
+  apiFetch<{ tags: AdminTag[] }>(`/admin/tags${qs({ q })}`).then((r) => ({ tags: arr(r.tags) }));
+export const adminRenameTag = (id: string, label: string) =>
+  apiFetch<AdminTag>(`/admin/tags/${id}`, { method: 'PATCH', body: JSON.stringify({ label }) });
+/** Moves every use of `id` onto `intoId`; `id` becomes an alias of it. */
+export const adminMergeTag = (id: string, intoId: string) =>
+  apiFetch<{ message: string }>(`/admin/tags/${id}/merge`, { method: 'POST', body: JSON.stringify({ into_id: intoId }) });
+/** 409 `tag_in_use` while questions still use it — merge instead. */
+export const adminDeleteTag = (id: string) => apiFetch<{ message: string }>(`/admin/tags/${id}`, { method: 'DELETE' });
+
+export const adminRenameTopic = (id: string, name: string) =>
+  apiFetch<Topic>(`/admin/topics/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+/** 409 `topic_in_use` while questions still use it. */
+export const adminDeleteTopic = (id: string) => apiFetch<{ message: string }>(`/admin/topics/${id}`, { method: 'DELETE' });

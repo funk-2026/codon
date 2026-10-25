@@ -8,6 +8,8 @@ import {
 } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { RichContent, OptionCard, type OptionState } from '@/src/rich';
+import { MediaPrefetcher } from '@/src/rich/MediaPrefetcher';
+import { prefetchOrder } from '@/src/rich/prefetch';
 import { BookmarkButton } from '@/src/bookmarks/BookmarkButton';
 import { ReportSheet } from '@/src/social/ReportSheet';
 import { submitAttempt, type Option } from '@/src/api/attempts';
@@ -17,8 +19,15 @@ import { useAttemptTimer } from '@/src/attempt/useAttemptTimer';
 import { formatClock, nextUnanswered, paletteCounts, paletteStatus, timerLevel } from '@/src/attempt/logic';
 import { track } from '@/src/analytics/track';
 import { useScreenProtection } from '@/src/security/useScreenProtection';
+import { ChipGroup } from '@/src/custom/ui';
+import type { Confidence } from '@/src/api/attempts';
 
 const LETTERS: Option[] = ['A', 'B', 'C', 'D'];
+const CONFIDENCE: { key: Confidence; label: string }[] = [
+  { key: 'sure', label: 'Sure' },
+  { key: 'unsure', label: 'Unsure' },
+  { key: 'guess', label: 'Guess' },
+];
 
 export default function TestQuestionRoute() {
   const { color, type, space, radius } = useTheme();
@@ -50,6 +59,8 @@ export default function TestQuestionRoute() {
   // Answer is final once checked (tutor) — even if the result itself hasn't loaded.
   const checked = !!reveal || !!a?.revealed;
   const counts = useMemo(() => paletteCounts(ids, answers), [ids, answers]);
+  // FE-1.10: warm the image cache from the current question onwards (so later questions — and airplane mode — just work)
+  const prefetchIds = useMemo(() => prefetchOrder(questions, current), [questions, current]);
 
   // ── navigation between questions ──
   const go = useCallback(
@@ -171,7 +182,8 @@ export default function TestQuestionRoute() {
       if (reveal.correct_option === letter) return selected ? 'correct' : 'missed';
       return selected ? 'wrong' : 'idle';
     }
-    return selected ? 'selected' : 'idle';
+    if (selected) return 'selected';
+    return q && S.struck[q.id]?.includes(letter) ? 'struck' : 'idle';
   };
 
   const opts: [Option, string][] = q
@@ -321,9 +333,28 @@ export default function TestQuestionRoute() {
                   state={optionState(letter)}
                   disabled={locked || checked}
                   onPress={() => S.select(q.id, letter)}
+                  onLongPress={() => S.toggleStrike(q.id, letter)}
+                  longPressLabel={S.struck[q.id]?.includes(letter) ? `Restore option ${letter}` : `Cross out option ${letter}`}
                 />
               ))}
             </View>
+            {current === 0 && !checked && !locked ? (
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'center', marginTop: space.xs }]}>
+                Tip: long-press an option to cross it out.
+              </Text>
+            ) : null}
+
+            {a?.selected && !checked && !locked ? (
+              <View style={{ marginTop: space.md, gap: space.xs }}>
+                <Text style={[type['type/caption'], { color: color('text/secondary') }]}>How sure are you? (optional)</Text>
+                <ChipGroup
+                  single
+                  options={CONFIDENCE}
+                  selected={a.confidence ? [a.confidence] : []}
+                  onToggle={(k) => S.setConfidence(q.id, a.confidence === k ? undefined : k)}
+                />
+              </View>
+            ) : null}
 
             {a?.selected && !checked && !locked ? (
               <View style={{ alignItems: 'center', marginTop: space.sm }}>
@@ -354,6 +385,8 @@ export default function TestQuestionRoute() {
               </View>
             ) : null}
           </ScrollView>
+
+          <MediaPrefetcher ids={prefetchIds} media={media} />
 
           {/* Bottom bar */}
           <View

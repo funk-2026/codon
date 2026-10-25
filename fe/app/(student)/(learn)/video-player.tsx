@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView, VideoTrack } from 'expo-video';
+import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
 import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, CornersOut, GearSix } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat } from '@/src/api/content';
@@ -268,6 +269,17 @@ export default function VideoPlayerRoute() {
               <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
                 Video Lesson
               </Text>
+              {id ? (
+                <VideoNotesPanel
+                  contentId={String(id)}
+                  currentTime={currentTime}
+                  onPause={() => player.pause()}
+                  onSeek={(t) => {
+                    player.currentTime = t;
+                    setFloating(false);
+                  }}
+                />
+              ) : null}
               <Text
                 style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.lg, marginBottom: space.sm }]}
               >

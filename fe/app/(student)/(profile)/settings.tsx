@@ -10,6 +10,7 @@ import { useAuth } from '@/src/auth/AuthContext';
 import { deleteAccount } from '@/src/api/profile';
 import { clearAdminActiveRole } from '@/src/auth/tokenStore';
 import { usePush } from '@/src/notifications/PushProvider';
+import { PracticeReminderRow } from '@/src/notifications/PracticeReminderRow';
 import { pushStatusCopy } from '@/src/notifications/logic';
 
 const SOUND_EFFECTS_KEY = 'codon_pref_sound_effects';
@@ -242,6 +243,7 @@ export default function SettingsRoute() {
                 />
               </>
             ) : null}
+            <PracticeReminderRow />
             <Row label="Notification inbox" onPress={() => router.push('/(student)/(profile)/notifications')} />
           </View>
         </View>

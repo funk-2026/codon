@@ -16,6 +16,8 @@ export type OptionCardProps = {
   state?: OptionState;
   onPress?: () => void;
   onLongPress?: () => void;
+  /** Screen-reader name for the long-press action (e.g. "Cross out option B"). */
+  longPressLabel?: string;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -26,7 +28,7 @@ export type OptionCardProps = {
  * grows with its content (no fixed height, no clipping). State is conveyed by
  * an icon + label as well as colour, so it survives colour-blindness/greyscale.
  */
-export function OptionCard({ letter, value, format, media, state = 'idle', onPress, onLongPress, disabled, style, testID }: OptionCardProps) {
+export function OptionCard({ letter, value, format, media, state = 'idle', onPress, onLongPress, longPressLabel, disabled, style, testID }: OptionCardProps) {
   const { color, type, space, radius } = useTheme();
 
   const palette = {
@@ -38,7 +40,7 @@ export function OptionCard({ letter, value, format, media, state = 'idle', onPre
     struck: { bg: color('bg/sunken'), border: color('border/subtle'), badgeBg: color('bg/sunken'), badgeFg: color('text/tertiary'), bw: 1.5 },
   }[state];
 
-  const stateLabel = { idle: '', selected: 'selected', correct: 'correct answer', wrong: 'your answer, incorrect', missed: 'correct answer', struck: 'eliminated' }[state];
+  const stateLabel = { idle: '', selected: 'selected', correct: 'correct answer', wrong: 'your answer, incorrect', missed: 'correct answer', struck: 'crossed out' }[state];
   const a11y = `Option ${letter}. ${plainText(value, format) || 'image'}${stateLabel ? `. ${stateLabel}` : ''}`;
 
   return (
@@ -46,6 +48,9 @@ export function OptionCard({ letter, value, format, media, state = 'idle', onPre
       testID={testID}
       onPress={onPress}
       onLongPress={onLongPress}
+      delayLongPress={350}
+      accessibilityActions={onLongPress && !disabled ? [{ name: 'longpress', label: longPressLabel ?? 'More actions' }] : undefined}
+      onAccessibilityAction={(e) => e.nativeEvent.actionName === 'longpress' && onLongPress?.()}
       disabled={disabled || !onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: state === 'selected', disabled: !!disabled }}
@@ -75,7 +80,7 @@ export function OptionCard({ letter, value, format, media, state = 'idle', onPre
           <Text style={[type['type/body-m-medium'], { color: palette.badgeFg }]}>{letter}</Text>
         )}
       </View>
-      <View style={{ flex: 1, justifyContent: 'center', minHeight: 28 }}>
+      <View style={{ flex: 1, justifyContent: 'center', minHeight: 28, opacity: state === 'struck' ? 0.45 : 1 }}>
         <RichContent
           value={value}
           format={format}

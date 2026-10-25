@@ -13,6 +13,9 @@ import { getModule } from '@/src/modules/registry';
 import { ApiError, newIdempotencyKey } from '@/src/api/client';
 import { getAttemptResult, type AttemptBreakdown, type BreakdownRow, type StudentAttempt } from '@/src/api/attempts';
 import { customFromAttempt } from '@/src/api/customTests';
+import { ResultInsights } from '@/src/attempt/ResultInsights';
+import { ShareResultSheet } from '@/src/attempt/ShareResultSheet';
+import { useAuth } from '@/src/auth/AuthContext';
 import { StarRating } from '@/src/social/RatingControl';
 import { formatClock } from '@/src/attempt/logic';
 import { track } from '@/src/analytics/track';
@@ -40,6 +43,8 @@ export default function TestResultRoute() {
   const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
   const [breakdown, setBreakdown] = useState<AttemptBreakdown | null>(null);
   const [mistakesOpen, setMistakesOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const { user } = useAuth();
   const [include, setInclude] = useState<'wrong' | 'unattempted' | 'both'>('both');
   const [building, setBuilding] = useState(false);
   const idemKey = useRef(newIdempotencyKey());
@@ -222,6 +227,12 @@ export default function TestResultRoute() {
         <BreakdownSection title="By subject" rows={breakdown?.subjects} />
         <BreakdownSection title="By chapter" rows={breakdown?.chapters} limit={6} />
         <BreakdownSection title="By difficulty" rows={breakdown?.difficulty} />
+        {attempt.id ? (
+          <ResultInsights
+            attemptId={attempt.id}
+            onOpenQuestion={(position) => router.push({ pathname: '/(student)/(practice)/test-review', params: { id, position: String(position) } })}
+          />
+        ) : null}
 
         {/* Rating (authored tests only) */}
         {!isCustom && attempt.test_id ? (
@@ -248,12 +259,25 @@ export default function TestResultRoute() {
               onPress={() => router.push({ pathname: '/(student)/(practice)/test-pre-start', params: { id: attempt.test_id } })}
             />
           ) : null}
-          <View style={{ alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: space.lg }}>
+            <TextButton label="Share result" onPress={() => setShareOpen(true)} />
             <TextButton label="Back to Practice" onPress={() => router.replace('/(student)/(practice)')} />
           </View>
         </View>
       </ScrollView>
 
+      <ShareResultSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        data={{
+          firstName: user?.name?.split(' ')[0] || 'I',
+          testTitle: attempt.test?.title ?? module.label,
+          percent: hasMarks ? PERCENT : null,
+          score: hasMarks ? `${SCORE}/${MAX}` : `${CORRECT}/${CORRECT + INCORRECT + UNATTEMPTED}`,
+          correct: CORRECT,
+          attempted: CORRECT + INCORRECT,
+        }}
+      />
       <BottomSheet visible={mistakesOpen} onClose={() => setMistakesOpen(false)} title="Practise my mistakes" dismissable={!building}>
         <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
           We’ll build a new private test from the questions you got wrong or skipped.

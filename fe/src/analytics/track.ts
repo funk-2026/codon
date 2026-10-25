@@ -18,6 +18,7 @@ export type EventName =
   | 'rating.submitted'
   | 'media.upload_failed'
   | 'media.upload_succeeded'
+  | 'result.shared'
   | 'import.preflight'
   | 'import.committed'
   | 'flashcards.reviewed'

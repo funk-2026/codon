@@ -4,6 +4,8 @@ import type { Course, Chapter } from './courses';
 
 export type ContentItem = {
   id: string;
+  rating_avg?: number;
+  rating_count?: number;
   title: string;
   course_id: string;
   course?: Course;

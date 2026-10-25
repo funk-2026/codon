@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { Check, X, CheckCircle, WarningCircle, Shield, ClipboardText, PlayCircle, CaretRight, FlagBanner, PencilSimpleLine } from 'phosphor-react-native';
+import { Check, X, CheckCircle, WarningCircle, Shield, ClipboardText, PlayCircle, CaretRight, FlagBanner, PencilSimpleLine, Lightbulb } from 'phosphor-react-native';
 import { EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListKYC, adminApproveKYC, adminRejectKYC, getAdminDashboardSummary } from '@/src/api/admin';
@@ -245,7 +245,11 @@ export default function KycReviewQueueRoute() {
           label="Corrections"
           onPress={() => router.push('/(admin)/(review)/corrections-queue')}
         />
-        <View style={{ flex: 1 }} />
+        <ApprovalNavCard
+          icon={<Lightbulb size={22} color={color('accent/default')} weight="duotone" />}
+          label="Hacks & Flashcards"
+          onPress={() => router.push('/(admin)/(review)/content-queue')}
+        />
       </View>
 
       <Text

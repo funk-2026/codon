@@ -17,6 +17,7 @@ import {
 } from 'phosphor-react-native';
 import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { InventoryHints } from '@/src/teacher/InventoryHints';
 import { listTeacherTests, listTeacherContent } from '@/src/api/teacher';
 import { useAuth } from '@/src/auth/AuthContext';
 
@@ -222,6 +223,8 @@ export default function TeacherHomeRoute() {
             onPress={() => router.push('/(teacher)/corrections')}
           />
         </View>
+
+        <InventoryHints />
 
         <View style={{ marginTop: space.xl }}>
           <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>

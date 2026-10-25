@@ -8,10 +8,16 @@ import { CaretRight } from 'phosphor-react-native';
 import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { wellnessRadius } from '@/src/theme/tokens';
+import { listWellness } from '@/src/api/wellness';
+import { groupShelves, toCard, type ShelfCard } from '@/src/wellness/shelves';
 
-type Shelf = { label: string; cards: { title: string; readMins: number }[] };
+type Shelf = { label: string; cards: ShelfCard[] };
 
-const SHELVES: Shelf[] = [
+/**
+ * Built-in starter articles — shown only while the server has no wellness
+ * content yet (admins add it under Admin → Wellness). Live items replace them.
+ */
+const STARTER_SHELVES: Shelf[] = [
   {
     label: 'Guidance',
     cards: [
@@ -42,13 +48,31 @@ export default function SupportHomeRoute() {
   const { color, type, space } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState<{ shelves: Shelf[]; featured: ShelfCard | null } | null>(null);
 
   const fade = useSharedValue(0);
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
     fade.value = withTiming(1, { duration: 320 });
-    return () => clearTimeout(t);
+    let alive = true;
+    listWellness()
+      .then((r) => {
+        if (!alive || r.content.length === 0) return;
+        const shelves = groupShelves(r.content);
+        // "Today": the newest guidance piece, else the newest item of any kind
+        const featured = (r.content.find((c) => c.category === 'guidance') ?? r.content[0]) ?? null;
+        setLive({ shelves, featured: featured ? toCard(featured) : null });
+      })
+      .catch(() => {})
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
   }, [fade]);
+
+  const shelves = live?.shelves ?? STARTER_SHELVES;
+  const featured = live?.featured;
+  const openCard = (c: ShelfCard) =>
+    router.push({ pathname: '/(student)/(support)/wellness-article', params: c.id ? { id: c.id } : { title: c.title } });
 
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
 
@@ -74,10 +98,9 @@ export default function SupportHomeRoute() {
             ) : (
               <Pressable
                 onPress={() =>
-                  router.push({
-                    pathname: '/(student)/(support)/wellness-article',
-                    params: { id: 'featured' },
-                  })
+                  featured
+                    ? openCard(featured)
+                    : router.push({ pathname: '/(student)/(support)/wellness-article', params: { id: 'featured' } })
                 }
                 style={({ pressed }) => [
                   {
@@ -93,18 +116,19 @@ export default function SupportHomeRoute() {
                 <Text
                   style={[type['type/h2'], { color: color('wellness/text-primary'), marginTop: space['2xs'] }]}
                 >
-                  Building a study schedule you&apos;ll still follow in week 3
+                  {featured ? featured.title : 'Building a study schedule you\u2019ll still follow in week 3'}
                 </Text>
                 <Text
                   style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space.xs }]}
+                  numberOfLines={2}
                 >
-                  Motivation fluctuates over a multi-month prep window — plan for that, not against it.
+                  {featured ? featured.excerpt : 'Motivation fluctuates over a multi-month prep window — plan for that, not against it.'}
                 </Text>
               </Pressable>
             )}
           </View>
 
-          {SHELVES.map((shelf) => (
+          {shelves.map((shelf) => (
             <View key={shelf.label} style={{ marginTop: space.xl }}>
               <View style={styles.shelfHeader}>
                 <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>
@@ -134,13 +158,8 @@ export default function SupportHomeRoute() {
                     ))
                   : shelf.cards.map((c) => (
                       <Pressable
-                        key={c.title}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/(student)/(support)/wellness-article',
-                            params: { title: c.title },
-                          })
-                        }
+                        key={c.id ?? c.title}
+                        onPress={() => openCard(c)}
                         style={({ pressed }) => [
                           styles.shelfCard,
                           {

@@ -16,6 +16,7 @@ import {
 } from '@/src/api/customTests';
 import { useBuilder } from '@/src/custom/useBuilder';
 import { shareSetup } from '@/src/custom/share';
+import { ORDER_LABEL, STRATEGY_LABEL } from '@/src/custom/labels';
 import { presetMatches, resolvedMarks, summarizeBlueprint } from '@/src/custom/blueprint';
 import { ChipGroup, Section, ScopeTree, Segmented, Stepper } from '@/src/custom/ui';
 import { formatClock } from '@/src/attempt/logic';
@@ -30,12 +31,6 @@ const MIXES: { key: string; label: string; mix?: Blueprint['difficulty_mix'] }[]
 const mixKey = (m?: Blueprint['difficulty_mix']) =>
   !m || Object.keys(m).length === 0 ? 'any' : MIXES.find((x) => x.mix && x.mix.easy === m.easy && x.mix.medium === m.medium && x.mix.hard === m.hard)?.key ?? 'any';
 
-const STRATEGY_LABEL: Record<string, string> = {
-  random: 'Random', unseen_first: 'New questions first', weak_first: 'My weak areas', spaced: 'Due for revision',
-};
-const ORDER_LABEL: Record<string, string> = {
-  random: 'Random', syllabus: 'Syllabus order', easy_first: 'Easy → hard', hard_first: 'Hard → easy', unattempted_first: 'Unattempted first',
-};
 
 export default function CustomBuilderRoute() {
   const { color, type, space, radius } = useTheme();

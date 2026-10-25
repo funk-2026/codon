@@ -26,6 +26,7 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { ErrorBanner } from '@/src/components';
 import { getMe, getProgress, getProgressBreakdown, getRecentContent } from '@/src/api/profile';
+import { DailyGoalCard } from '@/src/home/DailyGoalCard';
 import type { Subscription } from '@/src/api/profile';
 import { BrainHacksShelf, HomeUpdatesCarousel } from '@/src/home/HomeShelves';
 
@@ -283,14 +284,12 @@ export default function HomeDashboardRoute() {
             {/* Quick Access */}
             <Stagger delayMs={240}>
               <View style={{ marginTop: space.xl }}>
-                <Text
-                  style={[
-                    type['type/overline'],
-                    { color: color('text/tertiary'), marginBottom: space.sm },
-                  ]}
-                >
-                  EXPLORE
-                </Text>
+                <View style={[styles.sectionRow, { marginBottom: space.sm }]}>
+                  <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>EXPLORE</Text>
+                  <Pressable onPress={() => router.push('/(student)/(home)/explore')} accessibilityRole="link" accessibilityLabel="Explore everything for your course">
+                    <Text style={[type['type/caption'], { color: color('accent/default') }]}>Discover more →</Text>
+                  </Pressable>
+                </View>
                 <View style={[styles.grid, { gap: space.sm }]}>
                   {QUICK_ACCESS.map((q) => (
                     <Pressable
@@ -354,6 +353,7 @@ export default function HomeDashboardRoute() {
                     </Text>
                   </Pressable>
                 </View>
+                <DailyGoalCard />
                 <View style={[styles.statRow, { gap: space.xs }]}>
                   <StatTile label="Tests Taken" value={isNewUser ? '0' : stats.attempted.toString()} />
                   <StatTile label="Avg. Score" value={isNewUser ? '—' : `${Math.round(stats.avgScore)}%`} />

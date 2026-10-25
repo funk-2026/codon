@@ -8,7 +8,10 @@ import { getTestQuestions, type Question } from '@/src/api/tests';
 import type { MediaMap } from '@/src/rich/ast';
 import { deadlineOnDeviceClock, type LocalAnswer, type PendingQueue } from './logic';
 import { queueKey, useAnswerSync } from './useAnswerSync';
-import { kvGet } from '@/src/storage/kv';
+import { kvGet, kvSet } from '@/src/storage/kv';
+
+/** Device-local crossed-out options for one attempt. */
+const struckKey = (attemptId: string) => `attempt-struck:${attemptId}`;
 
 export type SessionPhase = 'loading' | 'ready' | 'error' | 'expired';
 
@@ -33,6 +36,9 @@ export function useAttemptSession(testId: string | undefined) {
   const [expiredAttemptId, setExpiredAttemptId] = useState<string | null>(null);
   const [reveals, setReveals] = useState<Record<string, RevealResponse>>({});
   const [rejected, setRejected] = useState<string[]>([]);
+  // Options the student crossed out (CM-T10). Local only — never sent to the server —
+  // but persisted per attempt so they survive leaving and resuming the test.
+  const [struck, setStruck] = useState<Record<string, Option[]>>({});
 
   // time spent per question (seconds), seeded from the server on resume
   const spent = useRef<Record<string, number>>({});
@@ -95,6 +101,7 @@ export function useAttemptSession(testId: string | undefined) {
       setMedia((m) => ({ ...m, ...extraMedia }));
       setAnswers(map);
       setReveals(rv);
+      setStruck(await kvGet<Record<string, Option[]>>(struckKey(start.attempt.id), {}));
       setDeadline(deadlineOnDeviceClock(start.attempt.expires_at, start.server_now, Date.now()));
       setLockedElsewhere(start.active_elsewhere);
       setPhase('ready');
@@ -115,13 +122,37 @@ export function useAttemptSession(testId: string | undefined) {
 
   const patchLocal = (qid: string, p: Partial<LocalAnswer>) => setAnswers((a) => ({ ...a, [qid]: { ...a[qid], ...p } }));
 
+  const writeStruck = useCallback(
+    (fn: (s: Record<string, Option[]>) => Record<string, Option[]>) =>
+      setStruck((cur) => {
+        const next = fn(cur);
+        if (attempt) void kvSet(struckKey(attempt.id), next);
+        return next;
+      }),
+    [attempt],
+  );
+
+  /** Cross an option out / back in. Crossing out the selected answer is not allowed. */
+  const toggleStrike = useCallback(
+    (qid: string, opt: Option) => {
+      if (lockedElsewhere || answers[qid]?.revealed || answers[qid]?.selected === opt) return;
+      writeStruck((s) => {
+        const cur = s[qid] ?? [];
+        return { ...s, [qid]: cur.includes(opt) ? cur.filter((o) => o !== opt) : [...cur, opt] };
+      });
+    },
+    [answers, lockedElsewhere, writeStruck],
+  );
+
   const select = useCallback(
     (qid: string, opt: Option) => {
       if (lockedElsewhere || answers[qid]?.revealed) return;
+      // choosing a crossed-out option un-crosses it
+      if (struck[qid]?.includes(opt)) writeStruck((s) => ({ ...s, [qid]: (s[qid] ?? []).filter((o) => o !== opt) }));
       patchLocal(qid, { selected: opt });
       sync.save(qid, { selected_option: opt });
     },
-    [answers, lockedElsewhere, sync],
+    [answers, lockedElsewhere, sync, struck, writeStruck],
   );
 
   const clear = useCallback(
@@ -194,9 +225,9 @@ export function useAttemptSession(testId: string | undefined) {
 
   return {
     phase, error, attempt, questions, ids, media, answers, deadline,
-    lockedElsewhere, expiredAttemptId, reveals, rejected,
+    lockedElsewhere, expiredAttemptId, reveals, rejected, struck,
     tutor: attempt?.mode === 'tutor',
-    select, clear, toggleMark, setConfidence, reveal, visit, takeover, reload: load,
+    select, clear, toggleMark, toggleStrike, setConfidence, reveal, visit, takeover, reload: load,
     sync,
   };
 }

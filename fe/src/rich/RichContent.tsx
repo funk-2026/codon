@@ -69,7 +69,7 @@ export function RichContent({
             return u ? <Text key={i}>{u}</Text> : <Text key={i} style={{ fontSize: (base.fontSize ?? 14) * 0.7 }}>{n.text}</Text>;
           }
           case 'math':
-            return <MathInline key={i} tex={n.tex} fontSize={base.fontSize} />;
+            return <MathInline key={i} tex={n.tex} fontSize={base.fontSize} color={base.color as string | undefined} />;
           case 'break':
             return <Text key={i}>{'\n'}</Text>;
           default:
@@ -118,7 +118,7 @@ export function RichContent({
           </View>
         );
       case 'math_block':
-        return <MathBlock key={`m${i}`} tex={b.tex} />;
+        return <MathBlock key={`m${i}`} tex={b.tex} fontSize={(base.fontSize ?? 14) + 3} color={base.color as string | undefined} />;
       case 'image_block':
         return <MediaImage key={`b${i}`} media={media?.[b.media_id]} alt={b.alt} maxHeight={imageMaxHeight} onPress={onImage} />;
     }

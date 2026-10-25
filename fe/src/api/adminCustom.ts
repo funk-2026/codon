@@ -44,7 +44,7 @@ export type AdminPreset = {
 };
 
 export const listPresets = () => apiFetch<{ presets: AdminPreset[] }>('/admin/custom-test/presets');
-export const updatePreset = (id: string, p: Partial<{ title: string; description: string; order_index: number; is_active: boolean }>) =>
+export const updatePreset = (id: string, p: Partial<{ title: string; description: string; order_index: number; is_active: boolean; course_id: string; blueprint: Blueprint }>) =>
   apiFetch<AdminPreset>(`/admin/custom-test/presets/${id}`, { method: 'PATCH', body: JSON.stringify(p) });
 export const deletePreset = (id: string) => apiFetch<{ message: string }>(`/admin/custom-test/presets/${id}`, { method: 'DELETE' });
 export const createPreset = (p: { course_id: string; title: string; description?: string; blueprint: Blueprint; order_index?: number }) =>

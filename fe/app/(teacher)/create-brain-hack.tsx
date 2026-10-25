@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft } from 'phosphor-react-native';
 import { InputField, PrimaryButton, SecondaryButton, SelectField, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { RichField, plainText, type MediaMap, type MediaView } from '@/src/rich';
 import { ApiError } from '@/src/api/client';
-import { createBrainHackApi, getBrainHackCategories, submitBrainHack, updateBrainHackApi } from '@/src/api/discover';
+import { createBrainHackApi, getBrainHackCategories, getTeacherBrainHack, submitBrainHack, updateBrainHackApi } from '@/src/api/discover';
 
 const DEFAULT_CATS = ['Focus', 'Memory', 'Exam Day'];
 const MAX_BODY = 4000;
@@ -29,6 +29,26 @@ export default function CreateBrainHackRoute() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | 'draft' | 'submit'>(null);
   const [touched, setTouched] = useState(false);
+  // Edit mode: reopen a draft / rejected hack (from My Content → Brain Hack).
+  const { id: editId } = useLocalSearchParams<{ id?: string }>();
+  const [loadingExisting, setLoadingExisting] = useState(!!editId);
+
+  useEffect(() => {
+    if (!editId) return;
+    getTeacherBrainHack(String(editId))
+      .then((r) => {
+        const h = r.brain_hack;
+        setTitle(h.title);
+        setCategory(h.category);
+        setBody(h.body);
+        setMedia(r.media);
+        setSavedId(h.id);
+        setCats((c) => (c.includes(h.category) ? c : [...c, h.category]));
+      })
+      .catch(() => show('Couldn’t load this Brain Hack.', 'error'))
+      .finally(() => setLoadingExisting(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
 
   useEffect(() => {
     getBrainHackCategories().then((r) => setCats((r.categories as any[]).map((c) => (typeof c === 'string' ? c : c.label ?? c.key)))).catch(() => {});
@@ -57,7 +77,12 @@ export default function CreateBrainHackRoute() {
         router.replace('/(teacher)/(tabs)/(content)');
       } else show('Draft saved', 'success');
     } catch (e) {
-      show(e instanceof ApiError && e.status === 403 ? 'You don’t have permission to do that.' : 'Couldn’t save. Your text is still here — try again.', 'error');
+      show(
+        e instanceof ApiError && e.status === 403 ? 'You don’t have permission to do that.'
+        : e instanceof ApiError && e.code === 'locked' ? 'This Brain Hack is in review or live, so it can’t be edited.'
+        : 'Couldn’t save. Your text is still here — try again.',
+        'error',
+      );
     } finally {
       setBusy(null);
     }
@@ -69,8 +94,8 @@ export default function CreateBrainHackRoute() {
         <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
           <CaretLeft size={24} color={color('text/primary')} />
         </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>New Brain Hack</Text>
-        <TextButton label={busy === 'draft' ? 'Saving…' : 'Save draft'} onPress={() => save(false)} disabled={!!busy} />
+        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>{editId ? 'Edit Brain Hack' : 'New Brain Hack'}</Text>
+        <TextButton label={busy === 'draft' ? 'Saving…' : 'Save draft'} onPress={() => save(false)} disabled={!!busy || loadingExisting} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg, paddingBottom: 120 + insets.bottom }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -84,7 +109,7 @@ export default function CreateBrainHackRoute() {
       </ScrollView>
 
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: color('bg/surface'), borderTopWidth: 1, borderTopColor: color('border/subtle'), padding: space.md, paddingBottom: space.md + insets.bottom }}>
-        <PrimaryButton label="Submit for review" onPress={() => save(true)} loading={busy === 'submit'} disabled={!!busy} />
+        <PrimaryButton label="Submit for review" onPress={() => save(true)} loading={busy === 'submit'} disabled={!!busy || loadingExisting} />
       </View>
     </SafeAreaView>
   );

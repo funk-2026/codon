@@ -7,6 +7,8 @@ import { CaretLeft } from 'phosphor-react-native';
 import { SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { wellnessRadius } from '@/src/theme/tokens';
+import { listWellness } from '@/src/api/wellness';
+import { categoryKey, toCard, type ShelfCard } from '@/src/wellness/shelves';
 
 const DESCRIPTIONS: Record<string, string> = {
   Guidance: 'Practical, specific ways to handle the pressure of exam prep.',
@@ -38,16 +40,25 @@ export default function WellnessCategoryRoute() {
   const { category } = useLocalSearchParams<{ category?: string }>();
   const name = category ?? 'Guidance';
   const [loading, setLoading] = useState(true);
+  const [liveCards, setLiveCards] = useState<ShelfCard[] | null>(null);
 
   const fade = useSharedValue(0);
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 450);
     fade.value = withTiming(1, { duration: 320 });
-    return () => clearTimeout(t);
-  }, [fade]);
+    const key = categoryKey(name);
+    let alive = true;
+    // Live items for this category; the built-in starters show only while the server has none.
+    listWellness(key)
+      .then((r) => alive && r.content.length > 0 && setLiveCards(r.content.map(toCard)))
+      .catch(() => {})
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [fade, name]);
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
 
-  const cards = CARDS[name] ?? CARDS.Guidance;
+  const cards: ShelfCard[] = liveCards ?? CARDS[name] ?? CARDS.Guidance;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('wellness/bg') }]}>
@@ -83,9 +94,9 @@ export default function WellnessCategoryRoute() {
               ))
             : cards.map((c) => (
                 <Pressable
-                  key={c.title}
+                  key={c.id ?? c.title}
                   onPress={() =>
-                    router.push({ pathname: '/(student)/(support)/wellness-article', params: { title: c.title } })
+                    router.push({ pathname: '/(student)/(support)/wellness-article', params: c.id ? { id: c.id } : { title: c.title } })
                   }
                   style={({ pressed }) => [
                     {
@@ -98,12 +109,14 @@ export default function WellnessCategoryRoute() {
                   ]}
                 >
                   <Text style={[type['type/h3'], { color: color('wellness/text-primary') }]}>{c.title}</Text>
-                  <Text
-                    style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}
-                    numberOfLines={2}
-                  >
-                    {c.excerpt}
-                  </Text>
+                  {c.excerpt ? (
+                    <Text
+                      style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}
+                      numberOfLines={2}
+                    >
+                      {c.excerpt}
+                    </Text>
+                  ) : null}
                   <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
                     {c.readMins} min read
                   </Text>

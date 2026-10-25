@@ -6,6 +6,9 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { CaretLeft } from 'phosphor-react-native';
 import { TextButton, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { RichContent, type MediaMap } from '@/src/rich';
+import { getWellnessItem, type WellnessContent } from '@/src/api/wellness';
+import { WELLNESS_CATEGORIES, readMinutes } from '@/src/wellness/shelves';
 
 type Article = {
   category: 'Guidance' | 'Motivation' | 'Reflection Prompts';
@@ -79,22 +82,50 @@ export default function WellnessArticleRoute() {
   const { color, type, space } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { title } = useLocalSearchParams<{ title?: string; id?: string }>();
+  const { title, id } = useLocalSearchParams<{ title?: string; id?: string }>();
+  // A real id → a live article from the server; 'featured' / a title → a built-in starter piece.
+  const liveId = id && id !== 'featured' ? String(id) : null;
   const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState<{ item: WellnessContent; media: MediaMap } | null>(null);
+  const [liveError, setLiveError] = useState(false);
 
   const fade = useSharedValue(0);
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 400);
     fade.value = withTiming(1, { duration: 320 });
-    return () => clearTimeout(t);
-  }, [fade]);
+    if (!liveId) {
+      const t = setTimeout(() => setLoading(false), 250);
+      return () => clearTimeout(t);
+    }
+    let alive = true;
+    getWellnessItem(liveId)
+      .then((r) => alive && setLive({ item: r.content, media: r.media }))
+      .catch(() => alive && setLiveError(true))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [fade, liveId]);
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
 
-  const article =
+  const starter =
     (title && (ARTICLES[title] || REFLECTION_PROMPTS[title])) ||
     ARTICLES["Building a study schedule you'll still follow in week 3"] ||
     DEFAULT_ARTICLE;
+  const liveLabel = live ? WELLNESS_CATEGORIES.find((c) => c.key === live.item.category)?.label ?? 'Guidance' : null;
+  const article: Article = live
+    ? { category: liveLabel as Article['category'], title: live.item.title, readMins: readMinutes(live.item.body_text, live.item.content_format), body: live.item.body_text }
+    : starter;
   const isPrompt = article.category === 'Reflection Prompts';
+  const richBody = live ? (
+    <RichContent
+      value={live.item.body_text}
+      format={live.item.content_format ?? 'plain'}
+      media={live.media}
+      variant="explanation"
+      color={color('wellness/text-primary')}
+      style={{ marginTop: isPrompt ? space.md : space.lg }}
+    />
+  ) : null;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('wellness/bg') }]}>
@@ -112,7 +143,14 @@ export default function WellnessArticleRoute() {
         contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
-        {loading ? (
+        {liveError ? (
+          <View style={{ marginTop: space.xl, alignItems: 'center', gap: space.sm }}>
+            <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>
+              Couldn’t open this article. Check your connection and try again.
+            </Text>
+            <TextButton label="Back to Support" onPress={() => router.back()} />
+          </View>
+        ) : loading ? (
           <View style={{ marginTop: space.lg, gap: space.sm }}>
             <SkeletonBlock height={20} width={100} />
             <SkeletonBlock height={34} />
@@ -141,11 +179,13 @@ export default function WellnessArticleRoute() {
                 >
                   {article.title}
                 </Text>
-                <Text
-                  style={[type['type/body-l'], { color: color('wellness/text-primary'), marginTop: space.md, lineHeight: 28 }]}
-                >
-                  {article.framing}
-                </Text>
+                {richBody ?? (
+                  <Text
+                    style={[type['type/body-l'], { color: color('wellness/text-primary'), marginTop: space.md, lineHeight: 28 }]}
+                  >
+                    {article.framing}
+                  </Text>
+                )}
               </>
             ) : (
               <>
@@ -159,11 +199,13 @@ export default function WellnessArticleRoute() {
                 >
                   {article.readMins} min read
                 </Text>
-                <Text
-                  style={[type['type/body-l'], { color: color('wellness/text-primary'), marginTop: space.lg, lineHeight: 28 }]}
-                >
-                  {article.body}
-                </Text>
+                {richBody ?? (
+                  <Text
+                    style={[type['type/body-l'], { color: color('wellness/text-primary'), marginTop: space.lg, lineHeight: 28 }]}
+                  >
+                    {article.body}
+                  </Text>
+                )}
                 {article.closingLine ? (
                   <Text
                     style={[type['type/h3'], { color: color('wellness/accent'), marginTop: space.xl }]}
