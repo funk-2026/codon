@@ -10,7 +10,7 @@ import Animated, {
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView, VideoTrack } from 'expo-video';
 import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
-import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, CornersOut, GearSix } from 'phosphor-react-native';
+import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, CornersOut, GearSix, PictureInPicture } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat } from '@/src/api/content';
 import { ApiError } from '@/src/api/client';
@@ -209,10 +209,13 @@ export default function VideoPlayerRoute() {
             <View style={{ width: '100%', height: 200 }} />
           )}
 
-          <View style={[styles.topRow, { position: 'absolute', top: 0, left: 0, paddingHorizontal: space.md, paddingTop: space.sm }]} pointerEvents="box-none">
+          <View style={[styles.topRow, { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: space.md, paddingTop: space.sm, justifyContent: 'space-between' }]} pointerEvents="box-none">
+            {/* Back really goes back — the mini player is opt-in only (button on the right). */}
             <Pressable
-              onPress={() => setFloating(true)}
+              onPress={() => router.back()}
               hitSlop={space.xs}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
               style={({ pressed }) => ({
                 opacity: pressed ? 0.6 : 1,
                 backgroundColor: 'rgba(0,0,0,0.4)',
@@ -225,6 +228,25 @@ export default function VideoPlayerRoute() {
             >
               <CaretLeft size={24} color="#fff" />
             </Pressable>
+            {videoUrl && !floating ? (
+              <Pressable
+                onPress={() => setFloating(true)}
+                hitSlop={space.xs}
+                accessibilityRole="button"
+                accessibilityLabel="Mini player — keep watching while you read notes"
+                style={({ pressed }) => ({
+                  opacity: pressed ? 0.6 : 1,
+                  backgroundColor: 'rgba(0,0,0,0.4)',
+                  borderRadius: 20,
+                  width: 40,
+                  height: 40,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                })}
+              >
+                <PictureInPicture size={22} color="#fff" />
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
