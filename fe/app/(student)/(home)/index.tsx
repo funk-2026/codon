@@ -7,7 +7,7 @@ import {
   Text,
   useWindowDimensions,
   View,
-  type ViewToken,
+  type ListViewToken as ViewToken,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';

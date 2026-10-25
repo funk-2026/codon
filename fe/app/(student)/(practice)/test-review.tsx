@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { CaretLeft, Check, FlagBanner, FlagPennant, GridFour, NotePencil, Users, WarningCircle } from 'phosphor-react-native';
@@ -58,7 +58,7 @@ export default function TestReviewRoute() {
   // local overrides so a saved note / rating / report shows without refetching
   const [notes, setNotes] = useState<Record<string, string | null>>({});
   const [reported, setReported] = useState<Record<string, boolean>>({});
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const reqSeq = useRef(0);
 
   const load = useCallback(

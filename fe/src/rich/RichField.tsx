@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View, type NativeSyntheticEvent, type TextInputSelectionChangeEventData } from 'react-native';
+import { Pressable, Text, TextInput, View, type TextInputSelectionChangeEvent } from 'react-native';
 import { Eye, EyeSlash, Image as ImageIcon, ListBullets, TextB, TextItalic, TextSubscript, TextSuperscript, Function as FunctionIcon, WarningCircle, X, Camera } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { BottomSheet, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
@@ -78,7 +78,7 @@ export function RichField({
     setPending(r.selection);
   };
 
-  const onSel = (e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
+  const onSel = (e: TextInputSelectionChangeEvent) => {
     sel.current = e.nativeEvent.selection;
   };
 

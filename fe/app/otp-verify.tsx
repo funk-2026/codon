@@ -6,6 +6,7 @@ import {
   Text,
   TextInput,
   View,
+  type TextInputInstance,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -47,7 +48,7 @@ export default function OtpVerifyRoute() {
   const [resendIn, setResendIn] = useState(RESEND_SECONDS);
   const [expired, setExpired] = useState(false);
 
-  const refs = useRef<(TextInput | null)[]>([]);
+  const refs = useRef<(TextInputInstance | null)[]>([]);
   const pulse = useSharedValue(1);
   const shakeX = useSharedValue(0);
 

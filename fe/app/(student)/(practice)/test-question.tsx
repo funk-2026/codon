@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { X, GridFour, WarningCircle, FlagPennant, FlagBanner, Lock } from 'phosphor-react-native';
@@ -41,7 +41,7 @@ export default function TestQuestionRoute() {
   const [revealing, setRevealing] = useState(false);
   const [tookOver, setTookOver] = useState(false);
   const [busyTakeover, setBusyTakeover] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   const q = questions[current];
   const total = questions.length;

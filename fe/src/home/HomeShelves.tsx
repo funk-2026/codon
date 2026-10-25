@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, Text, View, useWindowDimensions, type ViewToken } from 'react-native';
+import { FlatList, Pressable, Text, View, useWindowDimensions, type ListViewToken as ViewToken } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { Flame } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
