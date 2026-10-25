@@ -1,4 +1,4 @@
-import { apiFetch, qs } from './client';
+import { apiFetch, arr, qs } from './client';
 import { Test } from './tests';
 import type { MediaMap, RichFormat } from '@/src/rich/ast';
 
@@ -144,7 +144,14 @@ export type AttemptResultResponse = {
 
 /** GET /api/v1/attempts/:id/result */
 export function getAttemptResult(attemptId: string): Promise<AttemptResultResponse> {
-  return apiFetch<AttemptResultResponse>(`/attempts/${attemptId}/result`, { method: 'GET' });
+  return apiFetch<AttemptResultResponse>(`/attempts/${attemptId}/result`, { method: 'GET' }).then((r) => ({
+    ...r,
+    breakdown: r.breakdown && {
+      subjects: arr(r.breakdown.subjects),
+      chapters: arr(r.breakdown.chapters),
+      difficulty: arr(r.breakdown.difficulty),
+    },
+  }));
 }
 
 export type ReviewFilter = 'all' | 'correct' | 'wrong' | 'unattempted' | 'marked' | 'bookmarked';
@@ -197,5 +204,5 @@ export function getAttemptReview(
   return apiFetch<AttemptReviewResponse>(
     `/attempts/${attemptId}/review${qs({ filter: opts.filter, limit: opts.limit, cursor: opts.cursor ?? undefined })}`,
     { method: 'GET' },
-  );
+  ).then((r) => ({ ...r, review: arr(r.review), media: r.media ?? {} }));
 }

@@ -16,7 +16,9 @@ type Handlers = {
   onRejected?: (questionIds: string[]) => void;
 };
 
-const key = (attemptId: string) => `attempt-queue:${attemptId}`;
+/** Storage key of the persisted unsent-answer queue for one attempt. */
+export const queueKey = (attemptId: string) => `attempt-queue:${attemptId}`;
+const key = queueKey;
 
 /**
  * Optimistic answer saving that survives flaky networks (FE-4.x runtime).

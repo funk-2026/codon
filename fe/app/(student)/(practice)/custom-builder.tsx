@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { CaretLeft, DotsThree, Lightbulb, Lock, WarningCircle } from 'phosphor-react-native';
@@ -11,11 +11,12 @@ import { useAuth } from '@/src/auth/AuthContext';
 import { useAppConfig, useFlag } from '@/src/config/AppConfigContext';
 import { ApiError } from '@/src/api/client';
 import {
-  createTemplate, getShared, listTemplates, shareBlueprint,
+  createTemplate, getShared, listTemplates,
   type Blueprint, type BlueprintIssue, type GenerateResult, type Suggestion, type Template,
 } from '@/src/api/customTests';
 import { useBuilder } from '@/src/custom/useBuilder';
-import { resolvedMarks, summarizeBlueprint } from '@/src/custom/blueprint';
+import { shareSetup } from '@/src/custom/share';
+import { presetMatches, resolvedMarks, summarizeBlueprint } from '@/src/custom/blueprint';
 import { ChipGroup, Section, ScopeTree, Segmented, Stepper } from '@/src/custom/ui';
 import { formatClock } from '@/src/attempt/logic';
 import { track } from '@/src/analytics/track';
@@ -44,7 +45,7 @@ export default function CustomBuilderRoute() {
   const { user } = useAuth();
   const enabled = useFlag('custom_test.enabled');
   const app = useAppConfig();
-  const params = useLocalSearchParams<{ code?: string; patch?: string }>();
+  const params = useLocalSearchParams<{ code?: string; patch?: string; template?: string }>();
 
   const courseId = user?.selected_course_id ?? undefined;
   const B = useBuilder(courseId);
@@ -53,6 +54,7 @@ export default function CustomBuilderRoute() {
   const [advanced, setAdvanced] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
   const [quotaOpen, setQuotaOpen] = useState<{ resets_at?: string } | null>(null);
@@ -79,6 +81,19 @@ export default function CustomBuilderRoute() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.code, !!config]);
+
+  // "Use template" from My custom tests: load the saved blueprint once the config is in
+  const appliedTemplate = useRef(false);
+  useEffect(() => {
+    if (!params.template || !config || appliedTemplate.current) return;
+    appliedTemplate.current = true;
+    try {
+      api.load(JSON.parse(String(params.template)));
+    } catch {
+      /* malformed → builder opens with defaults */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.template, !!config]);
 
   // "Practise this" from Progress / recommendations: a server patch applied on top of a fresh blueprint
   const appliedPatch = useRef(false);
@@ -238,7 +253,7 @@ export default function CustomBuilderRoute() {
         ) : null}
 
         {config.presets.length > 0 || true ? (
-          <PresetRow presets={config.presets} onPick={(p) => { api.load(p.blueprint); track('custom.filter_changed', { via: 'preset' }); }} onTemplates={() => setTemplatesOpen(true)} />
+          <PresetRow presets={config.presets} current={bp} onPick={(p) => { api.load(p.blueprint); track('custom.filter_changed', { via: 'preset' }); }} onTemplates={() => setTemplatesOpen(true)} />
         ) : null}
 
         <Section title="Scope" hint="Pick subjects, chapters or topics. Leave empty to use everything." error={fieldError('filters.subject_ids') ?? fieldError('filters.chapter_ids') ?? fieldError('filters.topic_ids')}>
@@ -455,19 +470,23 @@ export default function CustomBuilderRoute() {
       </View>
 
       {/* Menu */}
-      <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} title="More">
+      <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} title="More" dismissable={!sharing}>
         <View style={{ gap: space.sm }}>
           <SecondaryButton label="Save as template" onPress={() => { setMenuOpen(false); setSaveOpen(true); }} disabled={issues.length > 0} />
           <SecondaryButton
             label="Share this setup"
             disabled={issues.length > 0}
+            loading={sharing}
             onPress={async () => {
-              setMenuOpen(false);
+              // Keep this sheet open until the OS share sheet is done — see shareSetup().
+              setSharing(true);
               try {
-                const r = await shareBlueprint(bp);
-                await Share.share({ message: `Try this custom test on Codon: ${summarizeBlueprint(bp, { subjects: subjectNames })}\nOpen: ${r.deep_link}\nCode: ${r.code}` });
+                await shareSetup(bp, subjectNames);
+                setMenuOpen(false);
               } catch {
                 show('Couldn’t create a share link. Try again.', 'error');
+              } finally {
+                setSharing(false);
               }
             }}
           />
@@ -529,7 +548,7 @@ function Header({ onBack, onMenu }: { onBack: () => void; onMenu?: () => void })
   );
 }
 
-function PresetRow({ presets, onPick, onTemplates }: { presets: { id: string; title: string; description?: string; blueprint: Blueprint }[]; onPick: (p: { blueprint: Blueprint }) => void; onTemplates: () => void }) {
+function PresetRow({ presets, current, onPick, onTemplates }: { presets: { id: string; title: string; description?: string; blueprint: Blueprint }[]; current: Blueprint; onPick: (p: { blueprint: Blueprint }) => void; onTemplates: () => void }) {
   const { color, type, space, radius } = useTheme();
   return (
     <View style={{ gap: space.xs }}>
@@ -538,11 +557,21 @@ function PresetRow({ presets, onPick, onTemplates }: { presets: { id: string; ti
         <Pressable onPress={onTemplates} accessibilityRole="button" style={{ minHeight: 40, paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 1.5, borderColor: color('accent/default'), justifyContent: 'center' }}>
           <Text style={[type['type/body-m'], { color: color('accent/default') }]}>My templates</Text>
         </Pressable>
-        {presets.map((p) => (
-          <Pressable key={p.id} onPress={() => onPick(p)} accessibilityRole="button" accessibilityHint={p.description} style={{ minHeight: 40, paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: color('bg/surface'), justifyContent: 'center' }}>
-            <Text style={[type['type/body-m'], { color: color('text/primary') }]}>{p.title}</Text>
-          </Pressable>
-        ))}
+        {presets.map((p) => {
+          const on = presetMatches(p.blueprint, current);
+          return (
+            <Pressable
+              key={p.id}
+              onPress={() => onPick(p)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              accessibilityHint={p.description}
+              style={{ minHeight: 40, paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 1.5, borderColor: on ? color('accent/default') : 'transparent', backgroundColor: on ? color('accent/tint') : color('bg/surface'), justifyContent: 'center' }}
+            >
+              <Text style={[type['type/body-m'], { color: on ? color('accent/default') : color('text/primary') }]}>{p.title}</Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -611,7 +640,7 @@ function SaveTemplateSheet({ visible, onClose, blueprint, defaultName }: { visib
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Save as template" dismissable={!busy}>
       <View style={{ gap: space.md }}>
-        <InputField label="Template name" value={name} onChangeText={setName} />
+        <InputField label="Template name" value={name} onChangeText={setName} maxLength={80} />
         <PrimaryButton label="Save" onPress={save} loading={busy} disabled={!name.trim()} />
       </View>
     </BottomSheet>

@@ -1,6 +1,10 @@
 import { Stack } from 'expo-router';
 import { useStackScreenOptions } from '@/src/components/ThemedStack';
 
+// Keep the tab's hub under any screen opened from another tab (e.g. Home → Q Bank),
+// so Back and re-tapping the tab land on the hub instead of a stranded screen.
+export const unstable_settings = { initialRouteName: 'index' };
+
 export default function StudentHomeStack() {
   const base = useStackScreenOptions();
   return (

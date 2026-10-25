@@ -44,6 +44,23 @@ export function defaultBlueprint(courseId: string, count = 20): Blueprint {
   };
 }
 
+/**
+ * Fills a partial blueprint (server presets only carry what they change, e.g.
+ * Daily 20 = `{count, strategy, timing}`) on top of the defaults, so the
+ * builder can always rely on `filters`, `timing` and `marking` being present.
+ */
+export function withDefaults(courseId: string, partial: Partial<Blueprint>): Blueprint {
+  const base = defaultBlueprint(courseId, partial.count ?? 20);
+  return {
+    ...base,
+    ...partial,
+    course_id: courseId,
+    filters: partial.filters ?? {},
+    timing: partial.timing ?? base.timing,
+    marking: partial.marking ?? base.marking,
+  };
+}
+
 /** Returns the issues the server would raise (same `field`/`code`). Empty = valid. */
 export function validateBlueprint(input: any, lim: Limits): BlueprintIssue[] {
   const is: BlueprintIssue[] = [];
@@ -177,6 +194,26 @@ export function pruneFilters(f: BlueprintFilters): BlueprintFilters {
 /** Filter state as a string — the key for count-request dedupe/caching. */
 export function blueprintKey(bp: Blueprint): string {
   return JSON.stringify({ ...bp, filters: pruneFilters(bp.filters ?? {}), title: undefined });
+}
+
+/** Key-order-independent JSON, so equal blueprints compare equal however they were built. */
+function canonical(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonical(o[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+
+/**
+ * True when the builder's current blueprint is exactly what picking this
+ * preset produces — used to show the preset chip as selected. Any manual edit
+ * afterwards makes it false again. Title, course and schema are ignored.
+ */
+export function presetMatches(preset: Partial<Blueprint>, bp: Blueprint): boolean {
+  const strip = (b: Blueprint) => ({ ...b, filters: pruneFilters(b.filters ?? {}), title: undefined, course_id: undefined, schema_version: undefined });
+  return canonical(strip(withDefaults(bp.course_id, preset))) === canonical(strip(bp));
 }
 
 export function withDifficultyMix(bp: Blueprint, mix: Partial<Record<Difficulty, number>> | undefined): Blueprint {

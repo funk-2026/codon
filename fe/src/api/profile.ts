@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, arr } from './client';
 
 export type UserProfile = {
   id: string;
@@ -92,7 +92,7 @@ export type GetAttemptsResponse = {
 
 /** GET /api/v1/me/attempts */
 export function getAttempts(): Promise<GetAttemptsResponse> {
-  return apiFetch<GetAttemptsResponse>('/me/attempts', { method: 'GET' });
+  return apiFetch<GetAttemptsResponse>('/me/attempts', { method: 'GET' }).then((r) => ({ attempts: arr(r.attempts) }));
 }
 
 export type ProgressSubject = {
@@ -109,7 +109,12 @@ export type ProgressBreakdownResponse = {
 
 /** GET /api/v1/me/progress/breakdown */
 export function getProgressBreakdown(): Promise<ProgressBreakdownResponse> {
-  return apiFetch<ProgressBreakdownResponse>('/me/progress/breakdown', { method: 'GET' });
+  return apiFetch<ProgressBreakdownResponse>('/me/progress/breakdown', { method: 'GET' }).then((r) => ({
+    ...r,
+    trend: arr(r.trend),
+    subjects: arr(r.subjects),
+    last_7_days: arr(r.last_7_days),
+  }));
 }
 
 export type RecentContentResponse = {
@@ -118,5 +123,5 @@ export type RecentContentResponse = {
 
 /** GET /api/v1/me/recent-content */
 export function getRecentContent(): Promise<RecentContentResponse> {
-  return apiFetch<RecentContentResponse>('/me/recent-content', { method: 'GET' });
+  return apiFetch<RecentContentResponse>('/me/recent-content', { method: 'GET' }).then((r) => ({ recent: arr(r.recent) }));
 }

@@ -47,6 +47,8 @@ export default function TestQuestionRoute() {
   const total = questions.length;
   const a = q ? answers[q.id] : undefined;
   const reveal = q ? S.reveals[q.id] : undefined;
+  // Answer is final once checked (tutor) — even if the result itself hasn't loaded.
+  const checked = !!reveal || !!a?.revealed;
   const counts = useMemo(() => paletteCounts(ids, answers), [ids, answers]);
 
   // ── navigation between questions ──
@@ -80,6 +82,7 @@ export default function TestQuestionRoute() {
       setSubmitting(true);
       setSubmitError(null);
       try {
+        S.visit(undefined); // bank time on the current question before the final flush
         const saved = await sync.flushNow();
         if (!saved && !opts.force) {
           setSubmitError(`${sync.pending || 'Some'} answer${sync.pending === 1 ? '' : 's'} haven't saved yet — check your connection.`);
@@ -100,7 +103,7 @@ export default function TestQuestionRoute() {
         setSubmitting(false);
       }
     },
-    [attempt, sync, counts, toResult],
+    [attempt, sync, counts, toResult, S.visit],
   );
 
   // server said the deadline passed while we were saving
@@ -316,19 +319,19 @@ export default function TestQuestionRoute() {
                   format={q.content_format}
                   media={media}
                   state={optionState(letter)}
-                  disabled={locked || !!reveal}
+                  disabled={locked || checked}
                   onPress={() => S.select(q.id, letter)}
                 />
               ))}
             </View>
 
-            {a?.selected && !reveal && !locked ? (
+            {a?.selected && !checked && !locked ? (
               <View style={{ alignItems: 'center', marginTop: space.sm }}>
                 <TextButton label="Clear my response" onPress={() => S.clear(q.id)} />
               </View>
             ) : null}
 
-            {tutor && !reveal ? (
+            {tutor && !checked ? (
               <PrimaryButton
                 label="Check answer"
                 onPress={onReveal}

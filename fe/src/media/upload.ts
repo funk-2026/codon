@@ -45,7 +45,10 @@ export function uploadImage(
       let mime = img.mimeType ?? mimeFromName(img.fileName ?? img.uri);
       let width = img.width;
       let height = img.height;
-      let bytes = img.fileSize ?? ((await FileSystem.getInfoAsync(uri)) as { size?: number }).size ?? 0;
+      // Measure the file we will actually PUT. The server signs this exact Content-Length
+      // into the upload URL, and the picker's `fileSize` can differ from the cached copy at
+      // `uri` (re-encoding, EXIF stripping) — a mismatch makes storage reject the upload.
+      let bytes = ((await FileSystem.getInfoAsync(uri)) as { size?: number }).size ?? img.fileSize ?? 0;
 
       const plan = planImage({ width, height, bytes, mime }, limits);
       if (plan.action === 'reject') throw new UploadError({ code: plan.code, message: plan.message, retryable: false });

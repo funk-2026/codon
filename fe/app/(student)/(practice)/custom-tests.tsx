@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { CaretLeft, DotsThreeVertical, Plus, Sliders, WarningCircle } from 'phosphor-react-native';
 import {
   BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast,
@@ -13,6 +13,7 @@ import {
   type CustomTestRow, type CustomTestState, type Template,
 } from '@/src/api/customTests';
 import { summarizeBlueprint } from '@/src/custom/blueprint';
+import { shareSetup } from '@/src/custom/share';
 
 type Tab = 'tests' | 'templates';
 const STATES: { key: CustomTestState | 'all'; label: string }[] = [
@@ -42,6 +43,8 @@ export default function CustomTestsRoute() {
   const [renaming, setRenaming] = useState<CustomTestRow | null>(null);
   const [title, setTitle] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<CustomTestRow | null>(null);
+  const [confirmDeleteTpl, setConfirmDeleteTpl] = useState<Template | null>(null);
+  const [sharingTpl, setSharingTpl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const seq = useRef(0);
 
@@ -67,15 +70,21 @@ export default function CustomTestsRoute() {
     }
   }, [tab, state]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Reload on every focus, not just mount: coming back from a test changes its
+  // state (New → In progress → score) and the list must not show stale badges.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const loadMore = async () => {
     if (!cursor || more) return;
+    const my = seq.current;
     setMore(true);
     try {
       const r = await listCustomTests({ state: state === 'all' ? undefined : state, limit: 20, cursor });
+      if (my !== seq.current) return; // filter changed mid-request — page belongs to the old list
       setRows((p) => [...p, ...r.items]);
       setCursor(r.next_cursor);
     } catch {
@@ -224,13 +233,31 @@ export default function CustomTestsRoute() {
         ) : (
           templates.map((t) => (
             <View key={t.id} style={{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-              <View style={{ flex: 1 }}>
+              <Pressable
+                style={{ flex: 1 }}
+                onPress={() => router.push({ pathname: '/(student)/(practice)/custom-builder', params: { template: JSON.stringify(t.blueprint) } })}
+                accessibilityRole="button"
+                accessibilityLabel={`Use template ${t.title}`}
+                accessibilityHint="Opens the builder with these settings"
+              >
                 <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]} numberOfLines={1}>{t.title}</Text>
                 <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{summarizeBlueprint(t.blueprint)}</Text>
-              </View>
-              <TextButton label="Delete" onPress={async () => {
-                try { await deleteTemplate(t.id); setTemplates((p) => p.filter((x) => x.id !== t.id)); } catch { show('Couldn’t delete the template.', 'error'); }
-              }} />
+              </Pressable>
+              <TextButton
+                label={sharingTpl === t.id ? 'Sharing…' : 'Share'}
+                disabled={sharingTpl != null}
+                onPress={async () => {
+                  setSharingTpl(t.id);
+                  try {
+                    await shareSetup(t.blueprint);
+                  } catch {
+                    show('Couldn’t create a share link. Try again.', 'error');
+                  } finally {
+                    setSharingTpl(null);
+                  }
+                }}
+              />
+              <TextButton label="Delete" onPress={() => setConfirmDeleteTpl(t)} />
             </View>
           ))
         )}
@@ -254,7 +281,7 @@ export default function CustomTestsRoute() {
 
       <BottomSheet visible={!!renaming} onClose={() => setRenaming(null)} title="Rename test" dismissable={!busy}>
         <View style={{ gap: space.md }}>
-          <InputField label="Name" value={title} onChangeText={setTitle} />
+          <InputField label="Name" value={title} onChangeText={setTitle} maxLength={120} />
           <PrimaryButton label="Save" onPress={doRename} loading={busy} disabled={!title.trim()} />
         </View>
       </BottomSheet>
@@ -266,6 +293,33 @@ export default function CustomTestsRoute() {
         <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.lg }}>
           <SecondaryButton label="Cancel" onPress={() => setConfirmDelete(null)} />
           <PrimaryButton label="Delete" onPress={doDelete} loading={busy} />
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={!!confirmDeleteTpl} onClose={() => setConfirmDeleteTpl(null)} title="Delete this template?" dismissable={!busy}>
+        <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+          Only the saved settings are removed. Tests you already built from it are not affected.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.lg }}>
+          <SecondaryButton label="Cancel" onPress={() => setConfirmDeleteTpl(null)} />
+          <PrimaryButton
+            label="Delete"
+            loading={busy}
+            onPress={async () => {
+              const t = confirmDeleteTpl;
+              if (!t) return;
+              setBusy(true);
+              try {
+                await deleteTemplate(t.id);
+                setTemplates((p) => p.filter((x) => x.id !== t.id));
+                setConfirmDeleteTpl(null);
+              } catch {
+                show('Couldn’t delete the template.', 'error');
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
         </View>
       </BottomSheet>
     </SafeAreaView>

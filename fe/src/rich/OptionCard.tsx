@@ -82,8 +82,9 @@ export function OptionCard({ letter, value, format, media, state = 'idle', onPre
           media={media}
           variant="option"
           imageMaxHeight={220}
-          // Tapping an option must select it, not open a lightbox.
-          disableLightbox
+          // While the option is selectable a tap must select it, not open a lightbox.
+          // Read-only options (review, previews) let the image open full screen.
+          disableLightbox={!!onPress}
           color={state === 'struck' ? color('text/tertiary') : undefined}
         />
       </View>

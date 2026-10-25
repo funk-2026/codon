@@ -94,7 +94,7 @@ export function MediaImage({ media, alt, variant = 'display', maxHeight, onPress
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: space['2xs'], backgroundColor: color('bg/sunken') }}
         >
           <ImageBroken size={22} color={color('text/tertiary')} />
-          <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Couldn't load image · Retry</Text>
+          <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Couldn’t load image · Retry</Text>
         </Pressable>
       ) : (
         <>
@@ -124,7 +124,12 @@ export function MediaImage({ media, alt, variant = 'display', maxHeight, onPress
 
   if (!onPress || state === 'error') return box;
   return (
-    <Pressable onPress={() => onPress(media)} accessibilityHint="Opens the image full screen">
+    <Pressable
+      onPress={() => onPress(media)}
+      accessibilityRole="imagebutton"
+      accessibilityLabel={label || 'Image'}
+      accessibilityHint="Opens the image full screen"
+    >
       {box}
     </Pressable>
   );

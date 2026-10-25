@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretDown, CaretUp, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { EmptyState, PrimaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
+import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest } from '@/src/api/teacher';
 import { Test, AuthoredQuestion } from '@/src/api/tests';
@@ -108,6 +108,12 @@ export default function ContentPreviewRoute() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const contentType: ContentType = paramType ?? resolvedType ?? 'Test';
+  // Saved tests only (a local draft preview has no id yet). Pending/approved tests are
+  // locked server-side; live (published) questions go through the correction flow,
+  // which the editor handles — so editing is offered for draft, rejected and published.
+  const testId = contentType === 'Test' && id ? String(id) : null;
+  const canEditTest = !!testId && (status === 'draft' || status === 'rejected');
+  const canEditQuestions = !!testId && (status === 'draft' || status === 'rejected' || status === 'published');
 
   const loadItem = useCallback(() => {
     if (!id) return;
@@ -143,9 +149,12 @@ export default function ContentPreviewRoute() {
     run.catch(() => setLoadError(true)).finally(() => setLoading(false));
   }, [id, paramType]);
 
-  useEffect(() => {
-    loadItem();
-  }, [loadItem]);
+  // Reload on focus so edits made in the question builder/editor show on return.
+  useFocusEffect(
+    useCallback(() => {
+      loadItem();
+    }, [loadItem]),
+  );
 
   const badge = taxonomyBadge(status);
 
@@ -297,7 +306,18 @@ export default function ContentPreviewRoute() {
                         : 'No questions added yet.'}
                     </Text>
                   ) : sortedQuestions && sortedQuestions.length > 0 ? (
-                    sortedQuestions.map((q, qi) => <QuestionPreviewCard key={q.id} q={q} index={qi} media={questionMedia} />)
+                    sortedQuestions.map((q, qi) => (
+                      <View key={q.id}>
+                        <QuestionPreviewCard q={q} index={qi} media={questionMedia} />
+                        {canEditQuestions ? (
+                          <TextButton
+                            label={status === 'published' ? 'Edit question (goes to review if the answer changes)' : 'Edit question'}
+                            onPress={() => router.push({ pathname: '/(teacher)/question-editor', params: { testId: testId!, questionId: q.id } })}
+                            style={{ alignSelf: 'flex-end' }}
+                          />
+                        ) : null}
+                      </View>
+                    ))
                   ) : (
                     <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
                       No questions added yet.
@@ -440,6 +460,12 @@ export default function ContentPreviewRoute() {
             <TextButton label="Delete draft" onPress={() => setDeleteConfirmOpen(true)} />
           </View>
         )
+      ) : null}
+
+      {canEditTest ? (
+        <View style={{ paddingHorizontal: space.md, marginBottom: space.sm }}>
+          <SecondaryButton label="Edit test & questions" onPress={() => router.push({ pathname: '/(teacher)/question-builder', params: { testId: testId! } })} />
+        </View>
       ) : null}
 
       {status === 'draft' || status === 'rejected' ? (

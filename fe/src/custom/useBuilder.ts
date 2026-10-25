@@ -6,7 +6,7 @@ import {
 } from '@/src/api/customTests';
 import { track } from '@/src/analytics/track';
 import {
-  applyPatch, blueprintKey, defaultBlueprint, normalizeSelection, pruneFilters, suggestedMinutes, toggleInList, validateBlueprint,
+  applyPatch, blueprintKey, defaultBlueprint, normalizeSelection, pruneFilters, suggestedMinutes, toggleInList, validateBlueprint, withDefaults,
   type Limits,
 } from './blueprint';
 
@@ -56,7 +56,7 @@ export function useBuilder(courseId: string | undefined, seed?: Blueprint) {
       const c = await getBuilderConfig(courseId);
       setConfig(c);
       setBp((cur) => {
-        if (cur) return { ...cur, course_id: courseId };
+        if (cur) return withDefaults(courseId, cur);
         const start = defaultBlueprint(courseId, Math.min(20, c.limits.max_questions));
         return start;
       });
@@ -98,6 +98,7 @@ export function useBuilder(courseId: string | undefined, seed?: Blueprint) {
       abort.current = ctl;
       try {
         const data = await countBlueprint(bp, ctl.signal);
+        if (ctl.signal.aborted) return; // superseded by a newer edit
         cache.current.set(key, { at: Date.now(), data });
         setCount({ status: 'ready', data });
         if (data.available < (data.clamped_to ?? data.requested)) track('custom.count_shortfall', { available: data.available, requested: data.requested });
@@ -156,7 +157,7 @@ export function useBuilder(courseId: string | undefined, seed?: Blueprint) {
     setStrategy: (strategy: Blueprint['strategy']) => edit((b) => ({ ...b, strategy })),
     setTitle: (title: string) => edit((b) => ({ ...b, title })),
     /** Replace the whole blueprint (preset / template / shared code), keeping the course. */
-    load: (next: Blueprint) => edit(() => ({ ...next, course_id: courseId ?? next.course_id })),
+    load: (next: Partial<Blueprint>) => edit(() => withDefaults(courseId ?? next.course_id ?? '', next)),
     patch: (p: Record<string, unknown>) => edit((b) => applyPatch(b, p)),
     reset: () => courseId && config && setBp(defaultBlueprint(courseId, Math.min(20, config.limits.max_questions))),
   };

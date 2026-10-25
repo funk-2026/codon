@@ -99,3 +99,41 @@ describe('summarizeBlueprint', () => {
     expect(summarizeBlueprint(defaultBlueprint('c', 10))).toBe('10 Qs · untimed');
   });
 });
+
+describe('withDefaults (partial server presets)', () => {
+  const { withDefaults } = require('../blueprint');
+  it('fills filters/timing/marking for a Daily-20 style preset', () => {
+    const bp = withDefaults('c1', { count: 20, strategy: 'unseen_first', timing: { timed: false } });
+    expect(bp.filters).toEqual({});
+    expect(bp.course_id).toBe('c1');
+    expect(bp.count).toBe(20);
+    expect(bp.strategy).toBe('unseen_first');
+    expect(bp.marking).toEqual({ preset: 'neet' });
+    expect(bp.mode).toBe('exam');
+  });
+  it('keeps the preset’s own filters and forces the current course', () => {
+    const bp = withDefaults('c2', { course_id: 'other', count: 20, filters: { source_types: ['pyq'] } });
+    expect(bp.filters).toEqual({ source_types: ['pyq'] });
+    expect(bp.course_id).toBe('c2');
+  });
+});
+
+describe('presetMatches (selected preset chip)', () => {
+  const { presetMatches, withDefaults } = require('../blueprint');
+  const daily = { count: 20, strategy: 'unseen_first', timing: { timed: false } };
+  it('is true right after picking the preset, regardless of key order', () => {
+    const bp = withDefaults('c1', daily);
+    const reordered = { marking: bp.marking, timing: bp.timing, strategy: bp.strategy, count: bp.count, mode: bp.mode, filters: {}, course_id: 'c1', schema_version: bp.schema_version };
+    expect(presetMatches(daily, bp)).toBe(true);
+    expect(presetMatches(daily, reordered)).toBe(true);
+  });
+  it('turns false after a manual edit', () => {
+    const bp = withDefaults('c1', daily);
+    expect(presetMatches(daily, { ...bp, count: 25 })).toBe(false);
+    expect(presetMatches(daily, { ...bp, filters: { subject_ids: ['s1'] } })).toBe(false);
+  });
+  it('does not light up a different preset', () => {
+    const bp = withDefaults('c1', daily);
+    expect(presetMatches({ count: 15, strategy: 'weak_first', timing: { timed: false } }, bp)).toBe(false);
+  });
+});

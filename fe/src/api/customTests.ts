@@ -1,4 +1,4 @@
-import { apiFetch, qs, newIdempotencyKey, type Paginated } from './client';
+import { apiFetch, arr, qs, newIdempotencyKey, type Paginated } from './client';
 import type { StudentAttempt } from './attempts';
 import type { Test } from './tests';
 
@@ -86,9 +86,29 @@ export type BuilderConfig = {
   entitlement: Quota;
 };
 
+// Go encodes an empty slice as `null`, so every list in these responses is
+// normalised to `[]` here — screens can then call .length/.map without guards.
+
+const normConfig = (c: BuilderConfig): BuilderConfig => ({
+  ...c,
+  subjects: arr(c.subjects).map((s) => ({
+    ...s,
+    chapters: arr(s.chapters).map((ch) => ({ ...ch, topics: arr(ch.topics) })),
+  })),
+  difficulty: arr(c.difficulty),
+  statuses: arr(c.statuses),
+  sources: arr(c.sources),
+  tags: arr(c.tags),
+  modes: arr(c.modes),
+  marking_presets: arr(c.marking_presets),
+  orders: arr(c.orders),
+  strategies: arr(c.strategies),
+  presets: arr(c.presets),
+});
+
 /** GET /custom-tests/builder-config?course_id= */
 export const getBuilderConfig = (courseId: string) =>
-  apiFetch<BuilderConfig>(`/custom-tests/builder-config${qs({ course_id: courseId })}`);
+  apiFetch<BuilderConfig>(`/custom-tests/builder-config${qs({ course_id: courseId })}`).then(normConfig);
 
 // ── Count (dry run) ────────────────────────────────────────────────────────
 
@@ -110,7 +130,12 @@ export type CountResult = {
 
 /** POST /custom-tests/count — cancellable; rate-limited (429 `rate_limited`). */
 export const countBlueprint = (bp: Blueprint, signal?: AbortSignal) =>
-  apiFetch<CountResult>('/custom-tests/count', { method: 'POST', body: JSON.stringify(bp), signal });
+  apiFetch<CountResult>('/custom-tests/count', { method: 'POST', body: JSON.stringify(bp), signal }).then((r) => ({
+    ...r,
+    by_subject: arr(r.by_subject),
+    by_difficulty: arr(r.by_difficulty),
+    suggestions: arr(r.suggestions),
+  }));
 
 // ── Generate ───────────────────────────────────────────────────────────────
 
@@ -121,12 +146,14 @@ export type GenerateResult = { test: Test; relaxations: Relaxation[]; replayed: 
  * POST /custom-tests. Pass the SAME idempotency key on every retry of one user
  * action so a dropped response can't create two tests.
  */
+const normGenerate = (r: GenerateResult): GenerateResult => ({ ...r, relaxations: arr(r.relaxations) });
+
 export const generateTest = (bp: Blueprint, idempotencyKey: string = newIdempotencyKey()) =>
   apiFetch<GenerateResult>('/custom-tests', {
     method: 'POST',
     headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(bp),
-  });
+  }).then(normGenerate);
 
 /** Failure codes of POST /custom-tests worth a dedicated UI. */
 export type GenerateErrorCode = 'invalid_blueprint' | 'pool_too_small' | 'quota_exceeded' | 'rate_limited' | 'too_many_tests';
@@ -153,12 +180,13 @@ export type CustomTestRow = {
 
 /** GET /custom-tests */
 export const listCustomTests = (p: { state?: CustomTestState; cursor?: string | null; limit?: number } = {}) =>
-  apiFetch<Paginated<CustomTestRow>>(`/custom-tests${qs({ ...p, cursor: p.cursor ?? undefined })}`);
+  apiFetch<Paginated<CustomTestRow>>(`/custom-tests${qs({ ...p, cursor: p.cursor ?? undefined })}`).then((r) => ({ ...r, items: arr(r.items) }));
 
 export type CustomTestDetail = { test: Test; blueprint: Blueprint; summary: string; attempts: StudentAttempt[] };
 
 /** GET /custom-tests/:id */
-export const getCustomTest = (id: string) => apiFetch<CustomTestDetail>(`/custom-tests/${id}`);
+export const getCustomTest = (id: string) =>
+  apiFetch<CustomTestDetail>(`/custom-tests/${id}`).then((r) => ({ ...r, attempts: arr(r.attempts) }));
 
 /** PATCH /custom-tests/:id — rename. */
 export const renameCustomTest = (id: string, title: string) =>
@@ -169,7 +197,7 @@ export const deleteCustomTest = (id: string) => apiFetch<{ message: string }>(`/
 
 /** POST /custom-tests/:id/regenerate — same blueprint, fresh questions (a NEW test). */
 export const regenerateCustomTest = (id: string, idempotencyKey: string = newIdempotencyKey()) =>
-  apiFetch<GenerateResult>(`/custom-tests/${id}/regenerate`, { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } });
+  apiFetch<GenerateResult>(`/custom-tests/${id}/regenerate`, { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } }).then(normGenerate);
 
 /** POST /custom-tests/from-attempt/:attempt_id — "Practise my mistakes". */
 export const customFromAttempt = (
@@ -181,13 +209,14 @@ export const customFromAttempt = (
     method: 'POST',
     headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(body),
-  });
+  }).then(normGenerate);
 
 // ── Templates & sharing ────────────────────────────────────────────────────
 
 export type Template = { id: string; title: string; blueprint: Blueprint; created_at: string; updated_at: string };
 
-export const listTemplates = () => apiFetch<{ templates: Template[] }>('/custom-tests/templates');
+export const listTemplates = () =>
+  apiFetch<{ templates: Template[] }>('/custom-tests/templates').then((r) => ({ templates: arr(r.templates) }));
 export const createTemplate = (title: string, blueprint: Blueprint) =>
   apiFetch<Template>('/custom-tests/templates', { method: 'POST', body: JSON.stringify({ title, blueprint }) });
 export const updateTemplate = (id: string, p: { title?: string; blueprint?: Blueprint }) =>
@@ -200,4 +229,5 @@ export const shareBlueprint = (blueprint: Blueprint) =>
 
 /** GET /custom-tests/shared/:code — 410 once expired. */
 export const getShared = (code: string) =>
-  apiFetch<{ blueprint: Blueprint; still_valid: boolean; issues: BlueprintIssue[] }>(`/custom-tests/shared/${encodeURIComponent(code)}`);
+  apiFetch<{ blueprint: Blueprint; still_valid: boolean; issues: BlueprintIssue[] }>(`/custom-tests/shared/${encodeURIComponent(code)}`)
+    .then((r) => ({ ...r, issues: arr(r.issues) }));

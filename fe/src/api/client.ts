@@ -35,7 +35,14 @@ export async function apiFetch<T = unknown>(
     headers: buildHeaders(token, options.headers as Record<string, string> | undefined),
   });
 
-  const body = await res.json().catch(() => ({}));
+  // A body that isn't JSON is treated as empty — except when the caller aborted
+  // mid-read: that must surface as an AbortError, never as an empty "success".
+  let body: unknown = {};
+  try {
+    body = await res.json();
+  } catch (e) {
+    if (options.signal?.aborted) throw e;
+  }
 
   if (!res.ok) {
     if (res.status === 401 && !url.includes('/auth/otp')) {
@@ -65,6 +72,12 @@ export class ApiError extends Error {
     this.details = details;
   }
 }
+
+/**
+ * Go encodes an empty slice as JSON `null`, not `[]`. API modules wrap list
+ * fields with this so screens can always call .map/.length safely.
+ */
+export const arr = <T,>(v: T[] | null | undefined): T[] => v ?? [];
 
 /** Cursor-paginated list envelope used by the newer backend endpoints. */
 export type Paginated<T> = { items: T[]; next_cursor: string | null };

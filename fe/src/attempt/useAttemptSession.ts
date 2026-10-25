@@ -6,8 +6,9 @@ import {
 } from '@/src/api/attempts';
 import { getTestQuestions, type Question } from '@/src/api/tests';
 import type { MediaMap } from '@/src/rich/ast';
-import { deadlineOnDeviceClock, type LocalAnswer } from './logic';
-import { useAnswerSync } from './useAnswerSync';
+import { deadlineOnDeviceClock, type LocalAnswer, type PendingQueue } from './logic';
+import { queueKey, useAnswerSync } from './useAnswerSync';
+import { kvGet } from '@/src/storage/kv';
 
 export type SessionPhase = 'loading' | 'ready' | 'error' | 'expired';
 
@@ -64,7 +65,34 @@ export function useAttemptSession(testId: string | undefined) {
         map[a.question_id] = toLocal(a);
         if (a.time_spent_seconds) sp[a.question_id] = a.time_spent_seconds;
       });
+      // Answers tapped but not yet saved when the app was killed live in the
+      // persisted queue; useAnswerSync re-sends them, but the screen must show
+      // them now too or the student sees their old answer and may re-tap.
+      const unsent = await kvGet<PendingQueue>(queueKey(start.attempt.id), {});
+      for (const u of Object.values(unsent)) {
+        const cur = map[u.question_id] ?? { selected: undefined, marked: false };
+        map[u.question_id] = {
+          ...cur,
+          ...(u.selected_option !== undefined ? { selected: u.selected_option ?? undefined } : {}),
+          ...(u.marked_for_review !== undefined ? { marked: u.marked_for_review } : {}),
+          ...(u.confidence !== undefined ? { confidence: u.confidence ?? undefined } : {}),
+        };
+        if (u.time_spent_seconds) sp[u.question_id] = Math.max(sp[u.question_id] ?? 0, u.time_spent_seconds);
+      }
       spent.current = sp;
+      // Tutor mode on resume: answers come back flagged `revealed` but without the
+      // result, so re-fetch it (the reveal endpoint is idempotent). Without this a
+      // checked question looks unchecked — live-looking options, "Check answer" and
+      // "Clear my response" that silently do nothing.
+      const revealedIds = start.answers.filter((a) => a.revealed_at).map((a) => a.question_id);
+      const extraMedia: MediaMap = {};
+      const results = await Promise.allSettled(revealedIds.map((qid) => revealAnswer(start.attempt.id, qid)));
+      results.forEach((r, i) => {
+        if (r.status !== 'fulfilled') return;
+        rv[revealedIds[i]] = r.value;
+        Object.assign(extraMedia, r.value.media ?? {});
+      });
+      setMedia((m) => ({ ...m, ...extraMedia }));
       setAnswers(map);
       setReveals(rv);
       setDeadline(deadlineOnDeviceClock(start.attempt.expires_at, start.server_now, Date.now()));

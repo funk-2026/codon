@@ -116,8 +116,29 @@ export default function OtpVerifyRoute() {
   };
 
   const setDigit = (i: number, val: string) => {
-    const char = val.replace(/\D/g, '').slice(-1);
-    if (!char) return;
+    const typed = val.replace(/\D/g, '');
+    if (!typed) return;
+    // SMS autofill / paste delivers the whole code into one box. A single keystroke
+    // gives at most 2 chars (old digit + new one); 3+ means a pasted code — spread it.
+    if (typed.length >= 3) {
+      const code = typed.slice(-CODE_LENGTH);
+      const start = code.length === CODE_LENGTH ? 0 : i;
+      const next = [...digits];
+      for (let k = 0; k < code.length && start + k < CODE_LENGTH; k++) next[start + k] = code[k];
+      setDigits(next);
+      setError(null);
+      const firstEmpty = next.findIndex((d) => d === '');
+      if (firstEmpty === -1) {
+        refs.current[CODE_LENGTH - 1]?.blur();
+        setActive(CODE_LENGTH - 1);
+        submit(next.join(''));
+      } else {
+        refs.current[firstEmpty]?.focus();
+        setActive(firstEmpty);
+      }
+      return;
+    }
+    const char = typed.slice(-1);
     const next = [...digits];
     next[i] = char;
     setDigits(next);
@@ -227,7 +248,10 @@ export default function OtpVerifyRoute() {
                   }}
                   onFocus={() => setActive(i)}
                   keyboardType="number-pad"
-                  maxLength={1}
+                  // Room for a whole autofilled/pasted code; setDigit() spreads it across the boxes.
+                  maxLength={CODE_LENGTH + 1}
+                  textContentType="oneTimeCode"
+                  autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'}
                   selectTextOnFocus
                   editable={!verifying}
                   style={[

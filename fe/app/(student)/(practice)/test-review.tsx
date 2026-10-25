@@ -91,9 +91,11 @@ export default function TestReviewRoute() {
 
   const loadMore = useCallback(async () => {
     if (!id || !cursor || loadingMore) return;
+    const seq = reqSeq.current;
     setLoadingMore(true);
     try {
       const res = await getAttemptReview(id, { filter, limit: PAGE, cursor });
+      if (seq !== reqSeq.current) return; // filter changed mid-request — this page belongs to the old list
       setItems((prev) => [...prev, ...res.review]);
       setMedia((m) => ({ ...m, ...(res.media ?? {}) }));
       setCursor(res.next_cursor);
