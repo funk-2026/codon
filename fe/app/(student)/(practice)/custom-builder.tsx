@@ -11,7 +11,7 @@ import { useAuth } from '@/src/auth/AuthContext';
 import { useAppConfig, useFlag } from '@/src/config/AppConfigContext';
 import { ApiError } from '@/src/api/client';
 import {
-  createTemplate, getShared, listTemplates,
+  createTemplate, getCustomTest, getShared, listCustomTests, listTemplates,
   type Blueprint, type BlueprintIssue, type GenerateResult, type Suggestion, type Template,
 } from '@/src/api/customTests';
 import { useBuilder } from '@/src/custom/useBuilder';
@@ -19,6 +19,7 @@ import { shareSetup } from '@/src/custom/share';
 import { ORDER_LABEL, STRATEGY_LABEL } from '@/src/custom/labels';
 import { presetMatches, resolvedMarks, summarizeBlueprint } from '@/src/custom/blueprint';
 import { ChipGroup, Section, ScopeTree, Segmented, Stepper } from '@/src/custom/ui';
+import { DifficultyMixEditor, SubjectWeightsEditor } from '@/src/custom/MixEditors';
 import { formatClock } from '@/src/attempt/logic';
 import { track } from '@/src/analytics/track';
 
@@ -27,9 +28,10 @@ const MIXES: { key: string; label: string; mix?: Blueprint['difficulty_mix'] }[]
   { key: 'easy', label: 'Easier', mix: { easy: 0.5, medium: 0.3, hard: 0.2 } },
   { key: 'balanced', label: 'Balanced', mix: { easy: 0.3, medium: 0.5, hard: 0.2 } },
   { key: 'hard', label: 'Harder', mix: { easy: 0.2, medium: 0.3, hard: 0.5 } },
+  { key: 'custom', label: 'Custom' },
 ];
 const mixKey = (m?: Blueprint['difficulty_mix']) =>
-  !m || Object.keys(m).length === 0 ? 'any' : MIXES.find((x) => x.mix && x.mix.easy === m.easy && x.mix.medium === m.medium && x.mix.hard === m.hard)?.key ?? 'any';
+  !m || Object.keys(m).length === 0 ? 'any' : MIXES.find((x) => x.mix && x.mix.easy === m.easy && x.mix.medium === m.medium && x.mix.hard === m.hard)?.key ?? 'custom';
 
 
 export default function CustomBuilderRoute() {
@@ -47,6 +49,7 @@ export default function CustomBuilderRoute() {
   const { config, bp, api, count, issues, limits } = B;
 
   const [advanced, setAdvanced] = useState(false);
+  const [customMix, setCustomMix] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -57,6 +60,20 @@ export default function CustomBuilderRoute() {
   const [genError, setGenError] = useState<string | null>(null);
   const [genSuggestions, setGenSuggestions] = useState<Suggestion[]>([]);
   const [serverIssues, setServerIssues] = useState<BlueprintIssue[]>([]);
+  // FE-4.7: "Repeat last" chip + long-press a chip to build straight away
+  const [recent, setRecent] = useState<{ blueprint: Blueprint; summary: string } | null>(null);
+  const autoGenerate = useRef<Partial<Blueprint> | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    listCustomTests({ limit: 1 })
+      .then((r) => (r.items[0] ? getCustomTest(r.items[0].test.id) : null))
+      .then((d) => alive && d?.blueprint && setRecent({ blueprint: d.blueprint, summary: d.summary }))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     track('custom.builder_opened', { via: params.code ? 'shared_code' : 'direct' });
@@ -152,6 +169,15 @@ export default function CustomBuilderRoute() {
       setGenError('Couldn’t reach the server. Check your connection and try again.');
     }
   };
+  // Long-pressed chip: generate as soon as its blueprint has been loaded into the builder.
+  useEffect(() => {
+    const target = autoGenerate.current;
+    if (!target || !bp) return;
+    autoGenerate.current = null; // one shot: if limits adjusted it (e.g. free-tier count), just leave it prefilled
+    if (presetMatches(target, bp) && issues.length === 0) void onGenerate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bp, issues.length]);
+
 
   const startNow = (r: GenerateResult) => {
     setDone(null);
@@ -230,6 +256,8 @@ export default function CustomBuilderRoute() {
   const timedOn = bp.timing.timed;
   const bookmarkCollections = app.config?.bookmark_collections ?? [];
   const statusSupported = config.flags.status_filters;
+  // subjects the custom weights apply to: the ones in scope, or all of them
+  const weightSubjects = (f.subject_ids?.length ? config.subjects.filter((x) => f.subject_ids!.includes(x.id)) : config.subjects).map((x) => ({ id: x.id, name: x.name }));
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -248,7 +276,19 @@ export default function CustomBuilderRoute() {
         ) : null}
 
         {config.presets.length > 0 || true ? (
-          <PresetRow presets={config.presets} current={bp} onPick={(p) => { api.load(p.blueprint); track('custom.filter_changed', { via: 'preset' }); }} onTemplates={() => setTemplatesOpen(true)} />
+          <PresetRow
+            presets={config.presets}
+            recent={recent}
+            current={bp}
+            onPick={(p) => { api.load(p.blueprint); track('custom.filter_changed', { via: 'preset' }); }}
+            onQuickStart={(p) => {
+              track('custom.filter_changed', { via: 'quick_start' });
+              if (presetMatches(p.blueprint, bp)) return void onGenerate(); // already loaded
+              autoGenerate.current = p.blueprint;
+              api.load(p.blueprint);
+            }}
+            onTemplates={() => setTemplatesOpen(true)}
+          />
         ) : null}
 
         <Section title="Scope" hint="Pick subjects, chapters or topics. Leave empty to use everything." error={fieldError('filters.subject_ids') ?? fieldError('filters.chapter_ids') ?? fieldError('filters.topic_ids')}>
@@ -272,12 +312,17 @@ export default function CustomBuilderRoute() {
           <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Difficulty mix</Text>
           <Segmented
             options={MIXES.map((m) => ({ key: m.key, label: m.label }))}
-            value={mixKey(bp.difficulty_mix)}
+            value={customMix ? 'custom' : mixKey(bp.difficulty_mix)}
             onChange={(k) => {
+              setCustomMix(k === 'custom');
+              if (k === 'custom') return; // the editor below applies once it adds up to 100 %
               const m = MIXES.find((x) => x.key === k)?.mix;
               api.patch({ difficulty_mix: m ?? null });
             }}
           />
+          {customMix || mixKey(bp.difficulty_mix) === 'custom' ? (
+            <DifficultyMixEditor mix={bp.difficulty_mix} onChange={(m) => api.patch({ difficulty_mix: m })} />
+          ) : null}
         </Section>
 
         <Section
@@ -427,10 +472,21 @@ export default function CustomBuilderRoute() {
             <Section title="Balance across subjects" error={fieldError('subject_weights')}>
               <ChipGroup
                 single
-                options={[{ key: 'auto', label: 'Automatic' }, { key: 'even', label: 'Even' }, { key: 'proportional', label: 'Proportional' }]}
-                selected={[typeof bp.subject_weights === 'string' ? bp.subject_weights : 'auto']}
-                onToggle={(k) => api.patch({ subject_weights: k === 'auto' ? null : k })}
+                options={[{ key: 'auto', label: 'Automatic' }, { key: 'even', label: 'Even' }, { key: 'proportional', label: 'Proportional' }, { key: 'custom', label: 'Custom' }]}
+                selected={[bp.subject_weights && typeof bp.subject_weights === 'object' ? 'custom' : typeof bp.subject_weights === 'string' ? bp.subject_weights : 'auto']}
+                onToggle={(k) =>
+                  api.patch({
+                    subject_weights: k === 'auto' ? null : k === 'custom' ? Object.fromEntries(weightSubjects.map((s) => [s.id, 1])) : k,
+                  })
+                }
               />
+              {bp.subject_weights && typeof bp.subject_weights === 'object' ? (
+                <SubjectWeightsEditor
+                  subjects={weightSubjects}
+                  weights={bp.subject_weights as Record<string, number>}
+                  onChange={(w) => api.patch({ subject_weights: w })}
+                />
+              ) : null}
             </Section>
             <Section title="Name (optional)" error={fieldError('title')}>
               <InputField label="Title" value={bp.title ?? ''} onChangeText={api.setTitle} placeholder="Auto-named if left empty" />
@@ -543,24 +599,39 @@ function Header({ onBack, onMenu }: { onBack: () => void; onMenu?: () => void })
   );
 }
 
-function PresetRow({ presets, current, onPick, onTemplates }: { presets: { id: string; title: string; description?: string; blueprint: Blueprint }[]; current: Blueprint; onPick: (p: { blueprint: Blueprint }) => void; onTemplates: () => void }) {
+function PresetRow({ presets, recent, current, onPick, onQuickStart, onTemplates }: {
+  presets: { id: string; title: string; description?: string; blueprint: Blueprint }[];
+  recent: { blueprint: Blueprint; summary: string } | null;
+  current: Blueprint;
+  onPick: (p: { blueprint: Blueprint }) => void;
+  onQuickStart: (p: { blueprint: Blueprint }) => void;
+  onTemplates: () => void;
+}) {
   const { color, type, space, radius } = useTheme();
+  const chips = [
+    ...(recent ? [{ id: 'recent', title: 'Repeat last', description: recent.summary, blueprint: recent.blueprint }] : []),
+    ...presets,
+  ];
   return (
     <View style={{ gap: space.xs }}>
-      <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>START FROM</Text>
+      <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>START FROM · long-press to build now</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }}>
         <Pressable onPress={onTemplates} accessibilityRole="button" style={{ minHeight: 40, paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 1.5, borderColor: color('accent/default'), justifyContent: 'center' }}>
           <Text style={[type['type/body-m'], { color: color('accent/default') }]}>My templates</Text>
         </Pressable>
-        {presets.map((p) => {
+        {chips.map((p) => {
           const on = presetMatches(p.blueprint, current);
           return (
             <Pressable
               key={p.id}
               onPress={() => onPick(p)}
+              onLongPress={() => onQuickStart(p)}
+              delayLongPress={400}
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
               accessibilityHint={p.description}
+              accessibilityActions={[{ name: 'longpress', label: 'Build this test now' }]}
+              onAccessibilityAction={(e) => e.nativeEvent.actionName === 'longpress' && onQuickStart(p)}
               style={{ minHeight: 40, paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 1.5, borderColor: on ? color('accent/default') : 'transparent', backgroundColor: on ? color('accent/tint') : color('bg/surface'), justifyContent: 'center' }}
             >
               <Text style={[type['type/body-m'], { color: on ? color('accent/default') : color('text/primary') }]}>{p.title}</Text>

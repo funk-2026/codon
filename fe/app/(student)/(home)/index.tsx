@@ -21,22 +21,28 @@ import {
   Exam,
   BookOpen,
   HandHeart,
+  Sliders,
+  Cards,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { ErrorBanner } from '@/src/components';
 import { getMe, getProgress, getProgressBreakdown, getRecentContent } from '@/src/api/profile';
 import { DailyGoalCard } from '@/src/home/DailyGoalCard';
+import { useFlag } from '@/src/config/AppConfigContext';
+import { getModule } from '@/src/modules/registry';
 import type { Subscription } from '@/src/api/profile';
 import { BrainHacksShelf, HomeUpdatesCarousel } from '@/src/home/HomeShelves';
 
 type SubState = 'active' | 'expiring' | 'none';
 
-const QUICK_ACCESS: { label: string; href: Href; icon: React.ReactNode; wellness?: boolean }[] = [
-  { label: 'Q Bank', href: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'qbank' } }, icon: <Exam size={24} color="#000" weight="duotone" /> },
-  { label: 'Test Series', href: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'test_series' } }, icon: <Exam size={24} color="#000" weight="duotone" /> },
-  { label: 'Video Classes', href: '/(student)/(learn)', icon: <BookOpen size={24} color="#000" weight="duotone" /> },
-  { label: 'Support', href: '/(student)/(support)', icon: <HandHeart size={24} color="#000" weight="duotone" />, wellness: true },
+const QUICK_ACCESS: { label: string; href: Href; Icon: typeof Exam; wellness?: boolean; flag?: string }[] = [
+  { label: getModule('qbank').label, href: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'qbank' } }, Icon: Exam },
+  { label: getModule('test_series').label, href: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'test_series' } }, Icon: Exam },
+  { label: getModule('custom').label, href: '/(student)/(practice)/custom-builder', Icon: Sliders, flag: 'custom_test.enabled' },
+  { label: 'Flashcards', href: '/(student)/(learn)/flashcards', Icon: Cards },
+  { label: 'Video Classes', href: '/(student)/(learn)', Icon: BookOpen },
+  { label: 'Support', href: '/(student)/(support)', Icon: HandHeart, wellness: true },
 ];
 
 function greeting(): string {
@@ -76,6 +82,7 @@ export default function HomeDashboardRoute() {
 
   const [stats, setStats] = useState({ attempted: 0, avgScore: 0 });
   const [streak, setStreak] = useState(0);
+  const customOn = useFlag('custom_test.enabled');
   const [isNewUser, setIsNewUser] = useState(true);
   const [recentItem, setRecentItem] = useState<any>(null);
   const [loadError, setLoadError] = useState(false);
@@ -291,7 +298,7 @@ export default function HomeDashboardRoute() {
                   </Pressable>
                 </View>
                 <View style={[styles.grid, { gap: space.sm }]}>
-                  {QUICK_ACCESS.map((q) => (
+                  {QUICK_ACCESS.filter((q) => !q.flag || (q.flag === 'custom_test.enabled' && customOn)).map((q) => (
                     <Pressable
                       key={q.label}
                       onPress={() => router.push(q.href)}
@@ -306,13 +313,7 @@ export default function HomeDashboardRoute() {
                         shadow(),
                       ]}
                     >
-                      {(() => {
-                        const ink = q.wellness ? color('wellness/accent') : color('accent/default');
-                        if (q.label === 'Q Bank') return <Exam size={26} color={ink} weight="duotone" />;
-                        if (q.label === 'Test Series') return <Exam size={26} color={ink} weight="duotone" />;
-                        if (q.label === 'Video Classes') return <BookOpen size={26} color={ink} weight="duotone" />;
-                        return <HandHeart size={26} color={ink} weight="duotone" />;
-                      })()}
+                      <q.Icon size={26} color={q.wellness ? color('wellness/accent') : color('accent/default')} weight="duotone" />
                       <Text
                         style={[
                           type['type/h3'],

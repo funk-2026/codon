@@ -8,6 +8,7 @@ import { EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock,
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { useFlag } from '@/src/config/AppConfigContext';
+import { MasteryHeatmap } from '@/src/progress/MasteryHeatmap';
 import { getProgress, getProgressBreakdown, type ProgressBreakdownResponse, type ProgressResponse } from '@/src/api/profile';
 import {
   getCoverage, getMastery, getRecommendations, getTrend, getWeakAreas,
@@ -20,13 +21,6 @@ const loading = <T,>(): Section<T> => ({ status: 'loading' });
 function shadow(): {} {
   return { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 };
 }
-
-const BUCKET: Record<MasteryRow['bucket'], { label: string; tone: 'semantic/danger' | 'semantic/warning' | 'semantic/success' | 'text/tertiary' }> = {
-  weak: { label: 'Needs work', tone: 'semantic/danger' },
-  improving: { label: 'Improving', tone: 'semantic/warning' },
-  strong: { label: 'Strong', tone: 'semantic/success' },
-  not_enough_data: { label: 'Not enough data', tone: 'text/tertiary' },
-};
 
 export default function ProgressDetailRoute() {
   const { color, type, space, radius } = useTheme();
@@ -194,7 +188,7 @@ export default function ProgressDetailRoute() {
               </View>
             ) : null}
 
-            {/* Mastery by subject / chapter */}
+            {/* Mastery heat-map by subject / chapter (FE-5.4) */}
             <View style={{ marginTop: space.xl }}>
               <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>BY SUBJECT</Text>
               {mastery.status === 'loading' ? (
@@ -204,21 +198,11 @@ export default function ProgressDetailRoute() {
               ) : subjects.length === 0 ? (
                 <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Answer some questions and your strengths will show up here.</Text>
               ) : (
-                <View style={{ gap: space.sm }}>
-                  {subjects.map((s) => (
-                    <View key={s.name} style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, gap: space.sm }, shadow()]}>
-                      <Bar label={s.name} pct={Math.round(s.accuracy * 100)} caption={`${s.correct}/${s.answers}`} strong />
-                      {s.chapters.map((c) => {
-                        const b = BUCKET[c.bucket];
-                        return (
-                          <View key={c.chapter_id ?? c.chapter} accessible accessibilityLabel={`${c.chapter}: ${Math.round(c.accuracy * 100)} percent, ${b.label}`} style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
-                            <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]} numberOfLines={1}>{c.chapter}</Text>
-                            <Text style={[type['type/caption'], { color: color(b.tone) }]}>{c.bucket === 'not_enough_data' ? b.label : `${Math.round(c.accuracy * 100)}% · ${b.label}`}</Text>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ))}
+                <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}>
+                  <MasteryHeatmap
+                    subjects={subjects}
+                    onPractise={customOn ? (chapterId) => practise({ filters: { chapter_ids: [chapterId] } }) : undefined}
+                  />
                 </View>
               )}
             </View>

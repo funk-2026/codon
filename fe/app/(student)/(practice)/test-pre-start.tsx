@@ -10,6 +10,7 @@ import Animated, {
 import { CaretLeft, Check } from 'phosphor-react-native';
 import { ErrorBanner, PrimaryButton, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { track } from '@/src/analytics/track';
 import { getTest } from '@/src/api/tests';
 import type { ActiveAttempt, Test } from '@/src/api/tests';
 import { getModule } from '@/src/modules/registry';
@@ -265,7 +266,11 @@ export default function TestPreStartRoute() {
         <PrimaryButton
           label={isResume ? 'Resume Test' : 'Start Test'}
           disabled={loading || !test}
-          onPress={() => router.push({ pathname: '/(student)/(practice)/test-question', params: { id: id as string } })}
+          onPress={() => {
+            // FE-4.22: count fresh starts of custom tests (resumes are not new starts)
+            if (test?.module_type === 'custom' && !isResume) track('custom.started', { questions: test.total_questions, mode: test.mode ?? 'exam' });
+            router.push({ pathname: '/(student)/(practice)/test-question', params: { id: id as string } });
+          }}
         />
       </View>
     </SafeAreaView>

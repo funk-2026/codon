@@ -6,14 +6,16 @@ import { CaretLeft, CaretRight, WarningCircle } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListTests } from '@/src/api/admin';
+import { getModule, teacherModules } from '@/src/modules/registry';
 
-type ModuleType = 'All' | 'Q Bank' | 'Test Series' | 'Practice';
+/** Module labels come from the module registry (FE-0.3) — never hard-coded here. */
+type ModuleType = string;
 type TestItem = {
   id: string;
   title: string;
   breadcrumb: string;
   questionCount: number;
-  module: Exclude<ModuleType, 'All'>;
+  module: string;
   teacher: string;
   submitted: string;
   durationMinutes?: number;
@@ -22,7 +24,7 @@ type TestItem = {
 };
 
 
-const FILTERS: ModuleType[] = ['All', 'Q Bank', 'Test Series', 'Practice'];
+const FILTERS: ModuleType[] = ['All', ...teacherModules().map((m) => m.label)];
 
 function shadow(): {} {
   return {
@@ -47,11 +49,6 @@ export default function ModerationTestsRoute() {
     setLoading(true);
     adminListTests('pending_review').then(res => {
        const mapped: TestItem[] = res.tests.map(t => {
-          const moduleMap: Record<string, Exclude<ModuleType, 'All'>> = {
-            'qbank': 'Q Bank',
-            'test_series': 'Test Series',
-            'practice': 'Practice'
-          };
           const b = [t.course?.name, t.subject?.name].filter(Boolean).join(' · ');
 
           return {
@@ -59,7 +56,7 @@ export default function ModerationTestsRoute() {
             title: t.title,
             breadcrumb: b || 'Unknown',
             questionCount: t.total_questions || 0,
-            module: moduleMap[t.module_type] || 'Practice',
+            module: getModule(t.module_type).label,
             teacher: t.creator?.name || t.creator?.phone_number || 'Unknown Teacher',
             submitted: new Date(t.created_at || Date.now()).toLocaleDateString(),
             durationMinutes: t.duration_minutes,

@@ -7,6 +7,7 @@ import {
   BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast,
 } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { ManageAllBanner } from '@/src/teacher/ManageAllBanner';
 import { ApiError } from '@/src/api/client';
 import { listCourses, getCurriculum, type Subject } from '@/src/api/courses';
 import {
@@ -154,9 +155,19 @@ export default function QuestionBankRoute() {
         ))}
       </ScrollView>
 
+      <View style={{ marginHorizontal: space.md, marginTop: space.sm }}>
+        <ManageAllBanner what="questions" />
+      </View>
       {missingLine && quick === 'all' ? (
         <Pressable onPress={() => setQuick(totals?.missing_difficulty ? 'difficulty' : totals?.missing_tags ? 'tags' : 'alt_text')} accessibilityRole="button" style={{ marginHorizontal: space.md, marginTop: space.sm, backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.sm }}>
           <Text style={[type['type/caption'], { color: color('text/primary') }]}>Needs attention: {missingLine} — tap to review</Text>
+          <Text
+            onPress={() => router.push('/(teacher)/completeness')}
+            accessibilityRole="link"
+            style={[type['type/caption'], { color: color('accent/default'), marginTop: 2 }]}
+          >
+            Fix chapter by chapter →
+          </Text>
         </Pressable>
       ) : null}
 

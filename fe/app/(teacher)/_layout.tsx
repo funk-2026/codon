@@ -26,6 +26,9 @@ export default function TeacherLayout() {
       <Stack.Screen name="flashcard-decks" options={{ headerShown: false }} />
       <Stack.Screen name="flashcard-deck" options={{ headerShown: false }} />
       <Stack.Screen name="brain-hack-detail" options={{ headerShown: false }} />
+      <Stack.Screen name="completeness" options={{ headerShown: false }} />
+      <Stack.Screen name="quick-tag" options={{ headerShown: false }} />
+      <Stack.Screen name="preview-run" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="content-preview" options={{ title: 'Preview' }} />
       <Stack.Screen name="rejected-content-detail" options={{ title: 'Rejected' }} />
     </Stack>

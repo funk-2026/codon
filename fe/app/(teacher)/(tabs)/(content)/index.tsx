@@ -15,6 +15,7 @@ import {
 } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { ManageAllBanner } from '@/src/teacher/ManageAllBanner';
 import { listTeacherContent, listTeacherTests } from '@/src/api/teacher';
 import { listTeacherBrainHacks } from '@/src/api/discover';
 
@@ -261,6 +262,9 @@ export default function MyContentListRoute() {
         })}
       </ScrollView>
 
+      <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
+        <ManageAllBanner />
+      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}

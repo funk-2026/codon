@@ -462,6 +462,12 @@ export default function ContentPreviewRoute() {
         )
       ) : null}
 
+      {testId && (sortedQuestions?.length ?? 0) > 0 ? (
+        <View style={{ paddingHorizontal: space.md, marginBottom: space.sm }}>
+          <SecondaryButton label="Try it as a student" onPress={() => router.push({ pathname: '/(teacher)/preview-run', params: { testId } })} />
+        </View>
+      ) : null}
+
       {canEditTest ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.sm }}>
           <SecondaryButton label="Edit test & questions" onPress={() => router.push({ pathname: '/(teacher)/question-builder', params: { testId: testId! } })} />
