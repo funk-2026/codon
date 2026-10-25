@@ -114,6 +114,38 @@ Use **two students** (one with attempts, one brand-new), **one teacher**, **one 
 ### 8F. Image prefetch
 - [ ] Start a test with images on later questions, wait ~10 s on Q1, enable airplane mode → page through → later images render.
 
+## 9. Gap completion (2026-10-25, second pass)
+
+### 9A. Student
+- [ ] **Bookmark list chooser:** tap the bookmark on a question → toast "Bookmarked · long-press to choose a list". Long-press it → sheet lists *Revise later / Doubts / Important* with counts → pick *Doubts* (✓ moves there). Tap the bookmark on another question → it goes to *Doubts* (last used). *Remove bookmark* in the sheet works. Bookmarks screen shows each in the right list.
+- [ ] **Repeat last:** after building one custom test, the builder's *Start from* row begins with **Repeat last** → tap → your previous setup is prefilled.
+- [ ] **Quick start:** long-press *Daily 20* (or Repeat last) → the test is built and opens immediately (≤ 4 taps from Home: Home → Custom Test tile → long-press → Start).
+- [ ] **Custom difficulty mix:** Builder → Difficulty mix → *Custom* → set Easy/Medium/Hard; at 110 % you see "Adds up to 110 % — make it 100 % to apply"; at 100 % the count line updates.
+- [ ] **Custom subject balance:** Advanced → Balance across subjects → *Custom* → per-subject 0–10 with "≈ N % of the questions"; the last subject can't go to 0.
+- [ ] **Home tiles:** EXPLORE shows **Custom Test** (only when the module is on) and **Flashcards**, each with its own icon; both open the right screen.
+- [ ] **Mastery heat-map:** Progress → BY SUBJECT shows coloured chapter tiles + legend; tap a tile → details + *Practise this chapter* → builder prefilled with that chapter.
+
+### 9B. Teacher
+- [ ] **Completeness:** Question Bank → *Fix chapter by chapter* → per-chapter missing counts → tap "N no difficulty" → **Quick-tag**: tap Easy/Medium/Hard → next question; swipe left = skip, swipe right = back; progress "3 of 12 · 2 saved". Back on Completeness the count dropped.
+- [ ] **Quick-tag tags:** "N no tags" → pick popular chips and/or type a new tag → *Save*.
+- [ ] **Quick-tag other kinds:** topic / NCERT / alt text → *Open in editor* opens that question.
+- [ ] **Try it as a student:** teacher preview of a test with questions → *Try it as a student* → timer (if timed), pick, *Check answer* (correct/incorrect + explanation, or "No explanation" warning) → *Finish* → score with the test's marking. Nothing appears in any student's history.
+- [ ] **Platform-wide banner:** Admin → Users → a teacher → *Can manage all content* on → that teacher sees "Platform-wide access…" on My Content and Question Bank (off → no banner).
+
+### 9C. Admin
+- [ ] **Test approvals filters:** chips are All + the teacher-creatable modules (from the registry).
+
+### 9D. Engineering
+- [ ] **CI:** push → GitHub Actions *CI* runs *App — typecheck & tests* and *API — vet & tests (Postgres)*; both green.
+
+### 9E. Device-only checks (cannot be done in code — FE-0.1, 1.14, 1.15, 4.23, 4.24)
+- [ ] **Native rebuild (SDK 58):** `npx expo prebuild --clean` → dev build on Android + iOS launches; re-apply the iOS fix from `dev` if needed; camera/photos/notification permission prompts show their purpose strings.
+- [ ] **Screen reader pass** (TalkBack + VoiceOver): test runtime (options, strike-through action, confidence chips, palette), builder tree, result widgets, heat-map tiles, bookmark chooser, formulas read as "Formula: …".
+- [ ] **200 % font scale:** test runtime, builder, result, Home — nothing clipped or overlapping.
+- [ ] **Dark mode sweep:** every screen in §8–9.
+- [ ] **Performance (FE-1.15 + D14):** 90-question test with ~30 image/formula questions on a low-end Android — first question < 1 s, Next/Prev smooth, memory flat; airplane mode after prefetch still renders.
+- [ ] **Device matrix (FE-4.24):** small Android (~360 dp), large Android, an iPhone; light + dark.
+
 ## Bug log (fill in while testing)
 | # | Screen | Device / theme | What happened | Severity | Fixed? |
 |---|--------|----------------|---------------|----------|--------|

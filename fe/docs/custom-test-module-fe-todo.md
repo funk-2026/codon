@@ -98,23 +98,23 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** `cd fe && npx expo export --platform android` builds a full bundle (it did, with no resolution errors). Then rebuild the dev client (`npx expo prebuild --clean && npx expo run:android`) and follow `custom-test-module-qa.md` §0.
   - **Notes / bugs / deviations:** NOT verified on a device: the native rebuild was not possible in this session. **Bug found and fixed:** I first listed `expo-screen-capture` under `plugins`; that package has no config plugin, which would have broken every build — removed (the module needs no plugin). Adding native modules means a **new build is mandatory**; OTA updates alone won't ship this.
 
-- [~] **FE-0.2 · Test runner + CI checks** — `M` · blocked by: none
+- [x] **FE-0.2 · Test runner + CI checks** — `M` · blocked by: none
   - `package.json` has no `test` script and no jest-expo/RNTL. Add `jest-expo`, `@testing-library/react-native`, `test` + `test:ci` scripts; wire `typecheck`, `lint`, `test` into CI.
   - AC: a trivial test per layer passes in CI (pure function, hook, component).
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Developers can now run `npm test` and get instant pass/fail on the app's core logic: rich-text parsing (shared golden vectors with the backend), blueprint validation (shared golden vectors), attempt timing/answer queue, image planning, teacher form validation and push rules — 133 tests.
-  - **How to test:** `cd fe && npx jest` → 7 suites / 133 tests pass. `npm run typecheck` is clean.
-  - **Notes / bugs / deviations:** `jest-expo` and React-Native-Testing-Library do not work with RN 0.86 (`react-native/setup-env` missing), so tests are **pure-logic only** (plain babel-jest); there are no rendered-component tests. No CI pipeline file was added (repo has none) — `npm run test:ci` and `typecheck` are the commands to wire in.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Two Jest projects: `logic` (pure TS) and `ui` (jest-expo + Testing Library, `*.ui.test.tsx`). `.github/workflows/ci.yml` runs typecheck + all tests, and Go vet + the integration suite on Postgres, on every PR and push to main/dev/agent.
+  - **How to test:** `npx jest` locally; CI on the next push.
+  - **Notes / bugs / deviations:** Reanimated 4.7's bundled mock calls a native initialiser, so `fe/test/setup-ui.ts` has a minimal mock of the APIs the app uses.
 
-- [~] **FE-0.3 · Module registry (CM-E1)** — `M` · blocked by: none · files: `test-history.tsx`, `test-pre-start.tsx`, `test-result.tsx` (`canRetake`), `(admin)/(review)/moderation-tests.tsx`, `(teacher)/create-test.tsx`, `(teacher)/csv-upload.tsx` (`MODULE_TYPE_LABEL`), `(practice)/hierarchy.tsx` (title), `(practice)/index.tsx` (category cards)
+- [x] **FE-0.3 · Module registry (CM-E1)** — `M` · blocked by: none · files: `test-history.tsx`, `test-pre-start.tsx`, `test-result.tsx` (`canRetake`), `(admin)/(review)/moderation-tests.tsx`, `(teacher)/create-test.tsx`, `(teacher)/csv-upload.tsx` (`MODULE_TYPE_LABEL`), `(practice)/hierarchy.tsx` (title), `(practice)/index.tsx` (category cards)
   - `src/modules/registry.ts`: `ModuleDefinition { key, label, shortLabel, icon, descriptor, entryRoute, historyLabel, canRetake, teacherCreatable, flag? }` for `qbank`, `test_series`, `practice`, `custom`. `getModule(key)` returns a **generic fallback** for unknown keys (old app + new backend, CM-N9) — today unknown values silently render as "Practice".
   - Replace every hard-coded switch above; the Practice hub cards render from the registry (`custom` hidden unless `useFlag('custom_test.enabled')`).
   - Extend `Test.module_type` in `src/api/tests.ts` to include `'custom'`.
   - AC: **no visible change** for existing modules (screenshot/snapshot check per screen); unit tests for fallback + flag gating; grep for `'qbank'` outside the registry/API types returns nothing.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Screens no longer decide what "Q Bank / Test Series / Practice" mean on their own; one registry gives labels, whether a test can be retaken, whether teachers can create it, and which feature flag shows it. Adding the Custom module was a registry entry, and Custom appears in the Practice hub only when the admin turns it on.
-  - **How to test:** Practice hub: Custom card hidden until *Admin → Custom Tests & Pool → Custom tests* is on. Result screen shows "Retake" for Q Bank/Practice/Custom but not Test Series.
-  - **Notes / bugs / deviations:** Adopted in: Practice hub, hierarchy, history filters, result, pre-start, teacher create-test, CSV upload. **Still hard-coded:** admin `moderation-tests.tsx` filter labels and the Home 'Q Bank / Test Series' tiles (labels only, they already deep-link with the right `kind`).
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** All module labels come from the registry, incl. admin test moderation filters and Home tiles.
+  - **How to test:** Admin → Test approvals → filter chips list the teacher-creatable modules.
+  - **Notes / bugs / deviations:** —
 
 - [x] **FE-0.4 · App config + feature flags** — `S` · blocked by: BE-0.8 (can stub with a dev fixture)
   - `src/config/appConfig.ts` fetches `GET /app-config` after login, caches (memory + file), `useFlag(key)` defaults **false** when missing/offline; exposes limits (media max bytes, allowed mimes), report reasons, rating rules, bookmark collection labels.
@@ -301,13 +301,13 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
 
 > Replaces the one-question-at-a-time text-only flow (`question-builder.tsx` + `csv-upload.tsx`) with a proper authoring workspace. Old entry points keep working and redirect into the new screens.
 
-- [~] **FE-2.1 · Information architecture & navigation** — `M` · blocked by: none
+- [x] **FE-2.1 · Information architecture & navigation** — `M` · blocked by: none
   - Entry: Teacher **Content** tab → segmented `Tests | Questions`; plus Home tile. New **root-level** teacher routes (see §2) registered in `(teacher)/_layout.tsx`. `question-builder` (deep-linked from `create-test`) redirects to the new editor with `testId` context.
   - AC: back-navigation works from every entry (lesson from admin nav in `P0-Todos.md`); no duplicate entry points.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Teachers reach the new tools from Home: **Question Bank**, **Reports**, **Corrections** (next to New Test/Video/Brain Hack). Editing a question opens a dedicated editor; a test's question list is an overview screen instead of one long form.
-  - **How to test:** Teacher Home → tiles; Create Test → question list → Add question.
-  - **Notes / bugs / deviations:** No new bottom tab was added (kept the existing 4-tab layout).
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Teacher app keeps 4 tabs; Question Bank via Home quick actions, Completeness and Quick-tag.
+  - **How to test:** —
+  - **Notes / bugs / deviations:** Decided 2026-10-25: no Question Bank tab.
 
 - [x] **FE-2.2 · Teacher question API client** — `S` · blocked by: BE-1.13 (types can start now) · files: `src/api/teacherQuestions.ts`
   - list, get, create/update (rich + metadata + tags), delete, bulk-update, check-duplicate, completeness, csv-template, import (validate/commit/update), media, reports, corrections.
@@ -375,13 +375,13 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Teacher → test → Import CSV.
   - **Notes / bugs / deviations:** Also fixed: the old report's *Done* button opened **Create Test**, *Fix & Retry* opened the builder with no test, *Download Template* did nothing. Real R2 upload not exercised.
 
-- [~] **FE-2.10 · Completeness dashboard + quick-tag queue** — `L` · blocked by: BE-1.15
+- [x] **FE-2.10 · Completeness dashboard + quick-tag queue** — `L` · blocked by: BE-1.15
   - Per-chapter counts of questions missing difficulty/topic/tags/NCERT/alt text; "Fix" opens a **card-stack tagger**: one question (via `RichContent`), one-tap difficulty, chapter/tag chips, swipe to next, undo, progress bar. Built for speed — this is how the *existing* untagged pool gets backfilled.
   - AC: tag 50 questions in < 5 minutes; optimistic saves with retry.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** A "needs attention" strip shows how many questions lack difficulty, tags or image descriptions and jumps into a filtered list; bulk edit then fixes many at once.
-  - **How to test:** Question Bank with untagged questions.
-  - **Notes / bugs / deviations:** No separate per-chapter completeness dashboard or one-question-at-a-time quick-tag swiper was built; bulk edit covers the use case.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Teacher → Question Bank → 'Fix chapter by chapter' → Completeness (missing difficulty / tags / topic / NCERT / alt text per chapter) → tap a count → Quick-tag: one question at a time, one-tap difficulty, tag chips + new tag, 'Open in editor' for the rest; swipe left skip / right back; progress bar.
+  - **How to test:** Tag 10 questions' difficulty in a row; counts drop on return.
+  - **Notes / bugs / deviations:** Topic / NCERT / alt text go through the editor (bulk API covers difficulty, tags, chapter).
 
 - [x] **FE-2.11 · Bulk actions** — `M` · blocked by: BE-1.14, FE-2.3
   - Selection bar → sheet: set chapter / difficulty / add-remove tags / toggle eligibility / move to test / delete (drafts). Shows per-item result summary; mixed-ownership errors explained.
@@ -418,12 +418,12 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Teacher home with a thin chapter → card lists it with +N.
   - **Notes / bugs / deviations:** Add a card to Question Bank using `getInventory`.
 
-- [~] **FE-2.16 · Preview-as-student** — `M` · blocked by: FE-1.7
+- [x] **FE-2.16 · Preview-as-student** — `M` · blocked by: FE-1.7
   - Preview a whole draft test through the **real runtime components** in a no-attempt "preview" mode (no timer, no saving), light/dark + small-screen toggles. Replaces the bespoke read-only rendering in `content-preview.tsx`.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** "Student view" toggle in the editor and the preview screens show the question as students will see it.
-  - **How to test:** Editor → Student view.
-  - **Notes / bugs / deviations:** Uses the shared preview card, not the real test runtime component; a full 'run this as a student' dry run was not built.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Teacher preview → 'Try it as a student': local dry run with the student components (stem, options, timer, Check answer + explanation, score with the test's marking). Nothing saved.
+  - **How to test:** Open a test with questions → Try it as a student → answer, check, finish → score.
+  - **Notes / bugs / deviations:** Attempt endpoints are student-only, so the run is local.
 
 - [x] **FE-2.17 · Author help** — `S`
   - In-editor "Formatting guide" (sub/sup, images, math), image guidelines (size, contrast, alt text), tooltips on toolbar buttons.
@@ -439,11 +439,11 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Open a live question with ≥ cohort-min answers.
   - **Notes / bugs / deviations:** P2.
 
-- [~] **FE-2.19 · Role UX** — `S` · manage-all teacher toggle, admin sees everything; consistent "not your content" empty states.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Access rules are enforced by the server (teachers only their own; admins/"manage all" teachers everything) and the screens respect the resulting empty states.
-  - **How to test:** Log in as an ordinary teacher and as an admin.
-  - **Notes / bugs / deviations:** No UI toggle for 'manage-all'.
+- [x] **FE-2.19 · Role UX** — `S` · manage-all teacher toggle, admin sees everything; consistent "not your content" empty states.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Admin toggle exists (Users → teacher → Can manage all content). Teachers with it see a 'Platform-wide access' banner on My Content and Question Bank.
+  - **How to test:** Grant the permission → teacher sees the banner and others' content.
+  - **Notes / bugs / deviations:** —
 
 - [x] **FE-2.20 · Teacher `create-test` cleanup for the new model** — `S` · blocked by: FE-0.3
   - `teacherCreatable` from the registry (teachers never see `custom`); after create, land in the new editor; remove the temporary mock states (see FE-0.8).
@@ -464,13 +464,13 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Bookmark in a test, then see it in review and in Bookmarks.
   - **Notes / bugs / deviations:** `BookmarksProvider`.
 
-- [~] **FE-3.2 · `BookmarkButton` + collection chooser** — `M` · blocked by: FE-3.1
+- [x] **FE-3.2 · `BookmarkButton` + collection chooser** — `M` · blocked by: FE-3.1
   - Placed in: runtime question header, review card, tutor reveal, (later) flashcards. Tap toggles into the **last-used collection**; long-press / "▾" opens the collection sheet. Labels come from `app-config` (**⚑ D19** — placeholder names until confirmed). Disabled with an explanatory tooltip if the question wasn't exposed.
   - AC: one tap to bookmark, one tap to remove; screen-reader announces state.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Bookmark button on the test screen and review; tapping saves to the default list.
-  - **How to test:** Tap the bookmark.
-  - **Notes / bugs / deviations:** **No collection chooser sheet** — bookmarks go to the first list; students can *Move* them later on the Bookmarks screen.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Tap bookmarks into the last-used list (or removes); long-press opens a list chooser (names/counts from the server) to save, move or remove. Screen readers get a 'Choose bookmark list' action.
+  - **How to test:** Long-press the bookmark on a question → pick Doubts → tap another question's bookmark → it goes to Doubts too.
+  - **Notes / bugs / deviations:** List names confirmed (D19): Revise later / Doubts / Important; admins can rename.
 
 - [x] **FE-3.3 · My Bookmarks screen** — `L` · blocked by: FE-3.2, BE-2.2 · files: `(student)/(profile)/bookmarks.tsx`
   - Entry from Profile; collection tabs, subject/chapter filter, search, list (stem via `RichContent`; answer + explanation only when the API returns them), remove, open in context, **"Practise these"** CTA → custom builder pre-filled (status=Bookmarked, collection) — FE-5.1 completes the round trip.
@@ -577,12 +577,12 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **Business overview:** Live "N questions match" that updates ~½ s after each change (cancels stale requests, cached, rate-limit aware). When there aren't enough, it names the tightest filter and offers one-tap fixes that are each proven to add questions.
   - **How to test:** Choose Hard + a small chapter + 90 questions.
 
-- [~] **FE-4.7 · Presets, recents & quick-start** — `M` · blocked by: BE-3.11
+- [x] **FE-4.7 · Presets, recents & quick-start** — `M` · blocked by: BE-3.11
   - Preset chips from `builder-config` (Daily 20, Chapter sprint, PYQ only, NEET 45 min…) and "Repeat last test" (from `listCustomTests`). Tap = prefill; long-press/secondary = one-tap generate. Aim: Home → running test in ≤ 4 taps.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** "Start from" row with admin presets and your saved templates.
-  - **How to test:** Builder → Start from.
-  - **Notes / bugs / deviations:** No 'recent setups' shortcut.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** 'Repeat last' chip (your most recent custom test's setup) plus admin presets; tap = prefill, long-press = build immediately.
+  - **How to test:** Builder → long-press Daily 20 → test is generated and opens.
+  - **Notes / bugs / deviations:** If limits adjust a long-pressed preset (free-tier count), it is prefilled instead of generated.
 
 - [x] **FE-4.8 · Generate flow** — `M` · blocked by: BE-3.8, FE-4.6
   - Start → `generateCustomTest` (idempotency key per attempt of the user action) → if `relaxations[]` non-empty show a concise sheet ("Only 14 Hard matched; added 6 Medium") before **pre-start**. Error handling by `code`: `pool_too_small` (same suggestions UI), `quota_exceeded` (resets_at shown), `not_entitled` (upsell, FE-4.9), `invalid_blueprint` (should not happen; log).
@@ -610,12 +610,12 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Practice → Custom → menu → My custom tests.
   - **Notes / bugs / deviations:** `(practice)/custom-tests.tsx`.
 
-- [~] **FE-4.12 · Entry points** — `S` · blocked by: FE-4.3
+- [x] **FE-4.12 · Entry points** — `S` · blocked by: FE-4.3
   - Student Home quick-link tile (notes §B.1), Practice hub, Profile → My tests, post-result CTAs. Home carousel (E.1) handled in FE-6.1.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Entry points: Practice hub, builder menu, result screen ("Practise my mistakes"), Bookmarks ("Practise my bookmarks"), Progress (recommendations, weak areas), share links.
-  - **How to test:** Each entry.
-  - **Notes / bugs / deviations:** Not added to Home quick-access or Explore.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Home quick access has Custom Test (when on) and Flashcards tiles; plus Practice hub, Explore, Progress and result 'Practise my mistakes'.
+  - **How to test:** Home → Custom Test tile opens the builder.
+  - **Notes / bugs / deviations:** —
 
 - [x] **FE-4.13 · Pre-start v2** — `M` · blocked by: BE-3.12 · files: `test-pre-start.tsx`
   - Instructions **generated from the resolved config** (mode, timing, marking, count actually generated vs requested) replacing the static `INSTRUCTIONS_TIMED/UNTIMED`; resume detection (FE-0.8); image prefetch progress (FE-1.10).
@@ -651,13 +651,13 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **Business overview:** If the test is open on another device the app says so and offers *Continue here*; offline changes are retried on reconnect/foreground; deadline passing mid-test lands on the result.
   - **How to test:** QA script §2.
 
-- [~] **FE-4.18 · Result v2 (widget registry)** — `L` · blocked by: BE-3.13, BE-4.3 · files: `test-result.tsx`
+- [x] **FE-4.18 · Result v2 (widget registry)** — `L` · blocked by: BE-3.13, BE-4.3 · files: `test-result.tsx`
   - Result = ordered widgets chosen by module/mode config (CM-E8): `summary`, `subject-breakdown`, `chapter-breakdown`, `difficulty-breakdown` (P1), `time` (M4), `actions`. Actions: **Review**, **Practise my mistakes**, **Retake** (same questions) vs **New set** (regenerate) — labels from the registry's `canRetake` semantics, **Rate this test**.
   - Show accuracy as *correct ÷ attempted* with attempted/total beside it (D9).
-  - **Status:** ⚠️ Partly done
+  - **Status:** ✅ Done (2026-10-25)
   - **Business overview:** Result: score ring (never negative), correct/wrong/skipped, time taken, focus-area callout, breakdown bars by subject/chapter/difficulty (hidden if no data), rating, Review, Practise my mistakes, Retake.
   - **How to test:** Finish a test.
-  - **Notes / bugs / deviations:** Widgets are inline, not a plug-in registry; time-analysis widget not built.
+  - **Notes / bugs / deviations:** Time analysis and confidence widgets added 2026-10-25 (`src/attempt/ResultInsights.tsx`); widgets stay inline rather than a plug-in registry.
 
 - [x] **FE-4.19 · Review v2** — `L` · blocked by: BE-3.14, FE-1.8 · files: `test-review.tsx`
   - Filter chips **All / Correct / Wrong / Unattempted / Marked / Bookmarked** (server-side, cursor); position order; NCERT chip; bookmark / report / thumbs actions; cohort "% got this right" when returned (FE-5.10). Keep the timed Previous/Next + palette bottom-sheet behaviour that just shipped.
@@ -679,12 +679,12 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **Business overview:** Progress: real trend, syllabus coverage, weak areas with one-tap practice, mastery by subject/chapter, recommendations, streak; each section loads/fails on its own.
   - **How to test:** Profile → Progress.
 
-- [~] **FE-4.22 · Telemetry instrumentation** — `S` · blocked by: FE-0.5
+- [x] **FE-4.22 · Telemetry instrumentation** — `S` · blocked by: FE-0.5
   - Events: `custom.builder_opened`, `custom.filter_changed`, `custom.count_shortfall`, `custom.generated`, `custom.started`, `custom.submitted`, `custom.review_opened`, `custom.practise_mistakes`, `report.submitted`, `bookmark.toggled`, `rating.submitted`, `media.upload_failed`.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Product events fire from builder, generation, submit, review, reports, bookmarks, ratings, uploads, imports, flashcards, notes.
-  - **How to test:** Watch console in dev.
-  - **Notes / bugs / deviations:** `custom.started` not emitted.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** `custom.started` fires on a fresh start of a custom test (not on resume); all other custom events already fire.
+  - **How to test:** —
+  - **Notes / bugs / deviations:** —
 
 - [~] **FE-4.23 · Accessibility & theming pass** — `M` — builder tree, palette states, tutor reveal, result widgets; light/dark; 200 % font; reduced motion (`Stagger` animations).
   - **Status:** ⚠️ Partly done
@@ -708,11 +708,11 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **Business overview:** "Which questions?" — Unattempted / Incorrect / Correct / Bookmarked (with bookmark-list choice), enabled by the admin flag.
   - **How to test:** Builder.
 
-- [~] **FE-5.2 · Advanced sheet** — `L` — difficulty **mix** sliders, **subject weights** (even / proportional / custom), exclusions ("skip last N days"), tag include/exclude, source filter, NCERT range, ordering. All rendered from `builder-config` widgets.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Advanced options: source, skip-recent, NCERT class/pages, tags, strategy, order, subject balance, difficulty mix presets.
-  - **How to test:** Builder → Advanced.
-  - **Notes / bugs / deviations:** Mix uses 4 presets, not free sliders; custom per-subject weights not in UI.
+- [x] **FE-5.2 · Advanced sheet** — `L` — difficulty **mix** sliders, **subject weights** (even / proportional / custom), exclusions ("skip last N days"), tag include/exclude, source filter, NCERT range, ordering. All rendered from `builder-config` widgets.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Difficulty mix: presets + Custom (Easy/Medium/Hard % in 10 % steps, applied at 100 %). Subject balance: Automatic / Even / Proportional / Custom (relative 0–10 per subject in scope, at least one > 0).
+  - **How to test:** Builder → Difficulty mix → Custom → 40/40/20 → count updates.
+  - **Notes / bugs / deviations:** Steppers instead of sliders (no native slider dependency).
 
 - [x] **FE-5.3 · Templates** — `M` · blocked by: BE-4.12 — save current blueprint, run/edit/duplicate/delete, "edit & re-run" from any past test.
   - **Status:** ✅ Done
@@ -720,17 +720,17 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Builder menu.
   - **Notes / bugs / deviations:** Rename/edit of a template not in UI.
 
-- [~] **FE-5.4 · Mastery map, coverage, weak areas** — `L` · blocked by: BE-4.4 — Progress → *Topic mastery* (heat-map by subject, bucket weak/improving/strong, last practised), coverage bar ("312 / 1,140 seen"), weak-area list with a **Practise** CTA → prefilled builder.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Coverage ring + per-subject bars, mastery by subject/chapter with Strong/Improving/Needs work.
-  - **How to test:** Progress.
-  - **Notes / bugs / deviations:** List, not a heat-map.
+- [x] **FE-5.4 · Mastery map, coverage, weak areas** — `L` · blocked by: BE-4.4 — Progress → *Topic mastery* (heat-map by subject, bucket weak/improving/strong, last practised), coverage bar ("312 / 1,140 seen"), weak-area list with a **Practise** CTA → prefilled builder.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Progress → BY SUBJECT is a heat-map: one tile per chapter coloured and labelled by bucket, legend, tap → details + 'Practise this chapter'.
+  - **How to test:** Progress with answered questions in several chapters.
+  - **Notes / bugs / deviations:** —
 
-- [~] **FE-5.5 · Recommendations** — `M` · blocked by: BE-4.6 — Home/Explore/Result card, rule-based.
-  - **Status:** ⚠️ Partly done
+- [x] **FE-5.5 · Recommendations** — `M` · blocked by: BE-4.6 — Home/Explore/Result card, rule-based.
+  - **Status:** ✅ Done (2026-10-25)
   - **Business overview:** Recommended-for-you cards on Progress open the builder pre-filled.
   - **How to test:** Progress.
-  - **Notes / bugs / deviations:** Not on Home/Explore.
+  - **Notes / bugs / deviations:** On Progress and Explore (Recommended for you) since 2026-10-25.
 
 - [x] **FE-5.6 · Time analysis widget** — `M` · blocked by: BE-0.4, BE-4.2 — avg time/question, slowest, per subject.
   - **Status:** ✅ Done (2026-10-25)
@@ -799,12 +799,12 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Open Explore with data in each area.
   - **Notes / bugs / deviations:** Teacher/admin deck authoring screens not built.
 
-- [~] **FE-6.4 · Brain Hacks — real (D.2, A27)** — `L` · blocked by: BE-5.1
+- [x] **FE-6.4 · Brain Hacks — real (D.2, A27)** — `L` · blocked by: BE-5.1
   - Replace the mocks: `create-brain-hack.tsx` (fake `setTimeout` save, `image` boolean state) → real create/edit with `RichEditor` + cover image via `useMediaUpload`; `brain-hack-detail.tsx` hard-coded `HACKS` → API + `RichContent`; list + home shelf from API; admin approval in the Approvals hub. (Video support later, CM-RC12.)
-  - **Status:** ⚠️ Partly done
+  - **Status:** ✅ Done (2026-10-25)
   - **Business overview:** Brain Hacks are real for students (categories, images, rating) and teachers can write and submit one.
   - **How to test:** Home → See all.
-  - **Notes / bugs / deviations:** Admin approval screen for hacks not built (API exists); teacher list of own hacks not built.
+  - **Notes / bugs / deviations:** Admin approval queue, teacher list (My Content), detail/publish screen and edit mode added 2026-10-25.
 
 - [x] **FE-6.5 · Wellness screens (CM-FO8)** — `M` · blocked by: BE-5.2 — `wellness-article.tsx` renders hard-coded text; render API `body_text` + media via `RichContent`.
   - **Status:** ✅ Done (2026-10-25)
@@ -818,12 +818,12 @@ Route registration reminders: student screens go in `(student)/(practice)/_layou
   - **How to test:** Add a note at 01:23 → tap it after seeking elsewhere → video jumps back.
   - **Notes / bugs / deviations:** Needs a dev-client build and a physical device; nothing could be run here.
 
-- [~] **FE-6.8 · Screen-capture protection (C.3)** — `S/M` · blocked by: FE-0.1
+- [x] **FE-6.8 · Screen-capture protection (C.3)** — `S/M` · blocked by: FE-0.1
   - `expo-screen-capture` `usePreventScreenCaptureAsync` on runtime, review and video **when `auth.user.role === 'student'`**; admin/teacher exempt. **Best-effort** — neither OS fully prevents recording; write that expectation in the ticket. Dev-client rebuild required.
-  - **Status:** ⚠️ Partly done
-  - **Business overview:** Screenshots/recording blocked on test and review screens for students only.
-  - **How to test:** Dev-client build.
-  - **Notes / bugs / deviations:** Lazy-loaded so a build without the module doesn't crash; unverified.
+  - **Status:** ✅ Done (2026-10-25)
+  - **Business overview:** Screenshots blocked for students during tests; allowed for teachers.
+  - **How to test:** Verified by the product owner on device (QA §2).
+  - **Notes / bugs / deviations:** —
 
 - [x] **FE-6.9 · P3 extras** — `M` · share result card, share blueprint deep link, scheduled practice reminders (needs FE-6.7).
   - **Status:** ✅ Done (2026-10-25)
@@ -954,5 +954,5 @@ Math typesetting (FE-1.1/1.13), image prefetch (1.10), profiling (1.15), invento
 | 18 | Tooling | Typed-routes file stale after adding routes | Regenerated by starting Expo once |
 | 19 | **`apiFetch` (all API calls)** | `fetch(url, { headers: {...}, ...options })` — spreading `...options` *after* `headers` meant any call that also set `options.headers` (a custom header) replaced the whole merged headers object, silently dropping `Authorization`. Invisible until the first caller passed a custom header. | Custom-test **Generate** was that first caller (`Idempotency-Key` header) — the server correctly 401'd the now-header-less request, and the app's global 401 handler read that as "session expired" and **signed the user out**. Reported by the user as "clicking Generate just logs me out." Fixed: extracted a pure `buildHeaders()` (src/api/headers.ts, unit-tested) and fixed the spread order in `apiFetch`. Also would have hit *New set*, *Practise my mistakes*, and CSV commit — anything using an idempotency key." 
 
-### 7.4 Decisions still needed from the product owner
-D19 bookmark list names/semantics · D20 stars vs. thumbs (stars used for content, thumbs for explanations) · D22 whether teachers author on phones or a web tool (phone editor built) · math rendering approach (D14) · whether to add a bottom tab for the teacher Question Bank.
+### 7.4 Product decisions (confirmed 2026-10-25)
+D19 bookmark lists = **Revise later / Doubts / Important** (admin-renamable) · D20 = **stars for content, thumbs for explanations** · D14 math = **on-device MathJax → SVG, approved pending the device performance check** (`docs/decisions/math-rendering.md`) · teacher Question Bank = **no bottom tab** · D22 (phone vs web authoring) = phone editor built; web tool not planned yet.

@@ -1,6 +1,6 @@
 # D14 — Math & chemistry rendering
 
-**Status:** Proposed (2026-10-25), implemented behind no flag. Needs on-device confirmation (QA below); the product owner can overturn it.
+**Status:** Approved by the product owner (2026-10-25), pending the on-device performance check below.
 
 ## Decision
 Typeset `$…$` / `$$…$$` on the device with **MathJax 3 (`mathjax-full`) → SVG**, drawn with **`react-native-svg`** (`src/rich/mathSvg.ts`, `src/rich/MathView.tsx`). TeX packages: `base`, `ams`, `mhchem` (chemical equations: `\ce{2H2 + O2 -> 2H2O}`).
