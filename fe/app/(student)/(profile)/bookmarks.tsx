@@ -125,7 +125,7 @@ export default function BookmarksRoute() {
         <InputField label="Search bookmarks" value={q} onChangeText={setQ} autoCorrect={false} />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
         <Pressable onPress={() => setActive('all')} accessibilityRole="button" accessibilityState={{ selected: active === 'all' }} style={chip(active === 'all')}>
           <Text style={[type['type/caption'], { color: active === 'all' ? color('accent/default') : color('text/secondary') }]}>All</Text>
         </Pressable>

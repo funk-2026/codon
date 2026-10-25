@@ -140,14 +140,14 @@ export default function QuestionBankRoute() {
         <InputField label="Search questions" value={q} onChangeText={setQ} autoCorrect={false} />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
         {QUICK.map((c) => (
           <Pressable key={c.key} onPress={() => setQuick(c.key)} accessibilityRole="button" accessibilityState={{ selected: quick === c.key }} style={chip(quick === c.key)}>
             <Text style={[type['type/caption'], { color: quick === c.key ? color('accent/default') : color('text/secondary') }]}>{c.label}</Text>
           </Pressable>
         ))}
       </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.xs }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.xs }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
         {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
           <Pressable key={d} onPress={() => setDifficulty((cur) => (cur === d ? undefined : d))} accessibilityRole="button" accessibilityState={{ selected: difficulty === d }} style={chip(difficulty === d)}>
             <Text style={[type['type/caption'], { color: difficulty === d ? color('accent/default') : color('text/secondary') }]}>{d}</Text>

@@ -83,7 +83,7 @@ export default function BrainHacksListRoute() {
       </View>
 
       {cats.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.md }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.md }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
           <Pressable onPress={() => setCategory(undefined)} accessibilityRole="button" accessibilityState={{ selected: !category }} style={chip(!category)}>
             <Text style={[type['type/caption'], { color: !category ? color('accent/default') : color('text/secondary') }]}>All</Text>
           </Pressable>

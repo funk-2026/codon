@@ -3,12 +3,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, DeviceMobile, CreditCard, Wallet, Lock, WarningCircle } from 'phosphor-react-native';
-import RazorpayCheckout from 'react-native-razorpay';
 import { EmptyState, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { listPlans, checkout, verifyPayment } from '@/src/api/subscriptions';
 import { getMe, SubscriptionPlan } from '@/src/api/profile';
+import { loadRazorpay } from '@/src/payments/razorpay';
 
 
 
@@ -47,6 +47,8 @@ export default function CheckoutRoute() {
     setStage('launching');
 
     try {
+      // Load before creating the order so Expo Go fails without leaving an unpaid order behind.
+      const RazorpayCheckout = loadRazorpay();
       const order = await checkout({ plan_id: plan.id });
 
       const result = await RazorpayCheckout.open({

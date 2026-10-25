@@ -164,7 +164,7 @@ export default function CustomTestsRoute() {
       </View>
 
       {tab === 'tests' ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
           {STATES.map((s) => (
             <Pressable key={s.key} onPress={() => setState(s.key)} accessibilityRole="button" accessibilityState={{ selected: state === s.key }} style={chipStyle(state === s.key)}>
               <Text style={[type['type/caption'], { color: state === s.key ? color('accent/default') : color('text/secondary') }]}>{s.label}</Text>
