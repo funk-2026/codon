@@ -107,7 +107,7 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
         <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary') }]}>Question reports</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
         {STATUSES.map((s) => (
           <Pressable key={s.key} onPress={() => setStatus(s.key)} accessibilityRole="button" accessibilityState={{ selected: status === s.key }} style={chip(status === s.key)}>
             <Text style={[type['type/caption'], { color: status === s.key ? color('accent/default') : color('text/secondary') }]}>{s.label}</Text>
@@ -115,7 +115,7 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
         ))}
       </ScrollView>
       {reasons.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.xs }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.xs }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
           {reasons.map((r) => (
             <Pressable key={r.key} onPress={() => setReason((cur) => (cur === r.key ? undefined : r.key))} accessibilityRole="button" accessibilityState={{ selected: reason === r.key }} style={chip(reason === r.key)}>
               <Text style={[type['type/caption'], { color: reason === r.key ? color('accent/default') : color('text/secondary') }]}>{r.label}</Text>
