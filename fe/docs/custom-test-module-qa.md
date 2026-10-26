@@ -146,6 +146,16 @@ Use **two students** (one with attempts, one brand-new), **one teacher**, **one 
 - [ ] **Performance (FE-1.15 + D14):** 90-question test with ~30 image/formula questions on a low-end Android — first question < 1 s, Next/Prev smooth, memory flat; airplane mode after prefetch still renders.
 - [ ] **Device matrix (FE-4.24):** small Android (~360 dp), large Android, an iPhone; light + dark.
 
+## 10. Timers & lecture PDFs (2026-10-26)
+Restart the local API first (backend changed: lecture PDF fields + `lecture_pdf` uploads).
+- [ ] **Q Bank stopwatch:** open an untimed Q Bank test → top right shows a ⏱ stopwatch counting up. Leave and resume later → it shows the real time since you started (not 0:00). Timed tests still show the countdown.
+- [ ] **Review 2-min limit:** open Review → top right counts down from 2:00 per question; at 0:00 "2 minutes up — next question" and it moves on; amber in the last 30 s. On the last question it only says time's up. Tap the timer → "2-min off" (stays off after reopening); tap again → on.
+- [ ] **Teacher — attach PDFs:** New Video → *Lecture PDFs* → Attach a notes PDF and an annotated PDF (progress shown) → submit. On an existing video's preview: Replace / Remove work and say "students see it right away".
+- [ ] **Student — notes:** open the lecture → *Lecture PDFs* → Notes → Download → share sheet (save to Files / open in a PDF app).
+- [ ] **Student — annotated locked:** Annotated notes shows 🔒 "Unlocks after you watch the lecture".
+- [ ] **Unlock:** watch (or seek) past 90 % → within a moment Annotated notes becomes downloadable. Reopen the lecture later → still unlocked.
+- [ ] **Watch progress saves while playing** (was broken): play a video ~30 s, leave → Home's *Continue* shows it.
+
 ## Bug log (fill in while testing)
 | # | Screen | Device / theme | What happened | Severity | Fixed? |
 |---|--------|----------------|---------------|----------|--------|
