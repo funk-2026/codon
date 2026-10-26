@@ -14,6 +14,7 @@ import {
 } from 'phosphor-react-native';
 import { ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { LecturePdfEditor, type PdfKind } from '@/src/content/LecturePdfEditor';
 import { createContent } from '@/src/api/teacher';
 import { getPresignedUrl } from '@/src/api/uploads';
 import { listCourses, getCurriculum } from '@/src/api/courses';
@@ -41,6 +42,8 @@ export default function CreateContentRoute() {
   const [videoFileKey, setVideoFileKey] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [docBody, setDocBody] = useState('');
+  // Lecture PDFs (videos only): notes + annotated, uploaded before the lesson is created
+  const [pdfs, setPdfs] = useState<Record<PdfKind, { key?: string; name?: string }>>({ notes: {}, annotated: {} });
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
@@ -203,6 +206,8 @@ export default function CreateContentRoute() {
         content_type: contentType === 'Video' ? 'video' : 'document',
         chapter_id: chapterId!,
         file_key: contentType === 'Video' ? videoFileKey! : 'mock-doc-key',
+        ...(contentType === 'Video' && pdfs.notes.key ? { notes_pdf_key: pdfs.notes.key } : {}),
+        ...(contentType === 'Video' && pdfs.annotated.key ? { annotated_pdf_key: pdfs.annotated.key } : {}),
       });
       show('Content saved', 'success');
       router.push({ pathname: '/(teacher)/content-preview', params: { type: contentType, id: res.id } });
@@ -363,6 +368,19 @@ export default function CreateContentRoute() {
             </View>
           )}
         </View>
+
+        {contentType === 'Video' ? (
+          <View style={{ marginTop: space.xl, gap: space.sm }}>
+            <Text style={[type['type/h3'], { color: color('text/primary') }]}>Lecture PDFs</Text>
+            <LecturePdfEditor
+              slots={{
+                notes: { present: !!pdfs.notes.key, name: pdfs.notes.name },
+                annotated: { present: !!pdfs.annotated.key, name: pdfs.annotated.name },
+              }}
+              onChange={(kind, key, name) => setPdfs((p) => ({ ...p, [kind]: key ? { key, name } : {} }))}
+            />
+          </View>
+        ) : null}
       </ScrollView>
 
       <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>

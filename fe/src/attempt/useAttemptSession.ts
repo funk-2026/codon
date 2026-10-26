@@ -32,6 +32,8 @@ export function useAttemptSession(testId: string | undefined) {
   const [media, setMedia] = useState<MediaMap>({});
   const [answers, setAnswers] = useState<Record<string, LocalAnswer>>({});
   const [deadline, setDeadline] = useState<number | null>(null);
+  // When the attempt started, on the device clock — drives the stopwatch for untimed tests.
+  const [startedAt, setStartedAt] = useState<number | null>(null);
   const [lockedElsewhere, setLockedElsewhere] = useState(false);
   const [expiredAttemptId, setExpiredAttemptId] = useState<string | null>(null);
   const [reveals, setReveals] = useState<Record<string, RevealResponse>>({});
@@ -103,6 +105,7 @@ export function useAttemptSession(testId: string | undefined) {
       setReveals(rv);
       setStruck(await kvGet<Record<string, Option[]>>(struckKey(start.attempt.id), {}));
       setDeadline(deadlineOnDeviceClock(start.attempt.expires_at, start.server_now, Date.now()));
+      setStartedAt(deadlineOnDeviceClock(start.attempt.started_at, start.server_now, Date.now()));
       setLockedElsewhere(start.active_elsewhere);
       setPhase('ready');
     } catch (e) {
@@ -224,7 +227,7 @@ export function useAttemptSession(testId: string | undefined) {
   const ids = useMemo(() => questions.map((q) => q.id), [questions]);
 
   return {
-    phase, error, attempt, questions, ids, media, answers, deadline,
+    phase, error, attempt, questions, ids, media, answers, deadline, startedAt,
     lockedElsewhere, expiredAttemptId, reveals, rejected, struck,
     tutor: attempt?.mode === 'tutor',
     select, clear, toggleMark, toggleStrike, setConfidence, reveal, visit, takeover, reload: load,

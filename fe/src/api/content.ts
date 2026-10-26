@@ -4,6 +4,8 @@ import type { Course, Chapter } from './courses';
 
 export type ContentItem = {
   id: string;
+  notes_pdf_key?: string;
+  annotated_pdf_key?: string;
   rating_avg?: number;
   rating_count?: number;
   title: string;
@@ -32,7 +34,20 @@ export function getChapterContent(chapterId: string): Promise<ListContentRespons
   return apiFetch<ListContentResponse>(`/chapters/${chapterId}/content`, { method: 'GET' });
 }
 
-export type GetContentResponse = {
+/**
+ * A lecture's PDFs. Students: notes are linked straight away; the annotated PDF
+ * (what was written during the lecture) is linked only after they've watched it —
+ * until then `annotated_pdf_locked` is true. Authors/reviewers always get both.
+ */
+export type LecturePDFs = {
+  has_notes_pdf: boolean;
+  notes_pdf_url?: string;
+  has_annotated_pdf: boolean;
+  annotated_pdf_url?: string;
+  annotated_pdf_locked?: boolean;
+};
+
+export type GetContentResponse = LecturePDFs & {
   content: ContentItem;
   url?: string; // Pre-signed URL for document, or HLS URL for video
 };

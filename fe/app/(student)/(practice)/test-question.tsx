@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { X, GridFour, WarningCircle, FlagPennant, FlagBanner, Lock } from 'phosphor-react-native';
+import { X, GridFour, WarningCircle, FlagPennant, FlagBanner, Lock, Timer } from 'phosphor-react-native';
 import {
   BottomSheet, EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast,
 } from '@/src/components';
@@ -16,6 +16,7 @@ import { submitAttempt, type Option } from '@/src/api/attempts';
 import { ApiError } from '@/src/api/client';
 import { useAttemptSession } from '@/src/attempt/useAttemptSession';
 import { useAttemptTimer } from '@/src/attempt/useAttemptTimer';
+import { useStopwatch } from '@/src/attempt/useStopwatch';
 import { formatClock, nextUnanswered, paletteCounts, paletteStatus, timerLevel } from '@/src/attempt/logic';
 import { track } from '@/src/analytics/track';
 import { useScreenProtection } from '@/src/security/useScreenProtection';
@@ -126,6 +127,8 @@ export default function TestQuestionRoute() {
     void finish({ force: true, expired: true });
   });
   const level = timerLevel(left);
+  // Untimed tests (Q Bank, practice) show a stopwatch for the whole test instead of a countdown.
+  const elapsed = useStopwatch(S.phase === 'ready' && left == null ? S.startedAt : null);
   useEffect(() => {
     if (left === 300) AccessibilityInfo.announceForAccessibility('5 minutes left');
     if (left === 60) AccessibilityInfo.announceForAccessibility('1 minute left');
@@ -222,6 +225,16 @@ export default function TestQuestionRoute() {
               <Text style={[type['type/body-m-medium'], { color: level === 'normal' ? color('text/primary') : color('text/inverse') }]}>
                 {formatClock(left)}
               </Text>
+            </View>
+          ) : elapsed != null ? (
+            <View
+              accessible
+              accessibilityRole="timer"
+              accessibilityLabel={`Time taken ${formatClock(elapsed)}`}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: color('bg/sunken'), borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 4, minWidth: 64, justifyContent: 'center' }}
+            >
+              <Timer size={14} color={color('text/secondary')} />
+              <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{formatClock(elapsed)}</Text>
             </View>
           ) : (
             <View style={{ width: 44 }} />

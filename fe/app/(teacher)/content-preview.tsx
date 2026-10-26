@@ -6,7 +6,8 @@ import { CaretLeft, CaretDown, CaretUp, CheckCircle, Clock, Exam, WarningCircle 
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest } from '@/src/api/teacher';
+import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest, updateContent } from '@/src/api/teacher';
+import { LecturePdfEditor, type PdfKind, type PdfSlot } from '@/src/content/LecturePdfEditor';
 import { Test, AuthoredQuestion } from '@/src/api/tests';
 import { QuestionPreviewCard, type MediaMap } from '@/src/rich';
 import { ContentItem } from '@/src/api/content';
@@ -98,6 +99,7 @@ export default function ContentPreviewRoute() {
   const [testData, setTestData] = useState<Test | null>(null);
   const [contentData, setContentData] = useState<ContentItem | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
+  const [pdfSlots, setPdfSlots] = useState<Record<PdfKind, PdfSlot>>({ notes: { present: false }, annotated: { present: false } });
   const player = useVideoPlayer(videoUrl ?? null, (p) => {
     p.loop = false;
   });
@@ -132,6 +134,7 @@ export default function ContentPreviewRoute() {
       getTeacherContent(id).then((res) => {
         setContentData(res.content);
         setVideoUrl(res.url);
+        setPdfSlots({ notes: { present: res.has_notes_pdf }, annotated: { present: res.has_annotated_pdf } });
         const rawContentType = String(res.content.content_type);
         setResolvedType(
           rawContentType === 'video' ? 'Video' : rawContentType === 'brain_hack' ? 'Brain Hack' : 'Document'
@@ -358,6 +361,19 @@ export default function ContentPreviewRoute() {
               <Text style={[type['type/h3'], { color: color('text/primary'), padding: space.sm }]}>
                 {contentData?.title ?? 'Untitled Video'}
               </Text>
+              {id ? (
+                <View style={{ paddingHorizontal: space.sm, gap: space.xs }}>
+                  <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>LECTURE PDFS</Text>
+                  <LecturePdfEditor
+                    slots={pdfSlots}
+                    onChange={async (kind, key, name) => {
+                      await updateContent(String(id), kind === 'notes' ? { notes_pdf_key: key ?? '' } : { annotated_pdf_key: key ?? '' });
+                      setPdfSlots((s) => ({ ...s, [kind]: { present: !!key, name } }));
+                      show(key ? 'PDF attached — students see it right away' : 'PDF removed', 'success');
+                    }}
+                  />
+                </View>
+              ) : null}
               {contentBreadcrumb ? (
                 <Text style={[type['type/caption'], { color: color('text/tertiary'), paddingHorizontal: space.sm, paddingBottom: space.sm }]}>
                   {contentBreadcrumb}

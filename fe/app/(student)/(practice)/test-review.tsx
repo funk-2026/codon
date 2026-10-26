@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { CaretLeft, Check, FlagBanner, FlagPennant, GridFour, NotePencil, Users, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
+import { CaretLeft, Check, FlagBanner, FlagPennant, GridFour, NotePencil, Timer, Users, WarningCircle } from 'phosphor-react-native';
+import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { RichContent, OptionCard, type MediaMap, type OptionState } from '@/src/rich';
 import { BookmarkButton } from '@/src/bookmarks/BookmarkButton';
@@ -12,6 +12,11 @@ import { NoteSheet } from '@/src/social/NoteSheet';
 import { ExplanationThumbs } from '@/src/social/RatingControl';
 import { getAttemptReview, type ReviewFilter, type ReviewItem } from '@/src/api/attempts';
 import { formatClock } from '@/src/attempt/logic';
+import { useQuestionCountdown } from '@/src/attempt/useQuestionCountdown';
+import { kvGet, kvSet } from '@/src/storage/kv';
+
+const REVIEW_LIMIT_SECONDS = 120;
+const REVIEW_LIMIT_KEY = 'review-2min-limit';
 import { useScreenProtection } from '@/src/security/useScreenProtection';
 
 const PAGE = 50;
@@ -40,6 +45,7 @@ const EMPTY_TEXT: Record<ReviewFilter, string> = {
 export default function TestReviewRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const { show } = useToast();
   const insets = useSafeAreaInsets();
   const { id, position } = useLocalSearchParams<{ id?: string; position?: string }>();
   // Opened at a specific question (e.g. "slowest questions" on the result screen) — first load only.
@@ -126,6 +132,27 @@ export default function TestReviewRoute() {
   const q = items[current];
   const atEnd = current >= items.length - 1 && !cursor;
 
+  // "Max 2 minutes per question" while reviewing: counts down, then moves on.
+  // The student can switch it off (remembered on this device).
+  const [limitOn, setLimitOn] = useState(true);
+  useEffect(() => {
+    kvGet<boolean>(REVIEW_LIMIT_KEY, true).then(setLimitOn).catch(() => {});
+  }, []);
+  const toggleLimit = () =>
+    setLimitOn((v) => {
+      void kvSet(REVIEW_LIMIT_KEY, !v);
+      show(!v ? '2-minute limit on' : '2-minute limit off', 'success');
+      return !v;
+    });
+  const reviewLeft = useQuestionCountdown(q?.question_id, REVIEW_LIMIT_SECONDS, limitOn && !!q, () => {
+    if (current < items.length - 1) {
+      show('2 minutes up — next question', 'success');
+      go(current + 1);
+    } else {
+      show('2 minutes up for this question', 'success');
+    }
+  });
+
   const counts = useMemo(() => {
     let c = 0, w = 0, u = 0;
     for (const r of items) {
@@ -150,7 +177,20 @@ export default function TestReviewRoute() {
         <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
           {items.length > 0 && q ? `Question ${q.position} · ${current + 1}${cursor ? '+' : ''} shown` : 'Review'}
         </Text>
-        <View style={{ width: 44 }} />
+        <Pressable
+          onPress={toggleLimit}
+          accessibilityRole="button"
+          accessibilityLabel={reviewLeft != null ? `${formatClock(reviewLeft)} left for this question. Tap to turn the 2-minute limit off` : 'Turn on the 2-minute limit per question'}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, minWidth: 64, justifyContent: 'center', paddingHorizontal: space.sm, borderRadius: radius.pill,
+            backgroundColor: reviewLeft != null && reviewLeft <= 30 ? color('semantic/warning-tint') : color('bg/sunken'),
+          }}
+        >
+          <Timer size={14} color={reviewLeft != null && reviewLeft <= 30 ? color('semantic/warning') : color('text/secondary')} />
+          <Text style={[type['type/caption'], { color: reviewLeft != null && reviewLeft <= 30 ? color('semantic/warning') : color('text/primary') }]}>
+            {reviewLeft != null ? formatClock(reviewLeft) : '2-min off'}
+          </Text>
+        </Pressable>
       </View>
       {items.length > 0 ? (
         <View style={{ height: 3, backgroundColor: color('bg/sunken'), borderRadius: 2, marginTop: space.xs }}>

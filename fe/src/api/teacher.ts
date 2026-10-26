@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import { ContentItem } from './content';
+import { ContentItem, type LecturePDFs } from './content';
 import { Test, AuthoredQuestion } from './tests';
 import type { MediaMap } from '@/src/rich/ast';
 
@@ -200,6 +200,9 @@ export type CreateContentRequest = {
   chapter_id: string;
   file_key: string;
   requires_subscription?: boolean;
+  /** lecture_pdf upload keys; on update "" removes the PDF. */
+  notes_pdf_key?: string;
+  annotated_pdf_key?: string;
 };
 
 /** POST /api/v1/teacher/content */
@@ -233,7 +236,7 @@ export function listTeacherContent(): Promise<{ content: ContentItem[] }> {
   return apiFetch<{ content: ContentItem[] }>('/teacher/content', { method: 'GET' });
 }
 
-export type TeacherContentDetail = {
+export type TeacherContentDetail = LecturePDFs & {
   content: ContentItem;
   url?: string;
 };
