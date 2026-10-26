@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -456,5 +457,48 @@ func TestDeckTaxonomyCanBeCleared(t *testing.T) {
 	d = e.mustDo(200, "PATCH", "/teacher/flashcard-decks/"+id, tch, map[string]interface{}{"subject_id": e.w.Subject.ID.String()})
 	if d["chapter_id"] != nil || str(d, "subject_id") != e.w.Subject.ID.String() {
 		t.Fatalf("subject only: %v", d)
+	}
+}
+
+// Lecture PDFs: notes are available straight away; the annotated PDF unlocks
+// for a student only after they've watched the lecture. Only your own
+// lecture_pdf uploads can be attached.
+func TestLecturePDFsUnlockAfterWatching(t *testing.T) {
+	e := newEnv(t)
+	tch, st := &e.w.Teacher, &e.w.Student
+	mine := func(name string) string { return "lecture_pdf/" + strings.ToLower(tch.ID.String()) + "/" + name }
+
+	if code, out := e.do("POST", "/teacher/content", tch, map[string]interface{}{
+		"title": "Cell 1", "course_id": e.w.Course.ID.String(), "chapter_id": e.w.Chapter.ID.String(), "content_type": "video",
+		"file_key": "video/x/lecture.mp4", "notes_pdf_key": "lecture_pdf/" + uuid.NewString() + "/stolen.pdf",
+	}); code != 400 || str(out, "code") != "invalid_pdf" {
+		t.Fatalf("someone else's PDF must be refused: %d %v", code, out)
+	}
+
+	item := e.mustDo(201, "POST", "/teacher/content", tch, map[string]interface{}{
+		"title": "Cell 1", "course_id": e.w.Course.ID.String(), "chapter_id": e.w.Chapter.ID.String(), "content_type": "video",
+		"file_key": "video/x/lecture.mp4", "requires_subscription": false,
+		"notes_pdf_key": mine("notes.pdf"), "annotated_pdf_key": mine("annotated.pdf"),
+	})
+	id := str(item, "id")
+	e.db.Exec("UPDATE content_items SET status = 'published' WHERE id = ?", id)
+
+	got := e.mustDo(200, "GET", "/content/"+id, st, nil)
+	if got["has_notes_pdf"] != true || got["has_annotated_pdf"] != true || got["annotated_pdf_locked"] != true {
+		t.Fatalf("before watching: notes available, annotated locked: %v", got)
+	}
+	// the author always sees both
+	if tv := e.mustDo(200, "GET", "/teacher/content/"+id, tch, nil); tv["annotated_pdf_locked"] == true {
+		t.Fatalf("teacher view must not be locked: %v", tv)
+	}
+
+	e.mustDo(200, "POST", "/content/"+id+"/heartbeat", st, map[string]interface{}{"progress_seconds": 600, "is_completed": true})
+	if got = e.mustDo(200, "GET", "/content/"+id, st, nil); got["annotated_pdf_locked"] == true {
+		t.Fatalf("after watching the annotated PDF unlocks: %v", got)
+	}
+
+	e.mustDo(200, "PATCH", "/teacher/content/"+id, tch, map[string]interface{}{"annotated_pdf_key": ""})
+	if got = e.mustDo(200, "GET", "/content/"+id, st, nil); got["has_annotated_pdf"] != false {
+		t.Fatalf("\"\" removes the annotated PDF: %v", got)
 	}
 }

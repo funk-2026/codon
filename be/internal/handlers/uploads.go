@@ -28,6 +28,7 @@ var allowedPurposes = map[string][]string{
 	"video":         {"video/mp4", "video/quicktime", "video/x-msvideo"},
 	"csv":           {"text/csv", "application/csv", "application/vnd.ms-excel"},
 	"profile_photo": {"image/jpeg", "image/png", "image/webp"},
+	"lecture_pdf":   {"application/pdf"}, // notes / annotated PDFs attached to a lecture
 }
 
 // Presign godoc

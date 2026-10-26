@@ -414,6 +414,10 @@ type ContentItem struct {
 	UploadedBy           uuid.UUID     `gorm:"type:uuid;not null" json:"uploaded_by"`
 	Uploader             User          `gorm:"foreignKey:UploadedBy" json:"uploader,omitempty"`
 	FileKey              string        `gorm:"type:text;not null" json:"file_key"`
+	// Lecture PDFs (videos): plain notes, and the annotated PDF of what was taught —
+	// students get the annotated one only after watching the lecture.
+	NotesPDFKey     *string `gorm:"type:text" json:"notes_pdf_key,omitempty"`
+	AnnotatedPDFKey *string `gorm:"type:text" json:"annotated_pdf_key,omitempty"`
 	VideoStatus          *VideoStatus  `gorm:"type:text" json:"video_status,omitempty"`
 	HLSPlaylistURL       *string       `gorm:"type:text" json:"hls_playlist_url,omitempty"`
 	Status               ContentStatus `gorm:"type:text;not null;default:'draft'" json:"status"`

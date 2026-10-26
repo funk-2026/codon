@@ -96,6 +96,20 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		UploadedBy: teacher.ID, FileKey: req.FileKey,
 		RequiresSubscription: requiresSub, Status: models.StatusDraft,
 	}
+	for _, f := range []struct {
+		key string
+		dst **string
+	}{{req.NotesPDFKey, &item.NotesPDFKey}, {req.AnnotatedPDFKey, &item.AnnotatedPDFKey}} {
+		if f.key == "" {
+			continue
+		}
+		if !validLecturePDFKey(teacher, f.key) {
+			respondErr(c, http.StatusBadRequest, "invalid_pdf", "PDFs must be uploaded with purpose lecture_pdf by you")
+			return
+		}
+		k := f.key
+		*f.dst = &k
+	}
 
 	if ct == models.ContentVideo {
 		vs := models.VideoQueued
@@ -180,6 +194,19 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	}
 	if req.RequiresSubscription != nil {
 		updates["requires_subscription"] = *req.RequiresSubscription
+	}
+	// Lecture PDFs can be added or replaced at any time (annotated notes often come after the class).
+	for col, v := range map[string]*string{"notes_pdf_key": req.NotesPDFKey, "annotated_pdf_key": req.AnnotatedPDFKey} {
+		switch {
+		case v == nil:
+		case *v == "":
+			updates[col] = nil
+		case !validLecturePDFKey(teacher, *v):
+			respondErr(c, http.StatusBadRequest, "invalid_pdf", "PDFs must be uploaded with purpose lecture_pdf by you")
+			return
+		default:
+			updates[col] = *v
+		}
 	}
 
 	// Replacing a video's file makes the old video_status/hls_playlist_url
@@ -302,7 +329,7 @@ func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item), lecturePDFs: h.lecturePDFsFor(c.Request.Context(), &item, nil)})
 }
 
 func resolveContentURL(ctx context.Context, item *models.ContentItem) string {
@@ -442,7 +469,7 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 		return
 	}
 
-	resp := getContentResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)}
+	resp := getContentResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item), lecturePDFs: h.lecturePDFsFor(c.Request.Context(), &item, user)}
 	var r models.Rating
 	if h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND item_type = 'content' AND item_id = ?", user.ID, item.ID).First(&r).Error == nil {
 		v := r.Value
@@ -473,7 +500,7 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item), lecturePDFs: h.lecturePDFsFor(c.Request.Context(), &item, nil)})
 }
 
 // ─── Admin Content Moderation ─────────────────────────────────────────────────
@@ -593,6 +620,8 @@ type createContentRequest struct {
 	ChapterID            string `json:"chapter_id"   example:"550e8400-e29b-41d4-a716-446655440002"`
 	FileKey              string `json:"file_key"     example:"video/user-uuid/file-uuid.mp4"`
 	RequiresSubscription *bool  `json:"requires_subscription" example:"true"`
+	NotesPDFKey          string `json:"notes_pdf_key"     example:"lecture_pdf/user-uuid/file-uuid.pdf"`
+	AnnotatedPDFKey      string `json:"annotated_pdf_key" example:"lecture_pdf/user-uuid/file-uuid.pdf"`
 }
 
 type updateContentRequest struct {
@@ -600,15 +629,74 @@ type updateContentRequest struct {
 	ChapterID            *string `json:"chapter_id"`
 	FileKey              *string `json:"file_key"`
 	RequiresSubscription *bool   `json:"requires_subscription"`
+	// "" removes the PDF; omitted leaves it unchanged.
+	NotesPDFKey     *string `json:"notes_pdf_key"`
+	AnnotatedPDFKey *string `json:"annotated_pdf_key"`
 }
 
 type getContentResponse struct {
 	Content  models.ContentItem `json:"content"`
 	URL      string             `json:"url,omitempty"`
 	MyRating *int               `json:"my_rating,omitempty"`
+	lecturePDFs
+}
+
+// lecturePDFs is how a lecture's PDFs are exposed. The annotated PDF is only
+// linked for students once they've watched the lecture; until then
+// annotated_pdf_locked tells the app to show it as locked.
+type lecturePDFs struct {
+	HasNotesPDF        bool   `json:"has_notes_pdf"`
+	NotesPDFURL        string `json:"notes_pdf_url,omitempty"`
+	HasAnnotatedPDF    bool   `json:"has_annotated_pdf"`
+	AnnotatedPDFURL    string `json:"annotated_pdf_url,omitempty"`
+	AnnotatedPDFLocked bool   `json:"annotated_pdf_locked,omitempty"`
 }
 
 type adminContentDetailResponse struct {
 	Content models.ContentItem `json:"content"`
 	URL     string             `json:"url,omitempty"`
+	lecturePDFs
+}
+
+// validLecturePDFKey accepts only keys from a lecture_pdf upload by this user
+// (or anyone's, for admins / manage-all teachers), so a lecture can't point at
+// someone else's private file.
+func validLecturePDFKey(u *models.User, key string) bool {
+	if !strings.HasPrefix(key, "lecture_pdf/") || strings.Contains(key, "..") {
+		return false
+	}
+	return canManageAllContent(u) || strings.HasPrefix(key, "lecture_pdf/"+strings.ToLower(u.ID.String())+"/")
+}
+
+func pdfURL(ctx context.Context, key *string) string {
+	if key == nil || *key == "" || storage.Client == nil {
+		return ""
+	}
+	url, err := storage.Client.PresignGet(ctx, *key, 2*time.Hour)
+	if err != nil {
+		return ""
+	}
+	return url
+}
+
+// lecturePDFsFor links a lecture's PDFs. student == nil means an author/reviewer
+// view (both linked). For a student the annotated PDF stays locked until their
+// watch history marks the lecture completed.
+func (h *ContentHandler) lecturePDFsFor(ctx context.Context, item *models.ContentItem, student *models.User) lecturePDFs {
+	out := lecturePDFs{HasNotesPDF: item.NotesPDFKey != nil && *item.NotesPDFKey != "", HasAnnotatedPDF: item.AnnotatedPDFKey != nil && *item.AnnotatedPDFKey != ""}
+	out.NotesPDFURL = pdfURL(ctx, item.NotesPDFKey)
+	if !out.HasAnnotatedPDF {
+		return out
+	}
+	if student != nil && student.Role == models.RoleStudent {
+		var n int64
+		h.DB.WithContext(ctx).Model(&models.UserWatchHistory{}).
+			Where("user_id = ? AND content_item_id = ? AND is_completed = ?", student.ID, item.ID, true).Count(&n)
+		if n == 0 {
+			out.AnnotatedPDFLocked = true
+			return out
+		}
+	}
+	out.AnnotatedPDFURL = pdfURL(ctx, item.AnnotatedPDFKey)
+	return out
 }
