@@ -2,7 +2,7 @@
 
 Go backend for **Codon** — a mobile-first learning platform for NEET UG, 9th, and 10th standard students.
 
-Built with **Gin + GORM + PostgreSQL + Redis**, single-VPS deployable via Docker Compose.
+Built with **Gin + GORM + PostgreSQL**, single-VPS deployable via Docker Compose.
 
 ---
 
@@ -27,7 +27,6 @@ Built with **Gin + GORM + PostgreSQL + Redis**, single-VPS deployable via Docker
 | Go | 1.21+ |
 | Docker + Docker Compose | v2+ |
 | PostgreSQL (local) | 15+ (or use Docker) |
-| Redis (local) | 7+ (or use Docker) |
 
 ---
 
@@ -89,14 +88,12 @@ cp .env.example .env
 # Edit .env with your credentials
 ```
 
-### 2. Start PostgreSQL and Redis (Docker, easiest)
+### 2. Start PostgreSQL (Docker, easiest)
 
 ```bash
 docker run -d --name codon-pg \
   -e POSTGRES_DB=codon -e POSTGRES_USER=codon -e POSTGRES_PASSWORD=codon \
   -p 5432:5432 postgres:16-alpine
-
-docker run -d --name codon-redis -p 6379:6379 redis:7-alpine
 ```
 
 ### 3. Run the API server
@@ -148,7 +145,7 @@ cd docker/
 # Copy and configure env vars
 cp ../.env.example .env
 
-# Build and start all 4 services (api + worker + postgres + redis)
+# Build and start all 3 services (api + worker + postgres)
 docker compose up --build
 
 # Stop
@@ -164,7 +161,6 @@ Services:
 | `api` | `8080` | HTTP API + Swagger UI |
 | `worker` | — | Background jobs (no HTTP port) |
 | `postgres` | `5432` | PostgreSQL 16 |
-| `redis` | `6379` | Redis 7 |
 
 ---
 
@@ -177,7 +173,6 @@ Copy `.env.example` to `.env` and fill in the values:
 | `PORT` | No | `8080` | HTTP server port |
 | `ENV` | No | `development` | `development` or `production` |
 | `DATABASE_URL` | Yes | — | PostgreSQL connection string |
-| `REDIS_URL` | Yes | — | Redis URL |
 | `JWT_SECRET` | **Yes** | — | HMAC secret for JWT signing (`openssl rand -hex 32`) |
 | `JWT_EXPIRY_DAYS` | No | `90` | Session duration in days |
 | `TWO_FACTOR_API_KEY` | No | — | 2Factor.in API key. Leave blank for console-stub OTPs |

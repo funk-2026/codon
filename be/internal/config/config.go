@@ -16,9 +16,6 @@ type Config struct {
 	// Database
 	DatabaseURL string
 
-	// Redis
-	RedisURL string
-
 	// JWT
 	JWTSecret         string
 	JWTExpiryDays     int
@@ -69,7 +66,6 @@ func Load() {
 		Port:                     getEnv("PORT", "8080"),
 		Env:                      getEnv("ENV", "development"),
 		DatabaseURL:              getEnv("DATABASE_URL", "postgres://codon:codon@localhost:5432/codon?sslmode=disable"),
-		RedisURL:                 getEnv("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:                getEnv("JWT_SECRET", "change-me-in-production"),
 		JWTExpiryDays:            getEnvInt("JWT_EXPIRY_DAYS", 90),
 		TwoFactorAPIKey:          getEnv("TWO_FACTOR_API_KEY", ""),

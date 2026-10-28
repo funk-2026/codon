@@ -23,7 +23,6 @@ import (
 	"codon-backend/internal/storage"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -52,17 +51,6 @@ func main() {
 	settings.Init(db.DB)
 	go services.BackfillAllContentHashes(context.Background(), db.DB)
 
-	// ─── Redis ────────────────────────────────────────────────────────────────
-	redisOpts, err := redis.ParseURL(config.AppConfig.RedisURL)
-	if err != nil {
-		log.Fatalf("Redis URL parse: %v", err)
-	}
-	redisClient := redis.NewClient(redisOpts)
-	ctx := context.Background()
-	if _, err := redisClient.Ping(ctx).Result(); err != nil {
-		log.Printf("Warning: Redis not available: %v (rate-limiting will not work)", err)
-	}
-
 	// ─── S3 ──────────────────────────────────────────────────────────────────
 	if config.AppConfig.S3AccessKeyID != "" {
 		if err := storage.Init(); err != nil {
@@ -90,7 +78,7 @@ func main() {
 	}
 
 	// ─── Services ────────────────────────────────────────────────────────────
-	otpSvc := services.NewOTPService(db.DB, redisClient, otpProvider, config.AppConfig.OTPRateLimitPerHour)
+	otpSvc := services.NewOTPService(db.DB, otpProvider, config.AppConfig.OTPRateLimitPerHour)
 	sessionSvc := services.NewSessionService(db.DB)
 	subSvc := services.NewSubscriptionService(db.DB)
 	scoringSvc := services.NewScoringService(db.DB)

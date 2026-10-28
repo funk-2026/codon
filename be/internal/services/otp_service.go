@@ -13,7 +13,6 @@ import (
 	"codon-backend/internal/models"
 	"codon-backend/internal/otp"
 
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -24,16 +23,14 @@ const (
 )
 
 type OTPService struct {
-	DB          *gorm.DB
-	Redis       *redis.Client
-	Provider    otp.OTPProvider
+	DB               *gorm.DB
+	Provider         otp.OTPProvider
 	RateLimitPerHour int
 }
 
-func NewOTPService(db *gorm.DB, redisClient *redis.Client, provider otp.OTPProvider, rateLimitPerHour int) *OTPService {
+func NewOTPService(db *gorm.DB, provider otp.OTPProvider, rateLimitPerHour int) *OTPService {
 	return &OTPService{
 		DB:               db,
-		Redis:            redisClient,
 		Provider:         provider,
 		RateLimitPerHour: rateLimitPerHour,
 	}
@@ -54,10 +51,6 @@ func hashOTP(code string) string {
 	return fmt.Sprintf("%x", h)
 }
 
-func otpRateKey(phone string) string {
-	return fmt.Sprintf("otp_rate:%s", phone)
-}
-
 // isReviewerPhone reports whether phone is the configured app-store-reviewer
 // test number. Disabled (always false) unless REVIEWER_PHONE_NUMBER is set.
 func isReviewerPhone(phone string) bool {
@@ -72,15 +65,16 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) error {
 		return nil
 	}
 
-	var key string
-	// Rate-limit check (skip in dev mode)
-	if config.AppConfig.Env != "development" {
-		key = otpRateKey(phone)
-		count, err := s.Redis.Get(ctx, key).Int()
-		if err != nil && err != redis.Nil {
-			return fmt.Errorf("redis rate check: %w", err)
+	// Rate-limit check (skip in dev mode or if rate limit is disabled)
+	if config.AppConfig.Env != "development" && s.RateLimitPerHour > 0 {
+		var count int64
+		oneHourAgo := time.Now().Add(-1 * time.Hour)
+		if err := s.DB.WithContext(ctx).Model(&models.OTPRequest{}).
+			Where("phone_number = ? AND created_at > ?", phone, oneHourAgo).
+			Count(&count).Error; err != nil {
+			return fmt.Errorf("checking OTP rate limit: %w", err)
 		}
-		if count >= s.RateLimitPerHour {
+		if count >= int64(s.RateLimitPerHour) {
 			return fmt.Errorf("OTP rate limit exceeded — try again later")
 		}
 	}
@@ -98,16 +92,6 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) error {
 	}
 	if err := s.DB.WithContext(ctx).Create(&record).Error; err != nil {
 		return fmt.Errorf("storing OTP: %w", err)
-	}
-
-	// Increment rate counter (reset hourly)
-	if config.AppConfig.Env != "development" {
-		pipe := s.Redis.Pipeline()
-		pipe.Incr(ctx, key)
-		pipe.Expire(ctx, key, time.Hour)
-		if _, err := pipe.Exec(ctx); err != nil {
-			return fmt.Errorf("redis rate increment: %w", err)
-		}
 	}
 
 	// Send via provider
