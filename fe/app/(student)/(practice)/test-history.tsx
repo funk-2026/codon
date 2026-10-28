@@ -6,14 +6,17 @@ import { CaretLeft, ClockCounterClockwise, WarningCircle } from 'phosphor-react-
 import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getAttempts } from '@/src/api/profile';
+import { getModule, visibleModules } from '@/src/modules/registry';
+import { useFlag } from '@/src/config/AppConfigContext';
 import type { StudentAttempt } from '@/src/api/attempts';
 
-type ModuleType = 'All' | 'Q Bank' | 'Test Series' | 'Practice';
 type Attempt = {
   id: string;
+  /** Needed to resume: the question screen starts/resumes by TEST id, not attempt id. */
+  testId: string;
   title: string;
   breadcrumb: string;
-  module: Exclude<ModuleType, 'All'>;
+  module: string;
   group: 'Today' | 'This Week' | 'Earlier';
   status: 'submitted' | 'in_progress';
   score?: string;
@@ -22,7 +25,6 @@ type Attempt = {
 
 
 
-const FILTERS: ModuleType[] = ['All', 'Q Bank', 'Test Series', 'Practice'];
 const GROUPS: Attempt['group'][] = ['Today', 'This Week', 'Earlier'];
 
 function scoreTone(pct: number): 'semantic/success' | 'semantic/warning' | 'semantic/danger' {
@@ -35,7 +37,9 @@ export default function TestHistoryRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [filter, setFilter] = useState<ModuleType>('All');
+  const customOn = useFlag('custom_test.enabled');
+  const FILTERS = ['All', ...visibleModules((f) => (f === 'custom_test.enabled' ? customOn : false)).map((m) => m.label)];
+  const [filter, setFilter] = useState<string>('All');
   
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -53,18 +57,17 @@ export default function TestHistoryRoute() {
           if (diffDays < 1) group = 'Today';
           else if (diffDays < 7) group = 'This Week';
           
-          let module: Exclude<ModuleType, 'All'> = 'Practice';
-          if (a.test?.module_type === 'test_series') module = 'Test Series';
-          if (a.test?.module_type === 'qbank') module = 'Q Bank';
+          const module = getModule(a.test?.module_type).label;
 
           return {
             id: a.id,
+            testId: a.test_id,
             title: a.test?.title || 'Unknown Test',
             breadcrumb: a.test?.subject?.name ? `${a.test.subject.name} › ${a.test.chapter?.name || 'General'}` : (a.test?.course?.name || 'General'),
             module,
             group,
             status: a.status,
-            score: a.status === 'submitted' ? `${a.score || 0}/${a.total_marks || 0}` : undefined,
+            score: a.status === 'submitted' ? (a.total_marks ? `${a.score ?? 0}/${a.total_marks}` : `${a.score ?? 0}`) : undefined,
             scorePct: a.status === 'submitted' && (a.total_marks || 0) > 0 ? ((a.score || 0) / (a.total_marks || 1)) * 100 : undefined,
           };
         });
@@ -165,7 +168,7 @@ export default function TestHistoryRoute() {
           />
         ) : filtered.length === 0 ? (
           <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center', marginTop: space.xl }]}>
-            No {filter} attempts yet.
+            {filter === 'All' ? 'No attempts yet.' : `No ${filter} attempts yet.`}
           </Text>
         ) : (
           GROUPS.map((group) => {
@@ -183,7 +186,7 @@ export default function TestHistoryRoute() {
                       onPress={() =>
                         a.status === 'submitted'
                           ? router.push({ pathname: '/(student)/(practice)/test-result', params: { id: a.id, fromHistory: '1' } })
-                          : router.push({ pathname: '/(student)/(practice)/test-question', params: { id: a.id } })
+                          : router.push({ pathname: '/(student)/(practice)/test-question', params: { id: a.testId } })
                       }
                       style={({ pressed }) => [
                         styles.row,

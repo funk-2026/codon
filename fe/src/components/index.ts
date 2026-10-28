@@ -30,3 +30,9 @@ export type { SkeletonBlockProps } from './SkeletonBlock';
 
 export { Placeholder } from './Placeholder';
 export type { PlaceholderLink } from './Placeholder';
+export { BottomSheet } from './BottomSheet';
+export type { BottomSheetProps } from './BottomSheet';
+
+export { SelectField } from './SelectField';
+export type { SelectOption } from './SelectField';
+export { TagInput } from './TagInput';

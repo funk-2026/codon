@@ -1,9 +1,6 @@
 package handlers
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"codon-backend/internal/config"
+	"codon-backend/internal/bunny"
 	"codon-backend/internal/middleware"
+	"codon-backend/internal/models"
 	"codon-backend/internal/storage"
 
 	"github.com/gin-gonic/gin"
@@ -28,12 +26,13 @@ var allowedPurposes = map[string][]string{
 	"video":         {"video/mp4", "video/quicktime", "video/x-msvideo"},
 	"csv":           {"text/csv", "application/csv", "application/vnd.ms-excel"},
 	"profile_photo": {"image/jpeg", "image/png", "image/webp"},
+	"lecture_pdf":   {"application/pdf"}, // notes / annotated PDFs attached to a lecture
 }
 
 // Presign godoc
 //
 //	@Summary		Generate presigned upload URL
-//	@Description	Returns a presigned S3 PUT URL (for Cloudflare R2 files) or Cloudflare Stream Direct Upload URL (for videos) valid for 15 minutes. The client uses this URL to upload the file directly without routing through backend. After upload, use the returned file_key when referencing the file in other API calls.
+//	@Description	Returns a presigned S3 PUT URL (for Cloudflare R2 files) or Bunny Stream TUS upload credentials (for videos) valid for 15 minutes. The client uses this URL/credentials to upload the file directly without routing through backend. After upload, use the returned file_key when referencing the file in other API calls.
 //	@Tags			Uploads
 //	@Security		BearerAuth
 //	@Accept			json
@@ -63,24 +62,50 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 		return
 	}
 
-	// 1. Cloudflare Stream for Videos
+	// 1. Bunny Stream for Videos (TUS upload)
 	if req.Purpose == "video" {
-		if config.AppConfig.CloudflareAccountID == "" || config.AppConfig.CloudflareStreamAPIToken == "" {
-			log.Printf("[Presign] Cloudflare Stream not configured (CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_STREAM_API_TOKEN blank) — falling back to R2 for video upload")
-		} else {
-			uploadURL, videoUID, err := createCloudflareStreamDirectUpload(c.Request.Context())
-			if err == nil {
-				c.JSON(http.StatusOK, presignResponse{
-					UploadURL: uploadURL,
-					FileKey:   "stream:" + videoUID,
-				})
-				return
-			}
-			log.Printf("[Presign] Cloudflare Stream direct_upload failed, falling back to R2: %v", err)
+		if user.Role != models.RoleTeacher && user.Role != models.RoleAdmin {
+			respondErr(c, http.StatusForbidden, "forbidden", "only teachers or admins may upload videos")
+			return
 		}
+
+		if !bunny.IsConfigured() {
+			log.Printf("[Presign] Bunny Stream not configured (BUNNY_STREAM_LIBRARY_ID/BUNNY_STREAM_API_KEY blank) — returning stub")
+			stubGUID := uuid.New().String()
+			c.JSON(http.StatusOK, presignResponse{
+				UploadURL: "https://video.bunnycdn.com/tusupload",
+				FileKey:   "bunny:" + stubGUID,
+				TUSAuth: &bunny.TUSAuth{
+					Signature: "stub",
+					Expires:   time.Now().Add(2 * time.Hour).Unix(),
+					LibraryID: "stub",
+					VideoID:   stubGUID,
+				},
+			})
+			return
+		}
+
+		title := req.FileName
+		if title == "" {
+			title = "Untitled Video"
+		}
+		videoGUID, err := bunny.CreateVideo(c.Request.Context(), title)
+		if err != nil {
+			log.Printf("[Presign] Bunny Stream CreateVideo failed: %v", err)
+			c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to initialize video upload with Bunny Stream"})
+			return
+		}
+
+		auth := bunny.GenerateTUSAuth(videoGUID, 2*time.Hour)
+		c.JSON(http.StatusOK, presignResponse{
+			UploadURL: "https://video.bunnycdn.com/tusupload",
+			FileKey:   "bunny:" + videoGUID,
+			TUSAuth:   &auth,
+		})
+		return
 	}
 
-	// 2. Cloudflare R2 / S3 for generic files (CSV, docs, KYC, profile photos)
+	// 2. Cloudflare R2 / S3 for generic files (CSV, docs, KYC, profile photos, lecture PDFs)
 	ext := filepath.Ext(req.FileName)
 	key := fmt.Sprintf("%s/%s/%s%s", req.Purpose, user.ID, uuid.New().String(), ext)
 	key = strings.ToLower(key)
@@ -100,52 +125,6 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, presignResponse{UploadURL: url, FileKey: key})
-}
-
-func createCloudflareStreamDirectUpload(ctx context.Context) (string, string, error) {
-	apiURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/stream/direct_upload", config.AppConfig.CloudflareAccountID)
-	reqBody, _ := json.Marshal(map[string]interface{}{
-		"maxDurationSeconds": 3 * 60 * 60,
-	})
-
-	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return "", "", err
-	}
-	req.Header.Set("Authorization", "Bearer "+config.AppConfig.CloudflareStreamAPIToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Success bool `json:"success"`
-		Result  struct {
-			UploadURL string `json:"uploadURL"`
-			UID       string `json:"uid"`
-		} `json:"result"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", "", err
-	}
-
-	if !result.Success || result.Result.UploadURL == "" {
-		errMsg := "unknown stream error"
-		if len(result.Errors) > 0 {
-			errMsg = result.Errors[0].Message
-		}
-		return "", "", fmt.Errorf("cloudflare stream error: %s", errMsg)
-	}
-
-	return result.Result.UploadURL, result.Result.UID, nil
 }
 
 func getKeys(m map[string][]string) []string {
@@ -170,11 +149,12 @@ func contains(slice []string, val string) bool {
 type presignRequest struct {
 	FileName    string `json:"file_name"    example:"lecture.mp4"`
 	ContentType string `json:"content_type" example:"video/mp4"`
-	// Purpose must be one of: kyc_document, video, csv, profile_photo
-	Purpose string `json:"purpose" example:"video" enums:"kyc_document,video,csv,profile_photo"`
+	// Purpose must be one of: kyc_document, video, csv, profile_photo, lecture_pdf
+	Purpose string `json:"purpose" example:"video" enums:"kyc_document,video,csv,profile_photo,lecture_pdf"`
 }
 
 type presignResponse struct {
-	UploadURL string `json:"upload_url" example:"https://s3.amazonaws.com/codon/video/...?X-Amz-Signature=..."`
-	FileKey   string `json:"file_key"   example:"video/user-uuid/file-uuid.mp4"`
+	UploadURL string         `json:"upload_url" example:"https://s3.amazonaws.com/codon/video/...?X-Amz-Signature=..."`
+	FileKey   string         `json:"file_key"   example:"bunny:657bb740-a71b-4529-a012-528021c31a92"`
+	TUSAuth   *bunny.TUSAuth `json:"tus_auth,omitempty"`
 }

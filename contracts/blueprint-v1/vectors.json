@@ -1,0 +1,410 @@
+{
+ "version": 1,
+ "description": "Golden vectors for the custom-test blueprint v1. Limits used: count 5-90, duration 5-180 min, sources qbank/practice/pyq, tutor OFF, status filters ON. Both the Go validator and the app's client-side validation must agree on `valid` and on `issue_codes`.",
+ "limits": {
+  "min_questions": 5,
+  "max_questions": 90,
+  "min_duration": 5,
+  "max_duration": 180,
+  "allowed_sources": [
+   "qbank",
+   "practice",
+   "pyq"
+  ],
+  "tutor_enabled": false,
+  "status_filters_enabled": true
+ },
+ "vectors": [
+  {
+   "name": "minimal_is_valid",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 20,
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": true,
+   "issue_codes": [],
+   "resolved": {
+    "schema_version": 1,
+    "order": "random",
+    "strategy": "random",
+    "fallback": "fewer",
+    "mode": "exam",
+    "marking_correct": 4,
+    "marking_wrong": -1,
+    "duration_minutes": 0
+   }
+  },
+  {
+   "name": "full_blueprint",
+   "input": {
+    "schema_version": 1,
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "title": "Physics sprint",
+    "filters": {
+     "subject_ids": [
+      "22222222-2222-2222-2222-222222222222"
+     ],
+     "difficulty": [
+      "medium",
+      "hard"
+     ],
+     "status": [
+      "incorrect",
+      "unattempted"
+     ],
+     "source_types": [
+      "qbank",
+      "pyq"
+     ],
+     "ncert": {
+      "class": 11,
+      "page_from": 40,
+      "page_to": 60
+     },
+     "exclude_attempted_within_days": 7
+    },
+    "count": 30,
+    "difficulty_mix": {
+     "easy": 0.2,
+     "medium": 0.5,
+     "hard": 0.3
+    },
+    "subject_weights": "even",
+    "order": "syllabus",
+    "strategy": "weak_first",
+    "mode": "exam",
+    "timing": {
+     "timed": true,
+     "duration_minutes": 45
+    },
+    "marking": {
+     "preset": "no_negative"
+    },
+    "seed": 42
+   },
+   "valid": true,
+   "issue_codes": [],
+   "resolved": {
+    "schema_version": 1,
+    "order": "syllabus",
+    "strategy": "weak_first",
+    "fallback": "fewer",
+    "mode": "exam",
+    "marking_correct": 1,
+    "marking_wrong": 0,
+    "duration_minutes": 45
+   }
+  },
+  {
+   "name": "missing_course",
+   "input": {
+    "count": 10,
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "required"
+   ]
+  },
+  {
+   "name": "count_too_high",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 500,
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "out_of_range"
+   ]
+  },
+  {
+   "name": "count_too_low",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 1,
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "out_of_range"
+   ]
+  },
+  {
+   "name": "timed_needs_duration_in_range",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "timing": {
+     "timed": true,
+     "duration_minutes": 1
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "out_of_range"
+   ]
+  },
+  {
+   "name": "bad_difficulty",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "filters": {
+     "difficulty": [
+      "extreme"
+     ]
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "bad_enum"
+   ]
+  },
+  {
+   "name": "bad_status",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "filters": {
+     "status": [
+      "seen"
+     ]
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "bad_enum"
+   ]
+  },
+  {
+   "name": "mix_must_sum_to_one",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "difficulty_mix": {
+     "easy": 0.5,
+     "hard": 0.1
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "must_sum_to_one"
+   ]
+  },
+  {
+   "name": "test_series_source_not_allowed",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "filters": {
+     "source_types": [
+      "test_series"
+     ]
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "source_not_allowed"
+   ]
+  },
+  {
+   "name": "tutor_needs_flag",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "mode": "tutor",
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "mode_unavailable"
+   ]
+  },
+  {
+   "name": "custom_marking_bounds",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "marking": {
+     "preset": "custom",
+     "correct": 4,
+     "wrong": 2
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "out_of_range"
+   ]
+  },
+  {
+   "name": "custom_marking_ok",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "marking": {
+     "preset": "custom",
+     "correct": 2,
+     "wrong": -0.5
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": true,
+   "issue_codes": [],
+   "resolved": {
+    "schema_version": 1,
+    "order": "random",
+    "strategy": "random",
+    "fallback": "fewer",
+    "mode": "exam",
+    "marking_correct": 2,
+    "marking_wrong": -0.5,
+    "duration_minutes": 0
+   }
+  },
+  {
+   "name": "bad_ncert_range",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "filters": {
+     "ncert": {
+      "page_from": 90,
+      "page_to": 10
+     }
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "bad_range"
+   ]
+  },
+  {
+   "name": "unknown_filter_key_rejected",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "filters": {
+     "colour": "red"
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "unknown_filter"
+   ]
+  },
+  {
+   "name": "unknown_top_level_field_ignored",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "future_field": {
+     "x": 1
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": true,
+   "issue_codes": []
+  },
+  {
+   "name": "future_schema_version_rejected",
+   "input": {
+    "schema_version": 9,
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "unsupported_schema_version"
+   ]
+  },
+  {
+   "name": "bad_subject_weights",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "subject_weights": "sideways",
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "invalid"
+   ]
+  },
+  {
+   "name": "custom_subject_weights",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "subject_weights": {
+     "22222222-2222-2222-2222-222222222222": 0.7
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": true,
+   "issue_codes": []
+  },
+  {
+   "name": "collection_ids_need_bookmarked",
+   "input": {
+    "course_id": "11111111-1111-1111-1111-111111111111",
+    "count": 10,
+    "filters": {
+     "bookmark_collection_ids": [
+      "22222222-2222-2222-2222-222222222222"
+     ]
+    },
+    "timing": {
+     "timed": false
+    }
+   },
+   "valid": false,
+   "issue_codes": [
+    "needs_bookmarked_status"
+   ]
+  }
+ ]
+}

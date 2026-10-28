@@ -65,7 +65,8 @@ graph LR
 | **Background Worker** | Go binary (`/bin/worker`) — CSV import, video transcoding jobs | Separate Docker container or systemd service |
 | **PostgreSQL 16** | Primary data store | Managed DB or Docker |
 | **Redis 7** | OTP rate-limiting, session caching | Managed Redis or Docker |
-| **Cloudflare R2** | Object storage for videos, CSVs, KYC docs, profile photos | Cloudflare managed |
+| **Cloudflare R2** | Object storage for images, PDFs, CSVs, KYC docs, profile photos | Cloudflare managed |
+| **Bunny Stream** | Video storage, transcoding, and adaptive HLS streaming | Bunny.net managed |
 | **Caddy** | Reverse proxy + automatic HTTPS via Let's Encrypt | Docker or host |
 
 ---
@@ -88,7 +89,8 @@ graph LR
 |---|---|---|
 | **[2Factor.in](https://2factor.in/)** | SMS OTP delivery to Indian phone numbers | ~₹0.18/SMS (prepaid credits) |
 | **[Razorpay](https://razorpay.com/)** | Payment gateway (UPI, cards, netbanking) | 2% per transaction |
-| **[Cloudflare R2](https://www.cloudflare.com/r2/)** | S3-compatible object storage for files | Free up to 10GB/mo storage, ₹0/egress |
+| **[Cloudflare R2](https://www.cloudflare.com/r2/)** | S3-compatible object storage for images and docs | Free up to 10GB/mo storage, ₹0/egress |
+| **[Bunny Stream](https://bunny.net/stream/)** | Video hosting, transcoding, and global HLS delivery | $0.005/GB storage, $0.005/GB bandwidth |
 | **[Expo EAS](https://expo.dev/eas)** | Cloud builds for Android APK/AAB & iOS IPA | Free tier: 30 builds/mo |
 | **[Google Play Console](https://play.google.com/console)** | Publish to Play Store | One-time $25 |
 | **[Apple Developer Program](https://developer.apple.com/)** | Publish to App Store | $99/year |

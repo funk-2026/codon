@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { getAccessToken } from '../auth/tokenStore';
 import { DeviceEventEmitter } from 'react-native';
+import { buildHeaders } from './headers';
 
 /**
  * Resolve the API base URL dynamically.
@@ -26,33 +27,72 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
   const token = await getAccessToken();
+  // `...options` MUST come before `headers` here — options.headers (e.g. a
+  // caller's Idempotency-Key) must be merged BY buildHeaders, never allowed to
+  // replace the whole headers object outright (see headers.ts for why).
   const res = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers as Record<string, string> | undefined),
-    },
     ...options,
+    headers: buildHeaders(token, options.headers as Record<string, string> | undefined),
   });
 
-  const body = await res.json().catch(() => ({}));
+  // A body that isn't JSON is treated as empty — except when the caller aborted
+  // mid-read: that must surface as an AbortError, never as an empty "success".
+  let body: unknown = {};
+  try {
+    body = await res.json();
+  } catch (e) {
+    if (options.signal?.aborted) throw e;
+  }
 
   if (!res.ok) {
     if (res.status === 401 && !url.includes('/auth/otp')) {
       DeviceEventEmitter.emit('onTokenExpired');
     }
-    const msg = (body as Record<string, string>).error ?? res.statusText;
-    throw new ApiError(msg, res.status);
+    const b = body as { error?: string; code?: string; details?: unknown };
+    throw new ApiError(b.error ?? res.statusText, res.status, b.code, b.details);
   }
 
   return body as T;
 }
 
+/**
+ * `code` is the backend's stable machine-readable failure code (e.g.
+ * `pool_too_small`, `attempt_expired`) — switch on it, never on `message`.
+ * `details` carries structured context (suggestions, missing fields, …).
+ */
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  details?: any;
+  constructor(message: string, status: number, code?: string, details?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
+    this.details = details;
   }
+}
+
+/**
+ * Go encodes an empty slice as JSON `null`, not `[]`. API modules wrap list
+ * fields with this so screens can always call .map/.length safely.
+ */
+export const arr = <T,>(v: T[] | null | undefined): T[] => v ?? [];
+
+/** Cursor-paginated list envelope used by the newer backend endpoints. */
+export type Paginated<T> = { items: T[]; next_cursor: string | null };
+
+/** Builds a `?a=1&b=2` query string, skipping undefined/empty values. */
+export function qs(params: Record<string, string | number | boolean | undefined | null>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== '') q.append(k, String(v));
+  }
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}
+
+/** Random idempotency key for POSTs that must not double-submit on retry. */
+export function newIdempotencyKey(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}`;
 }

@@ -16,8 +16,10 @@ import (
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 	"codon-backend/internal/otp"
+	"codon-backend/internal/router"
 	rzp "codon-backend/internal/razorpay"
 	"codon-backend/internal/services"
+	"codon-backend/internal/settings"
 	"codon-backend/internal/storage"
 
 	"github.com/gin-gonic/gin"
@@ -39,13 +41,16 @@ func main() {
 		log.Fatalf("AutoMigrate: %v", err)
 	}
 
-	if err := db.SeedCourses(db.DB); err != nil {
-		log.Fatalf("SeedCourses: %v", err)
+	if err := db.RunMigrations(db.DB); err != nil {
+		log.Fatalf("RunMigrations: %v", err)
 	}
 
-	if err := db.SeedPlatformSettings(db.DB); err != nil {
-		log.Fatalf("SeedPlatformSettings: %v", err)
+	if err := db.SeedAll(db.DB); err != nil {
+		log.Fatalf("Seed: %v", err)
 	}
+
+	settings.Init(db.DB)
+	go services.BackfillAllContentHashes(context.Background(), db.DB)
 
 	// ─── Redis ────────────────────────────────────────────────────────────────
 	redisOpts, err := redis.ParseURL(config.AppConfig.RedisURL)
@@ -98,8 +103,6 @@ func main() {
 	paymentH := handlers.NewPaymentHandler(db.DB, subSvc)
 	kycH := handlers.NewKYCHandler(db.DB)
 	uploadH := handlers.NewUploadHandler()
-	testH := handlers.NewTestHandler(db.DB)
-	attemptH := handlers.NewAttemptHandler(db.DB, scoringSvc)
 	contentH := handlers.NewContentHandler(db.DB, subSvc)
 	wellnessH := handlers.NewWellnessHandler(db.DB)
 	adminH := handlers.NewAdminHandler(db.DB, sessionSvc)
@@ -195,36 +198,10 @@ func main() {
 		return false
 	}
 
-	tests := api.Group("/tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
-	{
-		tests.GET("", testH.ListTests)
-		tests.GET("/:id", testH.GetTest)
-		tests.POST("/:id/attempts", func(c *gin.Context) {
-			// Gate check inline
-			user := middleware.GetUser(c)
-			testID := c.Param("id")
-			var test models.Test
-			if err := db.DB.Where("id = ? AND status = ?", testID, models.StatusPublished).First(&test).Error; err != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
-				return
-			}
-			if err := subSvc.CheckAccess(c.Request.Context(), user, test.RequiresSubscription, test.CourseID, kycRequiredFn()); err != nil {
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": err.Error()})
-				return
-			}
-			attemptH.StartAttempt(c)
-		})
-		tests.GET("/:id/questions", testH.GetQuestions)
-	}
-
-	// Attempts (student)
-	attempts := api.Group("/attempts").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
-	{
-		attempts.PUT("/:id/answers/:question_id", attemptH.UpsertAnswer)
-		attempts.POST("/:id/submit", attemptH.SubmitAttempt)
-		attempts.GET("/:id/result", attemptH.GetResult)
-		attempts.GET("/:id/review", attemptH.GetReview)
-	}
+	// Assessment / custom-test / rich-content routes live in internal/router
+	// (shared with the integration tests).
+	rd := router.NewDeps(db.DB, auth, subSvc, scoringSvc, kycRequiredFn)
+	router.Register(api, rd)
 
 	// Content (student)
 	studentContent := api.Group("").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
@@ -237,19 +214,6 @@ func main() {
 	// ─── Teacher routes ────────────────────────────────────────────────────────
 	teacher := api.Group("/teacher").Use(auth).Use(middleware.RequireRole(models.RoleTeacher, models.RoleAdmin))
 	{
-		teacher.POST("/tests", testH.CreateTest)
-		teacher.PATCH("/tests/:id", testH.UpdateTest)
-		teacher.POST("/tests/:id/questions", testH.AddQuestion)
-		teacher.PATCH("/questions/:id", testH.UpdateQuestion)
-		teacher.DELETE("/questions/:id", testH.DeleteQuestion)
-		teacher.POST("/tests/:id/csv-import", testH.CSVImport)
-		teacher.GET("/csv-imports/:id", testH.GetCSVImport)
-		teacher.POST("/tests/:id/submit-for-review", testH.SubmitForReview)
-		teacher.GET("/tests", testH.ListTeacherTests)
-		teacher.GET("/tests/:id", testH.TeacherGetTest)
-		teacher.POST("/tests/:id/publish", testH.PublishTest)
-		teacher.DELETE("/tests/:id", testH.DeleteTest)
-
 		teacher.POST("/content", contentH.CreateContent)
 		teacher.PATCH("/content/:id", contentH.UpdateContent)
 		teacher.POST("/content/:id/submit-for-review", contentH.SubmitContentForReview)
@@ -262,6 +226,7 @@ func main() {
 	wellness := api.Group("/wellness").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		wellness.GET("/content", wellnessH.ListWellnessContent)
+		wellness.GET("/content/:id", wellnessH.GetWellnessContent)
 		wellness.GET("/reflection-prompts", wellnessH.ListReflectionPrompts)
 	}
 
@@ -291,10 +256,6 @@ func main() {
 		admin.PATCH("/settings/kyc-required", kycH.SetKYCRequired)
 
 		// Tests moderation
-		admin.GET("/tests", testH.AdminListTests)
-		admin.GET("/tests/:id", testH.AdminGetTest)
-		admin.POST("/tests/:id/approve", testH.AdminApproveTest)
-		admin.POST("/tests/:id/reject", testH.AdminRejectTest)
 
 		// Content moderation
 		admin.GET("/content", contentH.AdminListContent)

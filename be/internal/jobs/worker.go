@@ -15,13 +15,15 @@ import (
 
 const (
 	JobTypeCSVImport         = "csv_import"
-	JobTypeTranscode         = "video_transcode"
-	JobTypeStreamStatusCheck = "stream_status_check"
+	JobTypeVideoStatusCheck  = "video_status_check"
+	JobTypeStreamStatusCheck = "video_status_check" // alias for backwards compatibility
+	JobTypeMediaProcess      = "media_process"
+	JobTypeRescoreQuestion   = "rescore_question"
 )
 
 // maxAttempts caps how many times a job is retried before it's abandoned.
 // 30 attempts at the 1-minute backoff below gives ~30 minutes of headroom —
-// long enough for a Cloudflare Stream status-check job to poll until
+// long enough for a video status-check job to poll until
 // transcoding finishes, not just for quick one-shot jobs like CSV import.
 const maxAttempts = 30
 
@@ -48,18 +50,23 @@ type CSVImportPayload struct {
 	TestID  uuid.UUID `json:"test_id"`
 }
 
-// TranscodePayload is the payload for a video transcode job.
-type TranscodePayload struct {
+// VideoStatusCheckPayload is the payload for polling a Bunny Stream
+// video's transcode status until it's ready to play.
+type VideoStatusCheckPayload struct {
 	ContentItemID uuid.UUID `json:"content_item_id"`
-	FileKey       string    `json:"file_key"`
+	VideoGUID     string    `json:"video_guid"`
+	VideoUID      string    `json:"video_uid,omitempty"`
 }
 
-// StreamStatusCheckPayload is the payload for polling a Cloudflare Stream
-// video's transcode status until it's ready to play.
-type StreamStatusCheckPayload struct {
-	ContentItemID uuid.UUID `json:"content_item_id"`
-	VideoUID      string    `json:"video_uid"`
+func (p *VideoStatusCheckPayload) GUID() string {
+	if p.VideoGUID != "" {
+		return p.VideoGUID
+	}
+	return p.VideoUID
 }
+
+// StreamStatusCheckPayload alias for backwards compatibility
+type StreamStatusCheckPayload = VideoStatusCheckPayload
 
 // Worker polls for pending jobs and processes them.
 type Worker struct {
@@ -67,6 +74,20 @@ type Worker struct {
 	PollInterval time.Duration
 	handlers     map[string]func(ctx context.Context, payload string) error
 	onExhausted  map[string]func(ctx context.Context, payload string)
+	tickers      []ticker
+}
+
+type ticker struct {
+	name  string
+	every time.Duration
+	fn    func(ctx context.Context)
+}
+
+// RegisterTicker runs fn every `every` for as long as the worker runs. Use it
+// for recurring maintenance (sweepers, GC) that is idempotent and safe to run
+// from several worker replicas at once; it needs no rows in background_jobs.
+func (w *Worker) RegisterTicker(name string, every time.Duration, fn func(ctx context.Context)) {
+	w.tickers = append(w.tickers, ticker{name, every, fn})
 }
 
 func NewWorker(db *gorm.DB, pollInterval time.Duration) *Worker {
@@ -93,6 +114,27 @@ func (w *Worker) RegisterExhaustionHandler(jobType string, fn func(ctx context.C
 
 func (w *Worker) Run(ctx context.Context) {
 	log.Printf("[Worker] Starting — polling every %v", w.PollInterval)
+	for _, t := range w.tickers {
+		go func(t ticker) {
+			tk := time.NewTicker(t.every)
+			defer tk.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-tk.C:
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								log.Printf("[Worker] ticker %s panicked: %v", t.name, r)
+							}
+						}()
+						t.fn(ctx)
+					}()
+				}
+			}
+		}(t)
+	}
 	ticker := time.NewTicker(w.PollInterval)
 	defer ticker.Stop()
 

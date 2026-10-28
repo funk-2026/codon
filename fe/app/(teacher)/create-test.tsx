@@ -3,32 +3,38 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretRight, Stack, Exam, Lightning, WarningCircle, Minus, Plus } from 'phosphor-react-native';
+import { Switch } from 'react-native';
+import { teacherModules } from '@/src/modules/registry';
 import { ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { createTest } from '@/src/api/teacher';
 import { listCourses } from '@/src/api/courses';
 
-type ModuleType = 'Q Bank' | 'Test Series' | 'Practice';
+type ModuleKey = 'qbank' | 'test_series' | 'practice';
 
-const REJECTED_REASON = "Question 7's marked answer doesn't match the explanation given — please double-check before resubmitting.";
+const MODULE_ICON: Record<string, (ink: string) => React.ReactNode> = {
+  qbank: (c) => <Stack size={18} color={c} weight="duotone" />,
+  test_series: (c) => <Exam size={18} color={c} weight="duotone" />,
+  practice: (c) => <Lightning size={18} color={c} weight="duotone" />,
+};
 
 export default function CreateTestRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { locationLabel, chapterId: pickedChapterId, rejected } = useLocalSearchParams<{
+  const { locationLabel, chapterId: pickedChapterId, courseId: pickedCourseId, subjectId: pickedSubjectId } = useLocalSearchParams<{
     locationLabel?: string;
     chapterId?: string;
-    rejected?: string;
+    courseId?: string;
+    subjectId?: string;
   }>();
-  const isRejectedEdit = rejected === '1';
 
-  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [title, setTitle] = useState('');
-  const [moduleType, setModuleType] = useState<ModuleType | null>(null);
+  const [moduleType, setModuleType] = useState<ModuleKey | null>(null);
   const [location, setLocation] = useState<string | null>(null);
-  const [topic, setTopic] = useState('');
+  const [subjectId, setSubjectId] = useState<string | null>(null);
+  const [requiresSub, setRequiresSub] = useState(true);
   const [timed, setTimed] = useState(true);
   const [duration, setDuration] = useState(30);
   const [marksCorrect, setMarksCorrect] = useState('4');
@@ -38,11 +44,11 @@ export default function CreateTestRoute() {
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [testId, setTestId] = useState<string | null>(null);
-  const questionCount = isRejectedEdit ? 20 : 0;
+  const questionCount = 0; // a brand-new test has no questions until they are added
 
   const loadCourseInfo = useCallback(() => {
     listCourses().then(res => {
-      if (res.courses.length > 0) setCourseId(res.courses[0].id);
+      if (res.courses.length > 0) setCourseId((cur) => cur ?? res.courses[0].id);
       setLoadError(false);
     }).catch(() => setLoadError(true));
   }, []);
@@ -54,31 +60,35 @@ export default function CreateTestRoute() {
   useEffect(() => {
     if (locationLabel) setLocation(locationLabel);
     if (pickedChapterId) setChapterId(pickedChapterId);
-  }, [locationLabel, pickedChapterId]);
-
-  useEffect(() => {
-    if (isRejectedEdit) {
-      setTitle('Thermodynamics Full Test');
-      setModuleType('Test Series');
-      setLocation('NEET UG · Physics · Thermodynamics');
-    }
-  }, [isRejectedEdit]);
+    if (pickedCourseId) setCourseId(pickedCourseId);
+    if (pickedSubjectId) setSubjectId(pickedSubjectId);
+  }, [locationLabel, pickedChapterId, pickedCourseId, pickedSubjectId]);
 
   const locationSet = !!location;
   const canProceed = locationSet;
 
   const ensureTestSaved = useCallback(async (): Promise<string | null> => {
     if (testId) return testId;
-    if (!title || !moduleType || !courseId) return null;
+    if (!title.trim() || !moduleType || !courseId) return null;
+    const correct = Number(marksCorrect.replace(',', '.'));
+    const wrong = Number(marksWrong.replace(',', '.'));
+    if (!Number.isFinite(correct) || correct <= 0 || !Number.isFinite(wrong)) throw new Error('marks');
     const res = await createTest({
-      title,
+      title: title.trim(),
       course_id: courseId,
-      module_type: moduleType === 'Q Bank' ? 'qbank' : moduleType === 'Test Series' ? 'test_series' : 'practice',
+      module_type: moduleType,
       ...(chapterId ? { chapter_id: chapterId } : {}),
+      ...(subjectId ? { subject_id: subjectId } : {}),
+      // previously these were collected on this screen but never sent, so every test was created untimed with default marks
+      ...(timed ? { duration_minutes: duration } : {}),
+      marks_per_correct: correct,
+      // a penalty is stored as a negative number; accept "1" or "-1" from the teacher
+      marks_per_wrong: wrong > 0 ? -wrong : wrong,
+      requires_subscription: requiresSub,
     });
     setTestId(res.id);
     return res.id;
-  }, [testId, title, moduleType, courseId, chapterId]);
+  }, [testId, title, moduleType, courseId, chapterId, subjectId, timed, duration, marksCorrect, marksWrong, requiresSub]);
 
   const handleSaveDraft = async () => {
     setSaving(true);
@@ -89,7 +99,7 @@ export default function CreateTestRoute() {
       // For MVP, proceed to question builder
       router.push({ pathname: '/(teacher)/question-builder', params: { testId: id } });
     } catch (err) {
-      show('Failed to save draft', 'error');
+      show(err instanceof Error && err.message === 'marks' ? 'Enter valid marks: a positive number for correct answers.' : 'Failed to save draft', 'error');
     } finally {
       setSaving(false);
     }
@@ -105,7 +115,7 @@ export default function CreateTestRoute() {
       }
       router.push({ pathname: '/(teacher)/csv-upload', params: { testId: id } });
     } catch (err) {
-      show('Failed to save test', 'error');
+      show(err instanceof Error && err.message === 'marks' ? 'Enter valid marks: a positive number for correct answers.' : 'Failed to save test', 'error');
     } finally {
       setSaving(false);
     }
@@ -118,11 +128,11 @@ export default function CreateTestRoute() {
     });
   };
 
-  const MODULE_TYPES: { key: ModuleType; icon: React.ReactNode }[] = [
-    { key: 'Q Bank', icon: <Stack size={18} color={moduleType === 'Q Bank' ? color('accent/default') : color('text/secondary')} weight="duotone" /> },
-    { key: 'Test Series', icon: <Exam size={18} color={moduleType === 'Test Series' ? color('accent/default') : color('text/secondary')} weight="duotone" /> },
-    { key: 'Practice', icon: <Lightning size={18} color={moduleType === 'Practice' ? color('accent/default') : color('text/secondary')} weight="duotone" /> },
-  ];
+  const MODULE_TYPES = teacherModules().map((m) => ({
+    key: m.key as ModuleKey,
+    label: m.label,
+    icon: (MODULE_ICON[m.key] ?? MODULE_ICON.practice)(moduleType === m.key ? color('accent/default') : color('text/secondary')),
+  }));
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -135,7 +145,7 @@ export default function CreateTestRoute() {
           <CaretLeft size={24} color={color('text/primary')} />
         </Pressable>
         <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
-          {isRejectedEdit ? 'Edit Test' : 'New Test'}
+          New Test
         </Text>
         <TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
       </View>
@@ -146,22 +156,6 @@ export default function CreateTestRoute() {
         </View>
       ) : null}
 
-      {isRejectedEdit && !bannerDismissed ? (
-        <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
-          <View style={[styles.banner, { borderRadius: radius.md }]}>
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: color('semantic/danger'), opacity: 0.12, borderRadius: radius.md }]} />
-            <View style={[styles.bannerContent, { padding: space.sm }]}>
-              <WarningCircle size={18} color={color('semantic/danger')} />
-              <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1, marginLeft: space.xs }]}>
-                {REJECTED_REASON}
-              </Text>
-              <Pressable onPress={() => setBannerDismissed(true)} hitSlop={space.xs}>
-                <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Dismiss</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      ) : null}
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
@@ -199,7 +193,7 @@ export default function CreateTestRoute() {
                         { color: active ? color('accent/default') : color('text/primary'), marginLeft: 6 },
                       ]}
                     >
-                      {m.key}
+                      {m.label}
                     </Text>
                   </Pressable>
                 );
@@ -227,8 +221,6 @@ export default function CreateTestRoute() {
               Choose where this test lives in the course structure first.
             </Text>
           ) : null}
-
-          <InputField label="Topic" value={topic} onChangeText={setTopic} placeholder="Optional" />
 
           <View>
             <Text style={[type['type/caption'], { color: color('text/secondary'), marginBottom: space.xs }]}>
@@ -299,6 +291,14 @@ export default function CreateTestRoute() {
               containerStyle={{ flex: 1 }}
             />
           </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>Requires a subscription</Text>
+              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Turn off to make this test a free preview for everyone.</Text>
+            </View>
+            <Switch value={requiresSub} onValueChange={setRequiresSub} accessibilityLabel="Requires a subscription" />
+          </View>
+
         </View>
 
         {questionCount > 0 ? (

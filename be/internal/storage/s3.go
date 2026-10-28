@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -60,6 +62,7 @@ func Init() error {
 		presigner: s3.NewPresignClient(s3Client),
 		bucket:    cfg.S3Bucket,
 	}
+	Store = Client
 	return nil
 }
 
@@ -106,3 +109,72 @@ func (s *S3Client) DownloadObject(ctx context.Context, key string) (io.ReadClose
 func BuildObjectKey(purpose, fileName string) string {
 	return fmt.Sprintf("%s/%s", purpose, fileName)
 }
+
+// ── Backend abstraction ───────────────────────────────────────────────────────
+
+// ObjectInfo is what HeadObject reports.
+type ObjectInfo struct {
+	Size        int64
+	ContentType string
+}
+
+// Backend is the object-store surface the media pipeline needs. The S3/R2
+// client implements it; tests use MemBackend.
+type Backend interface {
+	// PresignPutSized signs a PUT that must carry exactly `size` bytes and this content type.
+	PresignPutSized(ctx context.Context, key, contentType string, size int64, expiry time.Duration) (string, error)
+	PresignGet(ctx context.Context, key string, expiry time.Duration) (string, error)
+	DownloadObject(ctx context.Context, key string) (io.ReadCloser, error)
+	PutObject(ctx context.Context, key, contentType string, data []byte) error
+	HeadObject(ctx context.Context, key string) (ObjectInfo, error)
+	DeleteObject(ctx context.Context, key string) error
+}
+
+// Store is the backend used by the media pipeline (nil = storage not configured).
+var Store Backend
+
+func (s *S3Client) PresignPutSized(ctx context.Context, key, contentType string, size int64, expiry time.Duration) (string, error) {
+	req, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket:        aws.String(s.bucket),
+		Key:           aws.String(key),
+		ContentType:   aws.String(contentType),
+		ContentLength: aws.Int64(size),
+	}, s3.WithPresignExpires(expiry))
+	if err != nil {
+		return "", fmt.Errorf("presigning sized PUT: %w", err)
+	}
+	return req.URL, nil
+}
+
+func (s *S3Client) PutObject(ctx context.Context, key, contentType string, data []byte) error {
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+		Body:        bytes.NewReader(data),
+	})
+	return err
+}
+
+func (s *S3Client) HeadObject(ctx context.Context, key string) (ObjectInfo, error) {
+	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
+	if err != nil {
+		return ObjectInfo{}, err
+	}
+	info := ObjectInfo{}
+	if out.ContentLength != nil {
+		info.Size = *out.ContentLength
+	}
+	if out.ContentType != nil {
+		info.ContentType = *out.ContentType
+	}
+	return info, nil
+}
+
+func (s *S3Client) DeleteObject(ctx context.Context, key string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
+	return err
+}
+
+// ErrNotFound is returned by backends when an object does not exist.
+var ErrNotFound = errors.New("object not found")

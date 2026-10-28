@@ -1,0 +1,122 @@
+name: Release iOS (App Store)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Override Version Name (leave blank to use fe/.env IOS_VERSION_NAME)'
+        required: false
+        type: string
+        default: ''
+      build_number:
+        description: 'Override Build Number (leave blank to use fe/.env IOS_BUILD_NUMBER)'
+        required: false
+        type: string
+        default: ''
+      submit:
+        description: 'Auto-submit to App Store Connect / TestFlight'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  release-ios:
+    name: Build & Release iOS
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: fe/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Configure Apple Developer Credentials
+        env:
+          ASC_KEY_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          ASC_KEY_PLAIN: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_API_KEY_ISSUER_ID }}
+        run: |
+          mkdir -p credentials
+          KEY_PATH="credentials/AuthKey.p8"
+
+          if [ -n "$ASC_KEY_BASE64" ]; then
+            echo "$ASC_KEY_BASE64" | base64 -d > "$KEY_PATH"
+            echo "✅ Decoded base64 App Store Connect API key into $KEY_PATH"
+          elif [ -n "$ASC_KEY_PLAIN" ]; then
+            echo "$ASC_KEY_PLAIN" > "$KEY_PATH"
+            echo "✅ Written App Store Connect API key into $KEY_PATH"
+          fi
+
+          # Update eas.json with credentials if provided
+          node -e "
+            const fs = require('fs');
+            const eas = JSON.parse(fs.readFileSync('eas.json', 'utf8'));
+            if (!eas.submit) eas.submit = {};
+            if (!eas.submit.production) eas.submit.production = {};
+            if (!eas.submit.production.ios) eas.submit.production.ios = {};
+
+            if (fs.existsSync('$KEY_PATH')) {
+              eas.submit.production.ios.ascApiKeyPath = './$KEY_PATH';
+            }
+            if (process.env.ASC_KEY_ID) {
+              eas.submit.production.ios.ascApiKeyId = process.env.ASC_KEY_ID;
+            }
+            if (process.env.ASC_ISSUER_ID) {
+              eas.submit.production.ios.ascApiKeyIssuerId = process.env.ASC_ISSUER_ID;
+            }
+
+            fs.writeFileSync('eas.json', JSON.stringify(eas, null, 2) + '\n');
+          "
+          echo "✅ Configured eas.json for App Store submission"
+
+      - name: Read & Apply Version from fe/.env
+        id: version
+        env:
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+          INPUT_BUILD_NUMBER: ${{ inputs.build_number }}
+        run: node scripts/apply-env-version.js ios
+
+      - name: Build iOS on EAS (Production IPA)
+        run: eas build --platform ios --profile production --non-interactive
+
+      - name: Submit to App Store Connect / TestFlight
+        if: ${{ inputs.submit }}
+        env:
+          EXPO_APPLE_ID: ${{ secrets.EXPO_APPLE_ID }}
+          EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.EXPO_APPLE_APP_SPECIFIC_PASSWORD }}
+        run: eas submit --platform ios --profile production --non-interactive
+
+      - name: Summary
+        run: |
+          echo "## 🍎 iOS Release Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version Name** | \`${{ steps.version.outputs.version_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build Number** | \`${{ steps.version.outputs.build_number }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Auto Submit** | \`${{ inputs.submit }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "- You can download the completed \`.ipa\` or view build logs directly on [Expo Dashboard](https://expo.dev/accounts/vlmlokesh22/projects/codon/builds)." >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.submit }}" = "true" ]; then
+            echo "- The build has been submitted to App Store Connect and will appear in [TestFlight / App Store](https://appstoreconnect.apple.com) once Apple completes processing (typically 5-15 mins)." >> $GITHUB_STEP_SUMMARY
+          fi
+

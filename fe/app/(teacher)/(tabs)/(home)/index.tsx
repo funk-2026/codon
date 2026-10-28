@@ -11,9 +11,13 @@ import {
   Lightbulb,
   TreeStructure,
   CaretRight,
+  Books,
+  FlagBanner,
+  PencilSimpleLine,
 } from 'phosphor-react-native';
 import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { InventoryHints } from '@/src/teacher/InventoryHints';
 import { listTeacherTests, listTeacherContent } from '@/src/api/teacher';
 import { useAuth } from '@/src/auth/AuthContext';
 
@@ -202,6 +206,25 @@ export default function TeacherHomeRoute() {
           </View>
         </Stagger>
 
+        <View style={[styles.grid3, { gap: space.xs, marginTop: space.xs }]}>
+          <QuickAction
+            label="Question Bank"
+            icon={<Books size={22} color={color('accent/default')} weight="duotone" />}
+            onPress={() => router.push('/(teacher)/question-bank')}
+          />
+          <QuickAction
+            label="Reports"
+            icon={<FlagBanner size={22} color={color('accent/default')} weight="duotone" />}
+            onPress={() => router.push('/(teacher)/reports')}
+          />
+          <QuickAction
+            label="Corrections"
+            icon={<PencilSimpleLine size={22} color={color('accent/default')} weight="duotone" />}
+            onPress={() => router.push('/(teacher)/corrections')}
+          />
+        </View>
+
+        <InventoryHints />
 
         <View style={{ marginTop: space.xl }}>
           <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>

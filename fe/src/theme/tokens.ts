@@ -20,11 +20,15 @@ export type ColorToken =
   | 'semantic/success'
   | 'semantic/warning'
   | 'semantic/danger'
+  | 'semantic/success-tint'
+  | 'semantic/warning-tint'
+  | 'semantic/danger-tint'
   | 'wellness/bg'
   | 'wellness/surface'
   | 'wellness/accent'
   | 'wellness/accent-secondary'
-  | 'wellness/text-primary';
+  | 'wellness/text-primary'
+  | 'media/paper';
 
 export const colors: Record<ThemeMode, Record<ColorToken, string>> = {
   light: {
@@ -45,11 +49,15 @@ export const colors: Record<ThemeMode, Record<ColorToken, string>> = {
     'semantic/success': '#1E9E6B',
     'semantic/warning': '#C97C1D',
     'semantic/danger': '#D53F3F',
+    'semantic/success-tint': '#E5F5EE',
+    'semantic/warning-tint': '#FBF0DE',
+    'semantic/danger-tint': '#FBE9E9',
     'wellness/bg': '#FBF3EC',
     'wellness/surface': '#FFFFFF',
     'wellness/accent': '#E0714B',
     'wellness/accent-secondary': '#7A9B7E',
     'wellness/text-primary': '#2B211B',
+    'media/paper': '#FFFFFF',
   },
   dark: {
     'bg/canvas': '#0F0F13',
@@ -69,11 +77,16 @@ export const colors: Record<ThemeMode, Record<ColorToken, string>> = {
     'semantic/success': '#3DDB9A',
     'semantic/warning': '#F0A64B',
     'semantic/danger': '#F26E6E',
+    'semantic/success-tint': '#12291F',
+    'semantic/warning-tint': '#2E2313',
+    'semantic/danger-tint': '#2E1717',
     'wellness/bg': '#201A17',
     'wellness/surface': '#2A211C',
     'wellness/accent': '#F0916D',
     'wellness/accent-secondary': '#93B597',
     'wellness/text-primary': '#F3EAE4',
+    // Diagrams with transparent backgrounds stay legible on a light "paper" even in dark mode.
+    'media/paper': '#FFFFFF',
   },
 };
 

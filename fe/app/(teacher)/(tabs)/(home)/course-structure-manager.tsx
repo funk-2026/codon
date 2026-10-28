@@ -121,7 +121,10 @@ export default function CourseStructureManagerRoute() {
     if (!canUseLocation) return;
     const chapterCrumb = crumbs[crumbs.length - 1];
     const label = `${courseName} · ${crumbs.map((c) => c.title).join(' · ')}`;
-    router.dismissTo({ pathname: returnTo, params: { locationLabel: label, chapterId: chapterCrumb.id } });
+    router.dismissTo({
+      pathname: returnTo,
+      params: { locationLabel: label, chapterId: chapterCrumb.id, subjectId: crumbs[0]?.id ?? '', ...(courseId ? { courseId } : {}) },
+    });
   };
 
   return (

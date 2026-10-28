@@ -96,6 +96,20 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		UploadedBy: teacher.ID, FileKey: req.FileKey,
 		RequiresSubscription: requiresSub, Status: models.StatusDraft,
 	}
+	for _, f := range []struct {
+		key string
+		dst **string
+	}{{req.NotesPDFKey, &item.NotesPDFKey}, {req.AnnotatedPDFKey, &item.AnnotatedPDFKey}} {
+		if f.key == "" {
+			continue
+		}
+		if !validLecturePDFKey(teacher, f.key) {
+			respondErr(c, http.StatusBadRequest, "invalid_pdf", "PDFs must be uploaded with purpose lecture_pdf by you")
+			return
+		}
+		k := f.key
+		*f.dst = &k
+	}
 
 	if ct == models.ContentVideo {
 		vs := models.VideoQueued
@@ -106,18 +120,23 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create content item"})
 		return
 	}
+	// GORM swaps a false bool on a `default:true` column for the default at
+	// INSERT, so free items used to be stored as paid; write the real value back.
+	if !requiresSub {
+		h.DB.WithContext(c.Request.Context()).Model(&item).UpdateColumn("requires_subscription", false)
+		item.RequiresSubscription = false
+	}
 
 	if ct == models.ContentVideo {
-		if strings.HasPrefix(item.FileKey, "stream:") {
-			// Cloudflare Stream transcodes the upload itself — poll its API
-			// for status instead of running our own ffmpeg job against it.
-			uid := strings.TrimPrefix(item.FileKey, "stream:")
-			jobs.EnqueueJob(h.DB, jobs.JobTypeStreamStatusCheck, jobs.StreamStatusCheckPayload{
-				ContentItemID: item.ID, VideoUID: uid,
-			})
-		} else {
-			jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
-				ContentItemID: item.ID, FileKey: item.FileKey,
+		guid := ""
+		if strings.HasPrefix(item.FileKey, "bunny:") {
+			guid = strings.TrimPrefix(item.FileKey, "bunny:")
+		} else if strings.HasPrefix(item.FileKey, "stream:") {
+			guid = strings.TrimPrefix(item.FileKey, "stream:")
+		}
+		if guid != "" {
+			jobs.EnqueueJob(h.DB, jobs.JobTypeVideoStatusCheck, jobs.VideoStatusCheckPayload{
+				ContentItemID: item.ID, VideoGUID: guid,
 			})
 		}
 	}
@@ -175,6 +194,19 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	if req.RequiresSubscription != nil {
 		updates["requires_subscription"] = *req.RequiresSubscription
 	}
+	// Lecture PDFs can be added or replaced at any time (annotated notes often come after the class).
+	for col, v := range map[string]*string{"notes_pdf_key": req.NotesPDFKey, "annotated_pdf_key": req.AnnotatedPDFKey} {
+		switch {
+		case v == nil:
+		case *v == "":
+			updates[col] = nil
+		case !validLecturePDFKey(teacher, *v):
+			respondErr(c, http.StatusBadRequest, "invalid_pdf", "PDFs must be uploaded with purpose lecture_pdf by you")
+			return
+		default:
+			updates[col] = *v
+		}
+	}
 
 	// Replacing a video's file makes the old video_status/hls_playlist_url
 	// stale (they describe the previous file) — reset them and re-trigger
@@ -189,14 +221,15 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	h.DB.WithContext(c.Request.Context()).First(&item, item.ID)
 
 	if fileKeyChanged && item.ContentType == models.ContentVideo {
-		if strings.HasPrefix(item.FileKey, "stream:") {
-			uid := strings.TrimPrefix(item.FileKey, "stream:")
-			jobs.EnqueueJob(h.DB, jobs.JobTypeStreamStatusCheck, jobs.StreamStatusCheckPayload{
-				ContentItemID: item.ID, VideoUID: uid,
-			})
-		} else {
-			jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
-				ContentItemID: item.ID, FileKey: item.FileKey,
+		guid := ""
+		if strings.HasPrefix(item.FileKey, "bunny:") {
+			guid = strings.TrimPrefix(item.FileKey, "bunny:")
+		} else if strings.HasPrefix(item.FileKey, "stream:") {
+			guid = strings.TrimPrefix(item.FileKey, "stream:")
+		}
+		if guid != "" {
+			jobs.EnqueueJob(h.DB, jobs.JobTypeVideoStatusCheck, jobs.VideoStatusCheckPayload{
+				ContentItemID: item.ID, VideoGUID: guid,
 			})
 		}
 	}
@@ -296,34 +329,24 @@ func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item), lecturePDFs: h.lecturePDFsFor(c.Request.Context(), &item, nil)})
 }
 
 func resolveContentURL(ctx context.Context, item *models.ContentItem) string {
 	if item.ContentType == models.ContentVideo {
-		// 1. Cloudflare Stream video: the real HLS manifest URL is filled in
-		// by the stream_status_check job once Cloudflare finishes
-		// transcoding — an iframe embed URL wouldn't work for a native
-		// video player, so return nothing (still processing) until then.
-		if strings.HasPrefix(item.FileKey, "stream:") {
+		// Bunny Stream video: the real HLS manifest URL is filled in
+		// by the video_status_check job once Bunny finishes transcoding
+		if strings.HasPrefix(item.FileKey, "bunny:") || strings.HasPrefix(item.FileKey, "stream:") {
 			if item.HLSPlaylistURL != nil && *item.HLSPlaylistURL != "" {
 				return *item.HLSPlaylistURL
 			}
 			return ""
 		}
-		// 2. Direct HLS playlist URL if stored explicitly
+		// Direct HLS playlist URL if stored explicitly
 		if item.HLSPlaylistURL != nil && *item.HLSPlaylistURL != "" {
 			return *item.HLSPlaylistURL
 		}
-		// 3. R2 Presigned GET URL if stored as raw MP4 file in Cloudflare R2
-		if storage.Client != nil && item.FileKey != "" {
-			url, err := storage.Client.PresignGet(ctx, item.FileKey, 2*time.Hour)
-			if err == nil && url != "" {
-				return url
-			}
-		}
-		// Fallback sample MP4 for testing when credentials are unconfigured
-		return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+		return ""
 	} else if item.ContentType == models.ContentDocument {
 		if storage.Client != nil && item.FileKey != "" {
 			url, err := storage.Client.PresignGet(ctx, item.FileKey, 2*time.Hour)
@@ -375,9 +398,13 @@ func (h *ContentHandler) GetChapterContent(c *gin.Context) {
 	user := middleware.GetUser(c)
 	chapterID := c.Param("chapter_id")
 	var items []models.ContentItem
+	order := "created_at ASC"
+	if c.Query("sort") == "rating" {
+		order = "rating_avg DESC, rating_count DESC, created_at ASC"
+	}
 	h.DB.WithContext(c.Request.Context()).
 		Where("chapter_id = ? AND status = ?", chapterID, models.StatusPublished).
-		Order("created_at ASC").
+		Order(order).
 		Find(&items)
 
 	kycReq := kycRequired(h.DB)
@@ -388,7 +415,20 @@ func (h *ContentHandler) GetChapterContent(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, listContentResponse{Content: items})
+	// the caller's own ratings, keyed by content id
+	mine := map[string]int{}
+	if len(items) > 0 {
+		ids := make([]uuid.UUID, len(items))
+		for i, it := range items {
+			ids[i] = it.ID
+		}
+		var rs []models.Rating
+		h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND item_type = 'content' AND item_id IN ?", user.ID, ids).Find(&rs)
+		for _, r := range rs {
+			mine[r.ItemID.String()] = r.Value
+		}
+	}
+	c.JSON(http.StatusOK, listContentResponse{Content: items, MyRatings: mine})
 }
 
 // GetContentItem godoc
@@ -419,7 +459,13 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, getContentResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
+	resp := getContentResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item), lecturePDFs: h.lecturePDFsFor(c.Request.Context(), &item, user)}
+	var r models.Rating
+	if h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND item_type = 'content' AND item_id = ?", user.ID, item.ID).First(&r).Error == nil {
+		v := r.Value
+		resp.MyRating = &v
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // AdminGetContent godoc
@@ -444,7 +490,7 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item)})
+	c.JSON(http.StatusOK, adminContentDetailResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item), lecturePDFs: h.lecturePDFsFor(c.Request.Context(), &item, nil)})
 }
 
 // ─── Admin Content Moderation ─────────────────────────────────────────────────
@@ -469,7 +515,7 @@ func (h *ContentHandler) AdminListContent(c *gin.Context) {
 	chapterID := c.Query("chapter_id")
 
 	query := h.DB.WithContext(c.Request.Context()).Where("status = ?", status)
-	
+
 	if courseID != "" {
 		query = query.Where("course_id = ?", courseID)
 	}
@@ -553,16 +599,19 @@ func (h *ContentHandler) AdminRejectContent(c *gin.Context) {
 // ── Request / Response types ──────────────────────────────────────────────────
 
 type listContentResponse struct {
-	Content []models.ContentItem `json:"content"`
+	Content   []models.ContentItem `json:"content"`
+	MyRatings map[string]int       `json:"my_ratings,omitempty"`
 }
 
 type createContentRequest struct {
-	Title                string  `json:"title"        example:"Cell Biology — Lecture 1"`
-	CourseID             string  `json:"course_id"    example:"550e8400-e29b-41d4-a716-446655440000"`
-	ContentType          string  `json:"content_type" example:"video" enums:"video,document"`
-	ChapterID            string  `json:"chapter_id"   example:"550e8400-e29b-41d4-a716-446655440002"`
-	FileKey              string  `json:"file_key"     example:"video/user-uuid/file-uuid.mp4"`
-	RequiresSubscription *bool   `json:"requires_subscription" example:"true"`
+	Title                string `json:"title"        example:"Cell Biology — Lecture 1"`
+	CourseID             string `json:"course_id"    example:"550e8400-e29b-41d4-a716-446655440000"`
+	ContentType          string `json:"content_type" example:"video" enums:"video,document"`
+	ChapterID            string `json:"chapter_id"   example:"550e8400-e29b-41d4-a716-446655440002"`
+	FileKey              string `json:"file_key"     example:"video/user-uuid/file-uuid.mp4"`
+	RequiresSubscription *bool  `json:"requires_subscription" example:"true"`
+	NotesPDFKey          string `json:"notes_pdf_key"     example:"lecture_pdf/user-uuid/file-uuid.pdf"`
+	AnnotatedPDFKey      string `json:"annotated_pdf_key" example:"lecture_pdf/user-uuid/file-uuid.pdf"`
 }
 
 type updateContentRequest struct {
@@ -570,15 +619,74 @@ type updateContentRequest struct {
 	ChapterID            *string `json:"chapter_id"`
 	FileKey              *string `json:"file_key"`
 	RequiresSubscription *bool   `json:"requires_subscription"`
+	// "" removes the PDF; omitted leaves it unchanged.
+	NotesPDFKey     *string `json:"notes_pdf_key"`
+	AnnotatedPDFKey *string `json:"annotated_pdf_key"`
 }
 
 type getContentResponse struct {
-	Content models.ContentItem `json:"content"`
-	URL     string             `json:"url,omitempty"`
+	Content  models.ContentItem `json:"content"`
+	URL      string             `json:"url,omitempty"`
+	MyRating *int               `json:"my_rating,omitempty"`
+	lecturePDFs
+}
+
+// lecturePDFs is how a lecture's PDFs are exposed. The annotated PDF is only
+// linked for students once they've watched the lecture; until then
+// annotated_pdf_locked tells the app to show it as locked.
+type lecturePDFs struct {
+	HasNotesPDF        bool   `json:"has_notes_pdf"`
+	NotesPDFURL        string `json:"notes_pdf_url,omitempty"`
+	HasAnnotatedPDF    bool   `json:"has_annotated_pdf"`
+	AnnotatedPDFURL    string `json:"annotated_pdf_url,omitempty"`
+	AnnotatedPDFLocked bool   `json:"annotated_pdf_locked,omitempty"`
 }
 
 type adminContentDetailResponse struct {
 	Content models.ContentItem `json:"content"`
 	URL     string             `json:"url,omitempty"`
+	lecturePDFs
 }
 
+// validLecturePDFKey accepts only keys from a lecture_pdf upload by this user
+// (or anyone's, for admins / manage-all teachers), so a lecture can't point at
+// someone else's private file.
+func validLecturePDFKey(u *models.User, key string) bool {
+	if !strings.HasPrefix(key, "lecture_pdf/") || strings.Contains(key, "..") {
+		return false
+	}
+	return canManageAllContent(u) || strings.HasPrefix(key, "lecture_pdf/"+strings.ToLower(u.ID.String())+"/")
+}
+
+func pdfURL(ctx context.Context, key *string) string {
+	if key == nil || *key == "" || storage.Client == nil {
+		return ""
+	}
+	url, err := storage.Client.PresignGet(ctx, *key, 2*time.Hour)
+	if err != nil {
+		return ""
+	}
+	return url
+}
+
+// lecturePDFsFor links a lecture's PDFs. student == nil means an author/reviewer
+// view (both linked). For a student the annotated PDF stays locked until their
+// watch history marks the lecture completed.
+func (h *ContentHandler) lecturePDFsFor(ctx context.Context, item *models.ContentItem, student *models.User) lecturePDFs {
+	out := lecturePDFs{HasNotesPDF: item.NotesPDFKey != nil && *item.NotesPDFKey != "", HasAnnotatedPDF: item.AnnotatedPDFKey != nil && *item.AnnotatedPDFKey != ""}
+	out.NotesPDFURL = pdfURL(ctx, item.NotesPDFKey)
+	if !out.HasAnnotatedPDF {
+		return out
+	}
+	if student != nil && student.Role == models.RoleStudent {
+		var n int64
+		h.DB.WithContext(ctx).Model(&models.UserWatchHistory{}).
+			Where("user_id = ? AND content_item_id = ? AND is_completed = ?", student.ID, item.ID, true).Count(&n)
+		if n == 0 {
+			out.AnnotatedPDFLocked = true
+			return out
+		}
+	}
+	out.AnnotatedPDFURL = pdfURL(ctx, item.AnnotatedPDFKey)
+	return out
+}

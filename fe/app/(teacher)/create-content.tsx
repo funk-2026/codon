@@ -14,10 +14,12 @@ import {
 } from 'phosphor-react-native';
 import { ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { LecturePdfEditor, type PdfKind } from '@/src/content/LecturePdfEditor';
 import { createContent } from '@/src/api/teacher';
 import { getPresignedUrl } from '@/src/api/uploads';
 import { listCourses, getCurriculum } from '@/src/api/courses';
 import { ApiError } from '@/src/api/client';
+import * as tus from 'tus-js-client';
 
 type ContentType = 'Video' | 'Document';
 type VideoState = 'idle' | 'uploading' | 'ready' | 'failed';
@@ -41,12 +43,14 @@ export default function CreateContentRoute() {
   const [videoFileKey, setVideoFileKey] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [docBody, setDocBody] = useState('');
+  // Lecture PDFs (videos only): notes + annotated, uploaded before the lesson is created
+  const [pdfs, setPdfs] = useState<Record<PdfKind, { key?: string; name?: string }>>({ notes: {}, annotated: {} });
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const uploadXhr = useRef<XMLHttpRequest | null>(null);
+  const uploadTus = useRef<tus.Upload | null>(null);
 
   const loadCourseInfo = useCallback(async () => {
     try {
@@ -102,43 +106,60 @@ export default function CreateContentRoute() {
 
     try {
       const presign = await getPresignedUrl({ file_name: name, content_type: mimeType, purpose: 'video' });
-      // Cloudflare Stream's direct-upload URL takes a multipart POST; the R2
-      // fallback (when Stream isn't configured) takes a raw PUT, same as
-      // every other upload purpose in this app.
-      const isStream = presign.file_key.startsWith('stream:');
 
-      let body: FormData | Blob;
-      if (isStream) {
-        const formData = new FormData();
-        formData.append('file', { uri, name, type: mimeType } as unknown as Blob);
-        body = formData;
-      } else {
-        body = await (await fetch(uri)).blob();
+      // Dev stub bypass if Bunny is unconfigured in development
+      if (presign.tus_auth?.signature === 'stub') {
+        setVideoFileKey(presign.file_key);
+        setVideoProgress(100);
+        setVideoState('ready');
+        return;
       }
 
+      if (!presign.tus_auth) {
+        throw new Error('Server did not provide TUS upload credentials');
+      }
+
+      const fileBlob = await (await fetch(uri)).blob();
+
       await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        uploadXhr.current = xhr;
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) setVideoProgress(Math.round((e.loaded / e.total) * 100));
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`upload failed (${xhr.status})`));
-        };
-        xhr.onerror = () => reject(new Error("couldn't upload the file — check your connection and try again"));
-        xhr.onabort = () => reject(new Error('cancelled'));
-        xhr.open(isStream ? 'POST' : 'PUT', presign.upload_url);
-        if (!isStream) xhr.setRequestHeader('Content-Type', mimeType);
-        xhr.send(body as any);
+        const upload = new tus.Upload(fileBlob, {
+          endpoint: presign.upload_url,
+          retryDelays: [0, 3000, 5000, 10000, 20000],
+          chunkSize: 5 * 1024 * 1024,
+          headers: {
+            AuthorizationSignature: presign.tus_auth!.signature,
+            AuthorizationExpire: String(presign.tus_auth!.expires),
+            LibraryId: String(presign.tus_auth!.library_id),
+            VideoId: presign.tus_auth!.video_id,
+          },
+          metadata: {
+            filetype: mimeType,
+            title: name,
+          },
+          onProgress: (bytesSent, bytesTotal) => {
+            if (bytesTotal > 0) {
+              setVideoProgress(Math.round((bytesSent / bytesTotal) * 100));
+            }
+          },
+          onSuccess: () => {
+            uploadTus.current = null;
+            resolve();
+          },
+          onError: (err) => {
+            uploadTus.current = null;
+            reject(err);
+          },
+        });
+
+        uploadTus.current = upload;
+        upload.start();
       });
 
-      uploadXhr.current = null;
       setVideoFileKey(presign.file_key);
       setVideoProgress(100);
       setVideoState('ready');
     } catch (err: any) {
-      uploadXhr.current = null;
+      uploadTus.current = null;
       if (err?.message === 'cancelled') return;
       console.error('Video upload failed', err);
       const detail = err instanceof ApiError ? ` (${err.status}: ${err.message})` : err?.message ? `: ${err.message}` : '';
@@ -148,8 +169,10 @@ export default function CreateContentRoute() {
   };
 
   const cancelVideoUpload = () => {
-    uploadXhr.current?.abort();
-    uploadXhr.current = null;
+    if (uploadTus.current) {
+      uploadTus.current.abort();
+      uploadTus.current = null;
+    }
     setVideoState('idle');
     setVideoProgress(0);
     setVideoFileKey(null);
@@ -203,6 +226,8 @@ export default function CreateContentRoute() {
         content_type: contentType === 'Video' ? 'video' : 'document',
         chapter_id: chapterId!,
         file_key: contentType === 'Video' ? videoFileKey! : 'mock-doc-key',
+        ...(contentType === 'Video' && pdfs.notes.key ? { notes_pdf_key: pdfs.notes.key } : {}),
+        ...(contentType === 'Video' && pdfs.annotated.key ? { annotated_pdf_key: pdfs.annotated.key } : {}),
       });
       show('Content saved', 'success');
       router.push({ pathname: '/(teacher)/content-preview', params: { type: contentType, id: res.id } });
@@ -363,6 +388,19 @@ export default function CreateContentRoute() {
             </View>
           )}
         </View>
+
+        {contentType === 'Video' ? (
+          <View style={{ marginTop: space.xl, gap: space.sm }}>
+            <Text style={[type['type/h3'], { color: color('text/primary') }]}>Lecture PDFs</Text>
+            <LecturePdfEditor
+              slots={{
+                notes: { present: !!pdfs.notes.key, name: pdfs.notes.name },
+                annotated: { present: !!pdfs.annotated.key, name: pdfs.annotated.name },
+              }}
+              onChange={(kind, key, name) => setPdfs((p) => ({ ...p, [kind]: key ? { key, name } : {} }))}
+            />
+          </View>
+        ) : null}
       </ScrollView>
 
       <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>

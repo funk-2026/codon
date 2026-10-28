@@ -9,9 +9,17 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView, VideoTrack } from 'expo-video';
-import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, CornersOut, GearSix } from 'phosphor-react-native';
+import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
+import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, CornersOut, GearSix, PictureInPicture } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { getContentItem, getChapterContent, ContentItem, sendHeartbeat } from '@/src/api/content';
+import { getContentItem, getChapterContent, ContentItem, sendHeartbeat, type LecturePDFs } from '@/src/api/content';
+import { LecturePdfDownloads } from '@/src/content/LecturePdfDownloads';
+
+const WATCHED_FRACTION = 0.9;
+const pdfsOf = (r: LecturePDFs): LecturePDFs => ({
+  has_notes_pdf: r.has_notes_pdf, notes_pdf_url: r.notes_pdf_url,
+  has_annotated_pdf: r.has_annotated_pdf, annotated_pdf_url: r.annotated_pdf_url, annotated_pdf_locked: r.annotated_pdf_locked,
+});
 import { ApiError } from '@/src/api/client';
 import { EmptyState, PrimaryButton, SkeletonBlock, TextButton } from '@/src/components';
 
@@ -27,6 +35,7 @@ export default function VideoPlayerRoute() {
   const insets = useSafeAreaInsets();
 
   const [content, setContent] = useState<ContentItem | null>(null);
+  const [pdfs, setPdfs] = useState<LecturePDFs | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
   const [siblings, setSiblings] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +54,7 @@ export default function VideoPlayerRoute() {
       .then((res) => {
         setContent(res.content);
         setVideoUrl(res.url);
+        setPdfs(pdfsOf(res));
         return getChapterContent(res.content.chapter_id);
       })
       .then((chRes) => {
@@ -99,13 +109,36 @@ export default function VideoPlayerRoute() {
     };
   }, [isPlaying, controlsVisible, floating]);
 
+  // Watch-progress heartbeat. currentTime updates every 0.5 s, so it's read from a
+  // ref — depending on it directly restarted the 10 s interval before it ever fired,
+  // and progress was never saved. A lecture counts as watched at 90 %.
+  const timeRef = useRef(0);
   useEffect(() => {
-    if (!isPlaying || !id || duration <= 0) return;
-    const t = setInterval(() => {
-      sendHeartbeat(id, Math.floor(currentTime), currentTime >= duration - 5).catch(() => {});
-    }, 10000);
-    return () => clearInterval(t);
-  }, [isPlaying, currentTime, duration, id]);
+    timeRef.current = currentTime;
+  }, [currentTime]);
+  useEffect(() => {
+    if (!isPlaying || !id) return;
+    const beat = () => {
+      const d = player.duration || 0;
+      if (d > 0) sendHeartbeat(id, Math.floor(timeRef.current), timeRef.current >= d * WATCHED_FRACTION).catch(() => {});
+    };
+    const t = setInterval(beat, 10000);
+    return () => {
+      clearInterval(t);
+      beat(); // pause / leave: save where they stopped
+    };
+  }, [isPlaying, id, player]);
+
+  // Crossing 90 %: record completion now and refresh, so the annotated PDF unlocks on the spot.
+  const completedSent = useRef(false);
+  useEffect(() => {
+    if (!id || completedSent.current || duration <= 0 || currentTime < duration * WATCHED_FRACTION) return;
+    completedSent.current = true;
+    sendHeartbeat(id, Math.floor(currentTime), true)
+      .then(() => getContentItem(id))
+      .then((res) => setPdfs(pdfsOf(res)))
+      .catch(() => {});
+  }, [currentTime, duration, id]);
 
   const floatScale = useSharedValue(0);
   useEffect(() => {
@@ -208,10 +241,13 @@ export default function VideoPlayerRoute() {
             <View style={{ width: '100%', height: 200 }} />
           )}
 
-          <View style={[styles.topRow, { position: 'absolute', top: 0, left: 0, paddingHorizontal: space.md, paddingTop: space.sm }]} pointerEvents="box-none">
+          <View style={[styles.topRow, { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: space.md, paddingTop: space.sm, justifyContent: 'space-between' }]} pointerEvents="box-none">
+            {/* Back really goes back — the mini player is opt-in only (button on the right). */}
             <Pressable
-              onPress={() => setFloating(true)}
+              onPress={() => router.back()}
               hitSlop={space.xs}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
               style={({ pressed }) => ({
                 opacity: pressed ? 0.6 : 1,
                 backgroundColor: 'rgba(0,0,0,0.4)',
@@ -224,6 +260,25 @@ export default function VideoPlayerRoute() {
             >
               <CaretLeft size={24} color="#fff" />
             </Pressable>
+            {videoUrl && !floating ? (
+              <Pressable
+                onPress={() => setFloating(true)}
+                hitSlop={space.xs}
+                accessibilityRole="button"
+                accessibilityLabel="Mini player — keep watching while you read notes"
+                style={({ pressed }) => ({
+                  opacity: pressed ? 0.6 : 1,
+                  backgroundColor: 'rgba(0,0,0,0.4)',
+                  borderRadius: 20,
+                  width: 40,
+                  height: 40,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                })}
+              >
+                <PictureInPicture size={22} color="#fff" />
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -268,6 +323,20 @@ export default function VideoPlayerRoute() {
               <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
                 Video Lesson
               </Text>
+              {pdfs && (pdfs.has_notes_pdf || pdfs.has_annotated_pdf) ? (
+                <LecturePdfDownloads pdfs={pdfs} title={content?.title ?? 'Lecture'} />
+              ) : null}
+              {id ? (
+                <VideoNotesPanel
+                  contentId={String(id)}
+                  currentTime={currentTime}
+                  onPause={() => player.pause()}
+                  onSeek={(t) => {
+                    player.currentTime = t;
+                    setFloating(false);
+                  }}
+                />
+              ) : null}
               <Text
                 style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.lg, marginBottom: space.sm }]}
               >

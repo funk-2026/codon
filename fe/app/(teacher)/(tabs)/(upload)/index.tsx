@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { ClipboardText, VideoCamera, Lightbulb, CaretRight } from 'phosphor-react-native';
+import { ClipboardText, VideoCamera, Lightbulb, CaretRight, Cards } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 
 type Option = { label: string; description: string; icon: React.ReactNode; href: Href };
@@ -55,6 +55,12 @@ export default function UploadHubRoute() {
       description: 'A short, practical tip — no course attachment needed.',
       icon: <Lightbulb size={26} color={color('accent/default')} weight="duotone" />,
       href: '/(teacher)/create-brain-hack',
+    },
+    {
+      label: 'Flashcard Decks',
+      description: 'Quick-recall cards (prompt → answer) with images. Create a deck or manage your existing ones.',
+      icon: <Cards size={26} color={color('accent/default')} weight="duotone" />,
+      href: '/(teacher)/flashcard-decks',
     },
   ];
 

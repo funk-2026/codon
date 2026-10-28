@@ -14,11 +14,21 @@ export default function TeacherLayout() {
     <Stack screenOptions={base}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="create-test" options={{ title: 'Create Test', presentation: 'modal' }} />
-      <Stack.Screen name="question-builder" options={{ title: 'Question Builder' }} />
+      <Stack.Screen name="question-builder" options={{ title: 'Question Builder', headerShown: false }} />
+      <Stack.Screen name="question-editor" options={{ headerShown: false }} />
+      <Stack.Screen name="question-bank" options={{ headerShown: false }} />
+      <Stack.Screen name="reports" options={{ headerShown: false }} />
+      <Stack.Screen name="corrections" options={{ headerShown: false }} />
       <Stack.Screen name="csv-upload" options={{ title: 'CSV Bulk Upload' }} />
       <Stack.Screen name="csv-import-report" options={{ title: 'Import Report' }} />
       <Stack.Screen name="create-content" options={{ title: 'Create Content', presentation: 'modal' }} />
       <Stack.Screen name="create-brain-hack" options={{ title: 'Create Brain Hack', presentation: 'modal' }} />
+      <Stack.Screen name="flashcard-decks" options={{ headerShown: false }} />
+      <Stack.Screen name="flashcard-deck" options={{ headerShown: false }} />
+      <Stack.Screen name="brain-hack-detail" options={{ headerShown: false }} />
+      <Stack.Screen name="completeness" options={{ headerShown: false }} />
+      <Stack.Screen name="quick-tag" options={{ headerShown: false }} />
+      <Stack.Screen name="preview-run" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="content-preview" options={{ title: 'Preview' }} />
       <Stack.Screen name="rejected-content-detail" options={{ title: 'Rejected' }} />
     </Stack>

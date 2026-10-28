@@ -18,6 +18,8 @@ import {
   Info,
   CaretRight,
   ArrowsClockwise,
+  BookmarkSimple,
+  FlagBanner,
 } from 'phosphor-react-native';
 import { ErrorBanner, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
@@ -298,6 +300,18 @@ export default function ProfileHomeRoute() {
         <Stagger delayMs={320}>
           <View style={{ marginTop: space.lg, gap: space.md }}>
             <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md }, shadow()]}>
+              <MenuRow
+                icon={<BookmarkSimple size={20} color={color('text/secondary')} />}
+                label="Bookmarks"
+                onPress={() => router.push('/(student)/(profile)/bookmarks')}
+              />
+              <Divider />
+              <MenuRow
+                icon={<FlagBanner size={20} color={color('text/secondary')} />}
+                label="My reports"
+                onPress={() => router.push('/(student)/(profile)/my-reports')}
+              />
+              <Divider />
               <MenuRow
                 icon={<GearSix size={20} color={color('text/secondary')} />}
                 label="Settings"

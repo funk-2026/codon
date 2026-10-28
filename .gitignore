@@ -1,5 +1,7 @@
 node_modules/
 dist/
 .env
+!fe/.env
+!fe/.env.example
 .expo
 store-assets/

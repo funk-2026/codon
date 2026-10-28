@@ -5,22 +5,22 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon-1.png",
-    "splash": {
-      "image": "./assets/images/splash-codon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0F0F13"
-    },
     "scheme": "codon",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.codon.learn",
+      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.codon.learn"
+      "package": "com.codon.learn",
+      "versionCode": 1,
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -46,7 +46,21 @@
         }
       ],
       "expo-status-bar",
-      "expo-video"
+      "expo-video",
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Codon needs access to your photos so you can attach images to questions.",
+          "cameraPermission": "Codon needs the camera so you can photograph a diagram for a question."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#4B3FE4"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -249,7 +249,7 @@ func (h *CurriculumHandler) GetCurriculum(c *gin.Context) {
 	var testCounts []ChapterCount
 	h.DB.WithContext(c.Request.Context()).Model(&models.Test{}).
 		Select("chapter_id, COUNT(*) as count").
-		Where("course_id = ? AND status = ? AND chapter_id IS NOT NULL", courseID, models.StatusPublished).
+		Where("course_id = ? AND status = ? AND chapter_id IS NOT NULL AND origin = ? AND archived_at IS NULL", courseID, models.StatusPublished, models.OriginAuthored).
 		Group("chapter_id").Scan(&testCounts)
 
 	testMap := make(map[uuid.UUID]int)

@@ -1,6 +1,10 @@
 import { Stack } from 'expo-router';
 import { useStackScreenOptions } from '@/src/components/ThemedStack';
 
+// Keep the tab's hub under any screen opened from another tab (e.g. Home → Q Bank),
+// so Back and re-tapping the tab land on the hub instead of a stranded screen.
+export const unstable_settings = { initialRouteName: 'index' };
+
 export default function StudentProfileStack() {
   const base = useStackScreenOptions();
   return (
@@ -17,6 +21,9 @@ export default function StudentProfileStack() {
       <Stack.Screen name="kyc-submission" options={{ title: 'KYC Submission' }} />
       <Stack.Screen name="kyc-status" options={{ title: 'KYC Status' }} />
       <Stack.Screen name="progress-detail" options={{ title: 'Progress' }} />
+      <Stack.Screen name="bookmarks" options={{ headerShown: false }} />
+      <Stack.Screen name="my-reports" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
     </Stack>
   );
 }

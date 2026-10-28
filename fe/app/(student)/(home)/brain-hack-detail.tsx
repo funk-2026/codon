@@ -1,159 +1,82 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { CaretLeft } from 'phosphor-react-native';
-import { TextButton } from '@/src/components';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { CaretLeft, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-
-type Hack = { id: string; title: string; tag: string; readMins: number; body: string };
-
-const HACKS: Record<string, Hack> = {
-  '1': {
-    id: '1',
-    title: 'Beat exam-day anxiety in 5 minutes',
-    tag: 'Exam Day',
-    readMins: 3,
-    body: `Exam-day nerves aren't a sign you're unprepared — they're a sign your body is readying for something that matters to you. The trick is turning that arousal into focus instead of letting it spiral.
-
-Here's a technique you can run in the five minutes before the bell:
-
-1. Inhale through your nose for four counts.
-2. Hold for four counts.
-3. Exhale through your mouth for six counts — longer than the inhale, on purpose. The long exhale is what downshifts your nervous system.
-4. Repeat four rounds. That's under two minutes.
-
-Then one framing line, said to yourself, not just thought: "I don't have to know every answer. I have to know the ones I know, and not lose them to panic."
-
-That's it. The breathing is mechanical, repeatable, and works whether you believe in it or not. The framing line is specific — it doesn't tell you to "stay calm" (which never works when you're already not calm). It tells you what to actually do when a question you don't know appears: move on, protect the marks you can earn.
-
-Run this in the corridor before you walk in. Run it again if your hand shakes halfway through. It works because it's small, concrete, and yours.`,
-  },
-};
-
-const DEFAULT_HACK: Hack = {
-  id: '0',
-  title: 'Brain Hack',
-  tag: 'Focus',
-  readMins: 2,
-  body: 'A short, practical tip will appear here.',
-};
-
-function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
-  const shown = useSharedValue(0);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      shown.value = withTiming(1, { duration: 300 });
-    }, delayMs);
-    return () => clearTimeout(t);
-  }, [delayMs, shown]);
-  const style = useAnimatedStyle(() => ({
-    opacity: shown.value,
-    transform: [{ translateY: (1 - shown.value) * 10 }],
-  }));
-  return <Animated.View style={style}>{children}</Animated.View>;
-}
+import { getBrainHack, type BrainHack } from '@/src/api/discover';
+import { MediaImage, RichContent, type MediaMap } from '@/src/rich';
+import { StarRating } from '@/src/social/RatingControl';
+import { ApiError } from '@/src/api/client';
 
 export default function BrainHackDetailRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const [loading, setLoading] = useState(true);
+  const [hack, setHack] = useState<BrainHack | null>(null);
+  const [media, setMedia] = useState<MediaMap>({});
+  const [state, setState] = useState<'loading' | 'ready' | 'error' | 'missing'>('loading');
 
-  const hack = (id && HACKS[id]) || DEFAULT_HACK;
-
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(t);
-  }, []);
+  const load = useCallback(async () => {
+    if (!id) return setState('missing');
+    setState('loading');
+    try {
+      const r = await getBrainHack(id);
+      setHack(r.brain_hack);
+      setMedia(r.media ?? {});
+      setState('ready');
+    } catch (e) {
+      setState(e instanceof ApiError && e.status === 404 ? 'missing' : 'error');
+    }
+  }, [id]);
+  useEffect(() => { void load(); }, [load]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={{ paddingHorizontal: space.lg, marginTop: space.md }}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={space.xs}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
+    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
+        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
           <CaretLeft size={24} color={color('text/primary')} />
         </Pressable>
       </View>
-
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space['3xl'] + insets.bottom }}
-        showsVerticalScrollIndicator={false}
-      >
-        <Stagger delayMs={0}>
-          <View style={{ marginTop: space.lg }}>
-            <View
-              style={[
-                styles.pill,
-                {
-                  backgroundColor: color('accent/tint'),
-                  borderRadius: radius.pill,
-                  paddingHorizontal: space.sm,
-                  paddingVertical: 4,
-                  alignSelf: 'flex-start',
-                },
-              ]}
-            >
-              <Text style={[type['type/caption'], { color: color('accent/default') }]}>
-                {hack.tag}
-              </Text>
-            </View>
-            <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space.xs }]}>
-              {hack.title}
-            </Text>
-            <Text
-              style={[
-                type['type/caption'],
-                { color: color('text/tertiary'), marginTop: space['2xs'] },
-              ]}
-            >
-              {hack.readMins} min read
-            </Text>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
+        {state === 'loading' ? (
+          <View style={{ gap: 10, marginTop: space.lg }}>
+            <SkeletonBlock width={90} height={22} radius={radius.pill} />
+            <SkeletonBlock height={32} radius={radius.sm} />
+            {[0, 1, 2, 3].map((i) => <SkeletonBlock key={i} height={16} radius={6} width={i === 3 ? '60%' : '100%'} />)}
           </View>
-        </Stagger>
-
-        <Stagger delayMs={120}>
-          <View style={{ marginTop: space.lg }}>
-            {loading ? (
-              <View style={{ gap: 10 }}>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={{
-                      height: 16,
-                      borderRadius: 6,
-                      backgroundColor: color('bg/sunken'),
-                      width: i === 3 ? '60%' : '100%',
-                    }}
-                  />
-                ))}
+        ) : state !== 'ready' || !hack ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title={state === 'missing' ? 'This Brain Hack isn’t available' : 'Couldn’t load this Brain Hack'}
+            description={state === 'missing' ? 'It may have been removed.' : 'Check your connection and try again.'}
+            action={state === 'missing' ? <TextButton label="Back to Brain Hacks" onPress={() => router.replace('/(student)/(home)/brain-hacks')} /> : <TextButton label="Retry" onPress={load} />}
+            style={{ marginTop: space.xl }}
+          />
+        ) : (
+          <>
+            {hack.cover_media_id && media[hack.cover_media_id] ? <View style={{ marginTop: space.md }}><MediaImage media={media[hack.cover_media_id]} /></View> : null}
+            <View style={{ marginTop: space.lg }}>
+              <View style={{ backgroundColor: color('accent/tint'), borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 4, alignSelf: 'flex-start' }}>
+                <Text style={[type['type/caption'], { color: color('accent/default') }]}>{hack.category}</Text>
               </View>
-            ) : (
-              <Text style={[type['type/body-l'], { color: color('text/primary') }]}>
-                {hack.body}
-              </Text>
-            )}
-          </View>
-        </Stagger>
-
-        <View style={{ marginTop: space.xl, alignItems: 'center' }}>
-          <TextButton label="Back to Brain Hacks" onPress={() => router.replace('/(student)/(home)/brain-hacks')} />
-        </View>
+              <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary'), marginTop: space.xs }]}>{hack.title}</Text>
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space['2xs'] }]}>{hack.read_minutes} min read</Text>
+            </View>
+            <View style={{ marginTop: space.lg }}>
+              <RichContent value={hack.body} format={hack.content_format} media={media} variant="stem" />
+            </View>
+            <View style={{ marginTop: space.xl }}>
+              <StarRating itemType="brain_hack" itemId={hack.id} value={hack.my_rating ?? null} label="Was this helpful?" />
+            </View>
+            <View style={{ marginTop: space.md, alignItems: 'center' }}>
+              <TextButton label="Back to Brain Hacks" onPress={() => router.replace('/(student)/(home)/brain-hacks')} />
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  pill: {},
-});

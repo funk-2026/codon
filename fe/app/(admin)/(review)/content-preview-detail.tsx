@@ -24,7 +24,8 @@ import {
   adminGetContent,
   adminGetTest,
 } from '@/src/api/admin';
-import type { Question } from '@/src/api/tests';
+import type { AuthoredQuestion } from '@/src/api/tests';
+import { QuestionPreviewCard, type MediaMap } from '@/src/rich';
 
 type ItemType = 'test' | 'Videos' | 'Documents' | 'Brain Hacks';
 
@@ -72,7 +73,8 @@ export default function ContentPreviewDetailRoute() {
 
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewError, setPreviewError] = useState(false);
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<AuthoredQuestion[]>([]);
+  const [questionMedia, setQuestionMedia] = useState<MediaMap>({});
   const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
 
   const loadPreview = useCallback(() => {
@@ -84,7 +86,10 @@ export default function ContentPreviewDetailRoute() {
     setPreviewError(false);
     const run =
       itemType === 'test'
-        ? adminGetTest(id).then((res) => setQuestions(res.questions))
+        ? adminGetTest(id).then((res) => {
+            setQuestions(res.questions);
+            setQuestionMedia(res.media ?? {});
+          })
         : itemType === 'Videos' || itemType === 'Documents'
           ? adminGetContent(id).then((res) => setPreviewUrl(res.url))
           : Promise.resolve();
@@ -219,30 +224,7 @@ export default function ContentPreviewDetailRoute() {
             ) : (
               [...questions]
                 .sort((a, b) => a.order_index - b.order_index)
-                .map((q, qi) => (
-                  <View
-                    key={q.id}
-                    style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()]}
-                  >
-                    <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
-                      {qi + 1}. {q.question_text}
-                    </Text>
-                    <View style={{ marginTop: space.xs, gap: 4 }}>
-                      {QUESTION_OPTIONS.map(({ letter, key }) => (
-                        <Text
-                          key={letter}
-                          style={[
-                            type['type/body-m'],
-                            { color: q.correct_option?.toUpperCase() === letter ? color('semantic/success') : color('text/secondary') },
-                          ]}
-                        >
-                          {letter}. {q[key]}
-                          {q.correct_option?.toUpperCase() === letter ? '  ✓' : ''}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                ))
+                .map((q, qi) => <QuestionPreviewCard key={q.id} q={q} index={qi} media={questionMedia} />)
             )}
           </View>
         ) : itemType === 'Videos' ? (

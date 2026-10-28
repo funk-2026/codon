@@ -15,7 +15,9 @@ import {
 } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { ManageAllBanner } from '@/src/teacher/ManageAllBanner';
 import { listTeacherContent, listTeacherTests } from '@/src/api/teacher';
+import { listTeacherBrainHacks } from '@/src/api/discover';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 type TypeFilter = 'All' | 'Tests' | 'Videos & Docs' | 'Brain Hacks';
@@ -28,7 +30,11 @@ type ContentItem = {
   breadcrumb: string | null;
   type: ContentType;
   status: Status;
+  /** Students' rating — shown to the author once anyone has rated (FE-3.10). */
+  rating?: { avg: number; count: number };
 };
+
+const ratingOf = (avg?: number, count?: number) => (count && count > 0 ? { avg: avg ?? 0, count } : undefined);
 
 
 
@@ -104,8 +110,9 @@ export default function MyContentListRoute() {
 
   const load = useCallback(() => {
     setLoading(true);
-    Promise.all([listTeacherContent(), listTeacherTests()])
-      .then(([cRes, tRes]) => {
+    // Brain Hacks live in their own table: a failure there must not blank the rest of the list.
+    Promise.all([listTeacherContent(), listTeacherTests(), listTeacherBrainHacks().catch(() => ({ brain_hacks: [] }))])
+      .then(([cRes, tRes, hRes]) => {
          const out: ContentItem[] = [];
          (tRes.tests || []).forEach(t => {
             out.push({
@@ -114,6 +121,7 @@ export default function MyContentListRoute() {
                breadcrumb: 'Test',
                type: 'Test',
                status: normalizeStatus(t.status),
+               rating: ratingOf(t.rating_avg, t.rating_count),
             });
          });
          (cRes.content || []).forEach(c => {
@@ -123,6 +131,17 @@ export default function MyContentListRoute() {
                breadcrumb: 'Content',
                type: c.content_type === 'video' ? 'Video' : 'Document',
                status: normalizeStatus(c.status),
+               rating: ratingOf(c.rating_avg, c.rating_count),
+            });
+         });
+         hRes.brain_hacks.forEach(h => {
+            out.push({
+               id: h.id,
+               title: h.title,
+               breadcrumb: `Brain Hack · ${h.category}`,
+               type: 'Brain Hack',
+               status: normalizeStatus(h.status),
+               rating: ratingOf(h.rating_avg, h.rating_count),
             });
          });
          setItems(out);
@@ -155,7 +174,9 @@ export default function MyContentListRoute() {
   const isEmptyOverall = items.length === 0;
 
   const openItem = (item: ContentItem) => {
-    if (item.status === 'rejected') {
+    if (item.type === 'Brain Hack') {
+      router.push({ pathname: '/(teacher)/brain-hack-detail', params: { id: item.id } });
+    } else if (item.status === 'rejected') {
       router.push({ pathname: '/(teacher)/rejected-content-detail', params: { id: item.id, type: item.type } });
     } else {
       router.push({ pathname: '/(teacher)/content-preview', params: { id: item.id, type: item.type } });
@@ -241,6 +262,9 @@ export default function MyContentListRoute() {
         })}
       </ScrollView>
 
+      <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
+        <ManageAllBanner />
+      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -320,6 +344,7 @@ export default function MyContentListRoute() {
                     numberOfLines={1}
                   >
                     {item.breadcrumb ?? 'Brain Hack'}
+                    {item.rating ? ` · ★ ${item.rating.avg.toFixed(1)} (${item.rating.count})` : ''}
                   </Text>
                   <StatusBadge status={badge.badgeStatus} label={badge.label} />
                 </View>

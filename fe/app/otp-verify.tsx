@@ -6,6 +6,7 @@ import {
   Text,
   TextInput,
   View,
+  type TextInputInstance,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -40,19 +41,21 @@ export default function OtpVerifyRoute() {
 
   const phoneDisplay = maskPhone(typeof phone === 'string' ? phone : '');
 
-  const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''));
-  const [active, setActive] = useState(0);
+  // One hidden input holds the whole code; the six boxes only display it. Autofill, paste
+  // and typing all land in one field, so a pasted code never flashes in the first box.
+  const [code, setCode] = useState('');
+  const [focused, setFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [resendIn, setResendIn] = useState(RESEND_SECONDS);
   const [expired, setExpired] = useState(false);
 
-  const refs = useRef<(TextInput | null)[]>([]);
+  const inputRef = useRef<TextInputInstance>(null);
   const pulse = useSharedValue(1);
   const shakeX = useSharedValue(0);
 
   useEffect(() => {
-    refs.current[0]?.focus();
+    inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -108,45 +111,19 @@ export default function OtpVerifyRoute() {
         withTiming(0, { duration: 50 }),
       );
       // Clear digits so user can re-enter
-      setDigits(Array(CODE_LENGTH).fill(''));
-      setActive(0);
-      refs.current[0]?.focus();
+      setCode('');
+      inputRef.current?.focus();
     }
   };
 
-  const setDigit = (i: number, val: string) => {
-    const char = val.replace(/\D/g, '').slice(-1);
-    if (!char) return;
-    const next = [...digits];
-    next[i] = char;
-    setDigits(next);
+  const onCodeChange = (val: string) => {
+    const next = val.replace(/\D/g, '').slice(0, CODE_LENGTH);
+    setCode(next);
     setError(null);
-    if (i < CODE_LENGTH - 1) {
-      refs.current[i + 1]?.focus();
-      setActive(i + 1);
+    if (next.length === CODE_LENGTH) {
+      inputRef.current?.blur();
+      submit(next);
     }
-    if (next.every((d) => d !== '')) submit(next.join(''));
-  };
-
-  const handleBackspace = (i: number) => {
-    if (digits[i] !== '') {
-      const next = [...digits];
-      next[i] = '';
-      setDigits(next);
-      return;
-    }
-    if (i > 0) {
-      const next = [...digits];
-      next[i - 1] = '';
-      setDigits(next);
-      refs.current[i - 1]?.focus();
-      setActive(i - 1);
-    }
-  };
-
-  const handleChange = (i: number, val: string) => {
-    if (val === '') handleBackspace(i);
-    else setDigit(i, val);
   };
 
   const resend = async () => {
@@ -160,9 +137,8 @@ export default function OtpVerifyRoute() {
     }
     setResendIn(RESEND_SECONDS);
     setExpired(false);
-    setDigits(Array(CODE_LENGTH).fill(''));
-    setActive(0);
-    refs.current[0]?.focus();
+    setCode('');
+    inputRef.current?.focus();
   };
 
   const pulseStyle = useAnimatedStyle(() => ({
@@ -203,48 +179,60 @@ export default function OtpVerifyRoute() {
 
         <Animated.View style={[shakeStyle, { marginTop: space.xl }]}>
           <Animated.View style={[pulseStyle, styles.boxRow]}>
-            {digits.map((d, i) => {
-              const filled = d !== '';
-              const border = error
-                ? color('semantic/danger')
-                : i === active && !verifying
-                  ? color('accent/default')
-                  : filled
-                    ? color('border/strong')
-                    : color('border/subtle');
-              const bw = i === active && !error && !verifying ? 2 : 1;
-              return (
-                <TextInput
-                  key={i}
-                  ref={(r) => {
-                    refs.current[i] = r;
-                  }}
-                  value={d}
-                  onChangeText={(v) => handleChange(i, v)}
-                  onKeyPress={(e) => {
-                    if (e.nativeEvent.key === 'Backspace') handleBackspace(i);
-                  }}
-                  onFocus={() => setActive(i)}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  selectTextOnFocus
-                  editable={!verifying}
-                  style={[
-                    type['type/h1'],
-                    {
+            <Pressable
+              onPress={() => inputRef.current?.focus()}
+              accessible={false}
+              style={[styles.boxRow, { gap: 8 }]}
+            >
+              {Array.from({ length: CODE_LENGTH }, (_, i) => {
+                const d = code[i] ?? '';
+                const active = focused && !verifying && i === Math.min(code.length, CODE_LENGTH - 1);
+                const border = error
+                  ? color('semantic/danger')
+                  : active
+                    ? color('accent/default')
+                    : d
+                      ? color('border/strong')
+                      : color('border/subtle');
+                return (
+                  <View
+                    key={i}
+                    importantForAccessibility="no-hide-descendants"
+                    style={{
                       width: 48,
                       height: 56,
                       backgroundColor: color('bg/sunken'),
                       borderRadius: radius.sm,
-                      borderWidth: bw,
+                      borderWidth: active && !error ? 2 : 1,
                       borderColor: border,
-                      textAlign: 'center',
-                      color: color('text/primary'),
-                    },
-                  ]}
-                />
-              );
-            })}
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={[type['type/h1'], { color: color('text/primary') }]}>{d}</Text>
+                  </View>
+                );
+              })}
+            </Pressable>
+            {/* The real input: covers the boxes, invisible text and caret. */}
+            <TextInput
+              ref={inputRef}
+              value={code}
+              onChangeText={onCodeChange}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              keyboardType="number-pad"
+              maxLength={CODE_LENGTH}
+              textContentType="oneTimeCode"
+              autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'}
+              editable={!verifying}
+              caretHidden
+              contextMenuHidden={false}
+              selectionColor="transparent"
+              accessibilityLabel={`Verification code, ${CODE_LENGTH} digits`}
+              accessibilityValue={{ text: code.split('').join(' ') || 'empty' }}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, color: 'transparent', backgroundColor: 'transparent', fontSize: 1 }}
+            />
           </Animated.View>
         </Animated.View>
 

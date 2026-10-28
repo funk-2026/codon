@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { Check, X, CheckCircle, WarningCircle, Shield, ClipboardText, PlayCircle, CaretRight } from 'phosphor-react-native';
+import { Check, X, CheckCircle, WarningCircle, Shield, ClipboardText, PlayCircle, CaretRight, FlagBanner, PencilSimpleLine, Lightbulb } from 'phosphor-react-native';
 import { EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListKYC, adminApproveKYC, adminRejectKYC, getAdminDashboardSummary } from '@/src/api/admin';
@@ -232,6 +232,23 @@ export default function KycReviewQueueRoute() {
           label="Content Approvals"
           count={otherCounts.content}
           onPress={() => router.push('/(admin)/(review)/moderation-videos-docs')}
+        />
+      </View>
+      <View style={[styles.navCardRow, { paddingHorizontal: space.md, marginTop: space.sm, gap: space.sm }]}>
+        <ApprovalNavCard
+          icon={<FlagBanner size={22} color={color('accent/default')} weight="duotone" />}
+          label="Question Reports"
+          onPress={() => router.push('/(admin)/(review)/reports-queue')}
+        />
+        <ApprovalNavCard
+          icon={<PencilSimpleLine size={22} color={color('accent/default')} weight="duotone" />}
+          label="Corrections"
+          onPress={() => router.push('/(admin)/(review)/corrections-queue')}
+        />
+        <ApprovalNavCard
+          icon={<Lightbulb size={22} color={color('accent/default')} weight="duotone" />}
+          label="Hacks & Flashcards"
+          onPress={() => router.push('/(admin)/(review)/content-queue')}
         />
       </View>
 
