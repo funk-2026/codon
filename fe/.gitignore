@@ -10,6 +10,8 @@ expo-env.d.ts
 # native
 *.orig.*
 *.jks
+*.keystore
+keystore_base64.txt
 *.p8
 *.p12
 *.key

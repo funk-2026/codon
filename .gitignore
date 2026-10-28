@@ -5,3 +5,7 @@ dist/
 !fe/.env.example
 .expo
 store-assets/
+*.keystore
+*.jks
+*.pem
+keystore_base64.txt
