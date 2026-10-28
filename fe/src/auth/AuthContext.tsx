@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('onTokenExpired', () => {
       signOut();
-      router.replace('/onboarding');
+      router.replace('/phone-entry');
     });
     return () => sub.remove();
   }, [signOut, router]);
