@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { Linking } from 'react-native';
 import { useAppConfig } from '@/src/config/AppConfigContext';
-import type { MediaPurpose } from '@/src/api/media';
+import { deleteMedia, type MediaPurpose, type PresignResult } from '@/src/api/media';
 import type { MediaView } from '@/src/rich/ast';
 import { uploadImage, UploadError, type PickedImage, type UploadHandle } from './upload';
 import type { MediaLimits, UploadFailure } from './plan';
@@ -13,6 +13,8 @@ export type UploadItem = {
   stage: 'preparing' | 'uploading' | 'processing' | 'ready' | 'failed';
   progress: number;
   mediaId?: string;
+  presign?: PresignResult;
+  presignExpiresAt?: number;
   view?: MediaView;
   error?: UploadFailure;
   source: PickedImage;
@@ -44,7 +46,30 @@ export function useMediaUpload(purpose: MediaPurpose, opts: { onReady?: (item: U
 
   const start = useCallback(
     (item: UploadItem) => {
-      const h = uploadImage(item.source, purpose, limits, (stage, progress) => patch(item.key, { stage, progress, error: undefined }));
+      const existing =
+        item.presign || item.mediaId
+          ? {
+              mediaId: item.mediaId,
+              presign: item.presign,
+              expiresAt: item.presignExpiresAt,
+            }
+          : undefined;
+
+      const h = uploadImage(
+        item.source,
+        purpose,
+        limits,
+        (stage, progress, meta) =>
+          patch(item.key, {
+            stage,
+            progress,
+            error: undefined,
+            ...(meta?.mediaId ? { mediaId: meta.mediaId } : {}),
+            ...(meta?.presign ? { presign: meta.presign } : {}),
+            ...(meta?.expiresAt ? { presignExpiresAt: meta.expiresAt } : {}),
+          }),
+        existing,
+      );
       handles.current.set(item.key, h);
       h.promise
         .then((r) => {
@@ -106,10 +131,17 @@ export function useMediaUpload(purpose: MediaPurpose, opts: { onReady?: (item: U
     [items, patch, start],
   );
 
-  const cancel = useCallback((key: string) => {
-    handles.current.get(key)?.cancel();
-    setItems((all) => all.filter((i) => i.key !== key));
-  }, []);
+  const cancel = useCallback(
+    (key: string) => {
+      handles.current.get(key)?.cancel();
+      const it = items.find((i) => i.key === key);
+      if (it?.mediaId && it.stage !== 'ready') {
+        deleteMedia(it.mediaId).catch(() => {});
+      }
+      setItems((all) => all.filter((i) => i.key !== key));
+    },
+    [items],
+  );
 
   const clear = useCallback(() => setItems([]), []);
   const openSettings = useCallback(() => void Linking.openSettings(), []);

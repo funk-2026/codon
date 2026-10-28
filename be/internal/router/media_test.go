@@ -172,4 +172,57 @@ func TestMediaLibraryDeleteBlockedWhileReferenced(t *testing.T) {
 	}
 }
 
+func TestMediaPresignRetryDoesNotDuplicatePendingRow(t *testing.T) {
+	e := newEnv(t)
+
+	// First presign call
+	p1 := e.mustDo(200, "POST", "/media/presign", &e.w.Teacher, map[string]interface{}{
+		"purpose":      "question_image",
+		"file_name":    "diagram.png",
+		"content_type": "image/png",
+		"bytes":        2048,
+	})
+	id1 := str(p1, "media_id")
+	if id1 == "" {
+		t.Fatal("expected media_id in presign response")
+	}
+
+	var count int64
+	e.db.Model(&models.MediaAsset{}).Where("owner_id = ? AND status = ?", e.w.Teacher.ID, models.MediaPending).Count(&count)
+	if count != 1 {
+		t.Fatalf("expected 1 pending asset, got %d", count)
+	}
+
+	// Retry without media_id (same user, file, bytes within 15 min): should reuse the same pending row
+	p2 := e.mustDo(200, "POST", "/media/presign", &e.w.Teacher, map[string]interface{}{
+		"purpose":      "question_image",
+		"file_name":    "diagram.png",
+		"content_type": "image/png",
+		"bytes":        2048,
+	})
+	id2 := str(p2, "media_id")
+	if id2 != id1 {
+		t.Fatalf("expected matching media_id on deduplicated retry: got %s, want %s", id2, id1)
+	}
+
+	// Retry with explicit media_id: should reuse the same pending row
+	p3 := e.mustDo(200, "POST", "/media/presign", &e.w.Teacher, map[string]interface{}{
+		"media_id":     id1,
+		"purpose":      "question_image",
+		"file_name":    "diagram.png",
+		"content_type": "image/png",
+		"bytes":        2048,
+	})
+	id3 := str(p3, "media_id")
+	if id3 != id1 {
+		t.Fatalf("expected matching media_id on explicit retry: got %s, want %s", id3, id1)
+	}
+
+	// Total pending assets in DB should still be exactly 1!
+	e.db.Model(&models.MediaAsset{}).Where("owner_id = ? AND status = ?", e.w.Teacher.ID, models.MediaPending).Count(&count)
+	if count != 1 {
+		t.Fatalf("expected pending asset count to stay 1, but got %d (DB bloated with duplicates)", count)
+	}
+}
+
 var _ = storage.ErrNotFound

@@ -405,7 +405,7 @@ Images must work in **any type of question, anywhere in the app**, including cus
 | CM-RC9 | **Media lifecycle** | Dedupe by sha256; reference tracking (`media_refs`); orphan garbage-collection; replace-image keeps references valid; cannot delete a referenced asset. | P1 · BE · CM-RC2 |
 | CM-RC10 | **Prefetch & offline** | On test start, prefetch all images for the attempt (display variant) with progress; runtime never blocks a question on a slow image (placeholder + retry); cache eviction policy. | P1 · FE · CM-RC4 |
 | CM-RC11 | **Protection posture** | Short-lived URLs, no public bucket, no listing endpoint; screenshot policy via C.3 (best-effort, role-gated). No DRM claim. | P1 · BE+FE · C.3 |
-| CM-RC12 | **Audio/video attachments** | Video/audio in explanations and Brain Hacks. Same media model, different processing (reuse Cloudflare Stream path). | P3 · FE+BE · D.2 |
+| CM-RC12 | **Audio/video attachments** | Video/audio in explanations and Brain Hacks. Same media model, different processing (reuse Bunny Stream path). | P3 · FE+BE · D.2 |
 
 ### CM-TA — Teacher authoring flow (dedicated)
 

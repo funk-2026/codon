@@ -42,9 +42,10 @@ type Config struct {
 	S3AccessKeyID     string
 	S3SecretAccessKey string
 
-	// Cloudflare Stream (Video Streaming)
-	CloudflareAccountID       string
-	CloudflareStreamAPIToken  string
+	// Bunny Stream (Video Streaming)
+	BunnyStreamLibraryID string
+	BunnyStreamAPIKey    string
+	BunnyStreamCDNHost   string // e.g. "vz-abcdef-123.b-cdn.net"
 
 	// OTP Rate Limit (per hour per phone)
 	OTPRateLimitPerHour int
@@ -82,8 +83,9 @@ func Load() {
 		S3Bucket:                 getEnv("S3_BUCKET", "codon"),
 		S3AccessKeyID:            getEnv("S3_ACCESS_KEY_ID", ""),
 		S3SecretAccessKey:        getEnv("S3_SECRET_ACCESS_KEY", ""),
-		CloudflareAccountID:      getEnv("CLOUDFLARE_ACCOUNT_ID", ""),
-		CloudflareStreamAPIToken: getEnv("CLOUDFLARE_STREAM_API_TOKEN", ""),
+		BunnyStreamLibraryID:     getEnv("BUNNY_STREAM_LIBRARY_ID", ""),
+		BunnyStreamAPIKey:        getEnv("BUNNY_STREAM_API_KEY", ""),
+		BunnyStreamCDNHost:       getEnv("BUNNY_STREAM_CDN_HOST", ""),
 		OTPRateLimitPerHour:      getEnvInt("OTP_RATE_LIMIT_PER_HOUR", 3),
 		ReviewerPhoneNumber:      getEnv("REVIEWER_PHONE_NUMBER", ""),
 		ReviewerOTPCode:          getEnv("REVIEWER_OTP_CODE", ""),

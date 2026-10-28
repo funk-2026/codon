@@ -42,8 +42,7 @@ func main() {
 	mediaSvc := media.NewService(db.DB)
 	csvImportSvc.Images = mediaSvc
 	csvImportSvc.QS.RefSaver = media.QuestionRefSaver
-	transcodeSvc := services.NewTranscodeService(db.DB)
-	streamStatusSvc := services.NewStreamStatusService(db.DB)
+	videoStatusSvc := services.NewVideoStatusService(db.DB)
 
 	// Create worker
 	pollInterval := time.Duration(config.AppConfig.WorkerPollSeconds) * time.Second
@@ -54,9 +53,8 @@ func main() {
 	worker.RegisterHandler(jobs.JobTypeMediaProcess, mediaSvc.HandleProcessJob)
 	corrSvc := services.NewCorrectionService(db.DB, services.NewQuestionService(db.DB))
 	worker.RegisterHandler(jobs.JobTypeRescoreQuestion, corrSvc.HandleRescoreQuestion)
-	worker.RegisterHandler(jobs.JobTypeTranscode, transcodeSvc.HandleTranscode)
-	worker.RegisterHandler(jobs.JobTypeStreamStatusCheck, streamStatusSvc.HandleStreamStatusCheck)
-	worker.RegisterExhaustionHandler(jobs.JobTypeStreamStatusCheck, streamStatusSvc.HandleExhausted)
+	worker.RegisterHandler(jobs.JobTypeVideoStatusCheck, videoStatusSvc.HandleVideoStatusCheck)
+	worker.RegisterExhaustionHandler(jobs.JobTypeVideoStatusCheck, videoStatusSvc.HandleExhausted)
 
 	// Recurring maintenance
 	scoringSvc := services.NewScoringService(db.DB)

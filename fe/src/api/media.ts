@@ -6,6 +6,7 @@ export type MediaPurpose =
   | 'flashcard_image' | 'home_update_image' | 'note_image' | 'import_bundle';
 
 export type PresignInput = {
+  media_id?: string;
   purpose: MediaPurpose;
   file_name: string;
   content_type: string;

@@ -8348,7 +8348,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a presigned S3 PUT URL (for Cloudflare R2 files) or Cloudflare Stream Direct Upload URL (for videos) valid for 15 minutes. The client uses this URL to upload the file directly without routing through backend. After upload, use the returned file_key when referencing the file in other API calls.",
+                "description": "Returns a presigned S3 PUT URL (for Cloudflare R2 files) or Bunny Stream TUS upload credentials (for videos) valid for 15 minutes. The client uses this URL/credentials to upload the file directly without routing through backend. After upload, use the returned file_key when referencing the file in other API calls.",
                 "consumes": [
                     "application/json"
                 ],

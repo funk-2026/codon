@@ -1,7 +1,7 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ApiError } from '@/src/api/client';
-import { completeMedia, presignMedia, type MediaPurpose } from '@/src/api/media';
+import { completeMedia, presignMedia, type MediaPurpose, type PresignResult } from '@/src/api/media';
 import type { MediaView } from '@/src/rich/ast';
 import { track } from '@/src/analytics/track';
 import { explainUploadFailure, mimeFromName, planImage, type MediaLimits, type UploadFailure } from './plan';
@@ -28,11 +28,22 @@ export type UploadHandle = { promise: Promise<UploadResult>; cancel: () => void 
  *   4. complete (server verifies, strips EXIF, builds display + thumb)
  * Cancellable at any point; failures are mapped to teacher-readable messages.
  */
+export type ExistingUpload = {
+  mediaId?: string;
+  presign?: PresignResult;
+  expiresAt?: number;
+};
+
 export function uploadImage(
   img: PickedImage,
   purpose: MediaPurpose,
   limits: MediaLimits,
-  onProgress: (stage: 'preparing' | 'uploading' | 'processing', pct: number) => void,
+  onProgress: (
+    stage: 'preparing' | 'uploading' | 'processing',
+    pct: number,
+    meta?: { mediaId?: string; presign?: PresignResult; expiresAt?: number }
+  ) => void,
+  existing?: ExistingUpload,
 ): UploadHandle {
   let cancelled = false;
   let task: FileSystem.UploadTask | null = null;
@@ -64,11 +75,25 @@ export function uploadImage(
       }
       if (cancelled) throw new UploadError({ code: 'cancelled', message: 'Cancelled', retryable: true });
 
-      const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
-      const ps = await presignMedia({ purpose, file_name: img.fileName ?? `image.${ext}`, content_type: mime, bytes });
-      if (!ps.media_id) throw new UploadError(explainUploadFailure('bad_response'));
+      // Reuse valid presigned URL on retry to avoid creating redundant DB rows or presign calls
+      let ps = existing?.presign;
+      const isPresignValid = !!(ps && existing?.expiresAt && Date.now() < existing.expiresAt - 30_000);
 
-      onProgress('uploading', 0);
+      if (!isPresignValid) {
+        const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+        ps = await presignMedia({
+          purpose,
+          file_name: img.fileName ?? `image.${ext}`,
+          content_type: mime,
+          bytes,
+          media_id: existing?.mediaId,
+        });
+      }
+      if (!ps?.media_id) throw new UploadError(explainUploadFailure('bad_response'));
+
+      const expiresAt = existing?.expiresAt && isPresignValid ? existing.expiresAt : Date.now() + (ps.expires_in ?? 900) * 1000;
+      onProgress('uploading', 0, { mediaId: ps.media_id, presign: ps, expiresAt });
+
       task = FileSystem.createUploadTask(
         ps.upload_url,
         uri,

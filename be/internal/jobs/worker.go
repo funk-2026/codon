@@ -15,15 +15,15 @@ import (
 
 const (
 	JobTypeCSVImport         = "csv_import"
-	JobTypeTranscode         = "video_transcode"
-	JobTypeStreamStatusCheck = "stream_status_check"
+	JobTypeVideoStatusCheck  = "video_status_check"
+	JobTypeStreamStatusCheck = "video_status_check" // alias for backwards compatibility
 	JobTypeMediaProcess      = "media_process"
 	JobTypeRescoreQuestion   = "rescore_question"
 )
 
 // maxAttempts caps how many times a job is retried before it's abandoned.
 // 30 attempts at the 1-minute backoff below gives ~30 minutes of headroom —
-// long enough for a Cloudflare Stream status-check job to poll until
+// long enough for a video status-check job to poll until
 // transcoding finishes, not just for quick one-shot jobs like CSV import.
 const maxAttempts = 30
 
@@ -50,18 +50,23 @@ type CSVImportPayload struct {
 	TestID  uuid.UUID `json:"test_id"`
 }
 
-// TranscodePayload is the payload for a video transcode job.
-type TranscodePayload struct {
+// VideoStatusCheckPayload is the payload for polling a Bunny Stream
+// video's transcode status until it's ready to play.
+type VideoStatusCheckPayload struct {
 	ContentItemID uuid.UUID `json:"content_item_id"`
-	FileKey       string    `json:"file_key"`
+	VideoGUID     string    `json:"video_guid"`
+	VideoUID      string    `json:"video_uid,omitempty"`
 }
 
-// StreamStatusCheckPayload is the payload for polling a Cloudflare Stream
-// video's transcode status until it's ready to play.
-type StreamStatusCheckPayload struct {
-	ContentItemID uuid.UUID `json:"content_item_id"`
-	VideoUID      string    `json:"video_uid"`
+func (p *VideoStatusCheckPayload) GUID() string {
+	if p.VideoGUID != "" {
+		return p.VideoGUID
+	}
+	return p.VideoUID
 }
+
+// StreamStatusCheckPayload alias for backwards compatibility
+type StreamStatusCheckPayload = VideoStatusCheckPayload
 
 // Worker polls for pending jobs and processes them.
 type Worker struct {

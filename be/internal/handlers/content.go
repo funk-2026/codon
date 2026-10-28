@@ -128,16 +128,15 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 	}
 
 	if ct == models.ContentVideo {
-		if strings.HasPrefix(item.FileKey, "stream:") {
-			// Cloudflare Stream transcodes the upload itself — poll its API
-			// for status instead of running our own ffmpeg job against it.
-			uid := strings.TrimPrefix(item.FileKey, "stream:")
-			jobs.EnqueueJob(h.DB, jobs.JobTypeStreamStatusCheck, jobs.StreamStatusCheckPayload{
-				ContentItemID: item.ID, VideoUID: uid,
-			})
-		} else {
-			jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
-				ContentItemID: item.ID, FileKey: item.FileKey,
+		guid := ""
+		if strings.HasPrefix(item.FileKey, "bunny:") {
+			guid = strings.TrimPrefix(item.FileKey, "bunny:")
+		} else if strings.HasPrefix(item.FileKey, "stream:") {
+			guid = strings.TrimPrefix(item.FileKey, "stream:")
+		}
+		if guid != "" {
+			jobs.EnqueueJob(h.DB, jobs.JobTypeVideoStatusCheck, jobs.VideoStatusCheckPayload{
+				ContentItemID: item.ID, VideoGUID: guid,
 			})
 		}
 	}
@@ -222,14 +221,15 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	h.DB.WithContext(c.Request.Context()).First(&item, item.ID)
 
 	if fileKeyChanged && item.ContentType == models.ContentVideo {
-		if strings.HasPrefix(item.FileKey, "stream:") {
-			uid := strings.TrimPrefix(item.FileKey, "stream:")
-			jobs.EnqueueJob(h.DB, jobs.JobTypeStreamStatusCheck, jobs.StreamStatusCheckPayload{
-				ContentItemID: item.ID, VideoUID: uid,
-			})
-		} else {
-			jobs.EnqueueJob(h.DB, jobs.JobTypeTranscode, jobs.TranscodePayload{
-				ContentItemID: item.ID, FileKey: item.FileKey,
+		guid := ""
+		if strings.HasPrefix(item.FileKey, "bunny:") {
+			guid = strings.TrimPrefix(item.FileKey, "bunny:")
+		} else if strings.HasPrefix(item.FileKey, "stream:") {
+			guid = strings.TrimPrefix(item.FileKey, "stream:")
+		}
+		if guid != "" {
+			jobs.EnqueueJob(h.DB, jobs.JobTypeVideoStatusCheck, jobs.VideoStatusCheckPayload{
+				ContentItemID: item.ID, VideoGUID: guid,
 			})
 		}
 	}
@@ -334,29 +334,19 @@ func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
 
 func resolveContentURL(ctx context.Context, item *models.ContentItem) string {
 	if item.ContentType == models.ContentVideo {
-		// 1. Cloudflare Stream video: the real HLS manifest URL is filled in
-		// by the stream_status_check job once Cloudflare finishes
-		// transcoding — an iframe embed URL wouldn't work for a native
-		// video player, so return nothing (still processing) until then.
-		if strings.HasPrefix(item.FileKey, "stream:") {
+		// Bunny Stream video: the real HLS manifest URL is filled in
+		// by the video_status_check job once Bunny finishes transcoding
+		if strings.HasPrefix(item.FileKey, "bunny:") || strings.HasPrefix(item.FileKey, "stream:") {
 			if item.HLSPlaylistURL != nil && *item.HLSPlaylistURL != "" {
 				return *item.HLSPlaylistURL
 			}
 			return ""
 		}
-		// 2. Direct HLS playlist URL if stored explicitly
+		// Direct HLS playlist URL if stored explicitly
 		if item.HLSPlaylistURL != nil && *item.HLSPlaylistURL != "" {
 			return *item.HLSPlaylistURL
 		}
-		// 3. R2 Presigned GET URL if stored as raw MP4 file in Cloudflare R2
-		if storage.Client != nil && item.FileKey != "" {
-			url, err := storage.Client.PresignGet(ctx, item.FileKey, 2*time.Hour)
-			if err == nil && url != "" {
-				return url
-			}
-		}
-		// Fallback sample MP4 for testing when credentials are unconfigured
-		return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+		return ""
 	} else if item.ContentType == models.ContentDocument {
 		if storage.Client != nil && item.FileKey != "" {
 			url, err := storage.Client.PresignGet(ctx, item.FileKey, 2*time.Hour)

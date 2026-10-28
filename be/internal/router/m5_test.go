@@ -247,7 +247,7 @@ func TestFlashcardsAuthoringStudySRSAndGating(t *testing.T) {
 func TestVideoNotes(t *testing.T) {
 	e := newEnv(t)
 	ch := e.w.Chapter
-	ct := models.ContentItem{Title: "Lecture", CourseID: e.w.Course.ID, ContentType: models.ContentVideo, ChapterID: ch.ID, UploadedBy: e.w.Teacher.ID, FileKey: "stream:x", Status: models.StatusPublished}
+	ct := models.ContentItem{Title: "Lecture", CourseID: e.w.Course.ID, ContentType: models.ContentVideo, ChapterID: ch.ID, UploadedBy: e.w.Teacher.ID, FileKey: "bunny:x", Status: models.StatusPublished}
 	e.db.Create(&ct)
 	e.db.Model(&ct).UpdateColumn("requires_subscription", false)
 	s := &e.w.Student

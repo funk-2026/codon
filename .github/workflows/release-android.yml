@@ -1,0 +1,99 @@
+name: Release Android (Play Store AAB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Override Version Name (leave blank to use fe/.env ANDROID_VERSION_NAME)'
+        required: false
+        type: string
+        default: ''
+      version_code:
+        description: 'Override Version Code (leave blank to use fe/.env ANDROID_VERSION_CODE)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  build-aab:
+    name: Build Android AAB via Gradle
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: fe/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Apply Version from fe/.env to Gradle
+        id: version
+        env:
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+          INPUT_VERSION_CODE: ${{ inputs.version_code }}
+        run: node scripts/apply-env-version.js android
+
+      - name: Setup Keystore (if provided in secrets)
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+            echo "has_keystore=true" >> $GITHUB_OUTPUT
+            echo "✅ Decoded release.keystore"
+          else
+            echo "has_keystore=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No ANDROID_KEYSTORE_BASE64 secret found; building with standard signing."
+          fi
+
+      - name: Build Production AAB using Gradle
+        env:
+          KEYSTORE_FILE: ${{ steps.keystore.outputs.has_keystore == 'true' && 'release.keystore' || '' }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Upload Play Store AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codon-android-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.version_code }}-aab
+          path: fe/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## 🤖 Android AAB Built with Gradle" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version Name** | \`${{ steps.version.outputs.version_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version Code** | \`${{ steps.version.outputs.version_code }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build Tool** | Native Gradle (\`./gradlew bundleRelease\`) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Artifact** | \`app-release.aab\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the AAB from the **Artifacts** section at the bottom of this run." >> $GITHUB_STEP_SUMMARY
+          echo "2. Open the [Google Play Console](https://play.google.com/console)." >> $GITHUB_STEP_SUMMARY
+          echo "3. Go to **Production** (or **Closed testing**) -> **Create new release** -> Upload this \`.aab\` bundle." >> $GITHUB_STEP_SUMMARY

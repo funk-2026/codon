@@ -73,11 +73,12 @@ var ErrNoStorage = services.Coded(http.StatusServiceUnavailable, "storage_unavai
 // ── Presign ───────────────────────────────────────────────────────────────────
 
 type PresignRequest struct {
-	Purpose     string `json:"purpose"`
-	FileName    string `json:"file_name"`
-	ContentType string `json:"content_type"`
-	Bytes       int64  `json:"bytes"`
-	SHA256      string `json:"sha256"`
+	MediaID     *uuid.UUID `json:"media_id,omitempty"`
+	Purpose     string     `json:"purpose"`
+	FileName    string     `json:"file_name"`
+	ContentType string     `json:"content_type"`
+	Bytes       int64      `json:"bytes"`
+	SHA256      string     `json:"sha256"`
 }
 
 type PresignResult struct {
@@ -136,7 +137,50 @@ func (s *Service) Presign(ctx context.Context, user *models.User, req PresignReq
 			fmt.Sprintf("image must be at most %d bytes", settings.Int64("media.max_bytes")))
 	}
 
-	// Rate limit + quota (against pending + ready uploads).
+	// Retry path 1: explicit media_id passed by the client.
+	var existing *models.MediaAsset
+	if req.MediaID != nil {
+		var found models.MediaAsset
+		if err := s.DB.WithContext(ctx).Where("id = ? AND owner_id = ? AND status = ?", *req.MediaID, user.ID, models.MediaPending).First(&found).Error; err == nil {
+			existing = &found
+		}
+	}
+
+	// Retry path 2: reuse an existing recent (<15m) pending asset for the same file and purpose.
+	if existing == nil {
+		var found models.MediaAsset
+		pq := s.DB.WithContext(ctx).Where("owner_id = ? AND purpose = ? AND file_name = ? AND status = ? AND created_at > ?",
+			user.ID, req.Purpose, req.FileName, models.MediaPending, time.Now().Add(-15*time.Minute))
+		if req.SHA256 != "" {
+			pq = pq.Where("sha256 = ?", req.SHA256)
+		} else {
+			pq = pq.Where("declared_bytes = ?", req.Bytes)
+		}
+		if err := pq.Order("created_at DESC").First(&found).Error; err == nil {
+			existing = &found
+		}
+	}
+
+	if existing != nil {
+		url, err := storage.Store.PresignPutSized(ctx, existing.StorageKey, req.ContentType, req.Bytes, expiry)
+		if err != nil {
+			return nil, err
+		}
+		s.DB.WithContext(ctx).Model(existing).Updates(map[string]interface{}{
+			"declared_bytes": req.Bytes,
+			"declared_mime":  req.ContentType,
+			"file_name":      req.FileName,
+		})
+		return &PresignResult{
+			MediaID:   &existing.ID,
+			FileKey:   existing.StorageKey,
+			UploadURL: url,
+			Headers:   map[string]string{"Content-Type": req.ContentType},
+			ExpiresIn: int(expiry.Seconds()),
+		}, nil
+	}
+
+	// Rate limit + quota (against pending + ready uploads) for fresh uploads.
 	var recent int64
 	s.DB.WithContext(ctx).Model(&models.MediaAsset{}).
 		Where("owner_id = ? AND created_at > ?", user.ID, time.Now().Add(-time.Hour)).Count(&recent)
@@ -150,12 +194,19 @@ func (s *Service) Presign(ctx context.Context, user *models.User, req PresignReq
 		return nil, services.Forbidden("quota_exceeded", "storage quota exceeded")
 	}
 
+	// Fresh upload: sign the upload URL first to ensure storage is reachable before creating any DB entry.
 	ext := mimeExt[req.ContentType]
 	if ext == "" {
 		ext = strings.ToLower(filepath.Ext(req.FileName))
 	}
 	id := uuid.New()
 	key := strings.ToLower(fmt.Sprintf("media/%s/%s/%s%s", req.Purpose, user.ID, id, ext))
+
+	url, err := storage.Store.PresignPutSized(ctx, key, req.ContentType, req.Bytes, expiry)
+	if err != nil {
+		return nil, err
+	}
+
 	asset := models.MediaAsset{
 		ID: id, OwnerID: user.ID, Purpose: req.Purpose, StorageKey: key, FileName: req.FileName,
 		DeclaredMime: req.ContentType, DeclaredBytes: req.Bytes, Status: models.MediaPending, Source: "upload",
@@ -163,10 +214,7 @@ func (s *Service) Presign(ctx context.Context, user *models.User, req PresignReq
 	if err := s.DB.WithContext(ctx).Create(&asset).Error; err != nil {
 		return nil, err
 	}
-	url, err := storage.Store.PresignPutSized(ctx, key, req.ContentType, req.Bytes, expiry)
-	if err != nil {
-		return nil, err
-	}
+
 	return &PresignResult{MediaID: &id, FileKey: key, UploadURL: url,
 		Headers: map[string]string{"Content-Type": req.ContentType}, ExpiresIn: int(expiry.Seconds())}, nil
 }
