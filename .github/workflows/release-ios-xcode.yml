@@ -18,11 +18,20 @@ on:
         required: false
         type: boolean
         default: true
+      runner:
+        description: 'Runner environment (use self-hosted for your own Mac)'
+        required: false
+        type: choice
+        options:
+          - 'self-hosted'
+          - 'macos-14'
+          - 'macos-15'
+        default: 'self-hosted'
 
 jobs:
   build-ios-xcode:
     name: Build iOS IPA via Xcode
-    runs-on: macos-14
+    runs-on: ${{ inputs.runner || 'self-hosted' }}
     defaults:
       run:
         working-directory: fe
@@ -33,16 +42,20 @@ jobs:
 
       - name: Select Xcode version (>= 16.1 required by React Native)
         run: |
-          if [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          CURRENT_XCODE=$(xcodebuild -version 2>/dev/null | head -n 1 || true)
+          echo "Current Xcode: $CURRENT_XCODE"
+          if [[ "$CURRENT_XCODE" == *"16."* ]] || [[ "$CURRENT_XCODE" == *"17."* ]]; then
+            echo "Current Xcode version already meets requirements."
+          elif [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer || true
           elif [ -d "/Applications/Xcode_16.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
+            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer || true
           else
-            LATEST_XCODE=$(find /Applications -maxdepth 1 -name "Xcode_16*.app" | sort -V | tail -n 1)
+            LATEST_XCODE=$(find /Applications -maxdepth 1 -name "Xcode_16*.app" 2>/dev/null | sort -V | tail -n 1 || true)
             if [ -n "$LATEST_XCODE" ]; then
-              sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
-            else
-              sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+              sudo xcode-select -s "$LATEST_XCODE/Contents/Developer" || true
+            elif [ -d "/Applications/Xcode.app" ]; then
+              sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || true
             fi
           fi
           echo "✅ Selected Xcode:"
