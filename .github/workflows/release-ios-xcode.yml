@@ -42,22 +42,17 @@ jobs:
 
       - name: Select Xcode version (>= 16.1 required by React Native)
         run: |
-          CURRENT_XCODE=$(xcodebuild -version 2>/dev/null | head -n 1 || true)
-          echo "Current Xcode: $CURRENT_XCODE"
-          if [[ "$CURRENT_XCODE" == *"16."* ]] || [[ "$CURRENT_XCODE" == *"17."* ]]; then
-            echo "Current Xcode version already meets requirements."
-          elif [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer || true
+          echo "Active Xcode version before check:"
+          xcodebuild -version 2>/dev/null || true
+
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer 2>/dev/null || true
           elif [ -d "/Applications/Xcode_16.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer || true
-          else
-            LATEST_XCODE=$(find /Applications -maxdepth 1 -name "Xcode_16*.app" 2>/dev/null | sort -V | tail -n 1 || true)
-            if [ -n "$LATEST_XCODE" ]; then
-              sudo xcode-select -s "$LATEST_XCODE/Contents/Developer" || true
-            elif [ -d "/Applications/Xcode.app" ]; then
-              sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || true
-            fi
+            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer 2>/dev/null || true
+          elif [ -d "/Applications/Xcode.app" ]; then
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer 2>/dev/null || true
           fi
+
           echo "✅ Selected Xcode:"
           xcodebuild -version
 
@@ -136,6 +131,10 @@ jobs:
 
       - name: Install CocoaPods
         run: |
+          if ! command -v pod &> /dev/null; then
+            echo "CocoaPods not found. Installing via Homebrew..."
+            brew install cocoapods || sudo gem install cocoapods || true
+          fi
           cd ios
           pod install --repo-update
 
