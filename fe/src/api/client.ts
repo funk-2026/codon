@@ -4,18 +4,34 @@ import { DeviceEventEmitter } from 'react-native';
 import { buildHeaders } from './headers';
 
 /**
- * Resolve the API base URL dynamically.
- *
- * `Constants.expoConfig?.hostUri` automatically gets your dev machine's LAN IP
- * (e.g. 192.168.x.x) when running Expo Go / physical device.
+ * Resolve the API base URL dynamically from environment / app config.
+ * Checks in order:
+ *  1. process.env.EXPO_PUBLIC_SERVER_URL
+ *  2. process.env.SERVER_URL
+ *  3. process.env.server_url
+ *  4. Constants.expoConfig?.extra?.serverUrl
+ *  5. Constants.expoConfig?.extra?.server_url
+ *  6. Constants.expoConfig?.extra?.SERVER_URL
+ *  7. Fallback to production server URL
  */
-// const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
-// const DEV_HOST = debuggerHost ? debuggerHost.split(':')[0] : '192.168.0.7';
-const DEV_HOST = '192.168.0.6';
+function resolveApiBase(): string {
+  const rawUrl =
+    process.env.EXPO_PUBLIC_SERVER_URL ||
+    process.env.SERVER_URL ||
+    process.env.server_url ||
+    Constants.expoConfig?.extra?.serverUrl ||
+    Constants.expoConfig?.extra?.server_url ||
+    Constants.expoConfig?.extra?.SERVER_URL ||
+    'https://codon-production-2652.up.railway.app';
 
-export const API_BASE = false
-  ? `http://${DEV_HOST}:8080/api/v1`
-  : 'https://codon-production-2652.up.railway.app/api/v1';
+  const trimmed = (rawUrl || '').trim().replace(/\/+$/, '');
+  if (!trimmed) {
+    return 'https://codon-production-2652.up.railway.app/api/v1';
+  }
+  return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`;
+}
+
+export const API_BASE = resolveApiBase();
 
 /**
  * Thin wrapper around `fetch` that sets common defaults.

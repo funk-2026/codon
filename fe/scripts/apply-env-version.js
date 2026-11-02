@@ -128,14 +128,31 @@ if (platform === 'android') {
   }
 }
 
-// 3. Save app.json
+// 3. Sync server_url from .env if present
+const serverUrl =
+  process.env.EXPO_PUBLIC_SERVER_URL ||
+  process.env.SERVER_URL ||
+  process.env.server_url ||
+  envVars.EXPO_PUBLIC_SERVER_URL ||
+  envVars.SERVER_URL ||
+  envVars.server_url;
+
+if (serverUrl) {
+  if (!appJson.expo.extra) appJson.expo.extra = {};
+  appJson.expo.extra.serverUrl = serverUrl.trim();
+}
+
+// 4. Save app.json
 fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + '\n', 'utf8');
 console.log(`✅ Updated app.json:`);
 console.log(`   - Platform:     ${platform}`);
 console.log(`   - Version Name: ${versionName}`);
 console.log(`   - Build/Code:   ${buildIdentifier}`);
+if (serverUrl) {
+  console.log(`   - Server URL:   ${serverUrl.trim()}`);
+}
 
-// 4. Export to GitHub Actions environment if running in CI
+// 5. Export to GitHub Actions environment if running in CI
 if (process.env.GITHUB_OUTPUT) {
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `version_name=${versionName}\n`);
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `version_code=${buildIdentifier}\n`);

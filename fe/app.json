@@ -66,6 +66,7 @@
       "typedRoutes": true
     },
     "extra": {
+      "serverUrl": "https://codon-production-2652.up.railway.app",
       "router": {},
       "eas": {
         "projectId": "5f267cc1-014c-4b37-974b-446337ba8990"
