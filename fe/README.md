@@ -1,18 +1,21 @@
 # codon
 
-[![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-qh6nuzcq)
+![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)
 
 For Dev testing, in the client.ts need to update the IP addr of the system where backend is running by using the follwing command 
+
 ```
 ip route get 1.1.1.1 | grep -oP 'src \K\S+'
 ```
 
 For making android and IOS folders 
+
 ```
 npx expo prebuild --platform android
 ```
 
 Scripts to install android apks
+
 ```
 npm run build:android:apk # For Prod apk
 npm run build:android:aab # For Prod aab
@@ -20,8 +23,19 @@ npm run build:android:debug # For Debug apk
 ```
 
 Scripts For IOS Dev build 
+
 ```
 npx expo run:ios
 ```
 
 // brew link node (if any node problem in mac)
+
+
+
+Icon Update 
+
+Replace the assets/icon-1.png with new icon and then run
+
+```
+npx expo prebuild --no-install
+```
