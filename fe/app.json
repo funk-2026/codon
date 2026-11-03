@@ -2,7 +2,7 @@
   "expo": {
     "name": "Codon",
     "slug": "codon",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon-1.png",
     "scheme": "codon",
@@ -66,7 +66,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "serverUrl": "https://codon-production-2652.up.railway.app",
+      "serverUrl": "https://api-v2.codonneetug.com",
       "router": {},
       "eas": {
         "projectId": "5f267cc1-014c-4b37-974b-446337ba8990"
