@@ -39,3 +39,9 @@ Replace the assets/icon-1.png with new icon and then run
 ```
 npx expo prebuild --no-install
 ```
+
+Post updating the version of ios in .env
+
+```
+npm run set-version:ios
+```
