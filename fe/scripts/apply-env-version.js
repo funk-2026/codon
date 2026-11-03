@@ -126,6 +126,16 @@ if (platform === 'android') {
     fs.writeFileSync(infoPlistPath, plist, 'utf8');
     console.log(`✅ Synced ios/Codon/Info.plist -> CFBundleShortVersionString "${versionName}", CFBundleVersion "${buildIdentifier}"`);
   }
+
+  // Also sync native iOS project.pbxproj (MARKETING_VERSION & CURRENT_PROJECT_VERSION)
+  const pbxprojPath = path.join(rootDir, 'ios', 'Codon.xcodeproj', 'project.pbxproj');
+  if (fs.existsSync(pbxprojPath)) {
+    let pbx = fs.readFileSync(pbxprojPath, 'utf8');
+    pbx = pbx.replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${versionName};`);
+    pbx = pbx.replace(/CURRENT_PROJECT_VERSION = [^;]+;/g, `CURRENT_PROJECT_VERSION = ${buildIdentifier};`);
+    fs.writeFileSync(pbxprojPath, pbx, 'utf8');
+    console.log(`✅ Synced ios/Codon.xcodeproj/project.pbxproj -> MARKETING_VERSION "${versionName}", CURRENT_PROJECT_VERSION "${buildIdentifier}"`);
+  }
 }
 
 // 3. Sync server_url from .env if present
