@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.codon.learn",
-      "versionCode": 1,
+      "versionCode": 4,
       "permissions": [
         "POST_NOTIFICATIONS"
       ]
