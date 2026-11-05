@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Codon</title>
+<script>
+// Old links from the previous site (e.g. /Terms, /PrivacyPolicy, /AboutUs): static hosts serve this file for
+// unknown paths, so send them to the matching page of the new site.
+(function () {
+  var map = { aboutus: 'about', about: 'about', contact: 'contact', contactus: 'contact', terms: 'terms', privacypolicy: 'privacy-policy',
+    'privacy-policy': 'privacy-policy', refundpolicy: 'refund-policy', 'refund-policy': 'refund-policy', faqs: 'faqs', faq: 'faqs', plans: 'marketing', marketing: 'marketing' };
+  var p = location.pathname.replace(/\/+$/, '');
+  var i = p.lastIndexOf('/');
+  var seg = p.slice(i + 1), base = p.slice(0, i + 1) || '/';
+  location.replace(base + '#/' + (map[seg.toLowerCase()] || ''));
+})();
+</script>
+</head>
+<body><p style="font:16px system-ui;padding:2rem">Redirecting… <a href="./">Go to the Codon home page</a></p></body>
+</html>

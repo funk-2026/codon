@@ -1,16 +1,54 @@
-# React + Vite
+# Codon website
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React website that is **fully static**: no server, no API, no database, no network requests.
+Every fact, FAQ, legal text and sample value is hardcoded in `src/data/`.
 
-Currently, two official plugins are available:
+## Use it
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install        # once
+npm run build      # writes dist/index.html
+```
 
-## React Compiler
+`dist/index.html` is a **single self-contained file** (JS, CSS, fonts and images are inlined). Open it by
+double-clicking, or upload `dist/` to any static host (Netlify, Vercel, GitHub Pages, S3, Cloudflare Pages, a shared
+host). It needs no server-side rules and works from a sub-folder.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+(`npm run dev` starts Vite's hot-reload dev server. That is only a convenience for editing, never needed to run the site.)
 
-## Expanding the ESLint configuration
+## Pages (hash routing, so no server config is ever needed)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Page | URL |
+|---|---|
+| Home | `index.html#/` |
+| Marketing URL (the app tour) | `index.html#/marketing` |
+| About us | `index.html#/about` |
+| Contact us | `index.html#/contact` |
+| FAQs | `index.html#/faqs`  (deep link: `#/faqs/refund`) |
+| Privacy policy | `index.html#/privacy-policy` |
+| Terms & conditions | `index.html#/terms` |
+| Refund policy | `index.html#/refund-policy` |
+
+Old links (`/Terms`, `/PrivacyPolicy`, `/AboutUs`, `/Faqs`, `/plans` …) are redirected by `public/404.html` on hosts that serve a
+custom 404 page (Netlify, GitHub Pages, Cloudflare Pages, Vercel).
+
+## Where to change things
+
+| What | File |
+|---|---|
+| Email, phone, address, store links, nav, footer, doctors, sample quiz and chart values | `src/data/site.js` |
+| FAQ questions and answers | `src/data/faq.js` |
+| Privacy policy, Terms, Refund policy text | `src/data/legal.js` |
+| Page layouts | `src/pages/*.jsx` |
+| Interactive demos (sample test, chart, phone, decoder…) | `src/components/*.jsx` |
+| Colours, type, spacing | top of `src/styles/main.css` |
+
+Rebuild with `npm run build` after any change.
+
+## Before going live: please check
+
+1. **Privacy policy & Terms are drafts.** They were written from how the app behaves, because the old API endpoints were unreachable. Have your legal adviser review them (the Terms' governing law and liability cap are drafting choices), or paste approved wording into `src/data/legal.js`.
+2. `playStore` in `src/data/site.js`: the app config uses `com.codon.learn`; the old site linked `com.codon.app`. Add `appStore` when the iOS listing exists (the button is hidden while empty).
+3. The company name is "CodON Health Private Limited" everywhere (the old Contact page said "CodON Academy Pvt. Ltd.").
+4. The doctors list is hardcoded with the two people named in the old copy. Add more in `src/data/site.js` (`faculty`).
+5. **Search engines:** hash URLs (`#/about`) are not indexed as separate pages. This suits a store-listing / app-support site; if SEO per page matters later, the pages can be pre-rendered.
