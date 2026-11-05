@@ -126,12 +126,12 @@ em, .it { font-family: var(--serif); font-style: italic; font-weight: 400; }
 .menu-btn__bars::before { position: absolute; top: 6px; }
 .menu-btn[aria-expanded='true'] .menu-btn__bars { transform: rotate(45deg); }
 .menu-btn[aria-expanded='true'] .menu-btn__bars::before { transform: translateY(-6px) rotate(-90deg); }
-.mobile-menu { position: fixed; inset: 0; z-index: -1; background: var(--paper); padding: 6.5rem var(--gutter) 2rem; display: flex; flex-direction: column; justify-content: space-between; clip-path: inset(0 0 100% 0); transition: clip-path .8s var(--ease); }
+.mobile-menu { position: fixed; inset: 0; z-index: 90; background: var(--paper); padding: 6.5rem var(--gutter) 2rem; display: flex; flex-direction: column; justify-content: space-between; clip-path: inset(0 0 100% 0); transition: clip-path .8s var(--ease); }
 .mobile-menu[hidden] { display: flex; visibility: hidden; }
 .menu-open .mobile-menu { clip-path: inset(0); visibility: visible; }
 .mobile-menu nav { display: grid; }
-.mobile-menu a { font: 400 clamp(2.4rem, 11vw, 4rem)/1.15 var(--serif); letter-spacing: -.02em; padding-block: .3rem; border-bottom: 1px solid var(--line); opacity: 0; transform: translateY(1.5rem); transition: opacity .7s var(--ease), transform .8s var(--ease); transition-delay: calc(var(--i) * 60ms + 150ms); }
-.menu-open .mobile-menu a { opacity: 1; transform: none; }
+.mobile-menu nav a { font: 400 clamp(2.4rem, 11vw, 4rem)/1.15 var(--serif); letter-spacing: -.02em; padding-block: .3rem; border-bottom: 1px solid var(--line); opacity: 0; transform: translateY(1.5rem); transition: opacity .7s var(--ease), transform .8s var(--ease); transition-delay: calc(var(--i) * 60ms + 150ms); }
+.menu-open .mobile-menu nav a { opacity: 1; transform: none; }
 .mobile-menu__meta { color: var(--mute); font-size: .9rem; }
 
 /* ---------- reveal system (JS adds .js; without JS everything is visible) ---------- */
@@ -831,3 +831,6 @@ em, .it { font-family: var(--serif); font-style: italic; font-weight: 400; }
 .mobile-menu__stores { display: grid; gap: .6rem; margin-top: 1.4rem; }
 .mobile-menu__stores .btn { width: 100%; justify-content: space-between; }
 @media (max-width: 40rem) { .btn--store { justify-content: space-between; } }
+
+/* the full-screen menu lives outside the header (a blurred header would otherwise trap it) */
+.menu-open .site-header.is-scrolled { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }

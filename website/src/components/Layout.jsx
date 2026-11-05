@@ -83,6 +83,7 @@ export function Header() {
   }, [open]);
 
   return (
+    <>
     <header className={`site-header${scrolled ? ' is-scrolled' : ''}${onDark ? ' on-dark' : ''}`}>
       <div className="wrap site-header__bar">
         <Link className="brand" to="/" aria-label={`${site.name} home`}>
@@ -99,16 +100,17 @@ export function Header() {
           <span className="sr">Menu</span>
         </button>
       </div>
-      <div className="mobile-menu" id="mobile-menu" inert={!open}>
-        <nav aria-label="Mobile">
-          {[{ to: '/', label: 'Home' }, ...nav].map((n, i) => (
-            <Link key={n.to} to={n.to} style={{ '--i': i }}>{n.label}</Link>
-          ))}
-        </nav>
-        <div className="mobile-menu__stores"><StoreButtons /></div>
-        <p className="mobile-menu__meta">{site.email}<br />{site.phoneDisplay}</p>
-      </div>
     </header>
+    <div className="mobile-menu" id="mobile-menu" inert={!open}>
+      <nav aria-label="Mobile">
+        {[{ to: '/', label: 'Home' }, ...nav].map((n, i) => (
+          <Link key={n.to} to={n.to} style={{ '--i': i }}>{n.label}</Link>
+        ))}
+      </nav>
+      <div className="mobile-menu__stores"><StoreButtons /></div>
+      <p className="mobile-menu__meta">{site.email}<br />{site.phoneDisplay}</p>
+    </div>
+    </>
   );
 }
 
