@@ -48,7 +48,7 @@ Rebuild with `npm run build` after any change.
 ## Before going live: please check
 
 1. **Privacy policy & Terms are drafts.** They were written from how the app behaves, because the old API endpoints were unreachable. Have your legal adviser review them (the Terms' governing law and liability cap are drafting choices), or paste approved wording into `src/data/legal.js`.
-2. `playStore` in `src/data/site.js`: the app config uses `com.codon.learn`; the old site linked `com.codon.app`. Add `appStore` when the iOS listing exists (the button is hidden while empty).
+2. `playStore` in `src/data/site.js`: the app config uses `com.codon.learn`; the old site linked `com.codon.app`. Both store buttons (App Store and Google Play) always show. **Paste your App Store URL into `appStore`** (`https://apps.apple.com/…/id<your Apple ID>`); until then the iOS button is inactive.
 3. The company name is "CodON Health Private Limited" everywhere (the old Contact page said "CodON Academy Pvt. Ltd.").
 4. The doctors list is hardcoded with the two people named in the old copy. Add more in `src/data/site.js` (`faculty`).
 5. **Search engines:** hash URLs (`#/about`) are not indexed as separate pages. This suits a store-listing / app-support site; if SEO per page matters later, the pages can be pre-rendered.

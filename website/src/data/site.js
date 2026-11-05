@@ -10,7 +10,9 @@ export const site = {
   hours: '8 am – 8 pm, every day',
   address: ['A-404, Nirman Palace,', 'Sher-e-Punjab, Andheri East,', 'Mumbai – 400093'],
   mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Nirman%20Palace%2C%20Sher-e-Punjab%2C%20Andheri%20East%2C%20Mumbai%20400093',
-  // Store links. Leave appStore empty until the iOS listing is live: the button is hidden when empty.
+  // Store links. BOTH buttons are always shown on the site.
+  // appStore: paste your App Store URL here, e.g. 'https://apps.apple.com/in/app/codon/id1234567890'
+  // (the number is your Apple ID, found in App Store Connect -> App Information). While empty, the iOS button is inactive.
   playStore: 'https://play.google.com/store/apps/details?id=com.codon.learn',
   appStore: '',
   founder: 'Dr. Yogesh Desarda',

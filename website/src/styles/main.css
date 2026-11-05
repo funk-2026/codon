@@ -802,3 +802,32 @@ em, .it { font-family: var(--serif); font-style: italic; font-weight: 400; }
 
 .vm > div > .ico { width: 2rem; height: 2rem; color: var(--accent); }
 .phead .hero__helix { opacity: .12; }
+
+/* ---------- store buttons (both platforms) ---------- */
+.btn--store { padding: .65rem 1.2rem .65rem 1.3rem; gap: 1.2rem; }
+.btn--store .st { display: grid; line-height: 1.12; text-align: left; }
+.btn--store small { font-size: .66rem; font-weight: 500; letter-spacing: .03em; opacity: .72; }
+.btn--store b { font-size: 1.02rem; font-weight: 600; letter-spacing: -.01em; }
+.btn.is-off { opacity: .5; cursor: not-allowed; border-style: dashed; }
+.btn.is-off:hover { transform: none; box-shadow: none; }
+.btn.is-off .arr { opacity: .4; }
+.site-footer__stores { margin-top: 1.6rem; }
+.site-footer .btn--light { --bg: var(--paper); --fg: var(--ink); }
+
+.getapp { position: relative; }
+.getapp .btn { gap: .5rem; }
+.getapp__chev { width: .9rem; height: .9rem; transition: transform .5s var(--ease); }
+.getapp .btn[aria-expanded='true'] .getapp__chev { transform: rotate(180deg); }
+.getapp .btn:hover .getapp__chev { transform: none; }
+.getapp .btn[aria-expanded='true']:hover .getapp__chev { transform: rotate(180deg); }
+.getapp__panel { position: absolute; right: 0; top: calc(100% + .6rem); min-width: 13rem; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 1rem; padding: .4rem; box-shadow: 0 1.5rem 3rem -1rem rgb(12 26 43 / .35); animation: faqIn .5s var(--ease); z-index: 5; }
+.getapp__panel[hidden] { display: none; }
+.getapp__panel a, .getapp__panel span { display: grid; line-height: 1.15; padding: .7rem .9rem; border-radius: .7rem; transition: background-color .3s; }
+.getapp__panel a:hover { background: var(--paper-2); }
+.getapp__panel span { opacity: .5; cursor: not-allowed; }
+.getapp__panel small { font-size: .66rem; color: var(--mute); }
+.getapp__panel b { font-size: .98rem; font-weight: 600; }
+.site-header.on-dark .getapp .btn--primary { --bg: var(--paper); --fg: var(--ink); }
+.mobile-menu__stores { display: grid; gap: .6rem; margin-top: 1.4rem; }
+.mobile-menu__stores .btn { width: 100%; justify-content: space-between; }
+@media (max-width: 40rem) { .btn--store { justify-content: space-between; } }

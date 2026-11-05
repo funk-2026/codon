@@ -10,6 +10,12 @@ export const faqGroups = [
         "Codon is a NEET UG practice and mentorship app created by doctors. It was founded by Dr. Yogesh Desarda, a General and Laparoscopic Surgeon, and is designed for students who want structure and real guidance — average and below-average scorers just as much as toppers. Whether you are starting early or taking a drop year, you can join."
       ],
       [
+        "platforms",
+        "Which phones does Codon work on?",
+        "Codon is available for Android on Google Play and for iPhone and iPad on the App Store. Use the “Get the app” button at the top of any page."
+      ],
+
+      [
         "different",
         "How is Codon different from other NEET UG coaching?",
         "Codon is doctor-led: it is designed by surgeons and physicians based on their own journeys from NEET UG to residency. We follow a “Concept-First” approach aligned with NCERT — simple explanations, step-by-step problem solving, regular performance analysis and smart study plans — and we care as much about your mindset and stress as your marks."

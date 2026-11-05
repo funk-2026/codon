@@ -4,20 +4,54 @@ import { finePointer, reduceMotion } from '../lib/utils';
 import { site, nav, footerCols } from '../data/site';
 import { Arrow } from './Art';
 
-export const StoreButtons = ({ variant = 'primary' }) => (
-  <>
-    <a className={`btn btn--${variant}`} data-magnetic href={site.playStore} target="_blank" rel="noopener">
-      <span className="btn__label">Get it on Google Play</span>
+// Both platforms, always shown. A store with no link yet renders inactive instead of pointing somewhere wrong.
+export const stores = [
+  { id: 'ios', kicker: 'Download on the', name: 'App Store', href: site.appStore },
+  { id: 'android', kicker: 'Get it on', name: 'Google Play', href: site.playStore },
+];
+
+const Store = ({ st, variant }) => {
+  const inner = (
+    <>
+      <span className="st"><small>{st.kicker}</small><b>{st.name}</b></span>
       <Arrow />
-    </a>
-    {site.appStore && (
-      <a className="btn btn--ghost" data-magnetic href={site.appStore} target="_blank" rel="noopener">
-        <span className="btn__label">Download on the App Store</span>
-        <Arrow />
-      </a>
-    )}
-  </>
-);
+    </>
+  );
+  return st.href ? (
+    <a className={`btn btn--store btn--${variant}`} data-magnetic href={st.href} target="_blank" rel="noopener">{inner}</a>
+  ) : (
+    <span className={`btn btn--store btn--${variant} is-off`} role="link" aria-disabled="true" title="App Store link not added yet">{inner}</span>
+  );
+};
+
+export const StoreButtons = ({ variant = 'primary' }) => <>{stores.map((st) => <Store key={st.id} st={st} variant={variant} />)}</>;
+
+// Header "Get the app": opens a small menu with both stores
+function GetApp() {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
+    const esc = (e) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('pointerdown', off);
+    addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', off); removeEventListener('keydown', esc); };
+  }, [open]);
+  return (
+    <div className="getapp nav__cta" ref={box}>
+      <button className="btn btn--primary btn--sm" type="button" data-magnetic aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((o) => !o)}>
+        <span className="btn__label">Get the app</span>
+        <svg className="arr getapp__chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <div className="getapp__panel" hidden={!open}>
+        {stores.map((st) => (st.href
+          ? <a key={st.id} href={st.href} target="_blank" rel="noopener"><small>{st.kicker}</small><b>{st.name}</b></a>
+          : <span key={st.id} aria-disabled="true" title="App Store link not added yet"><small>{st.kicker}</small><b>{st.name}</b></span>))}
+      </div>
+    </div>
+  );
+}
 
 export function Header() {
   const { path } = useRoute();
@@ -59,10 +93,7 @@ export function Header() {
             <Link key={n.to} to={n.to} aria-current={path === n.to ? 'page' : undefined}>{n.label}</Link>
           ))}
         </nav>
-        <a className="btn btn--primary btn--sm nav__cta" data-magnetic href={site.playStore} target="_blank" rel="noopener">
-          <span className="btn__label">Get the app</span>
-          <Arrow />
-        </a>
+        <GetApp />
         <button className="menu-btn" type="button" aria-expanded={open} aria-controls="mobile-menu" onClick={() => setOpen((o) => !o)}>
           <span className="menu-btn__bars" aria-hidden="true" />
           <span className="sr">Menu</span>
@@ -74,6 +105,7 @@ export function Header() {
             <Link key={n.to} to={n.to} style={{ '--i': i }}>{n.label}</Link>
           ))}
         </nav>
+        <div className="mobile-menu__stores"><StoreButtons /></div>
         <p className="mobile-menu__meta">{site.email}<br />{site.phoneDisplay}</p>
       </div>
     </header>
@@ -92,6 +124,7 @@ export function Footer() {
               WhatsApp &amp; calls · {site.hours}<br />
               <a href={site.whatsapp} target="_blank" rel="noopener">{site.phoneDisplay}</a>
             </p>
+            <div className="btn-row site-footer__stores"><StoreButtons variant="light" /></div>
           </div>
           <div className="site-footer__cols">
             {footerCols.map((c) => (
