@@ -36,3 +36,6 @@ export type { BottomSheetProps } from './BottomSheet';
 export { SelectField } from './SelectField';
 export type { SelectOption } from './SelectField';
 export { TagInput } from './TagInput';
+
+export { CourseSelector } from './CourseSelector';
+export type { CourseSelectorProps } from './CourseSelector';

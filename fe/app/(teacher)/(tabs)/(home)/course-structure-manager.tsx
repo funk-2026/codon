@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -38,23 +38,24 @@ export default function CourseStructureManagerRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ path?: string; pickerMode?: string; returnTo?: string }>();
+  const params = useLocalSearchParams<{ path?: string; pickerMode?: string; returnTo?: string; courseId?: string }>();
   const pickerMode = params.pickerMode === '1';
   const returnTo: '/(teacher)/create-test' | '/(teacher)/create-content' =
     params.returnTo === '/(teacher)/create-content'
       ? '/(teacher)/create-content'
       : '/(teacher)/create-test';
-  const extraParams = pickerMode ? { pickerMode: '1', returnTo: params.returnTo ?? '' } : {};
+  // keep the chosen course while drilling into subjects/chapters
+  const extraParams = pickerMode ? { pickerMode: '1', returnTo: params.returnTo ?? '', ...(params.courseId ? { courseId: params.courseId } : {}) } : {};
 
   const [tree, setTree] = useState<Node[]>([]);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [courseName, setCourseName] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
-  useMemo(() => {
-    import('@/src/api/courses').then(({ listCourses, getCurriculum }) => {
+  useEffect(() => {
+    Promise.all([import('@/src/api/courses'), import('@/src/api/courseSelection')]).then(([{ listCourses, getCurriculum }, { resolveCourse }]) => {
       listCourses().then((cRes) => {
-        const course = cRes.courses[0];
+        const course = resolveCourse(cRes.courses, params.courseId);
         if (course) {
           setCourseId(course.id);
           setCourseName(course.name);
@@ -78,7 +79,7 @@ export default function CourseStructureManagerRoute() {
         }
       }).catch(() => setLoading(false));
     });
-  }, []);
+  }, [params.courseId]);
 
   const pathIds = useMemo(() => (params.path ? params.path.split('/').filter(Boolean) : []), [params.path]);
 

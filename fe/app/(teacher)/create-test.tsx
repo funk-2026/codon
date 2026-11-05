@@ -5,10 +5,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretLeft, CaretRight, Stack, Exam, Lightning, WarningCircle, Minus, Plus } from 'phosphor-react-native';
 import { Switch } from 'react-native';
 import { teacherModules } from '@/src/modules/registry';
-import { ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
+import { CourseSelector, ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { createTest } from '@/src/api/teacher';
-import { listCourses } from '@/src/api/courses';
+import { listCourses, type Course } from '@/src/api/courses';
+import { defaultCourse } from '@/src/api/courseSelection';
 
 type ModuleKey = 'qbank' | 'test_series' | 'practice';
 
@@ -41,6 +42,7 @@ export default function CreateTestRoute() {
   const [marksWrong, setMarksWrong] = useState('-1');
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [testId, setTestId] = useState<string | null>(null);
@@ -48,7 +50,8 @@ export default function CreateTestRoute() {
 
   const loadCourseInfo = useCallback(() => {
     listCourses().then(res => {
-      if (res.courses.length > 0) setCourseId((cur) => cur ?? res.courses[0].id);
+      setCourses(res.courses);
+      setCourseId((cur) => cur ?? defaultCourse(res.courses)?.id ?? null);
       setLoadError(false);
     }).catch(() => setLoadError(true));
   }, []);
@@ -121,10 +124,19 @@ export default function CreateTestRoute() {
     }
   };
 
+  // Switching course invalidates the chosen location (its chapter belongs to the old course)
+  const changeCourse = (id: string) => {
+    if (id === courseId) return;
+    setCourseId(id);
+    setLocation(null);
+    setChapterId(null);
+    setSubjectId(null);
+  };
+
   const goToLocationPicker = () => {
     router.push({
       pathname: '/(teacher)/(tabs)/(home)/course-structure-manager',
-      params: { pickerMode: '1', returnTo: '/(teacher)/create-test' },
+      params: { pickerMode: '1', returnTo: '/(teacher)/create-test', ...(courseId ? { courseId } : {}) },
     });
   };
 
@@ -163,6 +175,8 @@ export default function CreateTestRoute() {
       >
         <View style={{ marginTop: space.xl, gap: space.lg }}>
           <InputField label="Test Title" value={title} onChangeText={setTitle} />
+
+          <CourseSelector courses={courses} value={courseId} onChange={changeCourse} disabled={!!testId} />
 
           <View>
             <Text style={[type['type/caption'], { color: color('text/secondary'), marginBottom: space.xs }]}>
