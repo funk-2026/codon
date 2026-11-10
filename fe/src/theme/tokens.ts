@@ -90,11 +90,11 @@ export const colors: Record<ColorToken, string> = {
 };
 
 export const fontFamily = {
-  regular: 'Manrope-Regular',
-  medium: 'Manrope-Medium',
-  semibold: 'Manrope-SemiBold',
-  bold: 'Manrope-Bold',
-  extrabold: 'Manrope-ExtraBold',
+  regular: 'Figtree-Regular',
+  medium: 'Figtree-Medium',
+  semibold: 'Figtree-SemiBold',
+  bold: 'Figtree-Bold',
+  extrabold: 'Figtree-ExtraBold',
 } as const;
 
 export type TypeToken =
