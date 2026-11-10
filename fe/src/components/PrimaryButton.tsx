@@ -21,9 +21,9 @@ export function PrimaryButton({ label, onPress, disabled, loading, style }: Prim
   const { color: colorFn, type, radius, space } = useTheme();
   const pressed = useSharedValue(0);
   const nonInteractive = disabled || loading;
-  const accentDefault = colorFn('accent/default');
-  const accentPressed = colorFn('accent/pressed');
-  const onAccent = colorFn('accent/on-accent');
+  const accentDefault = colorFn('action/primary');
+  const accentPressed = colorFn('action/primary-pressed');
+  const onAccent = colorFn('action/on-primary');
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: withTiming(pressed.value ? 0.97 : 1, { duration: 90 }) }],

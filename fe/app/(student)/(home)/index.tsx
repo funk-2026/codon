@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  FlatList,
   Image,
   Pressable,
   StyleSheet,
@@ -9,7 +8,6 @@ import {
   View,
   type ListViewToken as ViewToken,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
@@ -26,7 +24,7 @@ import {
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
-import { ErrorBanner } from '@/src/components';
+import { CollapsingHeader, ErrorBanner, useCollapsingHeader } from '@/src/components';
 import { getMe, getProgress, getProgressBreakdown, getRecentContent } from '@/src/api/profile';
 import { DailyGoalCard } from '@/src/home/DailyGoalCard';
 import { useFlag } from '@/src/config/AppConfigContext';
@@ -72,6 +70,7 @@ export default function HomeDashboardRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
+  const header = useCollapsingHeader(76);
 
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - space.md * 2;
@@ -134,49 +133,99 @@ export default function HomeDashboardRoute() {
   }, [loadData]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <FlatList
+    <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+      <CollapsingHeader
+        state={header}
+        expanded={
+            <View style={styles.headerRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[type['type/h2'], { color: color('header/text') }]}>
+                  {greeting()}, {user?.name?.split(' ')[0] || 'Student'}
+                </Text>
+                <View
+                  style={[
+                    styles.streakRow,
+                    {
+                      gap: space['2xs'],
+                      marginTop: space.xs,
+                      alignSelf: 'flex-start',
+                      backgroundColor: color('header/chip'),
+                      borderRadius: radius.pill,
+                      paddingHorizontal: space.sm,
+                      paddingVertical: space['2xs'],
+                    },
+                  ]}
+                >
+                  <Flame size={16} color={color('highlight/default')} weight="fill" />
+                  <Text style={[type['type/caption'], { color: color('header/text') }]}>
+                    {streak} day streak
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                onPress={() => router.push('/(student)/(profile)')}
+                hitSlop={space.xs}
+                accessibilityRole="button"
+                accessibilityLabel="Open profile"
+              >
+                <View
+                  style={[
+                    styles.avatar,
+                    { width: 40, height: 40, borderRadius: 20, backgroundColor: color('bg/surface') },
+                  ]}
+                >
+                  <Text style={[type['type/h3'], { color: color('accent/default') }]}>
+                    {(user?.name || 'A').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+        }
+        compact={
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 }}>
+              <Text style={[type['type/h3'], { color: color('header/text') }]} numberOfLines={1}>
+                {user?.name?.split(' ')[0] || 'Student'}
+              </Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space['2xs'],
+                  backgroundColor: color('header/chip'),
+                  borderRadius: radius.pill,
+                  paddingHorizontal: space.xs,
+                  paddingVertical: 2,
+                }}
+              >
+                <Flame size={14} color={color('highlight/default')} weight="fill" />
+                <Text style={[type['type/caption'], { color: color('header/text') }]}>{streak}</Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => router.push('/(student)/(profile)')}
+              hitSlop={space.xs}
+              accessibilityRole="button"
+              accessibilityLabel="Open profile"
+            >
+              <View style={[styles.avatar, { width: 32, height: 32, borderRadius: 16, backgroundColor: color('bg/surface') }]}>
+                <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>
+                  {(user?.name || 'A').charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            </Pressable>
+          </>
+        }
+      />
+      <Animated.FlatList
         data={[{}]}
+        onScroll={header.onScroll}
+        scrollEventThrottle={16}
+        scrollIndicatorInsets={{ top: header.minHeight }}
+        contentContainerStyle={{ paddingTop: header.maxHeight }}
         keyExtractor={() => 'root'}
         renderItem={() => (
-          <View style={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] }}>
-            {/* Header */}
-            <Stagger delayMs={0}>
-              <View style={[styles.headerRow, { marginTop: space.lg }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[type['type/h2'], { color: color('text/primary') }]}>
-                    {greeting()}, {user?.name?.split(' ')[0] || 'Student'}
-                  </Text>
-                  <View style={[styles.streakRow, { gap: space['2xs'], marginTop: space['2xs'] }]}>
-                    <Flame size={16} color={color('highlight/default')} weight="fill" />
-                    <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
-                      {streak} day streak
-                    </Text>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={() => router.push('/(student)/(profile)')}
-                  hitSlop={space.xs}
-                >
-                  <View
-                    style={[
-                      styles.avatar,
-                      {
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: color('accent/tint'),
-                      },
-                    ]}
-                  >
-                    <Text style={[type['type/h3'], { color: color('accent/default') }]}>
-                      {(user?.name || 'A').charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                </Pressable>
-              </View>
-            </Stagger>
-
+          <View style={{ paddingHorizontal: space.md, paddingTop: space.xs, paddingBottom: space['3xl'] }}>
             {loadError ? (
               <View style={{ marginTop: space.md }}>
                 <ErrorBanner onRetry={loadData} />
@@ -266,8 +315,8 @@ export default function HomeDashboardRoute() {
                         styles.resumeBtn,
                         {
                           backgroundColor: pressed
-                            ? color('accent/pressed')
-                            : color('accent/default'),
+                            ? color('action/primary-pressed')
+                            : color('action/primary'),
                           borderRadius: radius.pill,
                           marginTop: space.md,
                           opacity: 0.95,
@@ -368,7 +417,7 @@ export default function HomeDashboardRoute() {
           </View>
         )}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

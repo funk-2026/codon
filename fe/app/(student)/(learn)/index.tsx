@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
@@ -10,7 +10,7 @@ import Animated, {
 import { PlayCircle, FileText, CaretRight } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getRecentContent } from '@/src/api/profile';
-import { ErrorBanner, SkeletonBlock } from '@/src/components';
+import { CollapsingHeader, ErrorBanner, SkeletonBlock, useCollapsingHeader } from '@/src/components';
 
 type Category = {
   id: 'video' | 'document';
@@ -47,6 +47,7 @@ function Stagger({ delayMs, children }: { delayMs: number; children: React.React
 
 export default function LearnHubRoute() {
   const { color, type, space, radius } = useTheme();
+  const header = useCollapsingHeader(64);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [recent, setRecent] = useState<RecentItem[]>([]);
@@ -86,16 +87,27 @@ export default function LearnHubRoute() {
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <ScrollView
+    <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+      <CollapsingHeader
+        state={header}
+        expanded={
+          <View>
+            <Text style={[type['type/h1'], { color: color('header/text') }]}>Learn</Text>
+            <Text style={[type['type/body-m'], { color: color('header/text-secondary'), marginTop: space['2xs'] }]}>
+              Video classes, notes and flashcards
+            </Text>
+          </View>
+        }
+        compact={<Text style={[type['type/h3'], { color: color('header/text') }]}>Learn</Text>}
+      />
+      <Animated.ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
+        onScroll={header.onScroll}
+        scrollEventThrottle={16}
+        scrollIndicatorInsets={{ top: header.minHeight }}
+        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: header.maxHeight + space.md, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space.lg }]}>
-          Learn.
-        </Text>
-
         {loadError ? (
           <View style={{ marginTop: space.md }}>
             <ErrorBanner onRetry={loadRecent} />
@@ -173,8 +185,8 @@ export default function LearnHubRoute() {
                     styles.resumeBtn,
                     {
                       backgroundColor: pressed
-                        ? color('accent/pressed')
-                        : color('accent/default'),
+                        ? color('action/primary-pressed')
+                        : color('action/primary'),
                       borderRadius: radius.pill,
                       marginTop: space.md,
                       opacity: 0.95,
@@ -332,8 +344,8 @@ export default function LearnHubRoute() {
             </View>
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </Animated.ScrollView>
+    </View>
   );
 }
 

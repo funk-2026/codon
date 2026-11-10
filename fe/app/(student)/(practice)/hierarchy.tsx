@@ -526,7 +526,7 @@ function LockedSheet({
               paddingVertical: space.sm,
               alignItems: 'center',
               borderRadius: radius.pill,
-              backgroundColor: pressed ? color('accent/pressed') : color('accent/default'),
+              backgroundColor: pressed ? color('action/primary-pressed') : color('action/primary'),
             })}
           >
             <Text style={[type['type/body-m-medium'], { color: color('accent/on-accent') }]}>

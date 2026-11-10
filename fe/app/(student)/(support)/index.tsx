@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, G } from 'react-native-svg';
 import { CaretRight } from 'phosphor-react-native';
-import { SkeletonBlock } from '@/src/components';
+import { CollapsingHeader, SkeletonBlock, useCollapsingHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { wellnessRadius } from '@/src/theme/tokens';
 import { listWellness } from '@/src/api/wellness';
@@ -46,6 +45,7 @@ const STARTER_SHELVES: Shelf[] = [
 
 export default function SupportHomeRoute() {
   const { color, type, space } = useTheme();
+  const header = useCollapsingHeader(64);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState<{ shelves: Shelf[]; featured: ShelfCard | null } | null>(null);
@@ -77,22 +77,29 @@ export default function SupportHomeRoute() {
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('wellness/bg') }]}>
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space['3xl'] }}
+    <View style={[styles.container, { backgroundColor: color('wellness/bg') }]}>
+      <CollapsingHeader
+        state={header}
+        background={color('wellness/header')}
+        expanded={
+          <View>
+            <Text style={[type['type/h1'], { color: color('wellness/text-primary') }]}>Support</Text>
+            <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
+              A steady space, built into your everyday routine.
+            </Text>
+          </View>
+        }
+        compact={<Text style={[type['type/h3'], { color: color('wellness/text-primary') }]}>Support</Text>}
+      />
+      <Animated.ScrollView
+        onScroll={header.onScroll}
+        scrollEventThrottle={16}
+        scrollIndicatorInsets={{ top: header.minHeight }}
+        contentContainerStyle={{ paddingHorizontal: space.lg, paddingTop: header.maxHeight, paddingBottom: space['3xl'] }}
         showsVerticalScrollIndicator={false}
       >
         <Animated.View style={fadeStyle}>
           <View style={{ marginTop: space.lg }}>
-            <Text style={[type['type/h1'], { color: color('wellness/text-primary') }]}>Support</Text>
-            <Text
-              style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}
-            >
-              A steady space, built into your everyday routine.
-            </Text>
-          </View>
-
-          <View style={{ marginTop: space.xl }}>
             {loading ? (
               <SkeletonBlock height={140} radius={wellnessRadius(24)} />
             ) : (
@@ -211,8 +218,8 @@ export default function SupportHomeRoute() {
             <CaretRight size={20} color={color('text/inverse')} />
           </Pressable>
         </Animated.View>
-      </ScrollView>
-    </SafeAreaView>
+      </Animated.ScrollView>
+    </View>
   );
 }
 

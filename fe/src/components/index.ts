@@ -7,6 +7,12 @@ export type { SecondaryButtonProps } from './SecondaryButton';
 export { TextButton } from './TextButton';
 export type { TextButtonProps } from './TextButton';
 
+export { HeaderBand } from './HeaderBand';
+export type { HeaderBandProps } from './HeaderBand';
+
+export { CollapsingHeader, useCollapsingHeader } from './CollapsingHeader';
+export type { CollapsingHeaderProps, CollapsingHeaderState } from './CollapsingHeader';
+
 export { Card } from './Card';
 export type { CardProps } from './Card';
 

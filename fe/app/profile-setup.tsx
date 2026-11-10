@@ -201,8 +201,8 @@ export default function ProfileSetupRoute() {
               backgroundColor: saving || loading
                 ? color('border/strong')
                 : pressed
-                  ? color('accent/pressed')
-                  : color('accent/default'),
+                  ? color('action/primary-pressed')
+                  : color('action/primary'),
               borderRadius: radius.pill,
               opacity: (saving || loading) ? 0.7 : 1,
             },

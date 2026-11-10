@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { CaretLeft, Timer, WarningCircle } from 'phosphor-react-native';
 import {
-  BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast,
+  BottomSheet, EmptyState, HeaderBand, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast,
 } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useFlag } from '@/src/config/AppConfigContext';
@@ -158,20 +158,41 @@ export default function TestResultRoute() {
   const CIRC = 2 * Math.PI * R;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
-        <Pressable
-          onPress={() => router.replace('/(student)/(practice)')}
-          hitSlop={space.xs}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Practice"
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, justifyContent: 'center' })}
-        >
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-      </View>
+    <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+      <ScrollView contentContainerStyle={{ paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
+        <HeaderBand>
+          <Pressable
+            onPress={() => router.replace('/(student)/(practice)')}
+            hitSlop={space.xs}
+            accessibilityRole="button"
+            accessibilityLabel="Back to Practice"
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, justifyContent: 'center' })}
+          >
+            <CaretLeft size={24} color={color('header/text')} />
+          </Pressable>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
+          {/* Score hero */}
+          <View style={{ alignItems: 'center', marginTop: space.xs }} accessible accessibilityLabel={`Score ${fmtScore(SCORE)}${hasMarks ? ` out of ${fmtScore(MAX)}, ${PERCENT} percent` : ''}`}>
+            <View style={{ width: 120, height: 120, alignItems: 'center', justifyContent: 'center' }}>
+              <Svg width={120} height={120} style={{ position: 'absolute' }}>
+                <Circle cx={60} cy={60} r={R} stroke={color('bg/surface')} strokeWidth={8} fill="none" />
+                {hasMarks ? (
+                  <Circle
+                    cx={60} cy={60} r={R} stroke={color(b.color)} strokeWidth={8} fill="none"
+                    strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - PERCENT / 100)} strokeLinecap="round" rotation={-90} origin="60,60"
+                  />
+                ) : null}
+              </Svg>
+              <Text style={[type['type/numeral-display'], { color: color('header/text'), fontSize: hasMarks ? 30 : 36 }]}>
+                {hasMarks ? `${fmtScore(SCORE)}/${fmtScore(MAX)}` : fmtScore(SCORE)}
+              </Text>
+              {hasMarks ? <Text style={[type['type/body-m'], { color: color('header/text-secondary') }]}>{PERCENT}%</Text> : null}
+            </View>
+            <Text style={[type['type/h3'], { color: color('header/text'), textAlign: 'center', marginTop: space.sm }]}>{b.headline}</Text>
+          </View>
+        </HeaderBand>
+
+        <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
         {expired === '1' || attempt.auto_submitted ? (
           <View style={{ backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.md, flexDirection: 'row', gap: space.sm, alignItems: 'center' }}>
             <Timer size={20} weight="fill" color={color('semantic/warning')} />
@@ -179,28 +200,8 @@ export default function TestResultRoute() {
           </View>
         ) : null}
 
-        {/* Score hero */}
-        <View style={{ alignItems: 'center', marginTop: space.lg }} accessible accessibilityLabel={`Score ${fmtScore(SCORE)}${hasMarks ? ` out of ${fmtScore(MAX)}, ${PERCENT} percent` : ''}`}>
-          <View style={{ width: 120, height: 120, alignItems: 'center', justifyContent: 'center' }}>
-            <Svg width={120} height={120} style={{ position: 'absolute' }}>
-              <Circle cx={60} cy={60} r={R} stroke={color('bg/sunken')} strokeWidth={8} fill="none" />
-              {hasMarks ? (
-                <Circle
-                  cx={60} cy={60} r={R} stroke={color(b.color)} strokeWidth={8} fill="none"
-                  strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - PERCENT / 100)} strokeLinecap="round" rotation={-90} origin="60,60"
-                />
-              ) : null}
-            </Svg>
-            <Text style={[type['type/numeral-display'], { color: color('text/primary'), fontSize: hasMarks ? 30 : 36 }]}>
-              {hasMarks ? `${fmtScore(SCORE)}/${fmtScore(MAX)}` : fmtScore(SCORE)}
-            </Text>
-            {hasMarks ? <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>{PERCENT}%</Text> : null}
-          </View>
-          <Text style={[type['type/h3'], { color: color('text/primary'), textAlign: 'center', marginTop: space.sm }]}>{b.headline}</Text>
-        </View>
-
         {/* Counts */}
-        <View style={[styles.row, { gap: space.xs, marginTop: space.xl }]}>
+        <View style={[styles.row, { gap: space.xs, marginTop: space.md }]}>
           <BreakTile label="Correct" value={CORRECT} ink={color('semantic/success')} />
           <BreakTile label="Incorrect" value={INCORRECT} ink={color('semantic/danger')} />
           <BreakTile label="Unattempted" value={UNATTEMPTED} ink={color('text/secondary')} />
@@ -264,6 +265,7 @@ export default function TestResultRoute() {
             <TextButton label="Back to Practice" onPress={() => router.replace('/(student)/(practice)')} />
           </View>
         </View>
+        </View>
       </ScrollView>
 
       <ShareResultSheet
@@ -309,7 +311,7 @@ export default function TestResultRoute() {
         </View>
         <PrimaryButton label="Build test" onPress={practiseMistakes} loading={building} style={{ marginTop: space.lg }} />
       </BottomSheet>
-    </SafeAreaView>
+    </View>
   );
 }
 

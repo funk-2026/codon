@@ -70,11 +70,11 @@ export function ShareResultSheet({ visible, onClose, data }: { visible: boolean;
           collapsable={false}
           accessible
           accessibilityLabel={text}
-          style={{ backgroundColor: color('accent/default'), borderRadius: radius.lg, padding: space.lg, gap: space.xs }}
+          style={{ backgroundColor: color('action/primary'), borderRadius: radius.lg, padding: space.lg, gap: space.xs }}
         >
           <Text style={[type['type/overline'], { color: 'rgba(255,255,255,0.75)' }]}>CODON · RESULT</Text>
-          <Text style={[type['type/h2'], { color: color('accent/on-accent') }]} numberOfLines={2}>{data.testTitle}</Text>
-          <Text style={[type['type/numeral-display'], { color: color('accent/on-accent'), fontSize: 44, marginTop: space.xs }]}>
+          <Text style={[type['type/h2'], { color: color('action/on-primary') }]} numberOfLines={2}>{data.testTitle}</Text>
+          <Text style={[type['type/numeral-display'], { color: color('action/on-primary'), fontSize: 44, marginTop: space.xs }]}>
             {data.percent != null ? `${data.percent}%` : data.score}
           </Text>
           <Text style={[type['type/body-m'], { color: 'rgba(255,255,255,0.9)' }]}>
@@ -83,7 +83,7 @@ export function ShareResultSheet({ visible, onClose, data }: { visible: boolean;
           {streak ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: space.xs }}>
               <Flame size={18} color={color('highlight/default')} weight="fill" />
-              <Text style={[type['type/body-m-medium'], { color: color('accent/on-accent') }]}>{streak}-day streak</Text>
+              <Text style={[type['type/body-m-medium'], { color: color('action/on-primary') }]}>{streak}-day streak</Text>
             </View>
           ) : null}
           <Text style={[type['type/caption'], { color: 'rgba(255,255,255,0.75)', marginTop: space.sm }]}>— {data.firstName}</Text>

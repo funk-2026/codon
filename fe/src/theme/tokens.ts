@@ -15,6 +15,13 @@ export type ColorToken =
   | 'accent/pressed'
   | 'accent/tint'
   | 'accent/on-accent'
+  | 'action/primary'
+  | 'action/primary-pressed'
+  | 'action/on-primary'
+  | 'header/bg'
+  | 'header/text'
+  | 'header/text-secondary'
+  | 'header/chip'
   | 'highlight/default'
   | 'highlight/tint'
   | 'highlight/on-tint'
@@ -25,6 +32,7 @@ export type ColorToken =
   | 'semantic/warning-tint'
   | 'semantic/danger-tint'
   | 'wellness/bg'
+  | 'wellness/header'
   | 'wellness/surface'
   | 'wellness/accent'
   | 'wellness/accent-secondary'
@@ -32,40 +40,51 @@ export type ColorToken =
   | 'media/paper';
 
 /**
- * Codon palette — "Ink navy and saffron". Light only.
+ * Codon palette — "Ice and navy". Light only.
  *
- * - Navy is the single brand/interactive colour (buttons, active tabs, progress, links).
- * - Saffron ("highlight") is reserved for streaks, rewards and achievements — use sparingly.
- * - Semantic colours are muted so answer feedback reads clearly without glare.
+ * - header/*  : ice-blue band at the top of main screens (home, practice, results).
+ * - action/*  : deep navy, for primary buttons (filled CTAs) only.
+ * - accent/*  : bright cobalt, for everything interactive that isn't a CTA —
+ *               progress, selection, active tabs, links, toggles, chips.
+ * - highlight : saffron, reserved for streaks, rewards and achievements.
+ * - semantic  : answer/feedback colours; clear but not neon.
  */
 export const colors: Record<ColorToken, string> = {
-  'bg/canvas': '#F8F7F4',
+  'bg/canvas': '#F3F7FC',
   'bg/surface': '#FFFFFF',
   'bg/surface-raised': '#FFFFFF',
-  'bg/sunken': '#F0EEE9',
-  'border/subtle': '#E6E4DE',
-  'border/strong': '#D2CFC7',
-  'text/primary': '#1B2230',
-  'text/secondary': '#556070',
-  'text/tertiary': '#939AA5',
+  'bg/sunken': '#E2EAF5',
+  'border/subtle': '#D9E3F0',
+  'border/strong': '#BFCEE2',
+  'text/primary': '#0C1A30',
+  'text/secondary': '#455873',
+  'text/tertiary': '#8696AE',
   'text/inverse': '#FFFFFF',
-  'accent/default': '#1F3A5F',
-  'accent/pressed': '#162B47',
-  'accent/tint': '#EAF0F6',
+  'accent/default': '#2563C9',
+  'accent/pressed': '#1D4FA3',
+  'accent/tint': '#E2EDFB',
   'accent/on-accent': '#FFFFFF',
-  'highlight/default': '#D99A2B',
-  'highlight/tint': '#FBF1DC',
-  'highlight/on-tint': '#86590E',
-  'semantic/success': '#2F7D4F',
-  'semantic/warning': '#A86A12',
-  'semantic/danger': '#B3402F',
-  'semantic/success-tint': '#E7F3EC',
-  'semantic/warning-tint': '#FBF1DE',
-  'semantic/danger-tint': '#FBEBE9',
-  'wellness/bg': '#FBF4EE',
+  'action/primary': '#12306B',
+  'action/primary-pressed': '#0C2250',
+  'action/on-primary': '#FFFFFF',
+  'header/bg': '#CFE3F8',
+  'header/text': '#0B2447',
+  'header/text-secondary': '#44668F',
+  'header/chip': 'rgba(11, 36, 71, 0.09)',
+  'highlight/default': '#E98A00',
+  'highlight/tint': '#FDF0D3',
+  'highlight/on-tint': '#7A4E00',
+  'semantic/success': '#1F9A5B',
+  'semantic/warning': '#B97708',
+  'semantic/danger': '#D03B2C',
+  'semantic/success-tint': '#E1F4E8',
+  'semantic/warning-tint': '#FCF0D6',
+  'semantic/danger-tint': '#FCE9E6',
+  'wellness/bg': '#FFF5EE',
+  'wellness/header': '#FBE1D2',
   'wellness/surface': '#FFFFFF',
-  'wellness/accent': '#C46A4A',
-  'wellness/accent-secondary': '#6F8F74',
+  'wellness/accent': '#E2704A',
+  'wellness/accent-secondary': '#5C9A72',
   'wellness/text-primary': '#2B211B',
   'media/paper': '#FFFFFF',
 };

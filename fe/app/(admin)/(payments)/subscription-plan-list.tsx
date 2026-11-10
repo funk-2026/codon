@@ -149,7 +149,7 @@ export default function SubscriptionPlanListRoute() {
         style={({ pressed }) => [
           styles.fab,
           {
-            backgroundColor: pressed ? color('accent/pressed') : color('accent/default'),
+            backgroundColor: pressed ? color('action/primary-pressed') : color('action/primary'),
             borderRadius: 28,
             right: space.lg,
             bottom: space.lg,

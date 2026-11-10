@@ -48,7 +48,7 @@ export default function PreviewModeRoute() {
             style={({ pressed }) => [
               styles.button,
               {
-                backgroundColor: pressed ? color('accent/pressed') : color('accent/default'),
+                backgroundColor: pressed ? color('action/primary-pressed') : color('action/primary'),
                 borderRadius: radius.lg,
                 paddingVertical: space.lg,
               },

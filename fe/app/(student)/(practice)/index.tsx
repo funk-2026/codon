@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
@@ -17,7 +16,7 @@ import {
   Cards,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { ErrorBanner, SkeletonBlock } from '@/src/components';
+import { CollapsingHeader, ErrorBanner, SkeletonBlock, useCollapsingHeader } from '@/src/components';
 import { getAttempts } from '@/src/api/profile';
 import type { StudentAttempt } from '@/src/api/attempts';
 import { useFlag } from '@/src/config/AppConfigContext';
@@ -50,6 +49,7 @@ function Stagger({ delayMs, children }: { delayMs: number; children: React.React
 
 export default function PracticeHubRoute() {
   const { color, type, space, radius } = useTheme();
+  const header = useCollapsingHeader(64);
   const router = useRouter();
   const customOn = useFlag('custom_test.enabled');
 
@@ -105,16 +105,27 @@ export default function PracticeHubRoute() {
   }));
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <ScrollView
+    <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+      <CollapsingHeader
+        state={header}
+        expanded={
+          <View>
+            <Text style={[type['type/h1'], { color: color('header/text') }]}>Practice</Text>
+            <Text style={[type['type/body-m'], { color: color('header/text-secondary'), marginTop: space['2xs'] }]}>
+              Mock tests, custom tests and revision
+            </Text>
+          </View>
+        }
+        compact={<Text style={[type['type/h3'], { color: color('header/text') }]}>Practice</Text>}
+      />
+      <Animated.ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] }}
+        onScroll={header.onScroll}
+        scrollEventThrottle={16}
+        scrollIndicatorInsets={{ top: header.minHeight }}
+        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: header.maxHeight + space.md, paddingBottom: space['3xl'] }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space.lg }]}>
-          Practice.
-        </Text>
-
         {loadError ? (
           <View style={{ marginTop: space.md }}>
             <ErrorBanner onRetry={load} />
@@ -349,8 +360,8 @@ export default function PracticeHubRoute() {
             </View>
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </Animated.ScrollView>
+    </View>
   );
 }
 

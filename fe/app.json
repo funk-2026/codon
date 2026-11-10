@@ -36,7 +36,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#1F3A5F",
+          "backgroundColor": "#0B2447",
           "image": "./assets/images/splash-codon.png",
           "imageWidth": 200
         }
@@ -54,7 +54,7 @@
       [
         "expo-notifications",
         {
-          "color": "#1F3A5F"
+          "color": "#12306B"
         }
       ],
       "./plugins/withAndroidReleaseSigning"

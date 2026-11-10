@@ -391,7 +391,7 @@ export default function MyContentListRoute() {
           onPress={() => setFabOpen((v) => !v)}
           style={({ pressed }) => [
             styles.fab,
-            { backgroundColor: pressed ? color('accent/pressed') : color('accent/default'), borderRadius: 28 },
+            { backgroundColor: pressed ? color('action/primary-pressed') : color('action/primary'), borderRadius: 28 },
             shadow(),
           ]}
         >
