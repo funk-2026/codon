@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -84,7 +86,7 @@ func (h *BookmarkHandler) Put(c *gin.Context) {
 		return
 	}
 	itemID, err := uuid.Parse(req.ItemID)
-	if err != nil || !contains(bookmarkTypes, req.ItemType) {
+	if err != nil || !slices.Contains(bookmarkTypes, req.ItemType) {
 		respondErr(c, http.StatusBadRequest, "bad_request", "item_type must be question, flashcard or content and item_id a uuid")
 		return
 	}
@@ -146,7 +148,10 @@ func (h *BookmarkHandler) Put(c *gin.Context) {
 //	@Router			/api/v1/me/bookmarks/{item_type}/{item_id} [delete]
 func (h *BookmarkHandler) Delete(c *gin.Context) {
 	user := middleware.GetUser(c)
-	h.DB.Where("user_id = ? AND item_type = ? AND item_id = ?", user.ID, c.Param("item_type"), c.Param("item_id")).Delete(&models.Bookmark{})
+	if err := h.DB.Where("user_id = ? AND item_type = ? AND item_id = ?", user.ID, c.Param("item_type"), c.Param("item_id")).Delete(&models.Bookmark{}).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "bookmark removed"})
 }
 

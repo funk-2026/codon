@@ -132,3 +132,26 @@ func Cleanup(tx *gorm.DB, typ string, id uuid.UUID) error {
 	}
 	return nil
 }
+
+// MyRatings returns the user's own rating value per item id, for one item
+// type, in a single query. Lists use it to attach `my_rating` to each row.
+func MyRatings(ctx context.Context, db *gorm.DB, userID uuid.UUID, typ string, ids []uuid.UUID) map[uuid.UUID]int {
+	out := map[uuid.UUID]int{}
+	if len(ids) == 0 {
+		return out
+	}
+	var rs []models.Rating
+	db.WithContext(ctx).Where("user_id = ? AND item_type = ? AND item_id IN ?", userID, typ, ids).Find(&rs)
+	for _, r := range rs {
+		out[r.ItemID] = r.Value
+	}
+	return out
+}
+
+// Ptr returns &m[id] when present, else nil — the JSON `omitempty` pointer pattern.
+func Ptr(m map[uuid.UUID]int, id uuid.UUID) *int {
+	if v, ok := m[id]; ok {
+		return &v
+	}
+	return nil
+}

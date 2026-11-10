@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"codon-backend/internal/httpx"
+	"codon-backend/internal/items"
 	"codon-backend/internal/jobs"
 	"codon-backend/internal/media"
 	"codon-backend/internal/middleware"
@@ -20,12 +22,13 @@ import (
 )
 
 type TestHandler struct {
-	DB *gorm.DB
-	QS *services.QuestionService
+	DB     *gorm.DB
+	QS     *services.QuestionService
+	Review *services.ReviewService
 }
 
 func NewTestHandler(db *gorm.DB) *TestHandler {
-	return &TestHandler{DB: db, QS: newQuestionService(db)}
+	return &TestHandler{DB: db, QS: newQuestionService(db), Review: services.NewReviewService(db)}
 }
 
 // newQuestionService wires the media reference validator into the question service.
@@ -103,21 +106,10 @@ func (h *TestHandler) ListTests(c *gin.Context) {
 	for i, t := range tests {
 		ids[i] = t.ID
 	}
-	mine := map[uuid.UUID]int{}
-	if len(ids) > 0 {
-		var rs []models.Rating
-		h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND item_type = 'test' AND item_id IN ?", user.ID, ids).Find(&rs)
-		for _, r := range rs {
-			mine[r.ItemID] = r.Value
-		}
-	}
+	mine := items.MyRatings(c.Request.Context(), h.DB, user.ID, items.Test, ids)
 	views := make([]testView, len(tests))
 	for i, t := range tests {
-		views[i] = testView{Test: t}
-		if v, ok := mine[t.ID]; ok {
-			vv := v
-			views[i].MyRating = &vv
-		}
+		views[i] = testView{Test: t, MyRating: items.Ptr(mine, t.ID)}
 	}
 	c.JSON(http.StatusOK, gin.H{"tests": views})
 }
@@ -253,13 +245,13 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 
 	var req createTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	courseID, err := uuid.Parse(req.CourseID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid course_id"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid course_id")
 		return
 	}
 	// 'custom' tests are only ever produced by the generator, never authored.
@@ -276,13 +268,29 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 		return
 	}
 
-	requiresSub := true
-	var course models.Course
-	if h.DB.Where("id = ?", courseID).First(&course).Error == nil {
-		if course.Slug != "neet-ug" {
-			requiresSub = false
+	var sID, cID *uuid.UUID
+	if req.SubjectID != nil && *req.SubjectID != "" {
+		u, perr := uuid.Parse(*req.SubjectID)
+		if perr != nil {
+			respondErr(c, http.StatusBadRequest, "invalid_id", "invalid subject_id")
+			return
 		}
+		sID = &u
 	}
+	if req.ChapterID != nil && *req.ChapterID != "" {
+		u, perr := uuid.Parse(*req.ChapterID)
+		if perr != nil {
+			respondErr(c, http.StatusBadRequest, "invalid_id", "invalid chapter_id")
+			return
+		}
+		cID = &u
+	}
+	course, sID, cID, terr := services.ResolveTaxonomy(c.Request.Context(), h.DB, courseID, sID, cID)
+	if terr != nil {
+		respondService(c, terr)
+		return
+	}
+	requiresSub := course.DefaultRequiresSubscription
 	if req.RequiresSubscription != nil {
 		requiresSub = *req.RequiresSubscription
 	}
@@ -296,20 +304,6 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 		marksWrong = *req.MarksPerWrong
 	}
 
-	var sID, cID *uuid.UUID
-	if req.SubjectID != nil && *req.SubjectID != "" {
-		u, err := uuid.Parse(*req.SubjectID)
-		if err == nil {
-			sID = &u
-		}
-	}
-	if req.ChapterID != nil && *req.ChapterID != "" {
-		u, err := uuid.Parse(*req.ChapterID)
-		if err == nil {
-			cID = &u
-		}
-	}
-
 	test := models.Test{
 		Title: req.Title, Description: req.Description, CourseID: courseID,
 		ModuleType: models.ModuleType(req.ModuleType),
@@ -319,15 +313,9 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 		CreatedBy: teacher.ID, Status: models.StatusDraft,
 	}
 	if err := h.DB.WithContext(c.Request.Context()).Create(&test).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create test"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to create test")
 		return
 	}
-	// GORM replaces a zero-value (false) bool on a `default:true` column with the
-	// default at INSERT time, so every "free" test used to be stored as paid.
-	// Write the real value back explicitly.
-	h.DB.WithContext(c.Request.Context()).Model(&test).UpdateColumns(map[string]interface{}{
-		"requires_subscription": requiresSub, "marks_per_correct": marksCorrect, "marks_per_wrong": marksWrong})
-	test.RequiresSubscription, test.MarksPerCorrect, test.MarksPerWrong = requiresSub, marksCorrect, marksWrong
 	c.JSON(http.StatusCreated, test)
 }
 
@@ -356,43 +344,68 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "test not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "test not found")
 		return
 	}
 
 	if test.Status != models.StatusDraft && test.Status != models.StatusRejected {
-		c.JSON(http.StatusConflict, errorResponse{Error: "test can only be edited in draft or rejected state"})
+		respondErr(c, http.StatusConflict, "conflict", "test can only be edited in draft or rejected state")
 		return
 	}
 
 	var req updateTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	updates := map[string]interface{}{}
 	if req.Title != nil {
+		if err := validate.MaxLen("title", *req.Title, 200); err != nil || strings.TrimSpace(*req.Title) == "" {
+			respondErr(c, http.StatusBadRequest, "invalid_title", "title is required (max 200 characters)")
+			return
+		}
 		updates["title"] = *req.Title
 	}
 	if req.Description != nil {
 		updates["description"] = *req.Description
 	}
-	if req.SubjectID != nil {
-		if *req.SubjectID == "" {
-			updates["subject_id"] = nil
-		} else if u, err := uuid.Parse(*req.SubjectID); err == nil {
-			updates["subject_id"] = u
+	if req.SubjectID != nil || req.ChapterID != nil {
+		sID, cID := test.SubjectID, test.ChapterID
+		if req.SubjectID != nil {
+			sID = nil
+			if *req.SubjectID != "" {
+				u, perr := uuid.Parse(*req.SubjectID)
+				if perr != nil {
+					respondErr(c, http.StatusBadRequest, "invalid_id", "invalid subject_id")
+					return
+				}
+				sID = &u
+			}
 		}
-	}
-	if req.ChapterID != nil {
-		if *req.ChapterID == "" {
-			updates["chapter_id"] = nil
-		} else if u, err := uuid.Parse(*req.ChapterID); err == nil {
-			updates["chapter_id"] = u
+		if req.ChapterID != nil {
+			cID = nil
+			if *req.ChapterID != "" {
+				u, perr := uuid.Parse(*req.ChapterID)
+				if perr != nil {
+					respondErr(c, http.StatusBadRequest, "invalid_id", "invalid chapter_id")
+					return
+				}
+				cID = &u
+			}
 		}
+		_, rs, rc, terr := services.ResolveTaxonomy(c.Request.Context(), h.DB, test.CourseID, sID, cID)
+		if terr != nil {
+			respondService(c, terr)
+			return
+		}
+		updates["subject_id"], updates["chapter_id"] = rs, rc
 	}
 	if req.DurationMinutes != nil {
+		if *req.DurationMinutes < 0 || *req.DurationMinutes > 600 {
+			respondErr(c, http.StatusBadRequest, "invalid_duration", "duration_minutes must be between 0 and 600")
+			return
+		}
 		updates["duration_minutes"] = *req.DurationMinutes
 	}
 	if req.MarksPerCorrect != nil {
@@ -405,7 +418,10 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 		updates["requires_subscription"] = *req.RequiresSubscription
 	}
 
-	h.DB.WithContext(c.Request.Context()).Model(&test).Updates(updates)
+	if err := h.DB.WithContext(c.Request.Context()).Model(&test).Updates(updates).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.WithContext(c.Request.Context()).First(&test, test.ID)
 	c.JSON(http.StatusOK, test)
 }
@@ -460,7 +476,6 @@ func (h *TestHandler) AddQuestion(c *gin.Context) {
 		respondService(c, err)
 		return
 	}
-	services.LoadTags(ctx, h.DB, []models.Question{*q})
 	tags := []models.Question{*q}
 	services.LoadTags(ctx, h.DB, tags)
 	q.Tags = tags[0].Tags
@@ -749,22 +764,21 @@ func (h *TestHandler) GetCSVImport(c *gin.Context) {
 //	@Router			/api/v1/teacher/tests/{id}/submit-for-review [post]
 func (h *TestHandler) SubmitForReview(c *gin.Context) {
 	teacher := middleware.GetUser(c)
-	id := c.Param("id")
-
-	var test models.Test
-	query := h.DB.Where("id = ? AND status IN ?", id, []string{string(models.StatusDraft), string(models.StatusRejected)})
-	if !canManageAllTests(teacher) {
-		query = query.Where("created_by = ?", teacher.ID)
-	}
-	if err := query.First(&test).Error; err != nil {
-		respondErr(c, http.StatusNotFound, "test_not_found", "test not found or not in draft/rejected state")
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
-	if err := h.QS.CheckPublishGate(c.Request.Context(), &test); err != nil {
+	gate := func(ctx context.Context, id uuid.UUID) error {
+		var test models.Test
+		if err := h.DB.WithContext(ctx).First(&test, "id = ?", id).Error; err != nil {
+			return err
+		}
+		return h.QS.CheckPublishGate(ctx, &test)
+	}
+	if err := h.Review.Submit(c.Request.Context(), teacher, services.ReviewTest, id, gate); err != nil {
 		respondService(c, err)
 		return
 	}
-	h.DB.WithContext(c.Request.Context()).Model(&test).Update("status", models.StatusPendingReview)
 	c.JSON(http.StatusOK, messageResponse{Message: "submitted for review"})
 }
 
@@ -781,19 +795,14 @@ func (h *TestHandler) SubmitForReview(c *gin.Context) {
 //	@Router			/api/v1/teacher/tests/{id}/publish [post]
 func (h *TestHandler) PublishTest(c *gin.Context) {
 	teacher := middleware.GetUser(c)
-	id := c.Param("id")
-
-	var test models.Test
-	query := h.DB.Where("id = ? AND status = ?", id, models.StatusApproved)
-	if !canManageAllTests(teacher) {
-		query = query.Where("created_by = ?", teacher.ID)
-	}
-	if err := query.First(&test).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "test not found or not approved"})
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
-
-	h.DB.WithContext(c.Request.Context()).Model(&test).Update("status", models.StatusPublished)
+	if err := h.Review.Publish(c.Request.Context(), teacher, services.ReviewTest, id, nil); err != nil {
+		respondService(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "test published"})
 }
 
@@ -819,12 +828,12 @@ func (h *TestHandler) DeleteTest(c *gin.Context) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
 	if err := query.First(&test).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "test not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "test not found")
 		return
 	}
 
 	if test.Status == models.StatusApproved || test.Status == models.StatusPublished {
-		c.JSON(http.StatusConflict, errorResponse{Error: "cannot delete a test that has been approved or published"})
+		respondErr(c, http.StatusConflict, "conflict", "cannot delete a test that has been approved or published")
 		return
 	}
 
@@ -865,7 +874,7 @@ func (h *TestHandler) DeleteTest(c *gin.Context) {
 		return tx.Delete(&test).Error
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to delete test"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to delete test")
 		return
 	}
 
@@ -913,13 +922,16 @@ func (h *TestHandler) TeacherGetTest(c *gin.Context) {
 func (h *TestHandler) ListTeacherTests(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 
-	var tests []models.Test
 	query := h.DB.WithContext(c.Request.Context()).Where("origin = ?", models.OriginAuthored)
 	if !canManageAllTests(teacher) {
 		query = query.Where("created_by = ?", teacher.ID)
 	}
-	query.Preload("Course").Order("created_at DESC").Find(&tests)
-	c.JSON(http.StatusOK, listTestsResponse{Tests: tests})
+	tests, next, err := paged(c, query.Preload("Course"), "tests", testKey)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"tests": tests, "next_cursor": nilIfEmpty(next)})
 }
 
 // AdminGetTest godoc
@@ -959,14 +971,19 @@ func (h *TestHandler) AdminGetTest(c *gin.Context) {
 //	@Failure		403		{object}	errorResponse
 //	@Router			/api/v1/admin/tests [get]
 func (h *TestHandler) AdminListTests(c *gin.Context) {
-	status := c.DefaultQuery("status", string(models.StatusPendingReview))
-	var tests []models.Test
-	h.DB.WithContext(c.Request.Context()).
+	status, ok := statusParam(c)
+	if !ok {
+		return
+	}
+	q := h.DB.WithContext(c.Request.Context()).
 		Where("status = ? AND origin = ?", status, models.OriginAuthored).
-		Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator").
-		Order("created_at DESC").
-		Find(&tests)
-	c.JSON(http.StatusOK, listTestsResponse{Tests: tests})
+		Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator")
+	tests, next, err := paged(c, q, "tests", testKey)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"tests": tests, "next_cursor": nilIfEmpty(next)})
 }
 
 // AdminApproveTest godoc
@@ -981,19 +998,14 @@ func (h *TestHandler) AdminListTests(c *gin.Context) {
 //	@Failure		404	{object}	errorResponse
 //	@Router			/api/v1/admin/tests/{id}/approve [post]
 func (h *TestHandler) AdminApproveTest(c *gin.Context) {
-	admin := middleware.GetUser(c)
-	id := c.Param("id")
-
-	var test models.Test
-	if err := h.DB.Where("id = ? AND status = ?", id, models.StatusPendingReview).First(&test).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "test not found or not pending review"})
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
-
-	now := time.Now()
-	h.DB.WithContext(c.Request.Context()).Model(&test).Updates(map[string]interface{}{
-		"status": models.StatusApproved, "reviewed_by": admin.ID, "reviewed_at": now,
-	})
+	if err := h.Review.Approve(c.Request.Context(), middleware.GetUser(c), services.ReviewTest, id); err != nil {
+		respondService(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "test approved"})
 }
 
@@ -1012,26 +1024,18 @@ func (h *TestHandler) AdminApproveTest(c *gin.Context) {
 //	@Failure		404		{object}	errorResponse
 //	@Router			/api/v1/admin/tests/{id}/reject [post]
 func (h *TestHandler) AdminRejectTest(c *gin.Context) {
-	admin := middleware.GetUser(c)
-	id := c.Param("id")
-
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
+		return
+	}
 	var req rejectContentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+	if !httpx.Bind(c, &req) {
 		return
 	}
-
-	var test models.Test
-	if err := h.DB.Where("id = ? AND status = ?", id, models.StatusPendingReview).First(&test).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "test not found or not pending review"})
+	if err := h.Review.Reject(c.Request.Context(), middleware.GetUser(c), services.ReviewTest, id, req.Reason); err != nil {
+		respondService(c, err)
 		return
 	}
-
-	now := time.Now()
-	h.DB.WithContext(c.Request.Context()).Model(&test).Updates(map[string]interface{}{
-		"status": models.StatusRejected, "reviewed_by": admin.ID,
-		"reviewed_at": now, "rejection_reason": req.Reason,
-	})
 	c.JSON(http.StatusOK, messageResponse{Message: "test rejected"})
 }
 
@@ -1200,3 +1204,5 @@ type adminTestDetailResponse struct {
 	Questions []models.Question     `json:"questions"`
 	Media     map[string]media.View `json:"media"`
 }
+
+func testKey(t models.Test) (time.Time, uuid.UUID) { return t.CreatedAt, t.ID }

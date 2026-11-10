@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
+	"sync"
 	"time"
 
 	"codon-backend/internal/models"
@@ -14,11 +16,10 @@ import (
 )
 
 const (
-	JobTypeCSVImport         = "csv_import"
-	JobTypeVideoStatusCheck  = "video_status_check"
-	JobTypeStreamStatusCheck = "video_status_check" // alias for backwards compatibility
-	JobTypeMediaProcess      = "media_process"
-	JobTypeRescoreQuestion   = "rescore_question"
+	JobTypeCSVImport        = "csv_import"
+	JobTypeVideoStatusCheck = "video_status_check"
+	JobTypeMediaProcess     = "media_process"
+	JobTypeRescoreQuestion  = "rescore_question"
 )
 
 // maxAttempts caps how many times a job is retried before it's abandoned.
@@ -65,9 +66,6 @@ func (p *VideoStatusCheckPayload) GUID() string {
 	return p.VideoUID
 }
 
-// StreamStatusCheckPayload alias for backwards compatibility
-type StreamStatusCheckPayload = VideoStatusCheckPayload
-
 // Worker polls for pending jobs and processes them.
 type Worker struct {
 	DB           *gorm.DB
@@ -112,80 +110,159 @@ func (w *Worker) RegisterExhaustionHandler(jobType string, fn func(ctx context.C
 	w.onExhausted[jobType] = fn
 }
 
+// Run processes jobs and runs tickers until ctx is cancelled, then waits for
+// in-flight work (up to drainTimeout) before returning.
 func (w *Worker) Run(ctx context.Context) {
 	log.Printf("[Worker] Starting — polling every %v", w.PollInterval)
+	var wg sync.WaitGroup
 	for _, t := range w.tickers {
+		wg.Add(1)
 		go func(t ticker) {
-			tk := time.NewTicker(t.every)
-			defer tk.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-tk.C:
-					func() {
-						defer func() {
-							if r := recover(); r != nil {
-								log.Printf("[Worker] ticker %s panicked: %v", t.name, r)
-							}
-						}()
-						t.fn(ctx)
-					}()
-				}
-			}
+			defer wg.Done()
+			w.runTicker(ctx, t)
 		}(t)
 	}
-	ticker := time.NewTicker(w.PollInterval)
-	defer ticker.Stop()
+	reaper := time.NewTicker(time.Minute)
+	defer reaper.Stop()
+	poll := time.NewTicker(w.PollInterval)
+	defer poll.Stop()
 
+	var inflight sync.WaitGroup
+loop:
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("[Worker] Shutting down")
+			break loop
+		case <-reaper.C:
+			w.ReapStuck(ctx)
+		case <-poll.C:
+			// drain up to batchPerTick jobs per tick so one slow job doesn't starve the rest
+			for i := 0; i < batchPerTick && ctx.Err() == nil; i++ {
+				inflight.Add(1)
+				ok := w.ProcessOne(ctx)
+				inflight.Done()
+				if !ok {
+					break
+				}
+			}
+		}
+	}
+	log.Println("[Worker] Shutting down — waiting for in-flight work")
+	done := make(chan struct{})
+	go func() { inflight.Wait(); wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(drainTimeout):
+		log.Println("[Worker] drain timeout — unfinished jobs will be re-queued by the reaper")
+	}
+}
+
+const (
+	batchPerTick = 5
+	drainTimeout = 60 * time.Second
+	// A job in `processing` longer than this is assumed to belong to a dead worker.
+	stuckAfter = 10 * time.Minute
+)
+
+// runTicker runs fn once shortly after start-up (so a restart never skips a
+// daily job) and then every t.every. A Postgres advisory lock makes sure only
+// one replica runs a given tick at a time.
+func (w *Worker) runTicker(ctx context.Context, t ticker) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(time.Duration(rand.Intn(10_000)) * time.Millisecond):
+	}
+	run := func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[Worker] ticker %s panicked: %v", t.name, r)
+			}
+		}()
+		w.withAdvisoryLock(ctx, t.name, func() { t.fn(ctx) })
+	}
+	run()
+	tk := time.NewTicker(t.every)
+	defer tk.Stop()
+	for {
+		select {
+		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			w.processNextJob(ctx)
+		case <-tk.C:
+			run()
 		}
 	}
 }
 
-func (w *Worker) processNextJob(ctx context.Context) {
-	var job models.BackgroundJob
-	err := w.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Where("status = ? AND run_after <= ? AND attempts < ?", models.JobPending, time.Now(), maxAttempts).
-			Order("created_at ASC").
-			First(&job)
-		if res.Error != nil {
-			if res.Error == gorm.ErrRecordNotFound {
-				return nil // no work
-			}
-			return res.Error
-		}
-
-		// Claim it
-		return tx.Model(&job).Updates(map[string]interface{}{
-			"status":   models.JobProcessing,
-			"attempts": gorm.Expr("attempts + 1"),
-		}).Error
-	})
+// withAdvisoryLock runs fn only if this process wins a session-level advisory
+// lock for name; otherwise another replica is already running it.
+func (w *Worker) withAdvisoryLock(ctx context.Context, name string, fn func()) {
+	sqlDB, err := w.DB.DB()
 	if err != nil {
-		log.Printf("[Worker] error claiming job: %v", err)
+		fn()
 		return
 	}
-	if job.ID == uuid.Nil {
-		return // nothing to do
+	conn, err := sqlDB.Conn(ctx)
+	if err != nil {
+		log.Printf("[Worker] ticker %s: no connection: %v", name, err)
+		return
 	}
+	defer conn.Close()
+	var got bool
+	if err := conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock(hashtext($1))", "codon.ticker."+name).Scan(&got); err != nil || !got {
+		return
+	}
+	defer conn.ExecContext(context.Background(), "SELECT pg_advisory_unlock(hashtext($1))", "codon.ticker."+name)
+	fn()
+}
 
+// ReapStuck re-queues jobs a crashed worker left in `processing`.
+func (w *Worker) ReapStuck(ctx context.Context) {
+	res := w.DB.WithContext(ctx).Exec(
+		`UPDATE background_jobs SET status = 'pending', run_after = now(), updated_at = now()
+		 WHERE status = 'processing' AND locked_at < ?`, time.Now().Add(-stuckAfter))
+	if res.Error != nil {
+		log.Printf("[Worker] reaper: %v", res.Error)
+	} else if res.RowsAffected > 0 {
+		log.Printf("[Worker] re-queued %d stuck jobs", res.RowsAffected)
+	}
+}
+
+// claimNext atomically takes one due job (FOR UPDATE SKIP LOCKED) so several
+// workers never run the same job.
+func (w *Worker) claimNext(ctx context.Context) (*models.BackgroundJob, error) {
+	var jobs []models.BackgroundJob
+	err := w.DB.WithContext(ctx).Raw(`
+		UPDATE background_jobs SET status = 'processing', attempts = attempts + 1,
+		       locked_at = now(), updated_at = now()
+		WHERE id = (
+			SELECT id FROM background_jobs
+			WHERE status = 'pending' AND run_after <= now() AND attempts < ?
+			ORDER BY run_after, created_at
+			FOR UPDATE SKIP LOCKED LIMIT 1)
+		RETURNING *`, maxAttempts).Scan(&jobs).Error
+	if err != nil || len(jobs) == 0 {
+		return nil, err
+	}
+	return &jobs[0], nil
+}
+
+// ProcessOne claims and runs one due job. It reports whether a job was found.
+func (w *Worker) ProcessOne(ctx context.Context) bool {
+	job, err := w.claimNext(ctx)
+	if err != nil {
+		log.Printf("[Worker] error claiming job: %v", err)
+		return false
+	}
+	if job == nil {
+		return false
+	}
 	log.Printf("[Worker] Processing job %s type=%s", job.ID, job.Type)
 
 	handler, ok := w.handlers[job.Type]
 	if !ok {
-		errMsg := fmt.Sprintf("no handler for job type: %s", job.Type)
-		w.DB.Model(&job).Updates(map[string]interface{}{
-			"status":     models.JobFailed,
-			"last_error": errMsg,
-		})
-		return
+		w.finish(job, models.JobFailed, fmt.Sprintf("no handler for job type: %s", job.Type), nil)
+		return true
 	}
 
 	jobCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
@@ -193,37 +270,35 @@ func (w *Worker) processNextJob(ctx context.Context) {
 
 	if err := handler(jobCtx, job.Payload); err != nil {
 		log.Printf("[Worker] Job %s failed: %v", job.ID, err)
-		errMsg := err.Error()
-
-		// job.Attempts reflects the count from before this transaction's
-		// increment (GORM's gorm.Expr update doesn't refresh the in-memory
-		// struct), so the attempt just used is job.Attempts + 1.
-		attemptsUsed := job.Attempts + 1
-		if attemptsUsed >= maxAttempts {
-			log.Printf("[Worker] Job %s exhausted %d attempts — giving up", job.ID, attemptsUsed)
-			w.DB.Model(&job).Updates(map[string]interface{}{
-				"status":     models.JobFailed,
-				"last_error": errMsg,
-			})
+		// attempts was already incremented by the claim.
+		if job.Attempts >= maxAttempts {
+			log.Printf("[Worker] Job %s exhausted %d attempts — giving up", job.ID, job.Attempts)
+			w.finish(job, models.JobFailed, err.Error(), nil)
 			if fn, ok := w.onExhausted[job.Type]; ok {
-				fn(ctx, job.Payload)
+				fn(context.Background(), job.Payload)
 			}
-			return
+			return true
 		}
-
-		nextRun := time.Now().Add(1 * time.Minute) // backoff
-		w.DB.Model(&job).Updates(map[string]interface{}{
-			"status":     models.JobPending,
-			"last_error": errMsg,
-			"run_after":  nextRun,
-		})
-		return
+		next := time.Now().Add(1 * time.Minute) // backoff
+		w.finish(job, models.JobPending, err.Error(), &next)
+		return true
 	}
-
-	now := time.Now()
-	w.DB.Model(&job).Updates(map[string]interface{}{
-		"status":     models.JobDone,
-		"updated_at": now,
-	})
+	w.finish(job, models.JobDone, "", nil)
 	log.Printf("[Worker] Job %s done", job.ID)
+	return true
+}
+
+// finish records the outcome. It uses a fresh context so a cancelled worker
+// still records what happened to the job it was running.
+func (w *Worker) finish(job *models.BackgroundJob, status models.JobStatus, lastErr string, runAfter *time.Time) {
+	upd := map[string]interface{}{"status": status, "locked_at": nil, "updated_at": time.Now()}
+	if lastErr != "" {
+		upd["last_error"] = lastErr
+	}
+	if runAfter != nil {
+		upd["run_after"] = *runAfter
+	}
+	if err := w.DB.WithContext(context.Background()).Model(&models.BackgroundJob{}).Where("id = ?", job.ID).Updates(upd).Error; err != nil {
+		log.Printf("[Worker] could not record outcome of job %s: %v", job.ID, err)
+	}
 }

@@ -43,4 +43,3 @@ func TestCheckAccess_FreeContent(t *testing.T) {
 		t.Fatalf("expected free content to pass, got error: %v", err)
 	}
 }
-

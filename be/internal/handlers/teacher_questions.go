@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -319,7 +320,7 @@ func (h *TeacherQuestionHandler) BulkUpdate(c *gin.Context) {
 		if bf, ok := err.(*bulkFail); ok {
 			var ce *services.CodedError
 			code, msg := "bulk_failed", bf.Err.Error()
-			if asCoded(bf.Err, &ce) {
+			if errors.As(bf.Err, &ce) {
 				code, msg = ce.Code, ce.Msg
 			}
 			respondErr(c, http.StatusUnprocessableEntity, code, msg+" — nothing was changed", gin.H{"id": bf.ID})

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -97,6 +98,20 @@ type attemptSnapshot struct {
 	ModuleType      string  `json:"module_type"`
 }
 
+// marksFor returns the marking scheme an attempt was started with (frozen in
+// config_snapshot), falling back to the test's current values for legacy
+// attempts that have no snapshot. Scores therefore never change because a
+// teacher edited the test afterwards.
+func marksFor(a *models.StudentAttempt, t *models.Test) (correct, wrong float64) {
+	if len(a.ConfigSnapshot) > 0 {
+		var snap attemptSnapshot
+		if json.Unmarshal(a.ConfigSnapshot, &snap) == nil && (snap.MarksPerCorrect != 0 || snap.MarksPerWrong != 0) {
+			return snap.MarksPerCorrect, snap.MarksPerWrong
+		}
+	}
+	return t.MarksPerCorrect, t.MarksPerWrong
+}
+
 // StartAttempt starts a new attempt or resumes the in-progress one.
 //
 //   - Timed tests get a server-side deadline (expires_at) — the client's clock
@@ -185,19 +200,6 @@ func (s *ScoringService) loadStartResult(ctx context.Context, attemptID uuid.UUI
 	return &StartResult{Attempt: &attempt, Answers: answers, ServerNow: time.Now()}, nil
 }
 
-// GetOrCreateAttempt is kept for callers that only need the attempt row.
-func (s *ScoringService) GetOrCreateAttempt(ctx context.Context, userID, testID uuid.UUID) (*models.StudentAttempt, error) {
-	var test models.Test
-	if err := s.DB.WithContext(ctx).First(&test, "id = ?", testID).Error; err != nil {
-		return nil, err
-	}
-	res, err := s.StartAttempt(ctx, userID, &test)
-	if err != nil {
-		return nil, err
-	}
-	return res.Attempt, nil
-}
-
 // ── Answers ───────────────────────────────────────────────────────────────────
 
 // AnswerInput is a partial update of one answer. Fields that are not "set"
@@ -222,7 +224,9 @@ func (s *ScoringService) activeAttempt(ctx context.Context, userID, attemptID uu
 	}
 	if expired(&attempt, time.Now()) {
 		// Deadline passed: finalise it now rather than waiting for the sweeper.
-		_, _ = s.submit(ctx, attempt.ID, userID, nil, true)
+		if _, serr := s.submit(ctx, attempt.ID, userID, nil, true); serr != nil {
+			log.Printf("[scoring] auto-submit of expired attempt %s failed: %v", attempt.ID, serr)
+		}
 		return nil, Coded(http.StatusConflict, "attempt_expired", "time is up — this attempt was submitted",
 			map[string]interface{}{"attempt_id": attempt.ID})
 	}
@@ -380,18 +384,23 @@ func (s *ScoringService) Reveal(ctx context.Context, userID, attemptID, question
 		return nil, NotFound("question_not_found", "question not found")
 	}
 	var test models.Test
-	s.DB.WithContext(ctx).First(&test, "id = ?", attempt.TestID)
+	if err := s.DB.WithContext(ctx).First(&test, "id = ?", attempt.TestID).Error; err != nil {
+		return nil, err
+	}
 
 	correct := *ans.SelectedOption == q.CorrectOption
-	marks := test.MarksPerWrong
+	mc, mw := marksFor(attempt, &test)
+	marks := mw
 	if correct {
-		marks = test.MarksPerCorrect
+		marks = mc
 	}
 	now := time.Now()
 	if ans.RevealedAt == nil {
-		s.DB.WithContext(ctx).Model(&models.AttemptAnswer{}).Where("id = ?", ans.ID).Updates(map[string]interface{}{
+		if err := s.DB.WithContext(ctx).Model(&models.AttemptAnswer{}).Where("id = ?", ans.ID).Updates(map[string]interface{}{
 			"revealed_at": now, "is_correct": correct, "marks_awarded": marks,
-		})
+		}).Error; err != nil {
+			return nil, err
+		}
 	}
 	return &RevealResult{QuestionID: q.ID, CorrectOption: string(q.CorrectOption), Explanation: q.Explanation,
 		IsCorrect: correct, Marks: marks, Question: &q}, nil
@@ -411,7 +420,7 @@ func (s *ScoringService) submit(ctx context.Context, attemptID, userID uuid.UUID
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND user_id = ? AND status = ?", attemptID, userID, models.AttemptInProgress).
 			First(&attempt).Error; err != nil {
-			return fmt.Errorf("attempt not found or not in progress")
+			return Forbidden("attempt_not_active", "attempt not found or not in progress")
 		}
 		if !auto {
 			if err := checkDevice(ctx, &attempt); err != nil {
@@ -427,7 +436,10 @@ func (s *ScoringService) submit(ctx context.Context, attemptID, userID uuid.UUID
 			return err
 		}
 		var answers []models.AttemptAnswer
-		tx.Where("attempt_id = ?", attempt.ID).Find(&answers)
+		if err := tx.Where("attempt_id = ?", attempt.ID).Find(&answers).Error; err != nil {
+			return err
+		}
+		markCorrect, markWrong := marksFor(&attempt, &test)
 		byQ := make(map[uuid.UUID]*models.AttemptAnswer, len(answers))
 		for i := range answers {
 			byQ[answers[i].QuestionID] = &answers[i]
@@ -435,7 +447,7 @@ func (s *ScoringService) submit(ctx context.Context, attemptID, userID uuid.UUID
 
 		var score float64
 		var correctN, wrongN, unattemptedN int
-		total := float64(len(questions)) * test.MarksPerCorrect
+		total := float64(len(questions)) * markCorrect
 		now := time.Now()
 
 		type stateUpd struct {
@@ -459,30 +471,34 @@ func (s *ScoringService) submit(ctx context.Context, attemptID, userID uuid.UUID
 			}
 			if ans.SelectedOption == nil {
 				unattemptedN++
-				tx.Model(&models.AttemptAnswer{}).Where("id = ?", ans.ID).Updates(map[string]interface{}{
+				if err := tx.Model(&models.AttemptAnswer{}).Where("id = ?", ans.ID).Updates(map[string]interface{}{
 					"position": q.Position, "is_correct": nil, "marks_awarded": nil,
-				})
+				}).Error; err != nil {
+					return err
+				}
 				states = append(states, stateUpd{q.ID, false, false, nil})
 				continue
 			}
 			isCorrect := *ans.SelectedOption == q.CorrectOption
-			marks := test.MarksPerWrong
+			marks := markWrong
 			if isCorrect {
-				marks = test.MarksPerCorrect
+				marks = markCorrect
 				correctN++
 			} else {
 				wrongN++
 			}
 			score += marks
-			tx.Model(&models.AttemptAnswer{}).Where("id = ?", ans.ID).Updates(map[string]interface{}{
+			if err := tx.Model(&models.AttemptAnswer{}).Where("id = ?", ans.ID).Updates(map[string]interface{}{
 				"is_correct": isCorrect, "marks_awarded": marks, "position": q.Position,
-			})
+			}).Error; err != nil {
+				return err
+			}
 			states = append(states, stateUpd{q.ID, true, isCorrect, ans.TimeSpentSeconds})
 		}
 
 		taken := int(now.Sub(attempt.StartedAt).Seconds())
-		if timeTaken != nil {
-			taken = *timeTaken
+		if timeTaken != nil && *timeTaken >= 0 && *timeTaken < taken {
+			taken = *timeTaken // the client may report less than the server measured, never more
 		}
 		if test.DurationMinutes != nil && *test.DurationMinutes > 0 {
 			if max := *test.DurationMinutes * 60; taken > max {
@@ -505,6 +521,13 @@ func (s *ScoringService) submit(ctx context.Context, attemptID, userID uuid.UUID
 		if err := tx.Save(&attempt).Error; err != nil {
 			return fmt.Errorf("saving attempt: %w", err)
 		}
+
+		// Admins test-drive tests; their attempts must not skew cohort statistics.
+		var role string
+		if err := tx.Model(&models.User{}).Select("role").Where("id = ?", userID).Scan(&role).Error; err != nil {
+			return err
+		}
+		countInCohort := role != string(models.RoleAdmin)
 
 		// Per-student question state (drives status filters + weak areas).
 		for _, st := range states {
@@ -547,7 +570,7 @@ func (s *ScoringService) submit(ctx context.Context, attemptID, userID uuid.UUID
 				WHERE user_id = ? AND question_id = ? AND srs_due_at IS NULL AND last_result IN ('correct','incorrect')`, userID, st.qid).Error; err != nil {
 				return err
 			}
-			if st.answered {
+			if st.answered && countInCohort {
 				ts := 0
 				timed := 0
 				if st.timeSec != nil {
@@ -577,15 +600,8 @@ func (s *ScoringService) submit(ctx context.Context, attemptID, userID uuid.UUID
 	return result, nil
 }
 
-// RecordDailyActivity marks the day as active (drives the streak).
-func RecordDailyActivity(db *gorm.DB, userID uuid.UUID, at time.Time) error {
-	day := at.Truncate(24 * time.Hour)
-	return db.Clauses(clause.OnConflict{DoNothing: true}).
-		Create(&models.DailyActivity{UserID: userID, Date: day, CreatedAt: at}).Error
-}
-
 // AutoSubmitExpired finalises in-progress attempts whose deadline (+grace) has
-// passed. Safe to run from several workers at once (row locks + SKIP LOCKED).
+// passed. Safe to run from several workers at once (row locks + FOR UPDATE inside submit; a concurrent run just fails its lock and is retried next tick).
 func (s *ScoringService) AutoSubmitExpired(ctx context.Context, limit int) (int, error) {
 	cutoff := time.Now().Add(-time.Duration(graceSeconds()) * time.Second)
 	var rows []struct {

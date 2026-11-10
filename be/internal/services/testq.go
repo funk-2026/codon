@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"codon-backend/internal/models"
-	"codon-backend/internal/settings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -16,65 +15,35 @@ type QuestionWithPos struct {
 	Position int `gorm:"column:position" json:"position"`
 }
 
-// readViaJoin reports whether test membership is read through test_questions
-// (the default, D1-B) or the legacy questions.test_id link. The switch exists
-// so the join-based read path can be rolled back without a deploy.
-func readViaJoin() bool {
-	if settings.Default == nil {
-		return true
-	}
-	v := settings.Default.String("test_questions.read_via_join")
-	return v != "false"
-}
-
 // LoadTestQuestions returns the questions of a test in position order.
+// Membership and order live in test_questions; questions.test_id is only the
+// authoring ("home") test.
 func LoadTestQuestions(ctx context.Context, db *gorm.DB, testID uuid.UUID) ([]QuestionWithPos, error) {
 	var out []QuestionWithPos
-	var err error
-	if readViaJoin() {
-		err = db.WithContext(ctx).
-			Table("questions").
-			Select("questions.*, test_questions.position AS position").
-			Joins("JOIN test_questions ON test_questions.question_id = questions.id").
-			Where("test_questions.test_id = ?", testID).
-			Order("test_questions.position ASC, questions.id ASC").
-			Scan(&out).Error
-	} else {
-		err = db.WithContext(ctx).
-			Table("questions").
-			Select("questions.*, questions.order_index AS position").
-			Where("questions.test_id = ?", testID).
-			Order("questions.order_index ASC, questions.id ASC").
-			Scan(&out).Error
-	}
+	err := db.WithContext(ctx).
+		Table("questions").
+		Select("questions.*, test_questions.position AS position").
+		Joins("JOIN test_questions ON test_questions.question_id = questions.id").
+		Where("test_questions.test_id = ?", testID).
+		Order("test_questions.position ASC, questions.id ASC").
+		Scan(&out).Error
 	return out, err
 }
 
 // TestQuestionCount counts the questions in a test.
 func TestQuestionCount(ctx context.Context, db *gorm.DB, testID uuid.UUID) (int64, error) {
 	var n int64
-	if readViaJoin() {
-		err := db.WithContext(ctx).Model(&models.TestQuestion{}).Where("test_id = ?", testID).Count(&n).Error
-		return n, err
-	}
-	err := db.WithContext(ctx).Model(&models.Question{}).Where("test_id = ?", testID).Count(&n).Error
+	err := db.WithContext(ctx).Model(&models.TestQuestion{}).Where("test_id = ?", testID).Count(&n).Error
 	return n, err
 }
 
-// QuestionInTest reports whether a question belongs to a test.
+// QuestionInTest reports whether a question belongs to a test, and its position.
 func QuestionInTest(ctx context.Context, db *gorm.DB, testID, questionID uuid.UUID) (position int, ok bool) {
-	if readViaJoin() {
-		var tq models.TestQuestion
-		if err := db.WithContext(ctx).Where("test_id = ? AND question_id = ?", testID, questionID).First(&tq).Error; err != nil {
-			return 0, false
-		}
-		return tq.Position, true
-	}
-	var q models.Question
-	if err := db.WithContext(ctx).Where("id = ? AND test_id = ?", questionID, testID).First(&q).Error; err != nil {
+	var tq models.TestQuestion
+	if err := db.WithContext(ctx).Where("test_id = ? AND question_id = ?", testID, questionID).First(&tq).Error; err != nil {
 		return 0, false
 	}
-	return q.OrderIndex, true
+	return tq.Position, true
 }
 
 // AddQuestionToTest dual-writes the membership row (call inside the same

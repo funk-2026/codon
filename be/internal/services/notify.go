@@ -3,6 +3,7 @@ package services
 import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"log"
 
 	"codon-backend/internal/models"
 )
@@ -14,5 +15,7 @@ func Notify(db *gorm.DB, userID uuid.UUID, typ, title, body string, data map[str
 	if data != nil {
 		n.Data = jsonBytes(data)
 	}
-	db.Create(&n)
+	if err := db.Create(&n).Error; err != nil {
+		log.Printf("[notify] could not store %s notification for %s: %v", typ, userID, err)
+	}
 }

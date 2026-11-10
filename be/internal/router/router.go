@@ -4,8 +4,6 @@
 package router
 
 import (
-	"net/http"
-
 	"codon-backend/internal/generation"
 	"codon-backend/internal/handlers"
 	"codon-backend/internal/middleware"
@@ -18,11 +16,10 @@ import (
 
 // Deps are the collaborators the routes need.
 type Deps struct {
-	DB          *gorm.DB
-	Auth        gin.HandlerFunc
-	SubSvc      *services.SubscriptionService
-	KYCRequired func() bool
-	Scoring     *services.ScoringService
+	DB      *gorm.DB
+	Auth    gin.HandlerFunc
+	SubSvc  *services.SubscriptionService
+	Scoring *services.ScoringService
 
 	Tests     *handlers.TestHandler
 	Attempts  *handlers.AttemptHandler
@@ -43,18 +40,18 @@ type Deps struct {
 }
 
 // NewDeps builds all handlers from a DB and the shared services.
-func NewDeps(db *gorm.DB, auth gin.HandlerFunc, sub *services.SubscriptionService, scoring *services.ScoringService, kycRequired func() bool) *Deps {
-	eng := generation.NewEngine(db, sub, kycRequired)
+func NewDeps(db *gorm.DB, auth gin.HandlerFunc, sub *services.SubscriptionService, scoring *services.ScoringService) *Deps {
+	eng := generation.NewEngine(db, sub)
 	an := handlers.NewAnalyticsHandler(db, eng)
 	return &Deps{
-		Extras: handlers.NewExtrasHandler(db, sub, kycRequired, eng, an),
-		DB:     db, Auth: auth, SubSvc: sub, KYCRequired: kycRequired, Scoring: scoring,
-		Tests: handlers.NewTestHandler(db), Attempts: handlers.NewAttemptHandler(db, scoring),
+		Extras: handlers.NewExtrasHandler(db, sub, eng, an),
+		DB:     db, Auth: auth, SubSvc: sub, Scoring: scoring,
+		Tests: handlers.NewTestHandler(db), Attempts: handlers.NewAttemptHandler(db, scoring, sub),
 		Media: handlers.NewMediaHandler(db), TQ: handlers.NewTeacherQuestionHandler(db),
 		Taxonomy: handlers.NewTaxonomyHandler(db), AppConfig: handlers.NewAppConfigHandler(db),
 		Bookmarks: handlers.NewBookmarkHandler(db), Reports: handlers.NewReportHandler(db),
 		Corrs: handlers.NewCorrectionHandler(db), Ratings: handlers.NewRatingHandler(db),
-		Custom: handlers.NewCustomTestHandler(db, eng), Analytics: an, Hacks: handlers.NewBrainHackHandler(db), Cards: handlers.NewFlashcardHandler(db, sub, kycRequired),
+		Custom: handlers.NewCustomTestHandler(db, eng), Analytics: an, Hacks: handlers.NewBrainHackHandler(db), Cards: handlers.NewFlashcardHandler(db, sub),
 	}
 }
 
@@ -151,19 +148,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	{
 		tests.GET("", d.Tests.ListTests)
 		tests.GET("/:id", d.Tests.GetTest)
-		tests.POST("/:id/attempts", func(c *gin.Context) {
-			user := middleware.GetUser(c)
-			var test models.Test
-			if err := d.DB.Where("id = ? AND status = ? AND archived_at IS NULL", c.Param("id"), models.StatusPublished).First(&test).Error; err != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "test not found", "code": "test_not_found"})
-				return
-			}
-			if err := d.SubSvc.CheckAccess(c.Request.Context(), user, test.RequiresSubscription, test.CourseID, d.KYCRequired()); err != nil {
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": err.Error(), "code": "subscription_required"})
-				return
-			}
-			d.Attempts.StartAttempt(c)
-		})
+		tests.POST("/:id/attempts", d.Attempts.StartAttempt)
 		tests.GET("/:id/questions", d.Tests.GetQuestions)
 	}
 

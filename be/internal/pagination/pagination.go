@@ -73,3 +73,17 @@ func Page[T any](items []T, limit int, key func(T) (time.Time, uuid.UUID)) ([]T,
 	t, id := key(items[len(items)-1])
 	return items, Cursor{T: t, ID: id}.Encode()
 }
+
+// LimitOr parses ?limit= with a caller-chosen default and ceiling, for list
+// endpoints that historically returned everything: callers that send no
+// limit still get a (generous) bounded page.
+func LimitOr(raw string, def, max int) int {
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return def
+	}
+	if n > max {
+		return max
+	}
+	return n
+}

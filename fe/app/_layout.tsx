@@ -77,7 +77,7 @@ export default function RootLayout() {
             <PushProvider>
               <ToastProvider>
                 <RootNavigator />
-                <StatusBar style="auto" />
+                <StatusBar style="dark" />
               </ToastProvider>
             </PushProvider>
           </BookmarksProvider>

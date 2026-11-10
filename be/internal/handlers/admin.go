@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
+	"codon-backend/internal/httpx"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 	"codon-backend/internal/services"
@@ -17,10 +17,11 @@ import (
 type AdminHandler struct {
 	DB         *gorm.DB
 	SessionSvc *services.SessionService
+	SubSvc     *services.SubscriptionService
 }
 
-func NewAdminHandler(db *gorm.DB, sessionSvc *services.SessionService) *AdminHandler {
-	return &AdminHandler{DB: db, SessionSvc: sessionSvc}
+func NewAdminHandler(db *gorm.DB, sessionSvc *services.SessionService, sub *services.SubscriptionService) *AdminHandler {
+	return &AdminHandler{DB: db, SessionSvc: sessionSvc, SubSvc: sub}
 }
 
 // ListUsers godoc
@@ -45,12 +46,16 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 		query = query.Where("role = ?", role)
 	}
 	if search != "" {
-		query = query.Where("phone_number LIKE ? OR name ILIKE ?", "%"+search+"%", "%"+search+"%")
+		like := "%" + httpx.EscapeLike(search) + "%"
+		query = query.Where("phone_number LIKE ? OR name ILIKE ?", like, like)
 	}
 
-	var users []models.User
-	query.Order("created_at DESC").Find(&users)
-	c.JSON(http.StatusOK, listUsersResponse{Users: users})
+	users, next, err := paged(c, query, "users", func(u models.User) (time.Time, uuid.UUID) { return u.CreatedAt, u.ID })
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"users": users, "next_cursor": nilIfEmpty(next)})
 }
 
 // GetAdminUser godoc
@@ -71,7 +76,7 @@ func (h *AdminHandler) GetUser(c *gin.Context) {
 		Preload("SelectedCourse").
 		Where("id = ?", id).
 		First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "user not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "user not found")
 		return
 	}
 	c.JSON(http.StatusOK, user)
@@ -97,12 +102,12 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 
 	var req updateRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	if err := models.ValidateUserRole(req.Role); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
@@ -111,7 +116,7 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 		Where("id = ?", id).
 		Update("role", req.Role)
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "user not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "user not found")
 		return
 	}
 	c.JSON(http.StatusOK, messageResponse{Message: "role updated"})
@@ -135,7 +140,7 @@ func (h *AdminHandler) UpdateTeacherPermissions(c *gin.Context) {
 
 	var req updateTeacherPermissionsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
@@ -144,7 +149,7 @@ func (h *AdminHandler) UpdateTeacherPermissions(c *gin.Context) {
 		Where("id = ? AND role = ?", id, models.RoleTeacher).
 		Update("can_manage_all_content", req.CanManageAllContent)
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "teacher not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "teacher not found")
 		return
 	}
 	c.JSON(http.StatusOK, messageResponse{Message: "permissions updated"})
@@ -162,23 +167,16 @@ func (h *AdminHandler) UpdateTeacherPermissions(c *gin.Context) {
 //	@Failure		404	{object}	errorResponse
 //	@Router			/api/v1/admin/users/{id}/subscription [get]
 func (h *AdminHandler) GetUserSubscription(c *gin.Context) {
-	userID := c.Param("id")
-
-	var sub models.Subscription
-	err := h.DB.WithContext(c.Request.Context()).
-		Where("user_id = ? AND status = ? AND end_date >= NOW()", userID, models.SubActive).
-		Preload("Plan").
-		Preload("Course").
-		First(&sub).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusOK, adminUserSubscriptionResponse{Subscription: nil})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to fetch subscription"})
+	userID, ok := httpx.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, adminUserSubscriptionResponse{Subscription: &sub})
+	sub, err := h.SubSvc.ActiveAny(c.Request.Context(), userID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, adminUserSubscriptionResponse{Subscription: sub})
 }
 
 // GetUserSessions godoc
@@ -195,13 +193,13 @@ func (h *AdminHandler) GetUserSubscription(c *gin.Context) {
 func (h *AdminHandler) GetUserSessions(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid user id"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid user id")
 		return
 	}
 
 	sessions, err := h.SessionSvc.ListActiveSessions(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to list sessions"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to list sessions")
 		return
 	}
 	c.JSON(http.StatusOK, adminUserSessionsResponse{
@@ -222,253 +220,32 @@ func (h *AdminHandler) GetUserSessions(c *gin.Context) {
 //	@Failure		403	{object}	errorResponse
 //	@Router			/api/v1/admin/dashboard/summary [get]
 func (h *AdminHandler) DashboardSummary(c *gin.Context) {
-	var userCount, activeSubCount, pendingKYCCount, pendingTestCount, pendingContentCount int64
-
-	h.DB.Model(&models.User{}).Count(&userCount)
-	h.DB.Model(&models.Subscription{}).
-		Where("status = ? AND end_date >= NOW()", models.SubActive).
-		Count(&activeSubCount)
-	h.DB.Model(&models.KYCRecord{}).
-		Where("status = ?", models.KYCPending).
-		Count(&pendingKYCCount)
-	h.DB.Model(&models.Test{}).
-		Where("status = ?", models.StatusPendingReview).
-		Count(&pendingTestCount)
-	h.DB.Model(&models.ContentItem{}).
-		Where("status = ?", models.StatusPendingReview).
-		Count(&pendingContentCount)
-
-	c.JSON(http.StatusOK, dashboardSummaryResponse{
-		TotalUsers:            userCount,
-		ActiveSubscriptions:   activeSubCount,
-		PendingKYC:            pendingKYCCount,
-		PendingTestReviews:    pendingTestCount,
-		PendingContentReviews: pendingContentCount,
-	})
+	out, err := services.NewAdminStats(h.DB).Dashboard(c.Request.Context())
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // AnalyticsOverview godoc
 //
-//	@Summary		Get admin analytics overview
-//	@Description	Returns analytics data for charts and stats
+//	@Summary		Analytics overview (Admin)
+//	@Description	Headline numbers with period-over-period deltas and chart buckets for `range` = 7D | 30D | ALL. `active_subscriptions` counts ACTIVE subscriptions created in the window.
 //	@Tags			Admin
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Success		200	{object}	analyticsOverviewResponse
-//	@Failure		401	{object}	errorResponse
-//	@Failure		403	{object}	errorResponse
-//	@Router			/api/v1/admin/analytics [get]
-func calcDelta(current, previous int64) (string, bool) {
-	if previous == 0 {
-		if current == 0 {
-			return "0%", true
-		}
-		return "+100%", true
-	}
-	diff := float64(current - previous)
-	pct := (diff / float64(previous)) * 100
-	positive := pct >= 0
-	sign := "+"
-	if !positive {
-		sign = "" // float format handles minus
-	}
-	return fmt.Sprintf("%s%.0f%%", sign, pct), positive
-}
-
-// AnalyticsOverview godoc
-//
-//	@Summary		Get admin analytics overview
-//	@Description	Returns analytics data for charts and stats, with computed deltas based on date ranges
-//	@Tags			Admin
-//	@Security		BearerAuth
-//	@Produce		json
-//	@Param			range	query		string	false	"Time range (7D, 30D, All Time)"	default(7D)
+//	@Param			range	query		string	false	"7D, 30D or ALL"	default(7D)
 //	@Success		200		{object}	analyticsOverviewResponse
-//	@Failure		401		{object}	errorResponse
-//	@Failure		403		{object}	errorResponse
+//	@Failure		400		{object}	errorResponse
 //	@Router			/api/v1/admin/analytics [get]
 func (h *AdminHandler) AnalyticsOverview(c *gin.Context) {
-	rangeStr := c.DefaultQuery("range", "7D")
-	now := time.Now()
-	var startDate, prevStartDate time.Time
-	hasPrev := false
-
-	switch rangeStr {
-	case "7D":
-		startDate = now.AddDate(0, 0, -7)
-		prevStartDate = startDate.AddDate(0, 0, -7)
-		hasPrev = true
-	case "30D":
-		startDate = now.AddDate(0, 0, -30)
-		prevStartDate = startDate.AddDate(0, 0, -30)
-		hasPrev = true
-	default:
-		// All Time
-		startDate = time.Time{}
-		hasPrev = false
+	out, err := services.NewAdminStats(h.DB).Overview(c.Request.Context(), c.DefaultQuery("range", "7D"), time.Now())
+	if err != nil {
+		respondService(c, err)
+		return
 	}
-
-	var userCount, prevUserCount int64
-	var activeSubCount, prevActiveSubCount int64
-	var testsAttempted, prevTestsAttempted int64
-
-	type result struct{ Total int64 }
-
-	// Current Period Queries
-	queryCurrent := func(model interface{}, timeCol string) *gorm.DB {
-		q := h.DB.Model(model)
-		if !startDate.IsZero() {
-			q = q.Where(timeCol+" >= ?", startDate)
-		}
-		return q
-	}
-
-	// Previous Period Queries
-	queryPrev := func(model interface{}, timeCol string) *gorm.DB {
-		if !hasPrev {
-			return h.DB.Model(model).Where("1 = 0") // Returns 0 if no previous period
-		}
-		return h.DB.Model(model).Where(timeCol+" >= ? AND "+timeCol+" < ?", prevStartDate, startDate)
-	}
-
-	queryCurrent(&models.User{}, "created_at").Count(&userCount)
-	queryPrev(&models.User{}, "created_at").Count(&prevUserCount)
-
-	queryCurrent(&models.Subscription{}, "created_at").Where("status = ?", models.SubActive).Count(&activeSubCount)
-	queryPrev(&models.Subscription{}, "created_at").Where("status = ?", models.SubActive).Count(&prevActiveSubCount)
-
-	queryCurrent(&models.StudentAttempt{}, "started_at").Count(&testsAttempted)
-	queryPrev(&models.StudentAttempt{}, "started_at").Count(&prevTestsAttempted)
-
-	var res result
-	var prevRes result
-	queryCurrent(&models.PaymentRecord{}, "created_at").
-		Select("COALESCE(SUM(amount_paise), 0) as total").Where("status = ?", models.PayCaptured).Scan(&res)
-	queryPrev(&models.PaymentRecord{}, "created_at").
-		Select("COALESCE(SUM(amount_paise), 0) as total").Where("status = ?", models.PayCaptured).Scan(&prevRes)
-
-	revenue := res.Total / 100
-	prevRevenue := prevRes.Total / 100
-
-	userDelta, userPos := calcDelta(userCount, prevUserCount)
-	revDelta, revPos := calcDelta(revenue, prevRevenue)
-	subDelta, subPos := calcDelta(activeSubCount, prevActiveSubCount)
-	testDelta, testPos := calcDelta(testsAttempted, prevTestsAttempted)
-
-	if !hasPrev {
-		userDelta, userPos = "0%", true
-		revDelta, revPos = "0%", true
-		subDelta, subPos = "0%", true
-		testDelta, testPos = "0%", true
-	}
-
-	// Keep these as global counts (or adjust if needed)
-
-	var publishedTests, publishedContent, publishedBrainHacks, pendingReviews int64
-	h.DB.Model(&models.Test{}).Where("status = ? AND origin = ?", models.StatusPublished, models.OriginAuthored).Count(&publishedTests)
-	h.DB.Model(&models.ContentItem{}).Where("status = ? AND content_type != ?", models.StatusPublished, "brain_hack").Count(&publishedContent)
-	// Brain hacks live in their own table (the old query counted a content_type that can't exist).
-	h.DB.Model(&models.BrainHack{}).Where("status = ?", models.StatusPublished).Count(&publishedBrainHacks)
-
-	var pt, pc int64
-	h.DB.Model(&models.Test{}).Where("status = ?", models.StatusPendingReview).Count(&pt)
-	h.DB.Model(&models.ContentItem{}).Where("status = ?", models.StatusPendingReview).Count(&pc)
-	var pb int64
-	h.DB.Model(&models.BrainHack{}).Where("status = ?", models.StatusPendingReview).Count(&pb)
-	pendingReviews = pt + pc + pb
-
-	// Chart Bucketing Logic
-	var numBars int
-	switch rangeStr {
-	case "7D":
-		numBars = 7
-	case "30D":
-		numBars = 30
-	default:
-		numBars = 12 // Last 12 months for All Time
-	}
-
-	revBars := make([]int, numBars)
-	studentBars := make([]int, numBars)
-	teacherBars := make([]int, numBars)
-
-	bod := func(t time.Time) time.Time {
-		y, m, d := t.Date()
-		return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
-	}
-	today := bod(now)
-
-	bucketIndex := func(t time.Time) int {
-		if rangeStr == "All Time" {
-			diffMonths := (now.Year()-t.Year())*12 + int(now.Month()-t.Month())
-			idx := (numBars - 1) - diffMonths
-			if idx >= 0 && idx < numBars {
-				return idx
-			}
-			return -1
-		}
-		tDay := bod(t)
-		diffDays := int(today.Sub(tDay).Hours() / 24)
-		idx := (numBars - 1) - diffDays
-		if idx >= 0 && idx < numBars {
-			return idx
-		}
-		return -1
-	}
-
-	type timeRec struct {
-		CreatedAt time.Time
-	}
-	type payRec struct {
-		CreatedAt   time.Time
-		AmountPaise int64
-	}
-
-	var students []timeRec
-	var teachers []timeRec
-	var payments []payRec
-
-	queryCurrent(&models.User{}, "created_at").Where("role = ?", "student").Select("created_at").Find(&students)
-	queryCurrent(&models.User{}, "created_at").Where("role = ?", "teacher").Select("created_at").Find(&teachers)
-	queryCurrent(&models.PaymentRecord{}, "created_at").Where("status = ?", models.PayCaptured).Select("created_at, amount_paise").Find(&payments)
-
-	for _, s := range students {
-		if idx := bucketIndex(s.CreatedAt); idx != -1 {
-			studentBars[idx]++
-		}
-	}
-	for _, t := range teachers {
-		if idx := bucketIndex(t.CreatedAt); idx != -1 {
-			teacherBars[idx]++
-		}
-	}
-	for _, p := range payments {
-		if idx := bucketIndex(p.CreatedAt); idx != -1 {
-			revBars[idx] += int(p.AmountPaise / 100)
-		}
-	}
-
-	c.JSON(http.StatusOK, analyticsOverviewResponse{
-		NewUsers:            userCount,
-		NewUsersDelta:       userDelta,
-		NewUsersPositive:    userPos,
-		Revenue:             revenue,
-		RevenueDelta:        revDelta,
-		RevenuePositive:     revPos,
-		ActiveSubscriptions: activeSubCount,
-		ActiveSubDelta:      subDelta,
-		ActiveSubPositive:   subPos,
-		TestsAttempted:      testsAttempted,
-		TestsAttemptedDelta: testDelta,
-		TestsAttemptedPos:   testPos,
-		RevenueBars:         revBars,
-		StudentBars:         studentBars,
-		TeacherBars:         teacherBars,
-		PublishedTests:      publishedTests,
-		PublishedContent:    publishedContent,
-		PublishedBrainHacks: publishedBrainHacks,
-		PendingReviews:      pendingReviews,
-	})
+	c.JSON(http.StatusOK, out)
 }
 
 // ── Request / Response types ──────────────────────────────────────────────────
@@ -485,35 +262,9 @@ type updateTeacherPermissionsRequest struct {
 	CanManageAllContent bool `json:"can_manage_all_content" example:"true"`
 }
 
-type dashboardSummaryResponse struct {
-	TotalUsers            int64 `json:"total_users"             example:"1420"`
-	ActiveSubscriptions   int64 `json:"active_subscriptions"    example:"830"`
-	PendingKYC            int64 `json:"pending_kyc"             example:"12"`
-	PendingTestReviews    int64 `json:"pending_test_reviews"    example:"5"`
-	PendingContentReviews int64 `json:"pending_content_reviews" example:"3"`
-}
+type dashboardSummaryResponse = services.DashboardSummary
 
-type analyticsOverviewResponse struct {
-	NewUsers            int64  `json:"new_users"`
-	NewUsersDelta       string `json:"new_users_delta"`
-	NewUsersPositive    bool   `json:"new_users_positive"`
-	Revenue             int64  `json:"revenue"`
-	RevenueDelta        string `json:"revenue_delta"`
-	RevenuePositive     bool   `json:"revenue_positive"`
-	ActiveSubscriptions int64  `json:"active_subscriptions"`
-	ActiveSubDelta      string `json:"active_subscriptions_delta"`
-	ActiveSubPositive   bool   `json:"active_subscriptions_positive"`
-	TestsAttempted      int64  `json:"tests_attempted"`
-	TestsAttemptedDelta string `json:"tests_attempted_delta"`
-	TestsAttemptedPos   bool   `json:"tests_attempted_positive"`
-	RevenueBars         []int  `json:"revenue_bars"`
-	StudentBars         []int  `json:"student_bars"`
-	TeacherBars         []int  `json:"teacher_bars"`
-	PublishedTests      int64  `json:"published_tests"`
-	PublishedContent    int64  `json:"published_content"`
-	PublishedBrainHacks int64  `json:"published_brain_hacks"`
-	PendingReviews      int64  `json:"pending_reviews"`
-}
+type analyticsOverviewResponse = services.AnalyticsOverview
 
 type adminUserSubscriptionResponse struct {
 	Subscription *models.Subscription `json:"subscription"`

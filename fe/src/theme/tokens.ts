@@ -1,7 +1,5 @@
 import { TextStyle } from 'react-native';
 
-export type ThemeMode = 'light' | 'dark';
-
 export type ColorToken =
   | 'bg/canvas'
   | 'bg/surface'
@@ -17,6 +15,9 @@ export type ColorToken =
   | 'accent/pressed'
   | 'accent/tint'
   | 'accent/on-accent'
+  | 'highlight/default'
+  | 'highlight/tint'
+  | 'highlight/on-tint'
   | 'semantic/success'
   | 'semantic/warning'
   | 'semantic/danger'
@@ -30,64 +31,43 @@ export type ColorToken =
   | 'wellness/text-primary'
   | 'media/paper';
 
-export const colors: Record<ThemeMode, Record<ColorToken, string>> = {
-  light: {
-    'bg/canvas': '#FAFAF9',
-    'bg/surface': '#FFFFFF',
-    'bg/surface-raised': '#FFFFFF',
-    'bg/sunken': '#F2F1ED',
-    'border/subtle': '#E7E5DF',
-    'border/strong': '#CFCCC3',
-    'text/primary': '#1C1B1F',
-    'text/secondary': '#5B5A63',
-    'text/tertiary': '#9C9AA3',
-    'text/inverse': '#FFFFFF',
-    'accent/default': '#4B3FE4',
-    'accent/pressed': '#3C31C2',
-    'accent/tint': '#EDEBFC',
-    'accent/on-accent': '#FFFFFF',
-    'semantic/success': '#1E9E6B',
-    'semantic/warning': '#C97C1D',
-    'semantic/danger': '#D53F3F',
-    'semantic/success-tint': '#E5F5EE',
-    'semantic/warning-tint': '#FBF0DE',
-    'semantic/danger-tint': '#FBE9E9',
-    'wellness/bg': '#FBF3EC',
-    'wellness/surface': '#FFFFFF',
-    'wellness/accent': '#E0714B',
-    'wellness/accent-secondary': '#7A9B7E',
-    'wellness/text-primary': '#2B211B',
-    'media/paper': '#FFFFFF',
-  },
-  dark: {
-    'bg/canvas': '#0F0F13',
-    'bg/surface': '#1A1A20',
-    'bg/surface-raised': '#22222A',
-    'bg/sunken': '#15151A',
-    'border/subtle': '#2E2E38',
-    'border/strong': '#3D3D48',
-    'text/primary': '#F5F4F2',
-    'text/secondary': '#B4B2BC',
-    'text/tertiary': '#78767F',
-    'text/inverse': '#0F0F13',
-    'accent/default': '#7A70F0',
-    'accent/pressed': '#9089F4',
-    'accent/tint': '#241F3D',
-    'accent/on-accent': '#0F0F13',
-    'semantic/success': '#3DDB9A',
-    'semantic/warning': '#F0A64B',
-    'semantic/danger': '#F26E6E',
-    'semantic/success-tint': '#12291F',
-    'semantic/warning-tint': '#2E2313',
-    'semantic/danger-tint': '#2E1717',
-    'wellness/bg': '#201A17',
-    'wellness/surface': '#2A211C',
-    'wellness/accent': '#F0916D',
-    'wellness/accent-secondary': '#93B597',
-    'wellness/text-primary': '#F3EAE4',
-    // Diagrams with transparent backgrounds stay legible on a light "paper" even in dark mode.
-    'media/paper': '#FFFFFF',
-  },
+/**
+ * Codon palette — "Ink navy and saffron". Light only.
+ *
+ * - Navy is the single brand/interactive colour (buttons, active tabs, progress, links).
+ * - Saffron ("highlight") is reserved for streaks, rewards and achievements — use sparingly.
+ * - Semantic colours are muted so answer feedback reads clearly without glare.
+ */
+export const colors: Record<ColorToken, string> = {
+  'bg/canvas': '#F8F7F4',
+  'bg/surface': '#FFFFFF',
+  'bg/surface-raised': '#FFFFFF',
+  'bg/sunken': '#F0EEE9',
+  'border/subtle': '#E6E4DE',
+  'border/strong': '#D2CFC7',
+  'text/primary': '#1B2230',
+  'text/secondary': '#556070',
+  'text/tertiary': '#939AA5',
+  'text/inverse': '#FFFFFF',
+  'accent/default': '#1F3A5F',
+  'accent/pressed': '#162B47',
+  'accent/tint': '#EAF0F6',
+  'accent/on-accent': '#FFFFFF',
+  'highlight/default': '#D99A2B',
+  'highlight/tint': '#FBF1DC',
+  'highlight/on-tint': '#86590E',
+  'semantic/success': '#2F7D4F',
+  'semantic/warning': '#A86A12',
+  'semantic/danger': '#B3402F',
+  'semantic/success-tint': '#E7F3EC',
+  'semantic/warning-tint': '#FBF1DE',
+  'semantic/danger-tint': '#FBEBE9',
+  'wellness/bg': '#FBF4EE',
+  'wellness/surface': '#FFFFFF',
+  'wellness/accent': '#C46A4A',
+  'wellness/accent-secondary': '#6F8F74',
+  'wellness/text-primary': '#2B211B',
+  'media/paper': '#FFFFFF',
 };
 
 export const fontFamily = {

@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"codon-backend/internal/httpx"
 	"codon-backend/internal/items"
 	"codon-backend/internal/media"
 	"codon-backend/internal/middleware"
@@ -20,9 +22,14 @@ import (
 
 // BrainHackHandler: short study/wellbeing tips authored by teachers, approved
 // by admins (same review workflow as tests and content), read by students.
-type BrainHackHandler struct{ DB *gorm.DB }
+type BrainHackHandler struct {
+	DB     *gorm.DB
+	Review *services.ReviewService
+}
 
-func NewBrainHackHandler(db *gorm.DB) *BrainHackHandler { return &BrainHackHandler{DB: db} }
+func NewBrainHackHandler(db *gorm.DB) *BrainHackHandler {
+	return &BrainHackHandler{DB: db, Review: services.NewReviewService(db)}
+}
 
 var defaultHackCategories = []string{"Focus", "Memory", "Exam Day"}
 
@@ -192,19 +199,25 @@ func (h *BrainHackHandler) Update(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/teacher/brain-hacks/{id}/submit-for-review [post]
 func (h *BrainHackHandler) Submit(c *gin.Context) {
-	b, ok := h.mine(c)
+	user := middleware.GetUser(c)
+	id, ok := httpx.ParamUUID(c, "id")
 	if !ok {
 		return
 	}
-	if b.Status != models.StatusDraft && b.Status != models.StatusRejected {
-		respondErr(c, http.StatusConflict, "locked", "already submitted")
+	gate := func(ctx context.Context, id uuid.UUID) error {
+		var b models.BrainHack
+		if err := h.DB.WithContext(ctx).First(&b, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if b.Title == "" || b.Body == "" || b.Category == "" {
+			return services.Invalid("incomplete", "title, category and body are required")
+		}
+		return nil
+	}
+	if err := h.Review.Submit(c.Request.Context(), user, services.ReviewHack, id, gate); err != nil {
+		respondService(c, err)
 		return
 	}
-	if b.Title == "" || b.Body == "" || b.Category == "" {
-		respondErr(c, http.StatusUnprocessableEntity, "incomplete", "title, category and body are required")
-		return
-	}
-	h.DB.Model(b).Update("status", models.StatusPendingReview)
 	c.JSON(http.StatusOK, messageResponse{Message: "submitted for review"})
 }
 
@@ -217,15 +230,14 @@ func (h *BrainHackHandler) Submit(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/teacher/brain-hacks/{id}/publish [post]
 func (h *BrainHackHandler) Publish(c *gin.Context) {
-	b, ok := h.mine(c)
+	id, ok := httpx.ParamUUID(c, "id")
 	if !ok {
 		return
 	}
-	if b.Status != models.StatusApproved {
-		respondErr(c, http.StatusConflict, "not_approved", "only approved hacks can be published")
+	if err := h.Review.Publish(c.Request.Context(), middleware.GetUser(c), services.ReviewHack, id, nil); err != nil {
+		respondService(c, err)
 		return
 	}
-	h.DB.Model(b).Update("status", models.StatusPublished)
 	c.JSON(http.StatusOK, messageResponse{Message: "published"})
 }
 
@@ -264,13 +276,16 @@ func (h *BrainHackHandler) Delete(c *gin.Context) {
 //	@Router			/api/v1/teacher/brain-hacks [get]
 func (h *BrainHackHandler) TeacherList(c *gin.Context) {
 	user := middleware.GetUser(c)
-	var hs []models.BrainHack
-	q := h.DB.Order("created_at DESC")
+	q := h.DB.WithContext(c.Request.Context())
 	if !canManageAllContent(user) {
 		q = q.Where("author_id = ?", user.ID)
 	}
-	q.Find(&hs)
-	c.JSON(http.StatusOK, gin.H{"brain_hacks": hs, "media": h.mediaMap(c, hs)})
+	hs, next, err := paged(c, q, "brain_hacks", hackKey)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"brain_hacks": hs, "next_cursor": nilIfEmpty(next), "media": h.mediaMap(c, hs)})
 }
 
 // TeacherGet godoc
@@ -300,9 +315,17 @@ func (h *BrainHackHandler) TeacherGet(c *gin.Context) {
 //	@Success		200		{object}	map[string]interface{}
 //	@Router			/api/v1/admin/brain-hacks [get]
 func (h *BrainHackHandler) AdminList(c *gin.Context) {
-	var hs []models.BrainHack
-	h.DB.Where("status = ?", c.DefaultQuery("status", string(models.StatusPendingReview))).Order("created_at DESC").Find(&hs)
-	c.JSON(http.StatusOK, gin.H{"brain_hacks": hs, "media": h.mediaMap(c, hs)})
+	status, ok := statusParam(c)
+	if !ok {
+		return
+	}
+	q := h.DB.WithContext(c.Request.Context()).Where("status = ?", status)
+	hs, next, err := paged(c, q, "brain_hacks", hackKey)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"brain_hacks": hs, "next_cursor": nilIfEmpty(next), "media": h.mediaMap(c, hs)})
 }
 
 // AdminGet godoc
@@ -332,15 +355,14 @@ func (h *BrainHackHandler) AdminGet(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/admin/brain-hacks/{id}/approve [post]
 func (h *BrainHackHandler) Approve(c *gin.Context) {
-	admin := middleware.GetUser(c)
-	var b models.BrainHack
-	if h.DB.First(&b, "id = ? AND status = ?", c.Param("id"), models.StatusPendingReview).Error != nil {
-		respondErr(c, http.StatusNotFound, "not_found", "brain hack not found or not pending review")
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
-	now := time.Now()
-	h.DB.Model(&b).Updates(map[string]interface{}{"status": models.StatusApproved, "reviewed_by": admin.ID, "reviewed_at": now})
-	services.Notify(h.DB, b.AuthorID, "brain_hack_approved", "Your Brain Hack was approved", b.Title, map[string]interface{}{"id": b.ID})
+	if err := h.Review.Approve(c.Request.Context(), middleware.GetUser(c), services.ReviewHack, id); err != nil {
+		respondService(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "approved"})
 }
 
@@ -355,20 +377,18 @@ func (h *BrainHackHandler) Approve(c *gin.Context) {
 //	@Success		200		{object}	messageResponse
 //	@Router			/api/v1/admin/brain-hacks/{id}/reject [post]
 func (h *BrainHackHandler) Reject(c *gin.Context) {
-	admin := middleware.GetUser(c)
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
+		return
+	}
 	var req rejectContentRequest
-	if c.ShouldBindJSON(&req) != nil || len(req.Reason) < 3 {
-		respondErr(c, http.StatusBadRequest, "bad_request", "a reason is required")
+	if !httpx.Bind(c, &req) {
 		return
 	}
-	var b models.BrainHack
-	if h.DB.First(&b, "id = ? AND status = ?", c.Param("id"), models.StatusPendingReview).Error != nil {
-		respondErr(c, http.StatusNotFound, "not_found", "brain hack not found or not pending review")
+	if err := h.Review.Reject(c.Request.Context(), middleware.GetUser(c), services.ReviewHack, id, req.Reason); err != nil {
+		respondService(c, err)
 		return
 	}
-	now := time.Now()
-	h.DB.Model(&b).Updates(map[string]interface{}{"status": models.StatusRejected, "reviewed_by": admin.ID, "reviewed_at": now, "rejection_reason": req.Reason})
-	services.Notify(h.DB, b.AuthorID, "brain_hack_rejected", "Your Brain Hack needs changes", req.Reason, map[string]interface{}{"id": b.ID})
 	c.JSON(http.StatusOK, messageResponse{Message: "rejected"})
 }
 
@@ -401,25 +421,14 @@ func (h *BrainHackHandler) StudentList(c *gin.Context) {
 	if c.Query("sort") != "rating" {
 		hs, next = pagination.Page(hs, limit, func(b models.BrainHack) (time.Time, uuid.UUID) { return b.CreatedAt, b.ID })
 	}
-	mine := map[uuid.UUID]int{}
-	if len(hs) > 0 {
-		ids := make([]uuid.UUID, len(hs))
-		for i, b := range hs {
-			ids[i] = b.ID
-		}
-		var rs []models.Rating
-		h.DB.Where("user_id = ? AND item_type = 'brain_hack' AND item_id IN ?", user.ID, ids).Find(&rs)
-		for _, r := range rs {
-			mine[r.ItemID] = r.Value
-		}
+	ids := make([]uuid.UUID, len(hs))
+	for i, b := range hs {
+		ids[i] = b.ID
 	}
+	mine := items.MyRatings(c.Request.Context(), h.DB, user.ID, items.BrainHack, ids)
 	views := make([]hackView, len(hs))
 	for i, b := range hs {
-		views[i] = hackView{BrainHack: b}
-		if v, ok := mine[b.ID]; ok {
-			vv := v
-			views[i].MyRating = &vv
-		}
+		views[i] = hackView{BrainHack: b, MyRating: items.Ptr(mine, b.ID)}
 	}
 	c.JSON(http.StatusOK, gin.H{"brain_hacks": views, "next_cursor": nilIfEmpty(next), "media": h.mediaMap(c, hs)})
 }
@@ -471,3 +480,5 @@ func (h *BrainHackHandler) StudentGet(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"brain_hack": v, "media": h.mediaMap(c, []models.BrainHack{b})})
 }
+
+func hackKey(b models.BrainHack) (time.Time, uuid.UUID) { return b.CreatedAt, b.ID }

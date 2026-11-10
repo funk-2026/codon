@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"net/http"
 
 	"codon-backend/internal/middleware"
@@ -44,7 +45,7 @@ func (h *CourseHandler) GetCourse(c *gin.Context) {
 	id := c.Param("id")
 	var course models.Course
 	if err := h.DB.WithContext(c.Request.Context()).Where("id = ? AND is_active = ?", id, true).First(&course).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "course not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "course not found")
 		return
 	}
 	c.JSON(http.StatusOK, course)
@@ -111,13 +112,13 @@ func (h *PlanHandler) CreatePlan(c *gin.Context) {
 
 	var req createPlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	courseID, err := uuid.Parse(req.CourseID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid course_id"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid course_id")
 		return
 	}
 	currency := req.Currency
@@ -141,7 +142,7 @@ func (h *PlanHandler) CreatePlan(c *gin.Context) {
 		CreatedBy:    admin.ID,
 	}
 	if err := h.DB.WithContext(c.Request.Context()).Create(&plan).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create plan"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to create plan")
 		return
 	}
 	c.JSON(http.StatusCreated, plan)
@@ -165,13 +166,13 @@ func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 	id := c.Param("id")
 	var plan models.SubscriptionPlan
 	if err := h.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&plan).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "plan not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "plan not found")
 		return
 	}
 
 	var req updatePlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
@@ -195,7 +196,10 @@ func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 		updates["is_active"] = *req.IsActive
 	}
 
-	h.DB.WithContext(c.Request.Context()).Model(&plan).Updates(updates)
+	if err := h.DB.WithContext(c.Request.Context()).Model(&plan).Updates(updates).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.WithContext(c.Request.Context()).First(&plan, plan.ID)
 	c.JSON(http.StatusOK, plan)
 }
@@ -215,10 +219,13 @@ func (h *PlanHandler) DeletePlan(c *gin.Context) {
 	id := c.Param("id")
 	var plan models.SubscriptionPlan
 	if err := h.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&plan).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "plan not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "plan not found")
 		return
 	}
-	h.DB.WithContext(c.Request.Context()).Model(&plan).Update("is_active", false)
+	if err := h.DB.WithContext(c.Request.Context()).Model(&plan).Update("is_active", false).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "plan deactivated"})
 }
 

@@ -6,6 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"codon-backend/internal/authz"
+	"codon-backend/internal/bunny"
+	"codon-backend/internal/httpx"
 	"codon-backend/internal/jobs"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
@@ -20,73 +23,48 @@ import (
 type ContentHandler struct {
 	DB     *gorm.DB
 	SubSvc *services.SubscriptionService
+	Review *services.ReviewService
 }
 
 func NewContentHandler(db *gorm.DB, subSvc *services.SubscriptionService) *ContentHandler {
-	return &ContentHandler{DB: db, SubSvc: subSvc}
+	return &ContentHandler{DB: db, SubSvc: subSvc, Review: services.NewReviewService(db)}
 }
 
-func canManageAllContent(u *models.User) bool {
-	return u != nil && (u.Role == models.RoleAdmin || u.CanManageAllContent)
-}
+func canManageAllContent(u *models.User) bool { return authz.ManagesAll(u) }
 
-// kycRequired reports whether the platform currently requires approved KYC
-// before a student can access subscription-gated content.
-func kycRequired(db *gorm.DB) bool {
-	var setting models.PlatformSetting
-	if db.Where("key = ?", "kyc_required").First(&setting).Error == nil {
-		return setting.Value == "true"
-	}
-	return false
-}
-
-// CreateContent godoc
-//
-//	@Summary		Upload content item (Teacher)
-//	@Description	Creates a draft content item (video or document). For videos, a background transcoding job is automatically queued to convert the upload to HLS format. The file must be uploaded to S3 first via /uploads/presign.
-//	@Tags			Teacher
-//	@Security		BearerAuth
-//	@Accept			json
-//	@Produce		json
-//	@Param			body	body		createContentRequest	true	"Content details"
-//	@Success		201		{object}	models.ContentItem
-//	@Failure		400		{object}	errorResponse
-//	@Failure		401		{object}	errorResponse
-//	@Router			/api/v1/teacher/content [post]
 func (h *ContentHandler) CreateContent(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 
 	var req createContentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	courseID, err := uuid.Parse(req.CourseID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid course_id"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid course_id")
 		return
 	}
 
 	chapterID, err := uuid.Parse(req.ChapterID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid chapter_id"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid chapter_id")
 		return
 	}
 
 	ct := models.ContentType(req.ContentType)
 	if ct != models.ContentVideo && ct != models.ContentDocument {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "content_type must be 'video' or 'document'"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "content_type must be 'video' or 'document'")
 		return
 	}
 
-	requiresSub := true
-	var course models.Course
-	if h.DB.Where("id = ?", courseID).First(&course).Error == nil {
-		if course.Slug != "neet-ug" {
-			requiresSub = false
-		}
+	course, _, _, terr := services.ResolveTaxonomy(c.Request.Context(), h.DB, courseID, nil, &chapterID)
+	if terr != nil {
+		respondService(c, terr)
+		return
 	}
+	requiresSub := course.DefaultRequiresSubscription
 	if req.RequiresSubscription != nil {
 		requiresSub = *req.RequiresSubscription
 	}
@@ -117,24 +95,11 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 	}
 
 	if err := h.DB.WithContext(c.Request.Context()).Create(&item).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create content item"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to create content item")
 		return
 	}
-	// GORM swaps a false bool on a `default:true` column for the default at
-	// INSERT, so free items used to be stored as paid; write the real value back.
-	if !requiresSub {
-		h.DB.WithContext(c.Request.Context()).Model(&item).UpdateColumn("requires_subscription", false)
-		item.RequiresSubscription = false
-	}
-
 	if ct == models.ContentVideo {
-		guid := ""
-		if strings.HasPrefix(item.FileKey, "bunny:") {
-			guid = strings.TrimPrefix(item.FileKey, "bunny:")
-		} else if strings.HasPrefix(item.FileKey, "stream:") {
-			guid = strings.TrimPrefix(item.FileKey, "stream:")
-		}
-		if guid != "" {
+		if guid := bunny.GUIDFromKey(item.FileKey); guid != "" {
 			jobs.EnqueueJob(h.DB, jobs.JobTypeVideoStatusCheck, jobs.VideoStatusCheckPayload{
 				ContentItemID: item.ID, VideoGUID: guid,
 			})
@@ -168,13 +133,13 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
 	if err := query.First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "content item not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "content item not found")
 		return
 	}
 
 	var req updateContentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
@@ -183,9 +148,16 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 		updates["title"] = *req.Title
 	}
 	if req.ChapterID != nil {
-		if u, err := uuid.Parse(*req.ChapterID); err == nil {
-			updates["chapter_id"] = u
+		u, perr := uuid.Parse(*req.ChapterID)
+		if perr != nil {
+			respondErr(c, http.StatusBadRequest, "invalid_id", "invalid chapter_id")
+			return
 		}
+		if _, _, _, terr := services.ResolveTaxonomy(c.Request.Context(), h.DB, item.CourseID, nil, &u); terr != nil {
+			respondService(c, terr)
+			return
+		}
+		updates["chapter_id"] = u
 	}
 	fileKeyChanged := req.FileKey != nil && *req.FileKey != item.FileKey
 	if fileKeyChanged {
@@ -217,17 +189,14 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 		updates["hls_playlist_url"] = nil
 	}
 
-	h.DB.WithContext(c.Request.Context()).Model(&item).Updates(updates)
+	if err := h.DB.WithContext(c.Request.Context()).Model(&item).Updates(updates).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.WithContext(c.Request.Context()).First(&item, item.ID)
 
 	if fileKeyChanged && item.ContentType == models.ContentVideo {
-		guid := ""
-		if strings.HasPrefix(item.FileKey, "bunny:") {
-			guid = strings.TrimPrefix(item.FileKey, "bunny:")
-		} else if strings.HasPrefix(item.FileKey, "stream:") {
-			guid = strings.TrimPrefix(item.FileKey, "stream:")
-		}
-		if guid != "" {
+		if guid := bunny.GUIDFromKey(item.FileKey); guid != "" {
 			jobs.EnqueueJob(h.DB, jobs.JobTypeVideoStatusCheck, jobs.VideoStatusCheckPayload{
 				ContentItemID: item.ID, VideoGUID: guid,
 			})
@@ -249,20 +218,14 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 //	@Failure		404	{object}	errorResponse
 //	@Router			/api/v1/teacher/content/{id}/submit-for-review [post]
 func (h *ContentHandler) SubmitContentForReview(c *gin.Context) {
-	teacher := middleware.GetUser(c)
-	id := c.Param("id")
-
-	var item models.ContentItem
-	query := h.DB.Where("id = ? AND status IN ?", id, []string{string(models.StatusDraft), string(models.StatusRejected)})
-	if !canManageAllContent(teacher) {
-		query = query.Where("uploaded_by = ?", teacher.ID)
-	}
-	if err := query.First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "content item not found or not in draft/rejected"})
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
-
-	h.DB.Model(&item).Update("status", models.StatusPendingReview)
+	if err := h.Review.Submit(c.Request.Context(), middleware.GetUser(c), services.ReviewContent, id, nil); err != nil {
+		respondService(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "submitted for review"})
 }
 
@@ -278,25 +241,24 @@ func (h *ContentHandler) SubmitContentForReview(c *gin.Context) {
 //	@Failure		404	{object}	errorResponse
 //	@Router			/api/v1/teacher/content/{id}/publish [post]
 func (h *ContentHandler) PublishContent(c *gin.Context) {
-	teacher := middleware.GetUser(c)
-	id := c.Param("id")
-
-	var item models.ContentItem
-	query := h.DB.Where("id = ? AND status = ?", id, models.StatusApproved)
-	if !canManageAllContent(teacher) {
-		query = query.Where("uploaded_by = ?", teacher.ID)
-	}
-	if err := query.First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "content item not found or not approved"})
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
-
-	if item.ContentType == models.ContentVideo && (item.VideoStatus == nil || *item.VideoStatus != models.VideoReady) {
-		c.JSON(http.StatusConflict, errorResponse{Error: "video is still processing — try again once it's ready"})
+	gate := func(ctx context.Context, id uuid.UUID) error {
+		var item models.ContentItem
+		if err := h.DB.WithContext(ctx).Select("id", "content_type", "video_status").First(&item, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if item.ContentType == models.ContentVideo && (item.VideoStatus == nil || *item.VideoStatus != models.VideoReady) {
+			return services.Conflict("video_processing", "video is still processing — try again once it's ready")
+		}
+		return nil
+	}
+	if err := h.Review.Publish(c.Request.Context(), middleware.GetUser(c), services.ReviewContent, id, gate); err != nil {
+		respondService(c, err)
 		return
 	}
-
-	h.DB.Model(&item).Update("status", models.StatusPublished)
 	c.JSON(http.StatusOK, messageResponse{Message: "content published"})
 }
 
@@ -325,7 +287,7 @@ func (h *ContentHandler) TeacherGetContent(c *gin.Context) {
 	}
 
 	if err := query.First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "content not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "content not found")
 		return
 	}
 
@@ -354,7 +316,7 @@ func resolveContentURL(ctx context.Context, item *models.ContentItem) string {
 				return url
 			}
 		}
-		return "https://s3.amazonaws.com/codon-files/" + item.FileKey
+		return "" // storage not configured: never invent a public URL for a private key
 	}
 	return ""
 }
@@ -372,13 +334,16 @@ func resolveContentURL(ctx context.Context, item *models.ContentItem) string {
 func (h *ContentHandler) ListTeacherContent(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 
-	var items []models.ContentItem
 	query := h.DB.WithContext(c.Request.Context())
 	if !canManageAllContent(teacher) {
 		query = query.Where("uploaded_by = ?", teacher.ID)
 	}
-	query.Preload("Course").Order("created_at DESC").Find(&items)
-	c.JSON(http.StatusOK, listContentResponse{Content: items})
+	items, next, err := paged(c, query.Preload("Course"), "content_items", contentKey)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"content": items, "next_cursor": nilIfEmpty(next)})
 }
 
 // ─── Student Content Access ───────────────────────────────────────────────────
@@ -407,9 +372,13 @@ func (h *ContentHandler) GetChapterContent(c *gin.Context) {
 		Order(order).
 		Find(&items)
 
-	kycReq := kycRequired(h.DB)
+	access, aerr := h.SubSvc.AccessFor(c.Request.Context(), user)
+	if aerr != nil {
+		httpx.Fail(c, aerr)
+		return
+	}
 	for i := range items {
-		if h.SubSvc.CheckAccess(c.Request.Context(), user, items[i].RequiresSubscription, items[i].CourseID, kycReq) != nil {
+		if access.Allow(items[i].RequiresSubscription, items[i].CourseID) != nil {
 			items[i].FileKey = ""
 			items[i].HLSPlaylistURL = nil
 		}
@@ -450,12 +419,12 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 	if err := h.DB.WithContext(c.Request.Context()).
 		Where("id = ? AND status = ?", id, models.StatusPublished).
 		First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "content not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "content not found")
 		return
 	}
 
-	if err := h.SubSvc.CheckAccess(c.Request.Context(), user, item.RequiresSubscription, item.CourseID, kycRequired(h.DB)); err != nil {
-		c.JSON(http.StatusForbidden, errorResponse{Error: err.Error()})
+	if err := h.SubSvc.Allow(c.Request.Context(), user, item.RequiresSubscription, item.CourseID); err != nil {
+		respondErr(c, http.StatusForbidden, "forbidden", err.Error())
 		return
 	}
 
@@ -486,7 +455,7 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 		Preload("Course").Preload("Chapter").Preload("Uploader").
 		Where("id = ?", id).
 		First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "content not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "content not found")
 		return
 	}
 
@@ -510,7 +479,10 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 //	@Failure		403			{object}	errorResponse
 //	@Router			/api/v1/admin/content [get]
 func (h *ContentHandler) AdminListContent(c *gin.Context) {
-	status := c.DefaultQuery("status", string(models.StatusPendingReview))
+	status, ok := statusParam(c)
+	if !ok {
+		return
+	}
 	courseID := c.Query("course_id")
 	chapterID := c.Query("chapter_id")
 
@@ -523,11 +495,12 @@ func (h *ContentHandler) AdminListContent(c *gin.Context) {
 		query = query.Where("chapter_id = ?", chapterID)
 	}
 
-	var items []models.ContentItem
-	query.Preload("Course").Preload("Chapter").Preload("Uploader").
-		Order("created_at DESC").
-		Find(&items)
-	c.JSON(http.StatusOK, listContentResponse{Content: items})
+	items, next, err := paged(c, query.Preload("Course").Preload("Chapter").Preload("Uploader"), "content_items", contentKey)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"content": items, "next_cursor": nilIfEmpty(next)})
 }
 
 // AdminApproveContent godoc
@@ -542,19 +515,14 @@ func (h *ContentHandler) AdminListContent(c *gin.Context) {
 //	@Failure		404	{object}	errorResponse
 //	@Router			/api/v1/admin/content/{id}/approve [post]
 func (h *ContentHandler) AdminApproveContent(c *gin.Context) {
-	admin := middleware.GetUser(c)
-	id := c.Param("id")
-
-	var item models.ContentItem
-	if err := h.DB.Where("id = ? AND status = ?", id, models.StatusPendingReview).First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "content not found or not pending review"})
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
-
-	now := time.Now()
-	h.DB.Model(&item).Updates(map[string]interface{}{
-		"status": models.StatusApproved, "reviewed_by": admin.ID, "reviewed_at": now,
-	})
+	if err := h.Review.Approve(c.Request.Context(), middleware.GetUser(c), services.ReviewContent, id); err != nil {
+		respondService(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "content approved"})
 }
 
@@ -573,26 +541,18 @@ func (h *ContentHandler) AdminApproveContent(c *gin.Context) {
 //	@Failure		404		{object}	errorResponse
 //	@Router			/api/v1/admin/content/{id}/reject [post]
 func (h *ContentHandler) AdminRejectContent(c *gin.Context) {
-	admin := middleware.GetUser(c)
-	id := c.Param("id")
-
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
+		return
+	}
 	var req rejectContentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+	if !httpx.Bind(c, &req) {
 		return
 	}
-
-	var item models.ContentItem
-	if err := h.DB.Where("id = ? AND status = ?", id, models.StatusPendingReview).First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "content not found or not pending review"})
+	if err := h.Review.Reject(c.Request.Context(), middleware.GetUser(c), services.ReviewContent, id, req.Reason); err != nil {
+		respondService(c, err)
 		return
 	}
-
-	now := time.Now()
-	h.DB.Model(&item).Updates(map[string]interface{}{
-		"status": models.StatusRejected, "reviewed_by": admin.ID,
-		"reviewed_at": now, "rejection_reason": req.Reason,
-	})
 	c.JSON(http.StatusOK, messageResponse{Message: "content rejected"})
 }
 
@@ -690,3 +650,5 @@ func (h *ContentHandler) lecturePDFsFor(ctx context.Context, item *models.Conten
 	out.AnnotatedPDFURL = pdfURL(ctx, item.AnnotatedPDFKey)
 	return out
 }
+
+func contentKey(i models.ContentItem) (time.Time, uuid.UUID) { return i.CreatedAt, i.ID }

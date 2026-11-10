@@ -8,7 +8,6 @@ import (
 	"codon-backend/internal/services"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -61,11 +60,4 @@ func GetSession(c *gin.Context) *models.Session {
 	s, _ := c.Get(ContextSession)
 	session, _ := s.(*models.Session)
 	return session
-}
-
-// GetUserID extracts the user ID from context.
-func GetUserID(c *gin.Context) uuid.UUID {
-	id, _ := c.Get(ContextUserID)
-	uid, _ := id.(uuid.UUID)
-	return uid
 }

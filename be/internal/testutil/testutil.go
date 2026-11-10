@@ -134,8 +134,6 @@ func (w *World) Test(t *testing.T, module models.ModuleType, n int, free bool) m
 		Origin: models.OriginAuthored, Visibility: models.VisibilityPublic, Mode: models.ModeExam,
 	}
 	mustCreate(t, w.DB, &test)
-	// GORM turns a false bool on a `default:true` column into the default; write it back.
-	w.DB.Model(&test).UpdateColumn("requires_subscription", !free)
 	for i := 1; i <= n; i++ {
 		w.Question(t, test, i, "medium")
 	}

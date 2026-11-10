@@ -10,274 +10,54 @@ import (
 	"time"
 
 	_ "codon-backend/docs" // swagger docs
+	"codon-backend/internal/app"
 	"codon-backend/internal/config"
 	"codon-backend/internal/db"
-	"codon-backend/internal/handlers"
-	"codon-backend/internal/middleware"
-	"codon-backend/internal/models"
-	"codon-backend/internal/otp"
-	"codon-backend/internal/router"
 	rzp "codon-backend/internal/razorpay"
-	"codon-backend/internal/services"
 	"codon-backend/internal/settings"
 	"codon-backend/internal/storage"
-
-	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
-	// ─── Config ───────────────────────────────────────────────────────────────
-	config.Load()
+	config.MustLoad()
 
-	// ─── DB ──────────────────────────────────────────────────────────────────
+	// The API process owns schema changes; the worker waits for it.
 	if err := db.Connect(); err != nil {
 		log.Fatalf("DB connect: %v", err)
 	}
-
-	if err := db.AutoMigrateAll(); err != nil {
-		log.Fatalf("AutoMigrate: %v", err)
+	// Production schema comes from versioned SQL only (baseline + db/migrations).
+	// AutoMigrate stays as a convenience for local/dev databases.
+	if config.AppConfig.Env != "production" {
+		if err := db.AutoMigrateAll(); err != nil {
+			log.Fatalf("AutoMigrate: %v", err)
+		}
 	}
-
 	if err := db.RunMigrations(db.DB); err != nil {
 		log.Fatalf("RunMigrations: %v", err)
 	}
-
-	if err := db.SeedAll(db.DB); err != nil {
-		log.Fatalf("Seed: %v", err)
+	// Reference data (courses, flags, presets) is created by SQL migration 0005;
+	// the Go seeds only remain as a convenience for dev databases.
+	if config.AppConfig.Env != "production" {
+		if err := db.SeedAll(db.DB); err != nil {
+			log.Fatalf("Seed: %v", err)
+		}
 	}
-
 	settings.Init(db.DB)
-	go services.BackfillAllContentHashes(context.Background(), db.DB)
 
-	// ─── S3 ──────────────────────────────────────────────────────────────────
 	if config.AppConfig.S3AccessKeyID != "" {
 		if err := storage.Init(); err != nil {
 			log.Printf("Warning: S3 init failed: %v (presigned URLs will use stub)", err)
 		}
 	}
-
-	// ─── Razorpay ────────────────────────────────────────────────────────────
 	rzp.Init()
 
-	// ─── OTP Provider ────────────────────────────────────────────────────────
-	var otpProvider otp.OTPProvider
-	if config.AppConfig.Msg91AuthKey != "" && config.AppConfig.Msg91TemplateID != "" {
-		otpProvider = &otp.Msg91Provider{
-			AuthKey:    config.AppConfig.Msg91AuthKey,
-			TemplateID: config.AppConfig.Msg91TemplateID,
-		}
-		log.Println("OTP provider: Msg91")
-	} else if config.AppConfig.TwoFactorAPIKey != "" {
-		otpProvider = &otp.TwoFactorProvider{APIKey: config.AppConfig.TwoFactorAPIKey}
-		log.Println("OTP provider: 2Factor.in")
-	} else {
-		otpProvider = &otp.ConsoleProvider{}
-		log.Println("OTP provider: console stub (set MSG91_AUTH_KEY and MSG91_TEMPLATE_ID for real OTPs)")
-	}
-
-	// ─── Services ────────────────────────────────────────────────────────────
-	otpSvc := services.NewOTPService(db.DB, otpProvider, config.AppConfig.OTPRateLimitPerHour)
-	sessionSvc := services.NewSessionService(db.DB)
-	subSvc := services.NewSubscriptionService(db.DB)
-	scoringSvc := services.NewScoringService(db.DB)
-
-	// ─── Handlers ────────────────────────────────────────────────────────────
-	authH := handlers.NewAuthHandler(db.DB, otpSvc, sessionSvc)
-	profileH := handlers.NewProfileHandler(db.DB)
-	courseH := handlers.NewCourseHandler(db.DB)
-	planH := handlers.NewPlanHandler(db.DB)
-	paymentH := handlers.NewPaymentHandler(db.DB, subSvc)
-	kycH := handlers.NewKYCHandler(db.DB)
-	uploadH := handlers.NewUploadHandler()
-	contentH := handlers.NewContentHandler(db.DB, subSvc)
-	wellnessH := handlers.NewWellnessHandler(db.DB)
-	adminH := handlers.NewAdminHandler(db.DB, sessionSvc)
-	curriculumH := handlers.NewCurriculumHandler(db.DB)
-	feedbackH := handlers.NewFeedbackHandler(db.DB)
-
-	// ─── Gin Engine ──────────────────────────────────────────────────────────
-	if config.AppConfig.Env == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	r := gin.Default()
-	r.Use(corsMiddleware())
-
-	// Health check (public)
-	r.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now()})
-	})
-
-	// Swagger UI — available at /swagger/index.html
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-
-	// KYC flag (public read)
-	r.GET("/api/v1/platform-settings/kyc-required", kycH.GetKYCRequired)
-
-	// Razorpay webhook (public, but signature-verified inside handler)
-	r.POST("/api/v1/webhooks/razorpay", paymentH.RazorpayWebhook)
-
-	api := r.Group("/api/v1")
-
-	// ─── Auth ─────────────────────────────────────────────────────────────────
-	authGroup := api.Group("/auth")
-	{
-		authGroup.POST("/otp/send", authH.SendOTP)
-		authGroup.POST("/otp/verify", authH.VerifyOTP)
-	}
-
-	// Auth middleware for protected routes
-	auth := middleware.AuthMiddleware(sessionSvc, db.DB)
-
-	// ─── Authenticated routes ─────────────────────────────────────────────────
-	authGroup.Use(auth)
-	{
-		authGroup.POST("/logout", authH.Logout)
-		authGroup.GET("/sessions", authH.ListSessions)
-		authGroup.DELETE("/sessions/:id", authH.RevokeSession)
-	}
-
-	// Profile
-	me := api.Group("/me").Use(auth)
-	{
-		me.GET("", profileH.GetMe)
-		me.PATCH("", profileH.UpdateMe)
-		me.GET("/progress", profileH.GetProgress)
-		me.GET("/progress/breakdown", profileH.GetProgressBreakdown)
-		me.GET("/recent-content", profileH.GetRecentContent)
-		me.GET("/attempts", profileH.GetAttempts)
-		me.GET("/subscription", profileH.GetMySubscription)
-		me.POST("/kyc", kycH.SubmitKYC)
-		me.GET("/kyc", kycH.GetMyKYC)
-	}
-
-	// Feedback
-	api.POST("/feedback", auth, feedbackH.Submit)
-
-	// Courses (public)
-	courses := api.Group("/courses")
-	{
-		courses.GET("", courseH.ListCourses)
-		courses.GET("/:id", courseH.GetCourse)
-		courses.GET("/:id/curriculum", curriculumH.GetCurriculum)
-	}
-
-	// Subscription plans (public list)
-	api.GET("/subscription-plans", planH.ListPlans)
-
-	// Uploads (any authenticated)
-	api.POST("/uploads/presign", auth, uploadH.Presign)
-
-	// Subscriptions & Payments
-	subGroup := api.Group("/subscriptions").Use(auth)
-	{
-		subGroup.POST("/checkout", paymentH.Checkout)
-		subGroup.POST("/verify-payment", paymentH.VerifyPayment)
-	}
-
-	// ─── Tests (student) ──────────────────────────────────────────────────────
-	kycRequiredFn := func() bool {
-		var setting models.PlatformSetting
-		if db.DB.Where("key = ?", "kyc_required").First(&setting).Error == nil {
-			return setting.Value == "true"
-		}
-		return false
-	}
-
-	// Assessment / custom-test / rich-content routes live in internal/router
-	// (shared with the integration tests).
-	rd := router.NewDeps(db.DB, auth, subSvc, scoringSvc, kycRequiredFn)
-	router.Register(api, rd)
-
-	// Content (student)
-	studentContent := api.Group("").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
-	{
-		studentContent.GET("/chapters/:chapter_id/content", contentH.GetChapterContent)
-		studentContent.GET("/content/:id", contentH.GetContentItem)
-		studentContent.POST("/content/:id/heartbeat", profileH.ContentHeartbeat)
-	}
-
-	// ─── Teacher routes ────────────────────────────────────────────────────────
-	teacher := api.Group("/teacher").Use(auth).Use(middleware.RequireRole(models.RoleTeacher, models.RoleAdmin))
-	{
-		teacher.POST("/content", contentH.CreateContent)
-		teacher.PATCH("/content/:id", contentH.UpdateContent)
-		teacher.POST("/content/:id/submit-for-review", contentH.SubmitContentForReview)
-		teacher.GET("/content", contentH.ListTeacherContent)
-		teacher.GET("/content/:id", contentH.TeacherGetContent)
-		teacher.POST("/content/:id/publish", contentH.PublishContent)
-	}
-
-	// ─── Wellness (student) ────────────────────────────────────────────────────
-	wellness := api.Group("/wellness").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
-	{
-		wellness.GET("/content", wellnessH.ListWellnessContent)
-		wellness.GET("/content/:id", wellnessH.GetWellnessContent)
-		wellness.GET("/reflection-prompts", wellnessH.ListReflectionPrompts)
-	}
-
-	// ─── Admin routes ─────────────────────────────────────────────────────────
-	admin := api.Group("/admin").Use(auth).Use(middleware.RequireRole(models.RoleAdmin))
-	{
-		// Curriculum: admins own the whole course structure - subjects and chapters
-		admin.POST("/courses/:course_id/subjects", curriculumH.CreateSubject)
-		admin.PATCH("/subjects/:id", curriculumH.UpdateSubject)
-		admin.POST("/subjects/:subject_id/chapters", curriculumH.CreateChapter)
-		admin.PATCH("/chapters/:id", curriculumH.UpdateChapter)
-
-		// Subscription plans
-		admin.GET("/subscription-plans", planH.AdminListPlans)
-		admin.POST("/subscription-plans", planH.CreatePlan)
-		admin.PATCH("/subscription-plans/:id", planH.UpdatePlan)
-		admin.DELETE("/subscription-plans/:id", planH.DeletePlan)
-
-		// Payments
-		admin.GET("/payments", paymentH.ListPayments)
-		admin.GET("/payments/:id", paymentH.GetPayment)
-
-		// KYC
-		admin.GET("/kyc", kycH.ListKYC)
-		admin.POST("/kyc/:id/approve", kycH.ApproveKYC)
-		admin.POST("/kyc/:id/reject", kycH.RejectKYC)
-		admin.PATCH("/settings/kyc-required", kycH.SetKYCRequired)
-
-		// Tests moderation
-
-		// Content moderation
-		admin.GET("/content", contentH.AdminListContent)
-		admin.GET("/content/:id", contentH.AdminGetContent)
-		admin.POST("/content/:id/approve", contentH.AdminApproveContent)
-		admin.POST("/content/:id/reject", contentH.AdminRejectContent)
-
-		// User management
-		admin.GET("/users", adminH.ListUsers)
-		admin.GET("/users/:id", adminH.GetUser)
-		admin.PATCH("/users/:id/role", adminH.UpdateUserRole)
-		admin.PATCH("/users/:id/teacher-permissions", adminH.UpdateTeacherPermissions)
-		admin.GET("/users/:id/subscription", adminH.GetUserSubscription)
-		admin.GET("/users/:id/sessions", adminH.GetUserSessions)
-
-		// Dashboard
-		admin.GET("/dashboard/summary", adminH.DashboardSummary)
-		admin.GET("/analytics", adminH.AnalyticsOverview)
-
-		// Wellness
-		admin.POST("/wellness-content", wellnessH.CreateWellnessContent)
-		admin.PATCH("/wellness-content/:id", wellnessH.UpdateWellnessContent)
-		admin.DELETE("/wellness-content/:id", wellnessH.DeleteWellnessContent)
-	}
-
-	// ─── HTTP Server ─────────────────────────────────────────────────────────
 	srv := &http.Server{
 		Addr:         ":" + config.AppConfig.Port,
-		Handler:      r,
+		Handler:      app.NewEngine(db.DB, config.AppConfig),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
-
 	go func() {
 		log.Printf("Codon API server starting on :%s (env=%s)", config.AppConfig.Port, config.AppConfig.Env)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -285,29 +65,15 @@ func main() {
 		}
 	}()
 
-	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("Shutting down server...")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
+	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("Forced shutdown: %v", err)
 	}
 	log.Println("Server exited")
-}
-
-func corsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Authorization,Content-Type")
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-		c.Next()
-	}
 }

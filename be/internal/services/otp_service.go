@@ -5,8 +5,11 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"math/big"
+	"net/http"
+	"strings"
 	"time"
 
 	"codon-backend/internal/config"
@@ -57,6 +60,19 @@ func isReviewerPhone(phone string) bool {
 	return config.AppConfig.ReviewerPhoneNumber != "" && phone == config.AppConfig.ReviewerPhoneNumber
 }
 
+// NormalizePhone strips spaces, dashes and brackets so "+91 98765-43210" and
+// "+919876543210" are the same account. (It deliberately does not guess a
+// country code: that would orphan accounts stored in another form.)
+func NormalizePhone(p string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case ' ', '-', '(', ')', '\t':
+			return -1
+		}
+		return r
+	}, strings.TrimSpace(p))
+}
+
 // SendOTP generates, stores (hashed), rate-limits, and dispatches the OTP.
 func (s *OTPService) SendOTP(ctx context.Context, phone string) error {
 	// Reviewer test number: skip real SMS dispatch entirely, they sign in
@@ -103,7 +119,7 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) error {
 	if isReviewerPhone(phone) {
 		if config.AppConfig.ReviewerOTPCode == "" ||
 			subtle.ConstantTimeCompare([]byte(code), []byte(config.AppConfig.ReviewerOTPCode)) != 1 {
-			return fmt.Errorf("invalid OTP code")
+			return Coded(http.StatusUnauthorized, "invalid_otp", "invalid OTP code")
 		}
 		return nil
 	}
@@ -114,21 +130,26 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) error {
 		Order("created_at DESC").
 		First(&record).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("OTP not found or expired")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return Coded(http.StatusUnauthorized, "otp_expired", "OTP not found or expired")
 		}
 		return fmt.Errorf("fetching OTP: %w", err)
 	}
 
-	// Increment attempt count
-	s.DB.WithContext(ctx).Model(&record).UpdateColumn("attempts", gorm.Expr("attempts + 1"))
-
-	if record.Attempts >= maxOTPAttempts {
-		return fmt.Errorf("too many failed OTP attempts")
+	// Count this try atomically and read the new total, so concurrent guesses
+	// cannot slip past the limit.
+	var attempts int
+	if err := s.DB.WithContext(ctx).Raw(
+		"UPDATE otp_requests SET attempts = attempts + 1 WHERE id = ? RETURNING attempts", record.ID).
+		Scan(&attempts).Error; err != nil {
+		return fmt.Errorf("recording OTP attempt: %w", err)
+	}
+	if attempts > maxOTPAttempts {
+		return Coded(http.StatusTooManyRequests, "otp_locked", "too many failed OTP attempts")
 	}
 
 	if hashOTP(code) != record.OTPCodeHash {
-		return fmt.Errorf("invalid OTP code")
+		return Coded(http.StatusUnauthorized, "invalid_otp", "invalid OTP code")
 	}
 
 	// Successfully verified! Delete ALL OTP records for this phone number to prevent table bloat.

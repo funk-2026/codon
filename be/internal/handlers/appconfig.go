@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -173,7 +174,10 @@ func (h *AppConfigHandler) PatchSettings(c *gin.Context) {
 		}
 		b, _ := json.Marshal(before)
 		a, _ := json.Marshal(v)
-		h.DB.Create(&models.AdminAuditLog{ActorID: admin.ID, Action: "setting.update", Target: k, Before: b, After: a})
+		if err := h.DB.Create(&models.AdminAuditLog{ActorID: admin.ID, Action: "setting.update", Target: k, Before: b, After: a}).Error; err != nil {
+			httpx.Fail(c, err)
+			return
+		}
 	}
 	h.GetSettings(c)
 }

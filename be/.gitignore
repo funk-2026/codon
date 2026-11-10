@@ -1,0 +1,4 @@
+# build artefacts
+/api
+/worker
+/bin/

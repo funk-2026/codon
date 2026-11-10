@@ -11,6 +11,12 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+const (
+	maxDevices = 2
+	touchEvery = 5 * time.Minute
 )
 
 type SessionService struct {
@@ -23,46 +29,50 @@ func NewSessionService(db *gorm.DB) *SessionService {
 
 // Claims is the JWT payload.
 type Claims struct {
-	UserID   uuid.UUID        `json:"user_id"`
-	Role     models.UserRole  `json:"role"`
-	DeviceID string           `json:"device_id"`
+	UserID   uuid.UUID       `json:"user_id"`
+	Role     models.UserRole `json:"role"`
+	DeviceID string          `json:"device_id"`
 	jwt.RegisteredClaims
 }
 
 // CreateSession enforces the two-device limit, creates the sessions row,
 // and returns a signed JWT.
 func (s *SessionService) CreateSession(ctx context.Context, user *models.User, deviceID, deviceInfo string) (string, *models.Session, error) {
-	// Two-device limit: count active sessions
-	var activeSessions []models.Session
-	s.DB.WithContext(ctx).
-		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", user.ID, time.Now()).
-		Order("last_used_at ASC").
-		Find(&activeSessions)
-
-	// Evict oldest if already at 2
-	if len(activeSessions) >= 2 {
-		oldest := activeSessions[0]
-		s.DB.WithContext(ctx).Delete(&oldest)
-	}
-
-	// Create new session record
 	jti := uuid.New()
 	expiry := time.Now().Add(time.Duration(config.AppConfig.JWTExpiryDays) * 24 * time.Hour)
-
-	info := deviceInfo
 	session := models.Session{
 		ID:         jti,
 		UserID:     user.ID,
 		DeviceID:   deviceID,
-		DeviceInfo: &info,
 		LastUsedAt: time.Now(),
 		ExpiresAt:  expiry,
 	}
-	if deviceInfo == "" {
-		session.DeviceInfo = nil
+	if deviceInfo != "" {
+		info := deviceInfo
+		session.DeviceInfo = &info
 	}
 
-	if err := s.DB.WithContext(ctx).Create(&session).Error; err != nil {
+	// Two-device limit. The user row is locked so two simultaneous logins
+	// cannot both see "1 active session" and end up with three.
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").First(&models.User{}, "id = ?", user.ID).Error; err != nil {
+			return err
+		}
+		var active []models.Session
+		if err := tx.Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", user.ID, time.Now()).
+			Order("last_used_at ASC").Find(&active).Error; err != nil {
+			return err
+		}
+		// Evict the oldest sessions so that, with the new one, at most 2 remain.
+		for i := 0; i < len(active)-(maxDevices-1); i++ {
+			if err := tx.Delete(&active[i]).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Create(&session).Error
+	})
+	if err != nil {
 		return "", nil, fmt.Errorf("creating session: %w", err)
 	}
 
@@ -123,8 +133,13 @@ func (s *SessionService) ValidateToken(ctx context.Context, tokenStr string) (*C
 		return nil, nil, fmt.Errorf("session expired")
 	}
 
-	// Update last_used_at (best-effort, non-blocking)
-	go s.DB.Model(&session).Update("last_used_at", time.Now())
+	// Touch last_used_at at most every few minutes (one cheap guarded UPDATE,
+	// no per-request goroutine, no write on most requests).
+	if time.Since(session.LastUsedAt) > touchEvery {
+		s.DB.WithContext(ctx).Model(&models.Session{}).
+			Where("id = ? AND last_used_at < ?", session.ID, time.Now().Add(-touchEvery)).
+			Update("last_used_at", time.Now())
+	}
 
 	return claims, &session, nil
 }

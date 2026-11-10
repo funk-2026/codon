@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"codon-backend/internal/blueprint"
+	"codon-backend/internal/clock"
 	"codon-backend/internal/models"
 	"codon-backend/internal/services"
 	"codon-backend/internal/settings"
@@ -43,16 +44,12 @@ type Entitlement struct {
 }
 
 type Engine struct {
-	DB          *gorm.DB
-	Sub         *services.SubscriptionService
-	KYCRequired func() bool
+	DB  *gorm.DB
+	Sub *services.SubscriptionService
 }
 
-func NewEngine(db *gorm.DB, sub *services.SubscriptionService, kyc func() bool) *Engine {
-	if kyc == nil {
-		kyc = func() bool { return false }
-	}
-	return &Engine{DB: db, Sub: sub, KYCRequired: kyc}
+func NewEngine(db *gorm.DB, sub *services.SubscriptionService) *Engine {
+	return &Engine{DB: db, Sub: sub}
 }
 
 // EntitlementFor: admins see everything; a student with an active subscription
@@ -63,7 +60,7 @@ func (e *Engine) EntitlementFor(ctx context.Context, user *models.User, courseID
 		return Entitlement{TierAdmin, courseID}
 	}
 	sub, err := e.Sub.GetActiveSubscription(ctx, user.ID, courseID)
-	if err == nil && sub != nil && (!e.KYCRequired() || user.KYCStatus == models.KYCApproved) {
+	if err == nil && sub != nil && (!e.Sub.KYCRequired() || user.KYCStatus == models.KYCApproved) {
 		return Entitlement{TierPaid, courseID}
 	}
 	return Entitlement{TierFree, courseID}
@@ -80,8 +77,6 @@ func Limits() blueprint.Limits {
 }
 
 // ── Pool query ────────────────────────────────────────────────────────────────
-
-func inClause(vals interface{}) interface{} { return vals }
 
 // pool builds the eligible-candidate query (table alias q) for a user.
 func (e *Engine) pool(ctx context.Context, user *models.User, ent Entitlement, bp blueprint.Blueprint, fixedIDs []uuid.UUID) *gorm.DB {
@@ -689,14 +684,8 @@ type Result struct {
 	Replayed    bool         `json:"replayed"`
 }
 
-var ist = time.FixedZone("IST", 5*3600+1800)
-
-// StartOfISTDay returns today's 00:00 IST in UTC and the next reset time.
-func StartOfISTDay(now time.Time) (time.Time, time.Time) {
-	n := now.In(ist)
-	start := time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, ist)
-	return start.UTC(), start.AddDate(0, 0, 1).UTC()
-}
+// StartOfISTDay returns today's 00:00 (app timezone) in UTC and the next reset time.
+func StartOfISTDay(now time.Time) (time.Time, time.Time) { return clock.StartOfAppDay(now) }
 
 func fail(status int, code, msg string, details ...interface{}) error {
 	return services.Coded(status, code, msg, details...)
@@ -811,12 +800,6 @@ func (e *Engine) Generate(ctx context.Context, user *models.User, bp blueprint.B
 		if err := tx.Create(&test).Error; err != nil {
 			return err
 		}
-		// GORM writes the default (true) for a false bool on a default:true column.
-		// GORM also swaps a 0 marks_per_wrong for its default (-1) — write the real values back.
-		if err := tx.Model(&test).UpdateColumns(map[string]interface{}{"requires_subscription": false, "marks_per_wrong": w, "marks_per_correct": c}).Error; err != nil {
-			return err
-		}
-		test.RequiresSubscription, test.MarksPerWrong, test.MarksPerCorrect = false, w, c
 		rows := make([]models.TestQuestion, len(sel.IDs))
 		for i, id := range sel.IDs {
 			rows[i] = models.TestQuestion{TestID: test.ID, QuestionID: id, Position: i + 1}

@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { CaretLeft, CaretRight } from 'phosphor-react-native';
 import * as SecureStore from 'expo-secure-store';
 import { SecondaryButton, useToast } from '@/src/components';
-import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
+import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { deleteAccount } from '@/src/api/profile';
 import { clearAdminActiveRole } from '@/src/auth/tokenStore';
@@ -67,7 +67,7 @@ function Row({
 }
 
 export default function SettingsRoute() {
-  const { color, type, space, radius, preference, setPreference } = useTheme();
+  const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -104,12 +104,6 @@ export default function SettingsRoute() {
     else if (r === 'error') show('Couldn’t turn on notifications. Try again.', 'error');
     else if (r === 'unavailable') show('Notifications aren’t available on this build.', 'error');
   };
-
-  const segments: { key: ThemePreference; label: string }[] = [
-    { key: 'system', label: 'System' },
-    { key: 'light', label: 'Light' },
-    { key: 'dark', label: 'Dark' },
-  ];
 
   const handleLogout = async () => {
     setLogoutConfirmOpen(false);
@@ -156,51 +150,6 @@ export default function SettingsRoute() {
         showsVerticalScrollIndicator={false}
       >
         <View style={{ marginTop: space.xl }}>
-          <GroupLabel label="Appearance" />
-          <View
-            style={[
-              styles.row,
-              { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md },
-            ]}
-          >
-            <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1 }]}>Theme</Text>
-            <View
-              style={[
-                styles.segmented,
-                { backgroundColor: color('bg/sunken'), borderRadius: radius.pill, padding: 3 },
-              ]}
-            >
-              {segments.map((seg) => {
-                const active = preference === seg.key;
-                return (
-                  <Pressable
-                    key={seg.key}
-                    onPress={() => setPreference(seg.key)}
-                    style={[
-                      styles.segment,
-                      {
-                        borderRadius: radius.pill,
-                        backgroundColor: active ? color('accent/default') : 'transparent',
-                        paddingHorizontal: space.sm,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        type['type/caption'],
-                        { color: active ? color('accent/on-accent') : color('text/secondary') },
-                      ]}
-                    >
-                      {seg.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-
-        <View style={{ marginTop: space.lg }}>
           <GroupLabel label="Preferences" />
           <View style={{ gap: space.xs }}>
             <Row
@@ -355,8 +304,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center' },
   row: { flexDirection: 'row', alignItems: 'center' },
-  segmented: { flexDirection: 'row' },
-  segment: { minHeight: 28, alignItems: 'center', justifyContent: 'center' },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   modalCard: { width: '100%', maxWidth: 400 },
 });

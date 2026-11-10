@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon-1.png",
     "scheme": "codon",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.codon.learn",
@@ -36,12 +36,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0F0F13",
+          "backgroundColor": "#1F3A5F",
           "image": "./assets/images/splash-codon.png",
-          "dark": {
-            "image": "./assets/images/splash-codon.png",
-            "backgroundColor": "#0F0F13"
-          },
           "imageWidth": 200
         }
       ],
@@ -58,7 +54,7 @@
       [
         "expo-notifications",
         {
-          "color": "#4B3FE4"
+          "color": "#1F3A5F"
         }
       ],
       "./plugins/withAndroidReleaseSigning"

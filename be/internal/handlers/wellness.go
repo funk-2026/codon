@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"net/http"
 
 	"codon-backend/internal/media"
@@ -84,13 +85,13 @@ func (h *WellnessHandler) CreateWellnessContent(c *gin.Context) {
 
 	var req createWellnessRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	cat := models.WellnessCategory(req.Category)
 	if cat != models.WellnessGuidance && cat != models.WellnessMotivation && cat != models.WellnessReflectionPrompt {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "category must be guidance, motivation, or reflection_prompt"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "category must be guidance, motivation, or reflection_prompt")
 		return
 	}
 
@@ -140,13 +141,13 @@ func (h *WellnessHandler) UpdateWellnessContent(c *gin.Context) {
 	id := c.Param("id")
 	var item models.WellnessContent
 	if err := h.DB.Where("id = ?", id).First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "not found")
 		return
 	}
 
 	var req updateWellnessRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
@@ -184,7 +185,10 @@ func (h *WellnessHandler) UpdateWellnessContent(c *gin.Context) {
 		updates["is_active"] = *req.IsActive
 	}
 
-	h.DB.Model(&item).Updates(updates)
+	if err := h.DB.Model(&item).Updates(updates).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.First(&item, item.ID)
 	c.JSON(http.StatusOK, item)
 }
@@ -204,10 +208,13 @@ func (h *WellnessHandler) DeleteWellnessContent(c *gin.Context) {
 	id := c.Param("id")
 	var item models.WellnessContent
 	if err := h.DB.Where("id = ?", id).First(&item).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "not found")
 		return
 	}
-	h.DB.Model(&item).Update("is_active", false)
+	if err := h.DB.Model(&item).Update("is_active", false).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "deleted"})
 }
 

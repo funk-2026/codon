@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"slices"
 
 	"codon-backend/internal/items"
 	"codon-backend/internal/middleware"
@@ -44,6 +45,14 @@ func validRating(typ string, v int) bool {
 func (h *RatingHandler) eligible(c *gin.Context, user *models.User, typ string, id uuid.UUID) bool {
 	ctx := c.Request.Context()
 	var n int64
+	// Only published items can be rated (a drafted item's id must not be a way to reach it).
+	if table, ok := aggregateTable[typ]; ok {
+		h.DB.WithContext(ctx).Table(table).Where("id = ? AND status = ?", id, models.StatusPublished).Count(&n)
+		if n == 0 {
+			return false
+		}
+		n = 0
+	}
 	switch typ {
 	case items.Test:
 		h.DB.WithContext(ctx).Model(&models.StudentAttempt{}).Where("user_id = ? AND test_id = ? AND status = ?", user.ID, id, models.AttemptSubmitted).Count(&n)
@@ -95,7 +104,7 @@ func (h *RatingHandler) Put(c *gin.Context) {
 		return
 	}
 	for _, t := range req.Tags {
-		if !contains(ratingTags, t) {
+		if !slices.Contains(ratingTags, t) {
 			respondErr(c, http.StatusBadRequest, "invalid_tag", "unknown rating tag: "+t)
 			return
 		}

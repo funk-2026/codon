@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"codon-backend/internal/items"
 	"codon-backend/internal/media"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
@@ -21,10 +22,11 @@ import (
 type AttemptHandler struct {
 	DB          *gorm.DB
 	ScoringKSvc *services.ScoringService
+	Sub         *services.SubscriptionService
 }
 
-func NewAttemptHandler(db *gorm.DB, scoringSvc *services.ScoringService) *AttemptHandler {
-	return &AttemptHandler{DB: db, ScoringKSvc: scoringSvc}
+func NewAttemptHandler(db *gorm.DB, scoringSvc *services.ScoringService, sub *services.SubscriptionService) *AttemptHandler {
+	return &AttemptHandler{DB: db, ScoringKSvc: scoringSvc, Sub: sub}
 }
 
 // respondService translates a service error into the standard coded envelope.
@@ -82,6 +84,11 @@ func (h *AttemptHandler) StartAttempt(c *gin.Context) {
 		Where("id = ? AND status = ? AND archived_at IS NULL", testID, models.StatusPublished).
 		First(&test).Error; err != nil || !visibleToUser(&test, user.ID) {
 		respondErr(c, http.StatusNotFound, "test_not_found", "test not found")
+		return
+	}
+
+	if err := h.Sub.Allow(c.Request.Context(), user, test.RequiresSubscription, test.CourseID); err != nil {
+		respondErr(c, http.StatusForbidden, "subscription_required", err.Error())
 		return
 	}
 
@@ -486,14 +493,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 	}
 	bookmarked := idSet(h.DB, ctx, "SELECT item_id FROM bookmarks WHERE user_id = ? AND item_type = 'question' AND item_id IN ?", user.ID, ids)
 	reported := idSet(h.DB, ctx, "SELECT item_id FROM content_reports WHERE reporter_id = ? AND item_type = 'question' AND item_id IN ?", user.ID, ids)
-	myRatings := map[uuid.UUID]int{}
-	if len(ids) > 0 {
-		var rs []models.Rating
-		h.DB.WithContext(ctx).Where("user_id = ? AND item_type = 'question' AND item_id IN ?", user.ID, ids).Find(&rs)
-		for _, r := range rs {
-			myRatings[r.ItemID] = r.Value
-		}
-	}
+	myRatings := items.MyRatings(ctx, h.DB, user.ID, items.Question, ids)
 	cohort := cohortCorrectPct(h.DB, ctx, ids)
 	notes := map[uuid.UUID]string{}
 	if len(ids) > 0 {
@@ -504,7 +504,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 		}
 	}
 
-	items := make([]reviewItem, len(rows))
+	reviewItems := make([]reviewItem, len(rows))
 	mc := media.NewCollector()
 	for i, r := range rows {
 		it := reviewItem{
@@ -522,10 +522,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 		if r.ChapterName != nil {
 			it.QuestionMeta.Chapter = *r.ChapterName
 		}
-		if v, ok := myRatings[r.QuestionID]; ok {
-			vv := v
-			it.MyRating = &vv
-		}
+		it.MyRating = items.Ptr(myRatings, r.QuestionID)
 		if n, ok := notes[r.QuestionID]; ok {
 			nn := n
 			it.MyNote = &nn
@@ -534,12 +531,12 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 			pp := p
 			it.CohortCorrectPct = &pp
 		}
-		items[i] = it
-		mc.Add(r.ContentFormat, &items[i].QuestionText, &items[i].OptionA, &items[i].OptionB, &items[i].OptionC, &items[i].OptionD, items[i].Explanation)
+		reviewItems[i] = it
+		mc.Add(r.ContentFormat, &reviewItems[i].QuestionText, &reviewItems[i].OptionA, &reviewItems[i].OptionB, &reviewItems[i].OptionC, &reviewItems[i].OptionD, reviewItems[i].Explanation)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"attempt_id": attemptID, "review": items, "next_cursor": nilIfEmpty(nextCursor),
+		"attempt_id": attemptID, "review": reviewItems, "next_cursor": nilIfEmpty(nextCursor),
 		"media": media.NewService(h.DB).ResolveCollector(ctx, mc, media.URLTTL(testDuration(h.DB, ctx, attempt.TestID))),
 	})
 }

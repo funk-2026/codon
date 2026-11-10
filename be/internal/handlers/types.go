@@ -2,7 +2,11 @@
 // Gin handlers. These are also picked up by swaggo for OpenAPI schema generation.
 package handlers
 
-import "github.com/gin-gonic/gin"
+import (
+	"codon-backend/internal/httpx"
+
+	"github.com/gin-gonic/gin"
+)
 
 // errorResponse is the standard error envelope returned by all endpoints on failure.
 // Machine-readable failures additionally carry a stable `code` (and optional
@@ -18,11 +22,8 @@ type messageResponse struct {
 	Message string `json:"message" example:"operation successful"`
 }
 
-// respondErr writes a coded error: {error, code, details}.
+// respondErr writes a coded error: {error, code, details}. It is the same
+// envelope as httpx.Error; handlers use whichever reads better.
 func respondErr(c *gin.Context, status int, code, msg string, details ...interface{}) {
-	resp := errorResponse{Error: msg, Code: code}
-	if len(details) > 0 {
-		resp.Details = details[0]
-	}
-	c.JSON(status, resp)
+	httpx.Error(c, status, code, msg, details...)
 }

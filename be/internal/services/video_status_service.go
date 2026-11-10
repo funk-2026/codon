@@ -22,13 +22,6 @@ func NewVideoStatusService(db *gorm.DB) *VideoStatusService {
 	return &VideoStatusService{DB: db}
 }
 
-// Deprecated aliases for backwards compatibility
-type StreamStatusService = VideoStatusService
-
-func NewStreamStatusService(db *gorm.DB) *VideoStatusService {
-	return NewVideoStatusService(db)
-}
-
 // HandleExhausted marks a ContentItem as VideoFailed once its
 // video_status_check job has permanently run out of retries without
 // Bunny ever reporting the video finished.
@@ -95,9 +88,3 @@ func (s *VideoStatusService) HandleVideoStatusCheck(ctx context.Context, payload
 		return fmt.Errorf("video %s still processing (status %d)", guid, details.Status)
 	}
 }
-
-// HandleStreamStatusCheck is an alias for HandleVideoStatusCheck
-func (s *VideoStatusService) HandleStreamStatusCheck(ctx context.Context, payload string) error {
-	return s.HandleVideoStatusCheck(ctx, payload)
-}
-

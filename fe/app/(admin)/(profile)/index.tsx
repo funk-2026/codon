@@ -4,13 +4,13 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { PencilSimple, CaretRight, ArrowsClockwise } from 'phosphor-react-native';
 import { SecondaryButton, useToast } from '@/src/components';
-import { useTheme, type ThemePreference } from '@/src/theme/ThemeProvider';
+import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { updateMe } from '@/src/api/profile';
 import { clearAdminActiveRole } from '@/src/auth/tokenStore';
 
 export default function AdminProfileRoute() {
-  const { color, type, space, radius, preference, setPreference } = useTheme();
+  const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
@@ -31,12 +31,6 @@ export default function AdminProfileRoute() {
   }, [user?.name]);
 
   const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'A';
-
-  const segments: { key: ThemePreference; label: string }[] = [
-    { key: 'system', label: 'System' },
-    { key: 'light', label: 'Light' },
-    { key: 'dark', label: 'Dark' },
-  ];
 
   const commitName = async () => {
     const trimmed = draftName.trim();
@@ -107,34 +101,6 @@ export default function AdminProfileRoute() {
         </View>
 
         <View style={{ marginTop: space.xl }}>
-          <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>
-            APPEARANCE
-          </Text>
-          <View style={[styles.row, { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }]}>
-            <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1 }]}>Theme</Text>
-            <View style={[styles.segmented, { backgroundColor: color('bg/sunken'), borderRadius: radius.pill, padding: 3 }]}>
-              {segments.map((seg) => {
-                const active = preference === seg.key;
-                return (
-                  <Pressable
-                    key={seg.key}
-                    onPress={() => setPreference(seg.key)}
-                    style={[
-                      styles.segment,
-                      { borderRadius: radius.pill, backgroundColor: active ? color('accent/default') : 'transparent', paddingHorizontal: space.sm },
-                    ]}
-                  >
-                    <Text style={[type['type/caption'], { color: active ? color('accent/on-accent') : color('text/secondary') }]}>
-                      {seg.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-
-        <View style={{ marginTop: space.lg }}>
           <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>
             PREFERENCES
           </Text>
@@ -228,8 +194,6 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center' },
   chip: { paddingVertical: 4 },
   row: { flexDirection: 'row', alignItems: 'center' },
-  segmented: { flexDirection: 'row' },
-  segment: { minHeight: 28, alignItems: 'center', justifyContent: 'center' },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   modalCard: { width: '100%', maxWidth: 400 },
 });

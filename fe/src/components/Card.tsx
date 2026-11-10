@@ -9,21 +9,17 @@ export type CardProps = {
 };
 
 export function Card({ children, raised, padding, style }: CardProps) {
-  const { color, radius, space, mode } = useTheme();
+  const { color, radius, space } = useTheme();
 
-  const backgroundColor =
-    mode === 'dark' && raised ? color('bg/surface-raised') : color('bg/surface');
+  const backgroundColor = raised ? color('bg/surface-raised') : color('bg/surface');
 
-  const shadow: ViewStyle =
-    mode === 'light'
-      ? {
-          shadowColor: color('accent/default'),
-          shadowOpacity: 0.12,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 3,
-        }
-      : {};
+  const shadow: ViewStyle = {
+    shadowColor: color('accent/default'),
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  };
 
   return (
     <View

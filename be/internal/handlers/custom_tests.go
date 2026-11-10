@@ -10,9 +10,11 @@ import (
 
 	"codon-backend/internal/blueprint"
 	"codon-backend/internal/generation"
+	"codon-backend/internal/httpx"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 	"codon-backend/internal/pagination"
+	"codon-backend/internal/ratelimit"
 	"codon-backend/internal/services"
 	"codon-backend/internal/settings"
 
@@ -42,7 +44,6 @@ type CustomTestHandler struct {
 	Engine *generation.Engine
 
 	mu       sync.Mutex
-	countLog map[uuid.UUID][]time.Time
 	cfgCache map[string]cachedConfig
 }
 
@@ -52,7 +53,7 @@ type cachedConfig struct {
 }
 
 func NewCustomTestHandler(db *gorm.DB, eng *generation.Engine) *CustomTestHandler {
-	return &CustomTestHandler{DB: db, Engine: eng, countLog: map[uuid.UUID][]time.Time{}, cfgCache: map[string]cachedConfig{}}
+	return &CustomTestHandler{DB: db, Engine: eng, cfgCache: map[string]cachedConfig{}}
 }
 
 func readBody(c *gin.Context) ([]byte, bool) {
@@ -79,23 +80,17 @@ func readBody(c *gin.Context) ([]byte, bool) {
 //	@Router			/api/v1/custom-tests/count [post]
 func (h *CustomTestHandler) Count(c *gin.Context) {
 	user := middleware.GetUser(c)
-	// sliding-window limit
-	h.mu.Lock()
-	now := time.Now()
-	keep := h.countLog[user.ID][:0]
-	for _, t := range h.countLog[user.ID] {
-		if now.Sub(t) < time.Minute {
-			keep = append(keep, t)
-		}
+	// sliding-window limit, shared by all API replicas
+	allowed, rerr := ratelimit.Allow(c.Request.Context(), h.DB, "custom_test.count:"+user.ID.String(),
+		settings.Int("custom_test.count_rate_per_minute"), time.Minute)
+	if rerr != nil {
+		httpx.Fail(c, rerr)
+		return
 	}
-	if len(keep) >= settings.Int("custom_test.count_rate_per_minute") {
-		h.countLog[user.ID] = keep
-		h.mu.Unlock()
+	if !allowed {
 		respondErr(c, http.StatusTooManyRequests, "rate_limited", "slow down — too many availability checks")
 		return
 	}
-	h.countLog[user.ID] = append(keep, now)
-	h.mu.Unlock()
 
 	raw, ok := readBody(c)
 	if !ok {
@@ -300,7 +295,10 @@ func (h *CustomTestHandler) Rename(c *gin.Context) {
 		respondErr(c, http.StatusBadRequest, "invalid_title", "title must be 1-120 characters")
 		return
 	}
-	h.DB.Model(t).Update("title", req.Title)
+	if err := h.DB.Model(t).Update("title", req.Title).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, t)
 }
 
@@ -326,7 +324,10 @@ func (h *CustomTestHandler) Delete(c *gin.Context) {
 		_, _ = svc.SubmitAttempt(c.Request.Context(), a.ID, a.UserID, nil)
 	}
 	now := time.Now()
-	h.DB.Model(t).Update("archived_at", now)
+	if err := h.DB.Model(t).Update("archived_at", now).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "custom test deleted"})
 }
 
@@ -650,7 +651,10 @@ func (h *CustomTestHandler) CreateTemplate(c *gin.Context) {
 		return
 	}
 	t := models.CustomTestTemplate{UserID: user.ID, Title: *req.Title, Blueprint: bp.JSON()}
-	h.DB.Create(&t)
+	if err := h.DB.Create(&t).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusCreated, t)
 }
 
@@ -690,7 +694,10 @@ func (h *CustomTestHandler) UpdateTemplate(c *gin.Context) {
 		}
 		up["blueprint"] = models.JSONB(bp.JSON())
 	}
-	h.DB.Model(&t).Updates(up)
+	if err := h.DB.Model(&t).Updates(up).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.First(&t, "id = ?", t.ID)
 	c.JSON(http.StatusOK, t)
 }
@@ -704,7 +711,10 @@ func (h *CustomTestHandler) UpdateTemplate(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/custom-tests/templates/{id} [delete]
 func (h *CustomTestHandler) DeleteTemplate(c *gin.Context) {
-	h.DB.Where("id = ? AND user_id = ?", c.Param("id"), middleware.GetUser(c).ID).Delete(&models.CustomTestTemplate{})
+	if err := h.DB.Where("id = ? AND user_id = ?", c.Param("id"), middleware.GetUser(c).ID).Delete(&models.CustomTestTemplate{}).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "template deleted"})
 }
 
@@ -778,8 +788,14 @@ func (h *CustomTestHandler) AdminCreatePreset(c *gin.Context) {
 	if req.OrderIndex != nil {
 		p.OrderIndex = *req.OrderIndex
 	}
-	h.DB.Create(&p)
-	h.DB.Create(&models.AdminAuditLog{ActorID: admin.ID, Action: "preset.create", Target: "preset:" + p.ID.String()})
+	if err := h.DB.Create(&p).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.DB.Create(&models.AdminAuditLog{ActorID: admin.ID, Action: "preset.create", Target: "preset:" + p.ID.String()}).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.InvalidateConfig()
 	c.JSON(http.StatusCreated, p)
 }
@@ -831,8 +847,14 @@ func (h *CustomTestHandler) AdminUpdatePreset(c *gin.Context) {
 		}
 		up["blueprint"] = models.JSONB(bp.JSON())
 	}
-	h.DB.Model(&p).Updates(up)
-	h.DB.Create(&models.AdminAuditLog{ActorID: admin.ID, Action: "preset.update", Target: "preset:" + p.ID.String()})
+	if err := h.DB.Model(&p).Updates(up).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.DB.Create(&models.AdminAuditLog{ActorID: admin.ID, Action: "preset.update", Target: "preset:" + p.ID.String()}).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.First(&p, "id = ?", p.ID)
 	h.InvalidateConfig()
 	c.JSON(http.StatusOK, p)
@@ -847,8 +869,14 @@ func (h *CustomTestHandler) AdminUpdatePreset(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/admin/custom-test/presets/{id} [delete]
 func (h *CustomTestHandler) AdminDeletePreset(c *gin.Context) {
-	h.DB.Delete(&models.CustomTestPreset{}, "id = ?", c.Param("id"))
-	h.DB.Create(&models.AdminAuditLog{ActorID: middleware.GetUser(c).ID, Action: "preset.delete", Target: "preset:" + c.Param("id")})
+	if err := h.DB.Delete(&models.CustomTestPreset{}, "id = ?", c.Param("id")).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if err := h.DB.Create(&models.AdminAuditLog{ActorID: middleware.GetUser(c).ID, Action: "preset.delete", Target: "preset:" + c.Param("id")}).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.InvalidateConfig()
 	c.JSON(http.StatusOK, messageResponse{Message: "preset deleted"})
 }

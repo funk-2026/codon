@@ -129,7 +129,7 @@ export function BrainHacksShelf() {
             style={({ pressed }) => ({ width: cardW, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, marginRight: space.sm, opacity: pressed ? 0.92 : 1, gap: space.xs })}
           >
             <View style={{ width: 40, height: 40, backgroundColor: color('accent/tint'), borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' }}>
-              <Flame size={20} color={color('accent/default')} weight="duotone" />
+              <Flame size={20} color={color('highlight/default')} weight="duotone" />
             </View>
             <Text style={[type['type/h3'], { color: color('text/primary'), fontSize: 15 }]} numberOfLines={2}>{item.title}</Text>
           </Pressable>

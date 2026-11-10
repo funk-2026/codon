@@ -4,11 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
 	"codon-backend/internal/blueprint"
 	"codon-backend/internal/generation"
+	"codon-backend/internal/httpx"
 	"codon-backend/internal/media"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
@@ -25,18 +27,14 @@ import (
 // ExtrasHandler groups the small follow-on APIs: video notes, push tokens and
 // preferences, in-app notifications, home updates and the Explore feed.
 type ExtrasHandler struct {
-	DB          *gorm.DB
-	Sub         *services.SubscriptionService
-	KYCRequired func() bool
-	Engine      *generation.Engine
-	Analytics   *AnalyticsHandler
+	DB        *gorm.DB
+	Sub       *services.SubscriptionService
+	Engine    *generation.Engine
+	Analytics *AnalyticsHandler
 }
 
-func NewExtrasHandler(db *gorm.DB, sub *services.SubscriptionService, kyc func() bool, eng *generation.Engine, an *AnalyticsHandler) *ExtrasHandler {
-	if kyc == nil {
-		kyc = func() bool { return false }
-	}
-	return &ExtrasHandler{DB: db, Sub: sub, KYCRequired: kyc, Engine: eng, Analytics: an}
+func NewExtrasHandler(db *gorm.DB, sub *services.SubscriptionService, eng *generation.Engine, an *AnalyticsHandler) *ExtrasHandler {
+	return &ExtrasHandler{DB: db, Sub: sub, Engine: eng, Analytics: an}
 }
 
 // ── Video notes ───────────────────────────────────────────────────────────────
@@ -54,7 +52,7 @@ func (h *ExtrasHandler) videoAccess(c *gin.Context, id uuid.UUID) bool {
 		respondErr(c, http.StatusNotFound, "content_not_found", "content not found")
 		return false
 	}
-	if err := h.Sub.CheckAccess(c.Request.Context(), user, ct.RequiresSubscription, ct.CourseID, h.KYCRequired()); err != nil {
+	if err := h.Sub.Allow(c.Request.Context(), user, ct.RequiresSubscription, ct.CourseID); err != nil {
 		respondErr(c, http.StatusForbidden, "subscription_required", err.Error())
 		return false
 	}
@@ -132,7 +130,10 @@ func (h *ExtrasHandler) CreateVideoNote(c *gin.Context) {
 		return
 	}
 	note := models.VideoNote{UserID: user.ID, ContentItemID: cid, TimestampSeconds: ts, Body: strings.TrimSpace(*req.Body)}
-	h.DB.Create(&note)
+	if err := h.DB.Create(&note).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusCreated, note)
 }
 
@@ -167,7 +168,10 @@ func (h *ExtrasHandler) UpdateVideoNote(c *gin.Context) {
 	if req.TimestampSeconds != nil && *req.TimestampSeconds >= 0 {
 		up["timestamp_seconds"] = *req.TimestampSeconds
 	}
-	h.DB.Model(&note).Updates(up)
+	if err := h.DB.Model(&note).Updates(up).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.First(&note, "id = ?", note.ID)
 	c.JSON(http.StatusOK, note)
 }
@@ -181,7 +185,10 @@ func (h *ExtrasHandler) UpdateVideoNote(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/me/video-notes/{id} [delete]
 func (h *ExtrasHandler) DeleteVideoNote(c *gin.Context) {
-	h.DB.Where("id = ? AND user_id = ?", c.Param("id"), middleware.GetUser(c).ID).Delete(&models.VideoNote{})
+	if err := h.DB.Where("id = ? AND user_id = ?", c.Param("id"), middleware.GetUser(c).ID).Delete(&models.VideoNote{}).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "note deleted"})
 }
 
@@ -226,7 +233,10 @@ func (h *ExtrasHandler) RegisterPushToken(c *gin.Context) {
 //	@Success		200		{object}	messageResponse
 //	@Router			/api/v1/me/push-tokens/{token} [delete]
 func (h *ExtrasHandler) DeletePushToken(c *gin.Context) {
-	h.DB.Where("user_id = ? AND token = ?", middleware.GetUser(c).ID, c.Param("token")).Delete(&models.PushToken{})
+	if err := h.DB.Where("user_id = ? AND token = ?", middleware.GetUser(c).ID, c.Param("token")).Delete(&models.PushToken{}).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "unregistered"})
 }
 
@@ -279,11 +289,14 @@ func (h *ExtrasHandler) PutPrefs(c *gin.Context) {
 	if req.ReportUpdates != nil {
 		p.ReportUpdates = *req.ReportUpdates
 	}
-	// ensure the row exists, then write the real values (GORM rewrites a false bool on a
-	// default:true column to true on INSERT, so the values go in through UPDATE)
-	h.DB.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}}, DoNothing: true}).Create(&models.NotificationPref{UserID: user.ID})
-	h.DB.Model(&models.NotificationPref{}).Where("user_id = ?", user.ID).
-		UpdateColumns(map[string]interface{}{"push_enabled": p.PushEnabled, "streak_nudges": p.StreakNudges, "report_updates": p.ReportUpdates, "updated_at": time.Now()})
+	p.UpdatedAt = time.Now()
+	if err := h.DB.WithContext(c.Request.Context()).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"push_enabled", "streak_nudges", "report_updates", "updated_at"}),
+	}).Create(&p).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	want := p
 	c.JSON(http.StatusOK, want)
 }
@@ -468,9 +481,15 @@ func (h *ExtrasHandler) AdminCreateHome(c *gin.Context) {
 		return
 	}
 	want := u.IsActive
-	h.DB.Create(&u)
+	if err := h.DB.Create(&u).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	// GORM turns a false bool on a default:true column back into true — restore the intended value.
-	h.DB.Model(&u).UpdateColumn("is_active", want)
+	if err := h.DB.Model(&u).UpdateColumn("is_active", want).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	u.IsActive = want
 	c.JSON(http.StatusCreated, u)
 }
@@ -496,7 +515,10 @@ func (h *ExtrasHandler) AdminUpdateHome(c *gin.Context) {
 	if c.ShouldBindJSON(&req) != nil || !h.applyHome(c, &u, req) {
 		return
 	}
-	h.DB.Select("*").Save(&u)
+	if err := h.DB.Select("*").Save(&u).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, u)
 }
 
@@ -509,7 +531,10 @@ func (h *ExtrasHandler) AdminUpdateHome(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/admin/home-updates/{id} [delete]
 func (h *ExtrasHandler) AdminDeleteHome(c *gin.Context) {
-	h.DB.Delete(&models.HomeUpdate{}, "id = ?", c.Param("id"))
+	if err := h.DB.Delete(&models.HomeUpdate{}, "id = ?", c.Param("id")).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "deleted"})
 }
 
@@ -585,13 +610,12 @@ func (h *ExtrasHandler) Explore(c *gin.Context) {
 			qb = append(qb, gin.H{"chapter_id": ch.ID, "chapter": ch.Name, "subject": ch.Subject.Name, "questions": n})
 		}
 	}
-	for i := 0; i < len(qb); i++ {
-		for j := i + 1; j < len(qb); j++ {
-			if qb[j]["questions"].(int) > qb[i]["questions"].(int) {
-				qb[i], qb[j] = qb[j], qb[i]
-			}
+	sort.SliceStable(qb, func(i, j int) bool {
+		if a, b := qb[i]["questions"].(int), qb[j]["questions"].(int); a != b {
+			return a > b
 		}
-	}
+		return qb[i]["chapter"].(string) < qb[j]["chapter"].(string)
+	})
 	if len(qb) > 8 {
 		qb = qb[:8]
 	}

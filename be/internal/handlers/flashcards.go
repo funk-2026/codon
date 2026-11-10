@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"math"
 	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"codon-backend/internal/httpx"
 	"codon-backend/internal/items"
 	"codon-backend/internal/media"
 	"codon-backend/internal/middleware"
@@ -24,16 +26,13 @@ import (
 // FlashcardHandler: decks + cards authored by teachers (rich text + images),
 // approved by admins, studied by students with spaced repetition.
 type FlashcardHandler struct {
-	DB          *gorm.DB
-	Sub         *services.SubscriptionService
-	KYCRequired func() bool
+	DB       *gorm.DB
+	Sub      *services.SubscriptionService
+	Workflow *services.ReviewService
 }
 
-func NewFlashcardHandler(db *gorm.DB, sub *services.SubscriptionService, kyc func() bool) *FlashcardHandler {
-	if kyc == nil {
-		kyc = func() bool { return false }
-	}
-	return &FlashcardHandler{DB: db, Sub: sub, KYCRequired: kyc}
+func NewFlashcardHandler(db *gorm.DB, sub *services.SubscriptionService) *FlashcardHandler {
+	return &FlashcardHandler{DB: db, Sub: sub, Workflow: services.NewReviewService(db)}
 }
 
 type deckRequest struct {
@@ -106,7 +105,7 @@ func (h *FlashcardHandler) CreateDeck(c *gin.Context) {
 		respondErr(c, http.StatusNotFound, "course_not_found", "course not found")
 		return
 	}
-	d := models.FlashcardDeck{Title: title, CourseID: cid, AuthorID: user.ID, Status: models.StatusDraft, RequiresSubscription: course.Slug == "neet-ug"}
+	d := models.FlashcardDeck{Title: title, CourseID: cid, AuthorID: user.ID, Status: models.StatusDraft, RequiresSubscription: course.DefaultRequiresSubscription}
 	if req.Description != nil {
 		d.Description = *req.Description
 	}
@@ -116,12 +115,10 @@ func (h *FlashcardHandler) CreateDeck(c *gin.Context) {
 	if !h.setTaxonomy(c, &d, req) {
 		return
 	}
-	want := d.RequiresSubscription
-	h.DB.Create(&d)
-	// GORM replaces a false bool on a default:true column with the default (and writes
-	// it back into the struct), so persist the value captured BEFORE the insert.
-	h.DB.Model(&d).UpdateColumn("requires_subscription", want)
-	d.RequiresSubscription = want
+	if err := h.DB.WithContext(c.Request.Context()).Create(&d).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusCreated, d)
 }
 
@@ -200,7 +197,10 @@ func (h *FlashcardHandler) UpdateDeck(c *gin.Context) {
 	if !h.setTaxonomy(c, d, req) {
 		return
 	}
-	h.DB.Select("*").Save(d)
+	if err := h.DB.Select("*").Save(d).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, d)
 }
 
@@ -245,19 +245,24 @@ func (h *FlashcardHandler) DeleteDeck(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/teacher/flashcard-decks/{id}/submit-for-review [post]
 func (h *FlashcardHandler) SubmitDeck(c *gin.Context) {
-	d, ok := h.myDeck(c)
+	id, ok := httpx.ParamUUID(c, "id")
 	if !ok {
 		return
 	}
-	if !deckEditable(d) {
-		respondErr(c, http.StatusConflict, "locked", "already submitted")
+	gate := func(ctx context.Context, id uuid.UUID) error {
+		var d models.FlashcardDeck
+		if err := h.DB.WithContext(ctx).Select("id", "card_count").First(&d, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if d.CardCount < 1 {
+			return services.Invalid("incomplete", "add at least one card first")
+		}
+		return nil
+	}
+	if err := h.Workflow.Submit(c.Request.Context(), middleware.GetUser(c), services.ReviewDeck, id, gate); err != nil {
+		respondService(c, err)
 		return
 	}
-	if d.CardCount < 1 {
-		respondErr(c, http.StatusUnprocessableEntity, "incomplete", "add at least one card first")
-		return
-	}
-	h.DB.Model(d).Update("status", models.StatusPendingReview)
 	c.JSON(http.StatusOK, messageResponse{Message: "submitted for review"})
 }
 
@@ -270,15 +275,14 @@ func (h *FlashcardHandler) SubmitDeck(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/teacher/flashcard-decks/{id}/publish [post]
 func (h *FlashcardHandler) PublishDeck(c *gin.Context) {
-	d, ok := h.myDeck(c)
+	id, ok := httpx.ParamUUID(c, "id")
 	if !ok {
 		return
 	}
-	if d.Status != models.StatusApproved {
-		respondErr(c, http.StatusConflict, "not_approved", "only approved decks can be published")
+	if err := h.Workflow.Publish(c.Request.Context(), middleware.GetUser(c), services.ReviewDeck, id, nil); err != nil {
+		respondService(c, err)
 		return
 	}
-	h.DB.Model(d).Update("status", models.StatusPublished)
 	c.JSON(http.StatusOK, messageResponse{Message: "published"})
 }
 
@@ -292,13 +296,16 @@ func (h *FlashcardHandler) PublishDeck(c *gin.Context) {
 //	@Router			/api/v1/teacher/flashcard-decks [get]
 func (h *FlashcardHandler) TeacherDecks(c *gin.Context) {
 	user := middleware.GetUser(c)
-	var ds []models.FlashcardDeck
-	q := h.DB.Order("created_at DESC")
+	q := h.DB.WithContext(c.Request.Context())
 	if !canManageAllContent(user) {
 		q = q.Where("author_id = ?", user.ID)
 	}
-	q.Find(&ds)
-	c.JSON(http.StatusOK, gin.H{"decks": ds})
+	ds, next, err := paged(c, q, "flashcard_decks", deckKey)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"decks": ds, "next_cursor": nilIfEmpty(next)})
 }
 
 // TeacherDeck godoc
@@ -530,9 +537,17 @@ func (h *FlashcardHandler) ReorderCards(c *gin.Context) {
 //	@Success		200	{object}	map[string]interface{}
 //	@Router			/api/v1/admin/flashcard-decks [get]
 func (h *FlashcardHandler) AdminDecks(c *gin.Context) {
-	var ds []models.FlashcardDeck
-	h.DB.Where("status = ?", c.DefaultQuery("status", string(models.StatusPendingReview))).Order("created_at DESC").Find(&ds)
-	c.JSON(http.StatusOK, gin.H{"decks": ds})
+	status, ok := statusParam(c)
+	if !ok {
+		return
+	}
+	q := h.DB.WithContext(c.Request.Context()).Where("status = ?", status)
+	ds, next, err := paged(c, q, "flashcard_decks", deckKey)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"decks": ds, "next_cursor": nilIfEmpty(next)})
 }
 
 // AdminDeck godoc
@@ -562,13 +577,14 @@ func (h *FlashcardHandler) AdminDeck(c *gin.Context) {
 //	@Success		200	{object}	messageResponse
 //	@Router			/api/v1/admin/flashcard-decks/{id}/approve [post]
 func (h *FlashcardHandler) AdminApproveDeck(c *gin.Context) {
-	var d models.FlashcardDeck
-	if h.DB.First(&d, "id = ? AND status = ?", c.Param("id"), models.StatusPendingReview).Error != nil {
-		respondErr(c, http.StatusNotFound, "deck_not_found", "deck not found or not pending review")
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
 		return
 	}
-	h.DB.Model(&d).Update("status", models.StatusApproved)
-	services.Notify(h.DB, d.AuthorID, "deck_approved", "Your flashcard deck was approved", d.Title, map[string]interface{}{"id": d.ID})
+	if err := h.Workflow.Approve(c.Request.Context(), middleware.GetUser(c), services.ReviewDeck, id); err != nil {
+		respondService(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "approved"})
 }
 
@@ -583,18 +599,18 @@ func (h *FlashcardHandler) AdminApproveDeck(c *gin.Context) {
 //	@Success		200		{object}	messageResponse
 //	@Router			/api/v1/admin/flashcard-decks/{id}/reject [post]
 func (h *FlashcardHandler) AdminRejectDeck(c *gin.Context) {
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
+		return
+	}
 	var req rejectContentRequest
-	if c.ShouldBindJSON(&req) != nil || len(req.Reason) < 3 {
-		respondErr(c, http.StatusBadRequest, "bad_request", "a reason is required")
+	if !httpx.Bind(c, &req) {
 		return
 	}
-	var d models.FlashcardDeck
-	if h.DB.First(&d, "id = ? AND status = ?", c.Param("id"), models.StatusPendingReview).Error != nil {
-		respondErr(c, http.StatusNotFound, "deck_not_found", "deck not found or not pending review")
+	if err := h.Workflow.Reject(c.Request.Context(), middleware.GetUser(c), services.ReviewDeck, id, req.Reason); err != nil {
+		respondService(c, err)
 		return
 	}
-	h.DB.Model(&d).Updates(map[string]interface{}{"status": models.StatusRejected, "rejection_reason": req.Reason})
-	services.Notify(h.DB, d.AuthorID, "deck_rejected", "Your flashcard deck needs changes", req.Reason, map[string]interface{}{"id": d.ID})
 	c.JSON(http.StatusOK, messageResponse{Message: "rejected"})
 }
 
@@ -602,7 +618,7 @@ func (h *FlashcardHandler) AdminRejectDeck(c *gin.Context) {
 
 func (h *FlashcardHandler) canStudy(c *gin.Context, d *models.FlashcardDeck) bool {
 	user := middleware.GetUser(c)
-	if err := h.Sub.CheckAccess(c.Request.Context(), user, d.RequiresSubscription, d.CourseID, h.KYCRequired()); err != nil {
+	if err := h.Sub.Allow(c.Request.Context(), user, d.RequiresSubscription, d.CourseID); err != nil {
 		respondErr(c, http.StatusForbidden, "subscription_required", err.Error())
 		return false
 	}
@@ -683,22 +699,17 @@ func (h *FlashcardHandler) StudentDecks(c *gin.Context) {
 			progs[p.DeckID] = p
 		}
 	}
-	mine := map[uuid.UUID]int{}
-	if len(ids) > 0 {
-		var rs []models.Rating
-		h.DB.WithContext(ctx).Where("user_id = ? AND item_type = 'flashcard_deck' AND item_id IN ?", user.ID, ids).Find(&rs)
-		for _, r := range rs {
-			mine[r.ItemID] = r.Value
-		}
+	mine := items.MyRatings(ctx, h.DB, user.ID, items.FlashcardDeck, ids)
+	access, aerr := h.Sub.AccessFor(ctx, user)
+	if aerr != nil {
+		httpx.Fail(c, aerr)
+		return
 	}
 	for i, d := range ds {
 		p := progs[d.ID]
 		out[i] = deckCard{FlashcardDeck: d, New: d.CardCount - p.Seen, Due: p.Due, Learned: p.Learned,
-			Locked: h.Sub.CheckAccess(ctx, user, d.RequiresSubscription, d.CourseID, h.KYCRequired()) != nil}
-		if v, ok := mine[d.ID]; ok {
-			vv := v
-			out[i].MyRating = &vv
-		}
+			Locked: access.Allow(d.RequiresSubscription, d.CourseID) != nil}
+		out[i].MyRating = items.Ptr(mine, d.ID)
 	}
 	c.JSON(http.StatusOK, gin.H{"decks": out, "next_cursor": nilIfEmpty(next)})
 }
@@ -820,9 +831,14 @@ func (h *FlashcardHandler) Quick(c *gin.Context) {
 	}
 	var ds []models.FlashcardDeck
 	q.Find(&ds)
+	access, aerr := h.Sub.AccessFor(ctx, user)
+	if aerr != nil {
+		httpx.Fail(c, aerr)
+		return
+	}
 	var ids []uuid.UUID
 	for _, d := range ds {
-		if h.Sub.CheckAccess(ctx, user, d.RequiresSubscription, d.CourseID, h.KYCRequired()) == nil {
+		if access.Allow(d.RequiresSubscription, d.CourseID) == nil {
 			ids = append(ids, d.ID)
 		}
 	}
@@ -914,3 +930,5 @@ func (h *FlashcardHandler) Review(c *gin.Context) {
 	_ = settings.Default
 	c.JSON(http.StatusOK, st)
 }
+
+func deckKey(d models.FlashcardDeck) (time.Time, uuid.UUID) { return d.CreatedAt, d.ID }

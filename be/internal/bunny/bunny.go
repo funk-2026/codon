@@ -20,12 +20,12 @@ const (
 	baseURL = "https://video.bunnycdn.com"
 
 	// Bunny Video Status Codes
-	StatusCreated     = 0
-	StatusUploaded    = 1
-	StatusProcessing  = 2
-	StatusTranscoding = 3
-	StatusFinished    = 4
-	StatusError       = 5
+	StatusCreated      = 0
+	StatusUploaded     = 1
+	StatusProcessing   = 2
+	StatusTranscoding  = 3
+	StatusFinished     = 4
+	StatusError        = 5
 	StatusUploadFailed = 6
 )
 
@@ -33,23 +33,23 @@ var httpClient = &http.Client{Timeout: 15 * time.Second}
 
 // TUSAuth represents the credentials returned to the client to perform a resumable TUS upload directly to Bunny.
 type TUSAuth struct {
-	Signature  string `json:"signature"`
-	Expires    int64  `json:"expires"`
-	LibraryID  string `json:"library_id"`
-	VideoID    string `json:"video_id"`
+	Signature string `json:"signature"`
+	Expires   int64  `json:"expires"`
+	LibraryID string `json:"library_id"`
+	VideoID   string `json:"video_id"`
 }
 
 // VideoDetails is the response returned by Bunny Stream when fetching video metadata.
 type VideoDetails struct {
-	VideoLibraryID int     `json:"videoLibraryId"`
-	GUID           string  `json:"guid"`
-	Title          string  `json:"title"`
-	Status         int     `json:"status"` // 0..6
-	EncodeProgress int     `json:"encodeProgress"`
-	Length         int     `json:"length"` // duration in seconds
-	Width          int     `json:"width"`
-	Height         int     `json:"height"`
-	ErrorMessage   string  `json:"errorMessage,omitempty"`
+	VideoLibraryID int    `json:"videoLibraryId"`
+	GUID           string `json:"guid"`
+	Title          string `json:"title"`
+	Status         int    `json:"status"` // 0..6
+	EncodeProgress int    `json:"encodeProgress"`
+	Length         int    `json:"length"` // duration in seconds
+	Width          int    `json:"width"`
+	Height         int    `json:"height"`
+	ErrorMessage   string `json:"errorMessage,omitempty"`
 }
 
 // IsConfigured returns true if Bunny Stream credentials are present.
@@ -193,3 +193,13 @@ func PlaybackURL(videoGUID string) string {
 	return fmt.Sprintf("https://%s/%s/playlist.m3u8", cdnHost, videoGUID)
 }
 
+// GUIDFromKey extracts the Bunny video id from a content file key
+// ("bunny:<guid>", or the legacy "stream:<guid>"); "" for any other key.
+func GUIDFromKey(key string) string {
+	for _, prefix := range []string{"bunny:", "stream:"} {
+		if strings.HasPrefix(key, prefix) {
+			return strings.TrimPrefix(key, prefix)
+		}
+	}
+	return ""
+}

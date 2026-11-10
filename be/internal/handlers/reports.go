@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"net/http"
 	"time"
 
@@ -273,7 +274,10 @@ func (h *ReportHandler) AdminReassign(c *gin.Context) {
 		respondErr(c, http.StatusNotFound, "report_not_found", "open report not found")
 		return
 	}
-	h.DB.Model(&r).Update("assignee_id", as)
+	if err := h.DB.Model(&r).Update("assignee_id", as).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	services.Notify(h.DB, as, "report_assigned", "A question report was assigned to you", r.Reason, map[string]interface{}{"report_id": r.ID})
 	c.JSON(http.StatusOK, r)
 }

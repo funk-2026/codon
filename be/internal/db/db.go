@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
+	"time"
 
 	"codon-backend/internal/config"
 	"codon-backend/internal/models"
@@ -23,16 +25,37 @@ func Connect() error {
 		logLevel = logger.Info
 	}
 
-	db, err := gorm.Open(postgres.Open(config.AppConfig.DatabaseURL), &gorm.Config{
+	db, err := gorm.Open(postgres.Open(dsnWithTimeout(config.AppConfig.DatabaseURL, config.AppConfig.DBStatementTimeoutMs)), &gorm.Config{
 		Logger: logger.Default.LogMode(logLevel),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("database handle: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(config.AppConfig.DBMaxOpenConns)
+	sqlDB.SetMaxIdleConns(config.AppConfig.DBMaxIdleConns)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 
 	DB = db
 	log.Println("Database connected successfully")
 	return nil
+}
+
+// dsnWithTimeout appends a per-session statement_timeout so a runaway query
+// cannot hold a connection forever (the pgx driver forwards unknown DSN
+// parameters to the server as runtime settings).
+func dsnWithTimeout(dsn string, ms int) string {
+	if ms <= 0 || strings.Contains(dsn, "statement_timeout") {
+		return dsn
+	}
+	sep := "?"
+	if strings.Contains(dsn, "?") {
+		sep = "&"
+	}
+	return fmt.Sprintf("%s%sstatement_timeout=%d", dsn, sep, ms)
 }
 
 // AutoMigrateAll runs GORM AutoMigrate for all models (table/column structure).
@@ -45,8 +68,12 @@ func Connect() error {
 func AutoMigrateAll() error { return AutoMigrateAllOn(DB) }
 
 // AutoMigrateAllOn is AutoMigrateAll against an explicit connection (tests).
-func AutoMigrateAllOn(g *gorm.DB) error {
-	return g.AutoMigrate(
+func AutoMigrateAllOn(g *gorm.DB) error { return g.AutoMigrate(AllModels()...) }
+
+// AllModels lists every persisted model. The migration tests use it to prove
+// the SQL migrations alone produce everything the models expect.
+func AllModels() []interface{} {
+	return []interface{}{
 		&models.User{},
 		&models.OTPRequest{},
 		&models.Session{},
@@ -100,13 +127,14 @@ func AutoMigrateAllOn(g *gorm.DB) error {
 		&models.Notification{},
 		&models.HomeUpdate{},
 		&models.NotificationPref{},
-	)
+		&models.RateEvent{},
+	}
 }
 
 // SeedCourses inserts the fixed 3 courses if they don't exist.
 func SeedCourses(db *gorm.DB) error {
 	courses := []models.Course{
-		{Name: "NEET UG", Slug: "neet-ug", IsActive: true},
+		{Name: "NEET UG", Slug: "neet-ug", IsActive: true, DefaultRequiresSubscription: true},
 		{Name: "9th Standard", Slug: "9th-standard", IsActive: true},
 		{Name: "10th Standard", Slug: "10th-standard", IsActive: true},
 	}

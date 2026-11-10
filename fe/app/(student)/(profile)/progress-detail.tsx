@@ -212,7 +212,7 @@ export default function ProgressDetailRoute() {
               <View style={{ marginTop: space.xl }}>
                 <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }, shadow()]}>
                   <View style={styles.row}>
-                    <Flame size={28} color={color('semantic/warning')} weight="fill" />
+                    <Flame size={28} color={color('highlight/default')} weight="fill" />
                     <Text style={[type['type/numeral-display'], { color: color('text/primary'), marginLeft: space.sm }]}>{breakdown.data.day_streak ?? 0}</Text>
                     <Text style={[type['type/body-m'], { color: color('text/secondary'), marginLeft: space.xs }]}>day streak</Text>
                   </View>

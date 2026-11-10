@@ -148,7 +148,7 @@ export default function HomeDashboardRoute() {
                     {greeting()}, {user?.name?.split(' ')[0] || 'Student'}
                   </Text>
                   <View style={[styles.streakRow, { gap: space['2xs'], marginTop: space['2xs'] }]}>
-                    <Flame size={16} color={color('semantic/warning')} weight="fill" />
+                    <Flame size={16} color={color('highlight/default')} weight="fill" />
                     <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
                       {streak} day streak
                     </Text>

@@ -10,9 +10,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // OTPProvider is a swappable interface for sending OTPs.
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
 type OTPProvider interface {
 	SendOTP(ctx context.Context, phoneNumber, otp string) error
 }
@@ -46,7 +49,7 @@ func (t *TwoFactorProvider) SendOTP(ctx context.Context, phoneNumber, otp string
 		return fmt.Errorf("building 2factor request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("calling 2factor API: %w", err)
 	}
@@ -99,7 +102,7 @@ func (m *Msg91Provider) SendOTP(ctx context.Context, phoneNumber, otp string) er
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("calling msg91 API: %w", err)
 	}
