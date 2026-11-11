@@ -168,10 +168,12 @@ Bottom tabs: Home, Users, Review, Payments, Profile. 28 screens, 6,775 lines.
 ## What the code shows (input for the architecture decisions)
 
 **Size**
+
 - 100 screens, 25,028 lines. Student 38 screens (10.7k lines), Admin 28 (6.8k), Teacher 25 (6.1k), entry and shared 9 (1.5k).
 - Biggest screens: custom-builder 778 lines, practice hierarchy 560, test-question 555, student home 536, teacher content-preview 534. Each mixes data loading, state, layout and styling in one file.
 
 **Copy-paste between roles**
+
 - `manage-devices` exists 3 times (student, teacher, admin): 197 lines each, 12 lines differ.
 - `give-feedback` exists 3 times: 211 lines each, 4 lines differ.
 - The three profile screens (student, teacher, admin) repeat the same name edit, role switch and log out.
@@ -179,6 +181,7 @@ Bottom tabs: Home, Users, Review, Payments, Profile. 28 screens, 6,775 lines.
 - Admin has both `users/index` and `users/users-list`, and both `payments/index` and `payments/payments-list`, doing nearly the same job.
 
 **Repeated small things (each is defined again in many files)**
+
 - A local `shadow()` helper: 46 files.
 - A local fade-in "Stagger" animation: 12 files.
 - A local modal scrim style: 15 files.
@@ -188,15 +191,18 @@ Bottom tabs: Home, Users, Review, Payments, Profile. 28 screens, 6,775 lines.
 - Inline style objects: 887. 69 screen files have their own `StyleSheet`.
 
 **Shared components**
+
 - 17 shared components exist in `src/components`. Most used: SkeletonBlock (72 screens), TextButton (66), EmptyState (58), PrimaryButton (52), useToast (46), SecondaryButton (43).
 - Missing common pieces: screen shell (header, safe area, scroll, loading and error states), list row, section header, stat tile, modal and confirm dialog, segmented control.
 - 8 screens use no shared component at all.
 
 **Structure**
+
 - Teacher: about 18 task screens (question editor, CSV upload and so on) sit in one flat folder beside the tabs.
 - Domain logic is split between `src/` folders (attempt, custom, teacher, rich, wellness and others), which is good, but screens still hold a lot of it.
 - `onboarding` is a redirect only. `preview-mode` is developer-only.
 
 **Quality**
+
 - 30 `any` casts, 14 `console.error` calls in screens, 18 test files (none cover screens).
 - Types for API data live next to the API files; there is no shared screen-state type.

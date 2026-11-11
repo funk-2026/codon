@@ -8,6 +8,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { inputText } from '@/src/theme/inputs';
 
 export type InputFieldProps = Omit<TextInputProps, 'style'> & {
   label?: string;
@@ -64,7 +65,7 @@ export function InputField({
           onBlur?.(e);
         }}
         style={[
-          type['type/body-l'],
+          multiline ? type['type/body-l'] : inputText(type['type/body-l']),
           {
             color: color('text/primary'),
             backgroundColor: color('bg/sunken'),
@@ -72,7 +73,7 @@ export function InputField({
             borderWidth,
             borderColor,
             paddingHorizontal: space.sm,
-            paddingVertical: space.sm,
+            paddingVertical: multiline ? space.sm : 0,
             minHeight: multiline ? 96 : 48,
             textAlignVertical: multiline ? 'top' : 'center',
           },

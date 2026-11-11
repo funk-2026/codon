@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, ClipboardText, PlayCircle, FileText, Lightbulb, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, PrimaryButton, SkeletonBlock, TextButton } from '@/src/components';
+import { ClipboardText, PlayCircle, FileText, Lightbulb, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, PrimaryButton, SkeletonBlock, TextButton, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getTeacherTest, getTeacherContent } from '@/src/api/teacher';
+import { ROUTES } from '@/src/navigation/routes';
+import { shadow } from '@/src/theme/elevation';
+import { useQuery } from '@tanstack/react-query';
 
 type ItemType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 
@@ -32,15 +34,6 @@ function timeAgo(iso?: string): string {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-function shadow(): {} {
-  return {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  };
-}
 
 export default function RejectedContentDetailRoute() {
   const { color, type, space, radius } = useTheme();
@@ -50,69 +43,47 @@ export default function RejectedContentDetailRoute() {
   const itemType = (rawType as ItemType) ?? 'Test';
   const Icon = TYPE_ICON[itemType];
 
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [title, setTitle] = useState('');
-  const [breadcrumb, setBreadcrumb] = useState('');
-  const [reason, setReason] = useState('');
-  const [reviewedAgo, setReviewedAgo] = useState('');
-
-  const load = useCallback(() => {
-    if (!id) {
-      setLoadError(true);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setLoadError(false);
-
-    const run =
-      itemType === 'Test'
-        ? getTeacherTest(id).then((res) => {
-            setTitle(res.test.title);
-            setBreadcrumb(breadcrumbFrom([res.test.course?.name, res.test.subject?.name, res.test.chapter?.name]));
-            setReason(res.test.rejection_reason || 'No reason was provided.');
-            setReviewedAgo(timeAgo(res.test.reviewed_at));
-          })
-        : getTeacherContent(id).then((res) => {
-            setTitle(res.content.title);
-            setBreadcrumb(breadcrumbFrom([res.content.course?.name, res.content.chapter?.name]));
-            setReason(res.content.rejection_reason || 'No reason was provided.');
-            setReviewedAgo(timeAgo(res.content.reviewed_at));
-          });
-
-    run.catch(() => setLoadError(true)).finally(() => setLoading(false));
-  }, [id, itemType]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const detail = useQuery({
+    queryKey: ['teacher', 'rejected', itemType, id],
+    enabled: !!id,
+    queryFn: async () => {
+      if (itemType === 'Test') {
+        const { test } = await getTeacherTest(id as string);
+        return {
+          title: test.title,
+          breadcrumb: breadcrumbFrom([test.course?.name, test.subject?.name, test.chapter?.name]),
+          reason: test.rejection_reason || 'No reason was provided.',
+          reviewedAgo: timeAgo(test.reviewed_at),
+        };
+      }
+      const { content } = await getTeacherContent(id as string);
+      return {
+        title: content.title,
+        breadcrumb: breadcrumbFrom([content.course?.name, content.chapter?.name]),
+        reason: content.rejection_reason || 'No reason was provided.',
+        reviewedAgo: timeAgo(content.reviewed_at),
+      };
+    },
+  });
+  const loading = !!id && detail.isPending;
+  const loadError = !id || detail.isError;
+  const { title = '', breadcrumb = '', reason = '', reviewedAgo = '' } = detail.data ?? {};
+  const load = () => void detail.refetch();
 
   const handleEditAndResubmit = () => {
     if (!id) return;
     if (itemType === 'Test') {
-      router.push({ pathname: '/(teacher)/question-builder', params: { testId: id } });
+      router.push({ pathname: ROUTES.teacher.questionBuilder, params: { testId: id } });
     } else if (itemType === 'Brain Hack') {
-      router.push('/(teacher)/create-brain-hack');
+      router.push(ROUTES.teacher.createBrainHack);
     } else {
-      router.push('/(teacher)/create-content');
+      router.push(ROUTES.teacher.createContent);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={space.xs}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text style={[type['type/h1'], { color: color('text/primary'), marginLeft: space.sm }]}>
-          Changes Needed
-        </Text>
-      </View>
+    <Screen>
+      <ScreenHeader title="Changes Needed" />
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
@@ -177,12 +148,11 @@ export default function RejectedContentDetailRoute() {
           <PrimaryButton label="Edit & Resubmit" onPress={handleEditAndResubmit} />
         </View>
       ) : null}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center' },
   reasonCard: { borderLeftWidth: 4 },
   summaryRow: { flexDirection: 'row', alignItems: 'center' },

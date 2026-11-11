@@ -1,12 +1,14 @@
-import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { CaretLeft, Cards, Plus, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, StatusBadge, TextButton } from '@/src/components';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Cards, Plus, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, StatusBadge, TextButton, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { listTeacherDecks, type TeacherDeck } from '@/src/api/flashcardsTeacher';
+import { type TeacherDeck } from '@/src/api/flashcardsTeacher';
 import { DECK_BADGE } from '@/src/flashcards/deckBadge';
+import { ROUTES } from '@/src/navigation/routes';
+import { useTeacherDecks } from '@/src/queries/teacher';
+import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 
 
 /** Teacher: my flashcard decks (FE-6.3 authoring). Reloads on focus so status changes show. */
@@ -14,35 +16,22 @@ export default function TeacherDecksRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [decks, setDecks] = useState<TeacherDeck[] | null>(null);
-  const [error, setError] = useState(false);
+  const deckQuery = useTeacherDecks();
+  useRefetchOnFocus(deckQuery.refetch);
+  const decks: TeacherDeck[] | null = deckQuery.data ?? null;
+  const error = deckQuery.isError;
+  const load = () => void deckQuery.refetch();
 
-  const load = useCallback(() => {
-    setError(false);
-    listTeacherDecks()
-      .then((r) => setDecks(r.decks))
-      .catch(() => setError(true));
-  }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
-
-  const open = (id?: string) => router.push({ pathname: '/(teacher)/flashcard-deck', params: id ? { id } : {} });
+  const open = (id?: string) => router.push({ pathname: ROUTES.teacher.flashcardDeck, params: id ? { id } : {} });
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>Flashcard decks</Text>
-        <Pressable onPress={() => open()} accessibilityRole="button" accessibilityLabel="New deck" style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+    <Screen>
+      <ScreenHeader title="Flashcard decks" right={<>
+<Pressable onPress={() => open()} accessibilityRole="button" accessibilityLabel="New deck" style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
           <Plus size={26} weight="bold" color={color('accent/default')} />
         </Pressable>
-      </View>
+</>} />
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
         {error ? (
@@ -88,6 +77,6 @@ export default function TeacherDecksRoute() {
           })
         )}
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }

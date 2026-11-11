@@ -1,20 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { CaretLeft, CheckSquare, FlagBanner, ImageSquare, Square, Tag, WarningCircle } from 'phosphor-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { CheckSquare, FlagBanner, ImageSquare, Square, Tag, WarningCircle } from 'phosphor-react-native';
 import {
-  BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast,
-} from '@/src/components';
+  BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ManageAllBanner } from '@/src/teacher/ManageAllBanner';
 import { ApiError } from '@/src/api/client';
 import { listCourses, getCurriculum, type Subject } from '@/src/api/courses';
-import {
-  bulkUpdateQuestions, getCompleteness, listQuestionBank, type BulkPatch, type CompletenessRow, type MissingKind, type QuestionBankRow,
-} from '@/src/api/questionBank';
+import { bulkUpdateQuestions, listQuestionBank, type BulkPatch, type CompletenessRow, type MissingKind, type QuestionBankRow } from '@/src/api/questionBank';
 import type { Difficulty } from '@/src/api/tests';
 import { mediaRefs, plainText } from '@/src/rich';
+import { ROUTES } from '@/src/navigation/routes';
+import { useCursorList } from '@/src/queries/useCursorList';
+import { useCompleteness } from '@/src/queries/teacher';
+import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 
 const PAGE = 25;
 type Quick = 'all' | 'reported' | MissingKind;
@@ -43,16 +44,8 @@ export default function QuestionBankRoute() {
   const [difficulty, setDifficulty] = useState<Difficulty | undefined>();
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
-  const [rows, setRows] = useState<QuestionBankRow[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [more, setMore] = useState(false);
-  const [error, setError] = useState(false);
-  const [totals, setTotals] = useState<Record<string, number> | null>(null);
-  const [chapters, setChapters] = useState<CompletenessRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
-  const seq = useRef(0);
 
   useEffect(() => {
     const t = setTimeout(() => setQuery(q.trim()), 350);
@@ -70,41 +63,23 @@ export default function QuestionBankRoute() {
     [quick, difficulty, query],
   );
 
-  const load = useCallback(async () => {
-    const my = ++seq.current;
-    setLoading(true);
-    setError(false);
-    try {
-      const r = await listQuestionBank(params);
-      if (my !== seq.current) return;
-      setRows(r.items);
-      setCursor(r.next_cursor);
-      setSelected(new Set());
-    } catch {
-      if (my === seq.current) setError(true);
-    } finally {
-      if (my === seq.current) setLoading(false);
-    }
-  }, [params]);
+  const list = useCursorList<QuestionBankRow, Awaited<ReturnType<typeof listQuestionBank>>>(
+    ['teacher', 'question-bank', params],
+    (cursor) => listQuestionBank({ ...params, cursor }),
+    (r) => r.items,
+  );
+  const { rows, loading, error, load } = list;
+  const cursor = list.hasMore ? 'more' : null;
+  const more = list.more;
+  const completeness = useCompleteness();
+  useRefetchOnFocus(completeness.refetch);
+  const totals: Record<string, number> | null = completeness.data?.totals ?? null;
+  const chapters: CompletenessRow[] = completeness.data?.chapters ?? [];
+  const loadMore = () => void list.loadMore().then((r) => { if (r.isError) show('Couldn’t load more.', 'error'); });
+  // A new search or filter starts a fresh list, so drop any selection from the old one.
+  useEffect(() => setSelected(new Set()), [params]);
 
-  useEffect(() => { void load(); }, [load]);
-  useFocusEffect(useCallback(() => {
-    getCompleteness().then((r) => { setTotals(r.totals); setChapters(r.chapters); }).catch(() => {});
-  }, []));
 
-  const loadMore = async () => {
-    if (!cursor || more) return;
-    setMore(true);
-    try {
-      const r = await listQuestionBank({ ...params, cursor });
-      setRows((p) => [...p, ...r.items]);
-      setCursor(r.next_cursor);
-    } catch {
-      show('Couldn’t load more.', 'error');
-    } finally {
-      setMore(false);
-    }
-  };
 
   const toggleSel = (id: string) =>
     setSelected((s) => {
@@ -128,13 +103,8 @@ export default function QuestionBankRoute() {
   });
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        <Pressable onPress={() => (selecting ? setSelected(new Set()) : router.back())} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel={selecting ? 'Clear selection' : 'Back'} style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>{selecting ? `${selected.size} selected` : 'Question bank'}</Text>
-      </View>
+    <Screen>
+      <ScreenHeader title={selecting ? `${selected.size} selected` : 'Question bank'} onBack={selecting ? () => setSelected(new Set()) : undefined} />
 
       <View style={{ paddingHorizontal: space.md, marginTop: space.xs }}>
         <InputField label="Search questions" value={q} onChangeText={setQ} autoCorrect={false} />
@@ -162,7 +132,7 @@ export default function QuestionBankRoute() {
         <Pressable onPress={() => setQuick(totals?.missing_difficulty ? 'difficulty' : totals?.missing_tags ? 'tags' : 'alt_text')} accessibilityRole="button" style={{ marginHorizontal: space.md, marginTop: space.sm, backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.sm }}>
           <Text style={[type['type/caption'], { color: color('text/primary') }]}>Needs attention: {missingLine} — tap to review</Text>
           <Text
-            onPress={() => router.push('/(teacher)/completeness')}
+            onPress={() => router.push(ROUTES.teacher.completeness)}
             accessibilityRole="link"
             style={[type['type/caption'], { color: color('accent/default'), marginTop: 2 }]}
           >
@@ -187,7 +157,7 @@ export default function QuestionBankRoute() {
               return (
                 <Pressable
                   key={r.id}
-                  onPress={() => (selecting ? toggleSel(r.id) : router.push({ pathname: '/(teacher)/question-editor', params: { testId: r.test.id, questionId: r.id } }))}
+                  onPress={() => (selecting ? toggleSel(r.id) : router.push({ pathname: ROUTES.teacher.questionEditor, params: { testId: r.test.id, questionId: r.id } }))}
                   onLongPress={() => toggleSel(r.id)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: on }}
@@ -228,9 +198,9 @@ export default function QuestionBankRoute() {
         visible={bulkOpen}
         onClose={() => setBulkOpen(false)}
         ids={[...selected]}
-        onDone={(n) => { setBulkOpen(false); show(`Updated ${n} question${n === 1 ? '' : 's'}`, 'success'); void load(); getCompleteness().then((r) => setTotals(r.totals)).catch(() => {}); }}
+        onDone={(n) => { setBulkOpen(false); show(`Updated ${n} question${n === 1 ? '' : 's'}`, 'success'); void load(); void completeness.refetch(); }}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 

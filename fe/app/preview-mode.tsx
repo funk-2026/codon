@@ -1,14 +1,15 @@
 // DEV ONLY — remove when real auth exists
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, useRouter, type Href } from 'expo-router';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth, type Role } from '@/src/auth/AuthContext';
+import { ROUTES } from '@/src/navigation/routes';
+import { Screen } from '@/src/components';
 
 const OPTIONS: { role: Role; label: string; href: Href }[] = [
-  { role: 'student', label: 'Student', href: '/profile-setup' as Href },
-  { role: 'teacher', label: 'Teacher', href: '/(teacher)/(tabs)/(home)' },
-  { role: 'admin', label: 'Admin', href: '/(admin)/(home)' },
+  { role: 'student', label: 'Student', href: ROUTES.auth.profileSetup as Href },
+  { role: 'teacher', label: 'Teacher', href: ROUTES.teacher.home },
+  { role: 'admin', label: 'Admin', href: ROUTES.admin.home },
 ];
 
 export default function PreviewModeRoute() {
@@ -22,7 +23,7 @@ export default function PreviewModeRoute() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+    <Screen>
       <View style={[styles.center, { padding: space.lg, gap: space.md }]}>
         <Text
           style={[
@@ -60,12 +61,11 @@ export default function PreviewModeRoute() {
           </Pressable>
         ))}
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center' },
   button: { width: '100%', alignItems: 'center' },
 });

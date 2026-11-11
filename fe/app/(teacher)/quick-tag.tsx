@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
-import { CaretLeft, CheckCircle, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
+import { CheckCircle, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { QuestionPreviewCard, type MediaMap } from '@/src/rich';
 import {
   bulkUpdateQuestions, listQuestionBank, searchTags, type MissingKind, type QuestionBankRow, type TagRow,
 } from '@/src/api/questionBank';
 import type { Difficulty } from '@/src/api/tests';
+import { ROUTES } from '@/src/navigation/routes';
+import { useSafeBack } from '@/src/navigation/useSafeBack';
 
 const DIFFS: { key: Difficulty; label: string }[] = [{ key: 'easy', label: 'Easy' }, { key: 'medium', label: 'Medium' }, { key: 'hard', label: 'Hard' }];
 const TITLE: Record<string, string> = { difficulty: 'Set difficulty', tags: 'Add tags', topic: 'Add a topic', ncert: 'Add NCERT page', alt_text: 'Describe images' };
@@ -25,6 +27,7 @@ const TITLE: Record<string, string> = { difficulty: 'Set difficulty', tags: 'Add
 export default function QuickTagRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const goBack = useSafeBack();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { missing, chapterId, chapter } = useLocalSearchParams<{ missing: MissingKind; chapterId?: string; chapter?: string }>();
@@ -93,16 +96,8 @@ export default function QuickTagRoute() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text accessibilityRole="header" style={[type['type/h2'], { color: color('text/primary') }]}>{TITLE[missing] ?? 'Quick tag'}</Text>
-          {chapter ? <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{chapter}</Text> : null}
-        </View>
-      </View>
+    <Screen>
+      <ScreenHeader title={TITLE[missing] ?? 'Quick tag'} subtitle={chapter || undefined} />
 
       {total > 0 ? (
         <View style={{ paddingHorizontal: space.md, marginTop: space.sm, gap: 4 }} accessible accessibilityLabel={`${Math.min(i + 1, total)} of ${total}, ${doneIds.size} saved`}>
@@ -122,7 +117,7 @@ export default function QuickTagRoute() {
           icon={<CheckCircle size={32} color={color('semantic/success')} weight="fill" />}
           title={total === 0 ? 'Nothing to fix here' : 'All done'}
           description={total === 0 ? 'Every question in this list already has it.' : `${doneIds.size} of ${total} saved. Reopen to pick up anything you skipped.`}
-          action={<TextButton label="Back" onPress={() => router.back()} />}
+          action={<TextButton label="Back" onPress={() => goBack()} />}
         />
       ) : (
         <>
@@ -170,7 +165,7 @@ export default function QuickTagRoute() {
                 label="Open in editor"
                 onPress={() => {
                   setDoneIds((s) => new Set(s).add(q.id));
-                  router.push({ pathname: '/(teacher)/question-editor', params: { testId: q.test.id, questionId: q.id } });
+                  router.push({ pathname: ROUTES.teacher.questionEditor, params: { testId: q.test.id, questionId: q.id } });
                   next();
                 }}
               />
@@ -182,6 +177,6 @@ export default function QuickTagRoute() {
           </View>
         </>
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }

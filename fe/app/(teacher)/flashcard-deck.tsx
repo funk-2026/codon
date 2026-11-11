@@ -2,10 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowDown, ArrowUp, CaretLeft, PencilSimple, Trash, WarningCircle } from 'phosphor-react-native';
+import { ArrowDown, ArrowUp, PencilSimple, Trash, WarningCircle } from 'phosphor-react-native';
 import {
-  BottomSheet, EmptyState, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, StatusBadge, TextButton, useToast,
-} from '@/src/components';
+  BottomSheet, EmptyState, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, StatusBadge, TextButton, useToast, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { RichContent, RichField, plainText, type MediaMap, type MediaView } from '@/src/rich';
 import { ApiError } from '@/src/api/client';
@@ -15,6 +14,7 @@ import {
   type TeacherCard, type TeacherDeck,
 } from '@/src/api/flashcardsTeacher';
 import { DECK_BADGE } from '@/src/flashcards/deckBadge';
+import { useSafeBack } from '@/src/navigation/useSafeBack';
 
 const MAX_SIDE = 1000;
 type Opt = { value: string; label: string };
@@ -28,6 +28,7 @@ type CardDraft = { id?: string; front: string; back: string };
 export default function FlashcardDeckRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const goBack = useSafeBack();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const params = useLocalSearchParams<{ id?: string }>();
@@ -209,7 +210,7 @@ export default function FlashcardDeckRoute() {
     try {
       await deleteDeck(deck.id);
       show('Deck deleted', 'success');
-      router.back();
+      goBack();
     } catch {
       show('Couldn’t delete the deck.', 'error');
       setBusy(null);
@@ -246,15 +247,9 @@ export default function FlashcardDeckRoute() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md, gap: space.sm }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h2'], { color: color('text/primary'), flex: 1 }]} numberOfLines={1}>
-          {deck ? deck.title : 'New deck'}
-        </Text>
-        {badge ? <StatusBadge status={badge.status} label={badge.label} /> : null}
-      </View>
+      <ScreenHeader title={deck ? deck.title : 'New deck'} right={<>
+{badge ? <StatusBadge status={badge.status} label={badge.label} /> : null}
+</>} />
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg, paddingBottom: space['3xl'] + insets.bottom }} keyboardShouldPersistTaps="handled">
         {deck?.status === 'rejected' && deck.rejection_reason ? (

@@ -8,7 +8,7 @@ import {
   View,
   type TextInputInstance,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
@@ -19,10 +19,11 @@ import Animated, {
 import { ChevronLeft } from 'lucide-react-native';
 import { maskPhone } from './phone-entry';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { useToast } from '@/src/components';
+import { useToast, Screen } from '@/src/components';
 import { useAuth } from '@/src/auth/AuthContext';
 import { verifyOTP, sendOTP } from '@/src/api/auth';
 import { ApiError } from '@/src/api/client';
+import { ROUTES } from '@/src/navigation/routes';
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 45;
@@ -93,13 +94,13 @@ export default function OtpVerifyRoute() {
       const isProfileComplete = res.user.name && res.user.selected_course_id;
 
       if (!isProfileComplete) {
-        router.replace('/profile-setup');
+        router.replace(ROUTES.auth.profileSetup);
       } else if (role === 'admin') {
-        router.replace('/role-picker' as any);
+        router.replace(ROUTES.auth.rolePicker as any);
       } else if (role === 'teacher') {
-        router.replace('/(teacher)/(tabs)/(home)');
+        router.replace(ROUTES.teacher.home);
       } else {
-        router.replace('/(student)/(home)');
+        router.replace(ROUTES.student.home);
       }
     } catch (err) {
       setVerifying(false);
@@ -151,12 +152,12 @@ export default function OtpVerifyRoute() {
   const resendAvailable = resendIn <= 0 || expired;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+    <Screen>
       <View style={{ height: 44, paddingLeft: space.md, justifyContent: 'center' }}>
         <Pressable
           accessibilityRole="button"
           hitSlop={space.xs}
-          onPress={() => router.replace('/phone-entry')}
+          onPress={() => router.replace(ROUTES.auth.phoneEntry)}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
         >
           <ChevronLeft size={24} color={color('text/primary')} strokeWidth={2} />
@@ -269,7 +270,7 @@ export default function OtpVerifyRoute() {
         <Pressable
           accessibilityRole="link"
           hitSlop={space.xs}
-          onPress={() => router.replace('/phone-entry')}
+          onPress={() => router.replace(ROUTES.auth.phoneEntry)}
           style={({ pressed }) => [
             styles.changeNumber,
             { marginTop: space.xl, opacity: pressed ? 0.6 : 1 },
@@ -282,12 +283,11 @@ export default function OtpVerifyRoute() {
       </View>
 
       <View style={{ height: insets.bottom + space.md }} />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   body: { flex: 1 },
   boxRow: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
   changeNumber: { alignSelf: 'center' },

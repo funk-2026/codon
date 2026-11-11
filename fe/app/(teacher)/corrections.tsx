@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CaretLeft, PencilSimpleLine, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
+import { PencilSimpleLine, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SecondaryButton, SkeletonBlock, TextButton, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listTeacherCorrections, type CorrectionQueueRow } from '@/src/api/moderation';
 import { plainText } from '@/src/rich';
+import { useCursorList } from '@/src/queries/useCursorList';
 
 const TONE = { pending: { label: 'Waiting for review', tone: 'semantic/warning' }, approved: { label: 'Approved', tone: 'semantic/success' }, rejected: { label: 'Rejected', tone: 'semantic/danger' } } as const;
 
@@ -14,34 +14,18 @@ export default function TeacherCorrectionsRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [rows, setRows] = useState<CorrectionQueueRow[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const list = useCursorList<CorrectionQueueRow, Awaited<ReturnType<typeof listTeacherCorrections>>>(
+    ['teacher', 'corrections'],
+    (cursor) => listTeacherCorrections({ limit: 20, cursor }),
+    (r) => r.items,
+  );
+  const { rows, loading, error, load } = list;
+  const cursor = list.hasMore ? 'more' : null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const r = await listTeacherCorrections({ limit: 20 });
-      setRows(r.items);
-      setCursor(r.next_cursor);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary') }]}>My corrections</Text>
-      </View>
+    <Screen>
+      <ScreenHeader title="My corrections" />
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] + insets.bottom }}>
         {loading ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} height={90} radius={radius.md} />)
@@ -65,10 +49,10 @@ export default function TeacherCorrectionsRoute() {
                 </View>
               );
             })}
-            {cursor ? <SecondaryButton label="Load more" onPress={async () => { const r = await listTeacherCorrections({ limit: 20, cursor }).catch(() => null); if (r) { setRows((p) => [...p, ...r.items]); setCursor(r.next_cursor); } }} /> : null}
+            {cursor ? <SecondaryButton label="Load more" onPress={() => void list.loadMore()} loading={list.more} /> : null}
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }

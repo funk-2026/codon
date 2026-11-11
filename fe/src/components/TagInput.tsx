@@ -3,6 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { X } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { searchTags, type TagRow } from '@/src/api/questionBank';
+import { inputText } from '@/src/theme/inputs';
 
 const MAX_TAGS = 12;
 
@@ -55,7 +56,7 @@ export function TagInput({ value, onChange, label = 'Tags', suggest = true }: { 
         autoCorrect={false}
         returnKeyType="done"
         accessibilityLabel={`${label}: add a tag`}
-        style={[type['type/body-m'], { minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: color('border/subtle'), backgroundColor: color('bg/surface'), paddingHorizontal: space.md, color: color('text/primary') }]}
+        style={[inputText(type['type/body-m']), { minHeight: 48, paddingVertical: 0, borderRadius: radius.md, borderWidth: 1.5, borderColor: color('border/subtle'), backgroundColor: color('bg/surface'), paddingHorizontal: space.md, color: color('text/primary') }]}
       />
       {hits.length > 0 || text.trim() ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>

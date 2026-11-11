@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CaretLeft, FlagBanner, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
+import { FlagBanner, WarningCircle } from 'phosphor-react-native';
+import { BottomSheet, EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useReportReasons } from '@/src/config/AppConfigContext';
 import { ApiError } from '@/src/api/client';
 import { dismissReport, listAdminReports, listTeacherReports, resolveReport, type ReportInboxRow } from '@/src/api/moderation';
 import type { ReportStatus } from '@/src/api/reports';
-import { QuestionPreviewCard, type MediaMap } from '@/src/rich';
+import { QuestionPreviewCard } from '@/src/rich';
+import { ROUTES } from '@/src/navigation/routes';
+import { useCursorList } from '@/src/queries/useCursorList';
 
 const STATUSES: { key: ReportStatus | 'all'; label: string }[] = [
   { key: 'open', label: 'Open' }, { key: 'fixed', label: 'Fixed' }, { key: 'no_change', label: 'No change' }, { key: 'dismissed', label: 'Dismissed' }, { key: 'all', label: 'All' },
@@ -29,50 +31,20 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
 
   const [status, setStatus] = useState<ReportStatus | 'all'>('open');
   const [reason, setReason] = useState<string | undefined>();
-  const [rows, setRows] = useState<ReportInboxRow[]>([]);
-  const [media, setMedia] = useState<MediaMap>({});
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [more, setMore] = useState(false);
-  const [error, setError] = useState(false);
   const [acting, setActing] = useState<{ row: ReportInboxRow; outcome: 'fixed' | 'no_change' | 'dismissed' } | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const seq = useRef(0);
   const fetcher = role === 'admin' ? listAdminReports : listTeacherReports;
+  const list = useCursorList<ReportInboxRow, Awaited<ReturnType<typeof listAdminReports>>>(
+    ['reports-inbox', role, status, reason],
+    (cursor) => fetcher({ status, reason, limit: 20, cursor }),
+    (r) => r.items,
+  );
+  const { rows, media, loading, error, setRows, load, more } = list;
+  const cursor = list.hasMore ? 'more' : null;
+  const loadMore = () => void list.loadMore().then((r) => { if (r.isError) show('Couldn’t load more.', 'error'); });
 
-  const load = useCallback(async () => {
-    const my = ++seq.current;
-    setLoading(true);
-    setError(false);
-    try {
-      const r = await fetcher({ status, reason, limit: 20 });
-      if (my !== seq.current) return;
-      setRows(r.items);
-      setMedia(r.media ?? {});
-      setCursor(r.next_cursor);
-    } catch {
-      if (my === seq.current) setError(true);
-    } finally {
-      if (my === seq.current) setLoading(false);
-    }
-  }, [status, reason, fetcher]);
-  useEffect(() => { void load(); }, [load]);
 
-  const loadMore = async () => {
-    if (!cursor || more) return;
-    setMore(true);
-    try {
-      const r = await fetcher({ status, reason, limit: 20, cursor });
-      setRows((p) => [...p, ...r.items]);
-      setMedia((m) => ({ ...m, ...(r.media ?? {}) }));
-      setCursor(r.next_cursor);
-    } catch {
-      show('Couldn’t load more.', 'error');
-    } finally {
-      setMore(false);
-    }
-  };
 
   const submit = async () => {
     if (!acting) return;
@@ -99,13 +71,8 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
   });
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary') }]}>Question reports</Text>
-      </View>
+    <Screen>
+      <ScreenHeader title="Question reports" />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
         {STATUSES.map((s) => (
@@ -144,7 +111,7 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
                 {r.status === 'open' ? (
                   <View style={{ gap: space.xs }}>
                     {r.test_id || r.question?.test_id ? (
-                      <SecondaryButton label="Open question" onPress={() => router.push({ pathname: '/(teacher)/question-editor', params: { testId: (r.test_id ?? r.question?.test_id)!, questionId: r.item_id } })} />
+                      <SecondaryButton label="Open question" onPress={() => router.push({ pathname: ROUTES.teacher.questionEditor, params: { testId: (r.test_id ?? r.question?.test_id)!, questionId: r.item_id } })} />
                     ) : null}
                     <View style={{ flexDirection: 'row', gap: space.xs, flexWrap: 'wrap' }}>
                       <TextButton label="Mark fixed" onPress={() => { setActing({ row: r, outcome: 'fixed' }); setNote(''); }} />
@@ -169,6 +136,6 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
           <PrimaryButton label="Confirm" onPress={submit} loading={busy} />
         </View>
       </BottomSheet>
-    </SafeAreaView>
+    </Screen>
   );
 }

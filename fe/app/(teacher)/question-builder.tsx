@@ -1,14 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, ImageSquare, PencilSimple, Plus, Trash, UploadSimple, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, useToast } from '@/src/components';
+import { ImageSquare, PencilSimple, Trash, WarningCircle } from 'phosphor-react-native';
+import { BottomSheet, EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ApiError } from '@/src/api/client';
 import { deleteQuestion, getTeacherTest, submitTestForReview, type TeacherTestDetail } from '@/src/api/teacher';
 import type { AuthoredQuestion } from '@/src/api/tests';
 import { mediaRefs, plainText } from '@/src/rich';
+import { ROUTES } from '@/src/navigation/routes';
 
 type Missing = { question_id: string; fields: string[] };
 
@@ -54,7 +55,7 @@ export default function QuestionBuilderRoute() {
   const unclassified = questions.filter((q) => !q.chapter_id || !q.difficulty).length;
 
   const edit = (q?: AuthoredQuestion) =>
-    router.push({ pathname: '/(teacher)/question-editor', params: { testId: testId!, ...(q ? { questionId: q.id } : {}) } });
+    router.push({ pathname: ROUTES.teacher.questionEditor, params: { testId: testId!, ...(q ? { questionId: q.id } : {}) } });
 
   const doDelete = async () => {
     if (!toDelete) return;
@@ -78,7 +79,7 @@ export default function QuestionBuilderRoute() {
     try {
       await submitTestForReview(testId);
       show('Submitted for review', 'success');
-      router.replace('/(teacher)/(tabs)/(content)');
+      router.replace(ROUTES.teacher.content);
     } catch (e) {
       if (e instanceof ApiError && e.code === 'incomplete_questions') {
         const m = ((e.details as any)?.missing ?? []) as Missing[];
@@ -91,17 +92,10 @@ export default function QuestionBuilderRoute() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text accessibilityRole="header" style={[type['type/h2'], { color: color('text/primary') }]} numberOfLines={1}>{test?.title ?? testTitle ?? 'Questions'}</Text>
-          <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{questions.length} question{questions.length === 1 ? '' : 's'}</Text>
-        </View>
-        {test ? <StatusBadge status={(test.status as any) ?? 'draft'} /> : null}
-      </View>
+    <Screen>
+      <ScreenHeader title={test?.title ?? testTitle ?? 'Questions'} right={<>
+{test ? <StatusBadge status={(test.status as any) ?? 'draft'} /> : null}
+</>} />
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: 160 + insets.bottom }} showsVerticalScrollIndicator={false}>
         {status === 'loading' ? (
@@ -195,7 +189,7 @@ export default function QuestionBuilderRoute() {
           <View style={{ flexDirection: 'row', gap: space.sm }}>
             <View style={{ flex: 1 }}><SecondaryButton label="Add question" onPress={() => edit()} /></View>
             <View style={{ flex: 1 }}>
-              <SecondaryButton label="Import CSV" onPress={() => router.push({ pathname: '/(teacher)/csv-upload', params: { testId: testId!, testTitle: test?.title ?? '' } })} />
+              <SecondaryButton label="Import CSV" onPress={() => router.push({ pathname: ROUTES.teacher.csvUpload, params: { testId: testId!, testTitle: test?.title ?? '' } })} />
             </View>
           </View>
           <PrimaryButton label="Submit for review" onPress={submit} loading={submitting} disabled={questions.length === 0} />
@@ -209,6 +203,6 @@ export default function QuestionBuilderRoute() {
           <PrimaryButton label="Delete" onPress={doDelete} loading={deleting} />
         </View>
       </BottomSheet>
-    </SafeAreaView>
+    </Screen>
   );
 }

@@ -1,18 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import {
-  CaretLeft,
-  CaretRight,
-  UploadSimple,
-  TextB,
-  TextHOne,
-  ListBullets,
-  X,
-} from 'phosphor-react-native';
-import { CourseSelector, ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
+import { CaretRight, UploadSimple, TextB, TextHOne, ListBullets, X } from 'phosphor-react-native';
+import { CourseSelector, ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { LecturePdfEditor, type PdfKind } from '@/src/content/LecturePdfEditor';
 import { createContent } from '@/src/api/teacher';
@@ -21,6 +13,8 @@ import { listCourses, getCurriculum, type Course } from '@/src/api/courses';
 import { defaultCourse } from '@/src/api/courseSelection';
 import { ApiError } from '@/src/api/client';
 import * as tus from 'tus-js-client';
+import { ROUTES } from '@/src/navigation/routes';
+import { shadow } from '@/src/theme/elevation';
 
 type ContentType = 'Video' | 'Document';
 type VideoState = 'idle' | 'uploading' | 'ready' | 'failed';
@@ -218,8 +212,8 @@ export default function CreateContentRoute() {
 
   const goToLocationPicker = () => {
     router.push({
-      pathname: '/(teacher)/(tabs)/(home)/course-structure-manager',
-      params: { pickerMode: '1', returnTo: '/(teacher)/create-content', ...(courseId ? { courseId } : {}) },
+      pathname: ROUTES.teacher.courseStructureManager,
+      params: { pickerMode: '1', returnTo: ROUTES.teacher.createContent, ...(courseId ? { courseId } : {}) },
     });
   };
 
@@ -250,7 +244,7 @@ export default function CreateContentRoute() {
         ...(contentType === 'Video' && pdfs.annotated.key ? { annotated_pdf_key: pdfs.annotated.key } : {}),
       });
       show('Content saved', 'success');
-      router.push({ pathname: '/(teacher)/content-preview', params: { type: contentType, id: res.id } });
+      router.push({ pathname: ROUTES.teacher.contentPreview, params: { type: contentType, id: res.id } });
     } catch (err) {
       show('Failed to save content', 'error');
     } finally {
@@ -259,20 +253,10 @@ export default function CreateContentRoute() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={space.xs}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
-          New Content
-        </Text>
-        <TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
-      </View>
+    <Screen>
+      <ScreenHeader title="New Content" right={<>
+<TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
+</>} />
 
       {loadError ? (
         <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
@@ -448,22 +432,12 @@ export default function CreateContentRoute() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-function shadow(): {} {
-  return {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  };
-}
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center' },
   segmented: { flexDirection: 'row' },
   segment: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center' },

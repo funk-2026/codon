@@ -15,12 +15,14 @@
     "build:android:aab": "cd android && ./gradlew bundleRelease",
     "test": "jest",
     "test:ci": "jest --ci",
-    "test:ui": "jest --selectProjects ui"
+    "test:ui": "jest --selectProjects ui",
+    "check:routes": "node scripts/check-routes.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/figtree": "^0.4.1",
     "@lucide/lab": "^0.1.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@tanstack/react-query": "^5.107.1",
     "expo": "^58.0.17",
     "expo-blur": "~58.0.5",
     "expo-camera": "~58.0.12",

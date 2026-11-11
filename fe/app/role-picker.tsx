@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
   interpolateColor,
 } from 'react-native-reanimated';
-import { ShieldCheck, Chalkboard, GraduationCap, CheckCircle, CaretLeft } from 'phosphor-react-native';
-import { PrimaryButton } from '@/src/components';
+import { ShieldCheck, Chalkboard, GraduationCap, CheckCircle } from 'phosphor-react-native';
+import { PrimaryButton, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { saveAdminActiveRole, type AdminActiveRole } from '@/src/auth/tokenStore';
+import { ROUTES } from '@/src/navigation/routes';
 
 type RoleOption = {
   id: AdminActiveRole;
@@ -25,8 +25,6 @@ type RoleOption = {
 export default function RolePickerRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const { source } = useLocalSearchParams<{ source?: string }>();
-  const isFromSettings = source === 'settings';
 
   const roles: RoleOption[] = [
     {
@@ -34,21 +32,21 @@ export default function RolePickerRoute() {
       name: 'Admin',
       descriptor: 'Manage platform, users & content.',
       icon: <ShieldCheck size={24} color={color('accent/default')} weight="duotone" />,
-      destination: '/(admin)/(home)',
+      destination: ROUTES.admin.home,
     },
     {
       id: 'teacher',
       name: 'Teacher',
       descriptor: 'Create tests & upload content.',
       icon: <Chalkboard size={24} color={color('accent/default')} weight="duotone" />,
-      destination: '/(teacher)/(tabs)/(home)',
+      destination: ROUTES.teacher.home,
     },
     {
       id: 'student',
       name: 'Student',
       descriptor: 'Learn, practice & grow.',
       icon: <GraduationCap size={24} color={color('accent/default')} weight="duotone" />,
-      destination: '/(student)/(home)',
+      destination: ROUTES.student.home,
     },
   ];
 
@@ -63,25 +61,12 @@ export default function RolePickerRoute() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      {isFromSettings ? (
-        <View style={{ height: 44, paddingLeft: space.md, justifyContent: 'center' }}>
-          <Pressable
-            accessibilityRole="button"
-            hitSlop={space.xs}
-            onPress={() => router.back()}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          >
-            <CaretLeft size={24} color={color('text/primary')} weight="bold" />
-          </Pressable>
-        </View>
-      ) : (
-        <View style={{ height: 44 }} />
-      )}
+    <Screen>
+      <View style={{ height: 44 }} />
 
       <View style={[styles.body, { marginHorizontal: space.md }]}>
         <Text
-          style={[type['type/h1'], { color: color('text/primary'), marginTop: isFromSettings ? space.md : space['2xl'] }]}
+          style={[type['type/h1'], { color: color('text/primary'), marginTop: space['2xl'] }]}
           numberOfLines={2}
         >
           How would you like to continue?
@@ -117,7 +102,7 @@ export default function RolePickerRoute() {
           disabled={!selected || submitting}
         />
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -234,7 +219,6 @@ function RoleCard({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   body: { flex: 1 },
   footer: {},
   card: { justifyContent: 'center' },

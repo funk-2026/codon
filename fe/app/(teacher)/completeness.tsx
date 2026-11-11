@@ -1,11 +1,13 @@
-import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { CaretLeft, CheckCircle, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { CheckCircle, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SkeletonBlock, TextButton, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { getCompleteness, type CompletenessRow, type MissingKind } from '@/src/api/questionBank';
+import { type CompletenessRow, type MissingKind } from '@/src/api/questionBank';
+import { ROUTES } from '@/src/navigation/routes';
+import { useCompleteness } from '@/src/queries/teacher';
+import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 
 const KINDS: { key: MissingKind; field: keyof CompletenessRow; label: string }[] = [
   { key: 'difficulty', field: 'missing_difficulty', label: 'Difficulty' },
@@ -24,32 +26,21 @@ export default function CompletenessRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [data, setData] = useState<{ chapters: CompletenessRow[]; totals: Record<string, number> } | null>(null);
-  const [error, setError] = useState(false);
+  const completeness = useCompleteness();
+  useRefetchOnFocus(completeness.refetch);
+  const data: { chapters: CompletenessRow[]; totals: Record<string, number> } | null = completeness.data ?? null;
+  const error = completeness.isError;
+  const load = () => void completeness.refetch();
 
-  const load = useCallback(() => {
-    setError(false);
-    getCompleteness().then((r) => setData({ chapters: r.chapters ?? [], totals: r.totals ?? {} })).catch(() => setError(true));
-  }, []);
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
 
   const fix = (kind: MissingKind, row?: CompletenessRow) =>
-    router.push({ pathname: '/(teacher)/quick-tag', params: { missing: kind, ...(row?.chapter_id ? { chapterId: row.chapter_id, chapter: row.chapter } : {}) } });
+    router.push({ pathname: ROUTES.teacher.quickTag, params: { missing: kind, ...(row?.chapter_id ? { chapterId: row.chapter_id, chapter: row.chapter } : {}) } });
 
   const allDone = data && KINDS.every((k) => !(data.totals[k.field as string] > 0));
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary') }]}>Completeness</Text>
-      </View>
+    <Screen>
+      <ScreenHeader title="Completeness" />
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md, paddingBottom: space['3xl'] + insets.bottom }}>
         {error ? (
@@ -100,6 +91,6 @@ export default function CompletenessRoute() {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, FileArchive, FileCsv, UploadSimple, X } from 'phosphor-react-native';
+import { FileArchive, FileCsv, UploadSimple, X } from 'phosphor-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { PrimaryButton, SecondaryButton, useToast } from '@/src/components';
+import { PrimaryButton, SecondaryButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getModule } from '@/src/modules/registry';
 import { ApiError } from '@/src/api/client';
@@ -16,6 +16,7 @@ import { presignMedia } from '@/src/api/media';
 import { putFile } from '@/src/media/upload';
 import type { Test } from '@/src/api/tests';
 import { track } from '@/src/analytics/track';
+import { ROUTES } from '@/src/navigation/routes';
 
 type Picked = { name: string; size?: number; uri: string };
 
@@ -105,7 +106,7 @@ export default function CsvBulkUploadRoute() {
       const m: CSVImportMode = updateMode ? 'update' : mode;
       const res = await importQuestionsCSV(testId, { file_key: presign.file_key, bundle_key: bundleKey, mode: m, allow_content_update: updateMode ? allowContentUpdate : undefined });
       track('import.preflight', { mode: m, bundle: !!zip });
-      router.push({ pathname: '/(teacher)/csv-import-report', params: { batchId: res.batch_id, testId } });
+      router.push({ pathname: ROUTES.teacher.csvImportReport, params: { batchId: res.batch_id, testId } });
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.code === 'test_locked') setError('This test is no longer editable, so questions can’t be imported into it.');
@@ -140,13 +141,8 @@ export default function CsvBulkUploadRoute() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary') }]}>Bulk import</Text>
-      </View>
+    <Screen>
+      <ScreenHeader title="Bulk import" />
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg, paddingBottom: 140 + insets.bottom }} showsVerticalScrollIndicator={false}>
         {test ? (
@@ -225,6 +221,6 @@ export default function CsvBulkUploadRoute() {
         <PrimaryButton label={updateMode ? 'Check updates' : 'Check my file'} onPress={start} disabled={!csv || !testId} loading={!!busy} />
         <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'center' }]}>Nothing is saved yet — you’ll review the results first.</Text>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }

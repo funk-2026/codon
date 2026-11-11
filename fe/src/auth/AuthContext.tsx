@@ -10,6 +10,7 @@ import {
 } from './tokenStore';
 import { getMe } from '../api/profile';
 import { logout as apiLogout } from '../api/sessions';
+import { ROUTES } from '@/src/navigation/routes';
 
 export type Role = 'student' | 'teacher' | 'admin';
 
@@ -59,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('onTokenExpired', () => {
       signOut();
-      router.replace('/phone-entry');
+      router.replace(ROUTES.auth.phoneEntry);
     });
     return () => sub.remove();
   }, [signOut, router]);

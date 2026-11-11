@@ -1,0 +1,188 @@
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { DeviceMobile, CreditCard, Wallet, Lock, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, PrimaryButton, SkeletonBlock, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import { useAuth } from '@/src/auth/AuthContext';
+import { checkout, verifyPayment } from '@/src/api/subscriptions';
+import { getMe, SubscriptionPlan } from '@/src/api/profile';
+import { loadRazorpay } from '@/src/payments/razorpay';
+import { ROUTES } from '@/src/navigation/routes';
+import { shadow } from '@/src/theme/elevation';
+import { usePlanList } from '@/src/queries/subscriptions';
+
+
+
+export default function CheckoutRoute() {
+  const { color, type, space, radius } = useTheme();
+  const router = useRouter();
+  const { planId } = useLocalSearchParams<{ planId?: string }>();
+  const { user } = useAuth();
+  const planQuery = usePlanList();
+  const plan: SubscriptionPlan | null = planQuery.data ? (planQuery.data.plans.find((p) => p.id === planId) ?? planQuery.data.plans[0] ?? null) : null;
+  const loading = planQuery.isPending;
+  const loadError = planQuery.isError;
+  const load = () => void planQuery.refetch();
+  const [stage, setStage] = useState<'summary' | 'launching' | 'verifying'>('summary');
+  const { show } = useToast();
+
+
+  const handlePay = async () => {
+    if (!plan) return;
+    setStage('launching');
+
+    try {
+      // Load before creating the order so Expo Go fails without leaving an unpaid order behind.
+      const RazorpayCheckout = loadRazorpay();
+      const order = await checkout({ plan_id: plan.id });
+
+      const result = await RazorpayCheckout.open({
+        key: order.key_id,
+        amount: order.amount_paise,
+        currency: order.currency,
+        name: 'Codon',
+        description: plan.name,
+        order_id: order.razorpay_order_id,
+        prefill: {
+          name: user?.name || undefined,
+          contact: user?.phone_number || undefined,
+        },
+      });
+
+      setStage('verifying');
+      await verifyPayment({
+        razorpay_order_id: result.razorpay_order_id,
+        razorpay_payment_id: result.razorpay_payment_id,
+        razorpay_signature: result.razorpay_signature,
+      });
+
+      // Best-effort: fetch the real activated subscription's end date for
+      // the receipt screen. Not fatal if it fails — the payment itself
+      // already succeeded at this point.
+      let validUntil = '';
+      try {
+        const me = await getMe();
+        validUntil = me.active_subscription?.end_date ?? '';
+      } catch {
+        // ignore — payment-success falls back to a generic message
+      }
+
+      router.replace({
+        pathname: ROUTES.student.paymentSuccess,
+        params: { planName: plan.name, amount: String(plan.price_paise / 100), validUntil },
+      });
+    } catch (err: any) {
+      setStage('summary');
+      router.push({
+        pathname: ROUTES.student.paymentFailed,
+        params: { reason: err?.description || err?.message || undefined },
+      });
+    }
+  };
+
+  if (stage === 'verifying') {
+    return (
+      <Screen>
+        <View style={styles.centered}>
+          <OrbitPulse color={color('accent/default')} />
+          <Text style={[type['type/body-m-medium'], { color: color('text/secondary'), marginTop: space.lg }]}>
+            Confirming your payment…
+          </Text>
+        </View>
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen>
+      <ScreenHeader title="Confirm &amp; Pay" />
+
+      <View style={{ paddingHorizontal: space.md, flex: 1 }}>
+        {loading ? (
+          <SkeletonBlock height={200} radius={radius.lg} style={{ marginTop: space.xl }} />
+        ) : loadError || !plan ? (
+          <EmptyState
+            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
+            title="Couldn't load plan details"
+            description="Something went wrong fetching the plan you selected."
+            action={<TextButton label="Retry" onPress={load} />}
+            style={{ marginTop: space.xl }}
+          />
+        ) : (
+          <View
+            style={[
+              { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, marginTop: space.xl },
+              shadow(),
+            ]}
+          >
+            <Text style={[type['type/h3'], { color: color('text/primary') }]}>{plan.name}</Text>
+            <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
+              {Math.round(plan.duration_days / 30)} months · NEET UG Pro
+            </Text>
+            <View style={{ height: 1, backgroundColor: color('border/subtle'), marginVertical: space.md }} />
+            <View style={styles.totalRow}>
+              <Text style={[type['type/body-l'], { color: color('text/primary') }]}>Total</Text>
+              <Text style={[type['type/h2'], { color: color('text/primary') }]}>
+                ₹{(plan.price_paise / 100).toLocaleString('en-IN')}
+              </Text>
+            </View>
+            <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space['2xs'], textAlign: 'right' }]}>
+              Inclusive of all taxes
+            </Text>
+          </View>
+        )}
+
+        <View style={{ marginTop: space.lg }}>
+          <Text style={[type['type/caption'], { color: color('text/secondary'), marginBottom: space.xs }]}>
+            Pay securely via Razorpay
+          </Text>
+          <View style={[styles.methodsRow, { gap: space.md }]}>
+            <DeviceMobile size={24} color={color('text/tertiary')} />
+            <CreditCard size={24} color={color('text/tertiary')} />
+            <Wallet size={24} color={color('text/tertiary')} />
+          </View>
+        </View>
+
+        <View style={[styles.trustRow, { marginTop: space.md, gap: space.xs }]}>
+          <Lock size={14} color={color('text/tertiary')} />
+          <Text style={[type['type/caption'], { color: color('text/tertiary'), flex: 1 }]}>
+            Your payment details are handled directly by Razorpay. Codon never stores your card or bank information.
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
+        <PrimaryButton
+          label={`Pay ₹${plan ? (plan.price_paise / 100).toLocaleString('en-IN') : '...'}`}
+          onPress={handlePay}
+          loading={stage === 'launching' || loading}
+        />
+      </View>
+    </Screen>
+  );
+}
+
+function OrbitPulse({ color: ink }: { color: string }) {
+  return (
+    <View
+      style={{
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        borderWidth: 3,
+        borderColor: ink,
+        opacity: 0.6,
+      }}
+    />
+  );
+}
+
+
+const styles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center' },
+  totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  methodsRow: { flexDirection: 'row', alignItems: 'center' },
+  trustRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+});

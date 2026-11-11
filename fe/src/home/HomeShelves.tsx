@@ -5,6 +5,7 @@ import { Flame } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getHomeUpdates, listBrainHacks, type BrainHack, type HomeUpdate } from '@/src/api/discover';
 import { MediaImage, type MediaMap } from '@/src/rich';
+import { ROUTES, normalizeRoute } from '@/src/navigation/routes';
 
 /**
  * Only in-app routes may be opened from server-supplied CTAs. A content editor
@@ -15,7 +16,7 @@ export function safeRoute(route?: string): string | null {
   if (!route) return null;
   const r = route.trim();
   if (!r.startsWith('/') || r.includes('://') || r.includes('..')) return null;
-  return ALLOWED_PREFIXES.some((p) => r.startsWith(p)) ? r : null;
+  return ALLOWED_PREFIXES.some((p) => r.startsWith(p)) ? normalizeRoute(r) : null;
 }
 
 /** Admin-curated updates. Renders NOTHING when there are none — no placeholder content (CM-E12). */
@@ -112,7 +113,7 @@ export function BrainHacksShelf() {
     <View style={{ marginTop: space.xl }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm }}>
         <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>FREE BRAIN HACKS</Text>
-        <Pressable onPress={() => router.push('/(student)/(home)/brain-hacks')} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
+        <Pressable onPress={() => router.push(ROUTES.student.brainHacks)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
           <Text style={[type['type/caption'], { color: color('accent/default') }]}>See all →</Text>
         </Pressable>
       </View>
@@ -123,7 +124,7 @@ export function BrainHacksShelf() {
         showsHorizontalScrollIndicator={false}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => router.push({ pathname: '/(student)/(home)/brain-hack-detail', params: { id: item.id } })}
+            onPress={() => router.push({ pathname: ROUTES.student.brainHackDetail, params: { id: item.id } })}
             accessibilityRole="button"
             accessibilityLabel={`${item.title}. ${item.read_minutes} minute read`}
             style={({ pressed }) => ({ width: cardW, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, marginRight: space.sm, opacity: pressed ? 0.92 : 1, gap: space.xs })}
