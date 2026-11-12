@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"strings"
 
+	"codon-backend/internal/httpx"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 	"codon-backend/internal/services"
@@ -37,13 +37,17 @@ func NewAuthHandler(db *gorm.DB, otpSvc *services.OTPService, sessionSvc *servic
 func (h *AuthHandler) SendOTP(c *gin.Context) {
 	var req sendOTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
-	phone := strings.TrimSpace(req.PhoneNumber)
+	phone := services.NormalizePhone(req.PhoneNumber)
+	if phone == "" {
+		respondErr(c, http.StatusBadRequest, "invalid_phone", "phone_number is required")
+		return
+	}
 	if err := h.OTPSvc.SendOTP(c.Request.Context(), phone); err != nil {
-		c.JSON(http.StatusTooManyRequests, errorResponse{Error: err.Error()})
+		httpx.Fail(c, err)
 		return
 	}
 
@@ -66,13 +70,13 @@ func (h *AuthHandler) SendOTP(c *gin.Context) {
 func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 	var req verifyOTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
-	phone := strings.TrimSpace(req.PhoneNumber)
+	phone := services.NormalizePhone(req.PhoneNumber)
 	if err := h.OTPSvc.VerifyOTP(c.Request.Context(), phone, req.OTPCode); err != nil {
-		c.JSON(http.StatusUnauthorized, errorResponse{Error: err.Error()})
+		httpx.Fail(c, err)
 		return
 	}
 
@@ -85,7 +89,7 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 		}).
 		FirstOrCreate(&user)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create user"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to create user")
 		return
 	}
 
@@ -94,7 +98,7 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 
 	token, _, err := h.SessionSvc.CreateSession(c.Request.Context(), &user, req.DeviceID, req.DeviceInfo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create session"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to create session")
 		return
 	}
 
@@ -114,11 +118,11 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	session := middleware.GetSession(c)
 	if session == nil {
-		c.JSON(http.StatusUnauthorized, errorResponse{Error: "not authenticated"})
+		respondErr(c, http.StatusUnauthorized, "unauthorized", "not authenticated")
 		return
 	}
 	if err := h.SessionSvc.RevokeSession(c.Request.Context(), session.ID); err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to logout"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to logout")
 		return
 	}
 	c.JSON(http.StatusOK, messageResponse{Message: "logged out"})
@@ -138,7 +142,7 @@ func (h *AuthHandler) ListSessions(c *gin.Context) {
 	user := middleware.GetUser(c)
 	sessions, err := h.SessionSvc.ListActiveSessions(c.Request.Context(), user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to list sessions"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to list sessions")
 		return
 	}
 	c.JSON(http.StatusOK, listSessionsResponse{Sessions: sessions})
@@ -164,12 +168,12 @@ func (h *AuthHandler) RevokeSession(c *gin.Context) {
 	if err := h.DB.WithContext(c.Request.Context()).
 		Where("id = ? AND user_id = ?", sessionIDStr, user.ID).
 		First(&targetSession).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "session not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "session not found")
 		return
 	}
 
 	if err := h.SessionSvc.RevokeSession(c.Request.Context(), targetSession.ID); err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to revoke session"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to revoke session")
 		return
 	}
 	c.JSON(http.StatusOK, messageResponse{Message: "session revoked"})

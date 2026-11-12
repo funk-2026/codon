@@ -22,19 +22,19 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns analytics data for charts and stats, with computed deltas based on date ranges",
+                "description": "Headline numbers with period-over-period deltas and chart buckets for ` + "`" + `range` + "`" + ` = 7D | 30D | ALL. ` + "`" + `active_subscriptions` + "`" + ` counts ACTIVE subscriptions created in the window.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Admin"
                 ],
-                "summary": "Get admin analytics overview",
+                "summary": "Analytics overview (Admin)",
                 "parameters": [
                     {
                         "type": "string",
                         "default": "7D",
-                        "description": "Time range (7D, 30D, All Time)",
+                        "description": "7D, 30D or ALL",
                         "name": "range",
                         "in": "query"
                     }
@@ -46,14 +46,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handlers.analyticsOverviewResponse"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handlers.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/internal_handlers.errorResponse"
                         }
@@ -6345,55 +6339,6 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Creates a draft content item (video or document). For videos, a background transcoding job is automatically queued to convert the upload to HLS format. The file must be uploaded to S3 first via /uploads/presign.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Teacher"
-                ],
-                "summary": "Upload content item (Teacher)",
-                "parameters": [
-                    {
-                        "description": "Content details",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handlers.createContentRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codon-backend_internal_models.ContentItem"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handlers.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handlers.errorResponse"
-                        }
-                    }
-                }
             }
         },
         "/api/v1/teacher/content/{id}": {
@@ -8729,6 +8674,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codon-backend_internal_bunny.TUSAuth": {
+            "type": "object",
+            "properties": {
+                "expires": {
+                    "type": "integer"
+                },
+                "library_id": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "video_id": {
+                    "type": "string"
+                }
+            }
+        },
         "codon-backend_internal_generation.Bottleneck": {
             "type": "object",
             "properties": {
@@ -8884,6 +8846,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "file_name": {
+                    "type": "string"
+                },
+                "media_id": {
                     "type": "string"
                 },
                 "purpose": {
@@ -9227,6 +9192,9 @@ const docTemplate = `{
         "codon-backend_internal_models.ContentItem": {
             "type": "object",
             "properties": {
+                "annotated_pdf_key": {
+                    "type": "string"
+                },
                 "chapter": {
                     "$ref": "#/definitions/codon-backend_internal_models.Chapter"
                 },
@@ -9252,6 +9220,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "notes_pdf_key": {
+                    "description": "Lecture PDFs (videos): plain notes, and the annotated PDF of what was taught —\nstudents get the annotated one only after watching the lecture.",
                     "type": "string"
                 },
                 "rating_avg": {
@@ -9536,6 +9508,12 @@ const docTemplate = `{
                 },
                 "requires_subscription": {
                     "type": "boolean"
+                },
+                "reviewed_at": {
+                    "type": "string"
+                },
+                "reviewed_by": {
+                    "type": "string"
                 },
                 "status": {
                     "$ref": "#/definitions/codon-backend_internal_models.ContentStatus"
@@ -10558,6 +10536,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codon-backend_internal_services.ProgressSubject": {
+            "type": "object",
+            "properties": {
+                "accuracy": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codon-backend_internal_services.RevealResult": {
             "type": "object",
             "properties": {
@@ -10641,8 +10630,23 @@ const docTemplate = `{
         "internal_handlers.adminContentDetailResponse": {
             "type": "object",
             "properties": {
+                "annotated_pdf_locked": {
+                    "type": "boolean"
+                },
+                "annotated_pdf_url": {
+                    "type": "string"
+                },
                 "content": {
                     "$ref": "#/definitions/codon-backend_internal_models.ContentItem"
+                },
+                "has_annotated_pdf": {
+                    "type": "boolean"
+                },
+                "has_notes_pdf": {
+                    "type": "boolean"
+                },
+                "notes_pdf_url": {
+                    "type": "string"
                 },
                 "url": {
                     "type": "string"
@@ -10923,39 +10927,6 @@ const docTemplate = `{
                 "order_index": {
                     "type": "integer",
                     "example": 1
-                }
-            }
-        },
-        "internal_handlers.createContentRequest": {
-            "type": "object",
-            "properties": {
-                "chapter_id": {
-                    "type": "string",
-                    "example": "550e8400-e29b-41d4-a716-446655440002"
-                },
-                "content_type": {
-                    "type": "string",
-                    "enum": [
-                        "video",
-                        "document"
-                    ],
-                    "example": "video"
-                },
-                "course_id": {
-                    "type": "string",
-                    "example": "550e8400-e29b-41d4-a716-446655440000"
-                },
-                "file_key": {
-                    "type": "string",
-                    "example": "video/user-uuid/file-uuid.mp4"
-                },
-                "requires_subscription": {
-                    "type": "boolean",
-                    "example": true
-                },
-                "title": {
-                    "type": "string",
-                    "example": "Cell Biology — Lecture 1"
                 }
             }
         },
@@ -11377,11 +11348,26 @@ const docTemplate = `{
         "internal_handlers.getContentResponse": {
             "type": "object",
             "properties": {
+                "annotated_pdf_locked": {
+                    "type": "boolean"
+                },
+                "annotated_pdf_url": {
+                    "type": "string"
+                },
                 "content": {
                     "$ref": "#/definitions/codon-backend_internal_models.ContentItem"
                 },
+                "has_annotated_pdf": {
+                    "type": "boolean"
+                },
+                "has_notes_pdf": {
+                    "type": "boolean"
+                },
                 "my_rating": {
                     "type": "integer"
+                },
+                "notes_pdf_url": {
+                    "type": "string"
                 },
                 "url": {
                     "type": "string"
@@ -11456,6 +11442,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "kyc_required": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "required": {
+                    "description": "Required repeats kyc_required under the name older app builds read.",
                     "type": "boolean",
                     "example": false
                 }
@@ -11710,13 +11701,14 @@ const docTemplate = `{
                     "example": "lecture.mp4"
                 },
                 "purpose": {
-                    "description": "Purpose must be one of: kyc_document, video, csv, profile_photo",
+                    "description": "Purpose must be one of: kyc_document, video, csv, profile_photo, lecture_pdf",
                     "type": "string",
                     "enum": [
                         "kyc_document",
                         "video",
                         "csv",
-                        "profile_photo"
+                        "profile_photo",
+                        "lecture_pdf"
                     ],
                     "example": "video"
                 }
@@ -11727,7 +11719,10 @@ const docTemplate = `{
             "properties": {
                 "file_key": {
                     "type": "string",
-                    "example": "video/user-uuid/file-uuid.mp4"
+                    "example": "bunny:657bb740-a71b-4529-a012-528021c31a92"
+                },
+                "tus_auth": {
+                    "$ref": "#/definitions/codon-backend_internal_bunny.TUSAuth"
                 },
                 "upload_url": {
                     "type": "string",
@@ -11750,7 +11745,7 @@ const docTemplate = `{
                 "subjects": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_handlers.progressSubject"
+                        "$ref": "#/definitions/codon-backend_internal_services.ProgressSubject"
                     }
                 },
                 "trend": {
@@ -11771,17 +11766,6 @@ const docTemplate = `{
                 "avg_score": {
                     "type": "number",
                     "example": 72.5
-                }
-            }
-        },
-        "internal_handlers.progressSubject": {
-            "type": "object",
-            "properties": {
-                "accuracy": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
                 }
             }
         },
@@ -12091,6 +12075,10 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean",
                     "example": true
+                },
+                "required": {
+                    "description": "Required is the name older app builds send; either field works.",
+                    "type": "boolean"
                 }
             }
         },
@@ -12196,10 +12184,17 @@ const docTemplate = `{
         "internal_handlers.updateContentRequest": {
             "type": "object",
             "properties": {
+                "annotated_pdf_key": {
+                    "type": "string"
+                },
                 "chapter_id": {
                     "type": "string"
                 },
                 "file_key": {
+                    "type": "string"
+                },
+                "notes_pdf_key": {
+                    "description": "\"\" removes the PDF; omitted leaves it unchanged.",
                     "type": "string"
                 },
                 "requires_subscription": {

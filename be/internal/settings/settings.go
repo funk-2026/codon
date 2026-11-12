@@ -21,9 +21,6 @@ import (
 var Defaults = map[string]string{
 	"kyc_required": "false",
 
-	// Rollback switch for reading test membership via test_questions (D1-B).
-	"test_questions.read_via_join": "true",
-
 	// Feature flags
 	"custom_test.enabled":        "false",
 	"custom_test.tutor_mode":     "false",

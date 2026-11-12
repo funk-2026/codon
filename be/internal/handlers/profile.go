@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"time"
 
+	"codon-backend/internal/httpx"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
+	"codon-backend/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -13,11 +15,12 @@ import (
 )
 
 type ProfileHandler struct {
-	DB *gorm.DB
+	DB  *gorm.DB
+	Sub *services.SubscriptionService
 }
 
-func NewProfileHandler(db *gorm.DB) *ProfileHandler {
-	return &ProfileHandler{DB: db}
+func NewProfileHandler(db *gorm.DB, sub *services.SubscriptionService) *ProfileHandler {
+	return &ProfileHandler{DB: db, Sub: sub}
 }
 
 // GetMe godoc
@@ -33,26 +36,24 @@ func NewProfileHandler(db *gorm.DB) *ProfileHandler {
 func (h *ProfileHandler) GetMe(c *gin.Context) {
 	user := middleware.GetUser(c)
 
-	var activeSub models.Subscription
-	subResult := h.DB.WithContext(c.Request.Context()).
-		Where("user_id = ? AND status = ? AND end_date >= NOW()", user.ID, models.SubActive).
-		Preload("Plan").
-		Preload("Course").
-		First(&activeSub)
-
-	var setting models.PlatformSetting
-	kycRequired := false
-	if h.DB.Where("key = ?", "kyc_required").First(&setting).Error == nil {
-		kycRequired = setting.Value == "true"
+	activeSub, err := h.Sub.ActiveAny(c.Request.Context(), user.ID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
 	}
-
 	resp := gin.H{
 		"user":         user,
-		"kyc_required": kycRequired,
+		"kyc_required": h.Sub.KYCRequired(),
 	}
-	if subResult.Error == nil {
-		resp["active_subscription"] = activeSub
+	if activeSub != nil {
+		resp["active_subscription"] = activeSub // kept for older clients: the one ending last
 	}
+	all, err := h.Sub.ActiveAll(c.Request.Context(), user.ID)
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	resp["active_subscriptions"] = all // one per course
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -74,7 +75,7 @@ func (h *ProfileHandler) UpdateMe(c *gin.Context) {
 
 	var req updateMeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
@@ -88,19 +89,19 @@ func (h *ProfileHandler) UpdateMe(c *gin.Context) {
 	if req.SelectedCourseID != nil {
 		var course models.Course
 		if h.DB.Where("id = ?", *req.SelectedCourseID).First(&course).Error != nil {
-			c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid course_id"})
+			respondErr(c, http.StatusBadRequest, "bad_request", "invalid course_id")
 			return
 		}
 		updates["selected_course_id"] = *req.SelectedCourseID
 	}
 
 	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "no fields to update"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "no fields to update")
 		return
 	}
 
 	if err := h.DB.WithContext(c.Request.Context()).Model(user).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to update profile"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to update profile")
 		return
 	}
 
@@ -144,14 +145,13 @@ func (h *ProfileHandler) GetProgress(c *gin.Context) {
 func (h *ProfileHandler) GetAttempts(c *gin.Context) {
 	user := middleware.GetUser(c)
 
-	var attempts []models.StudentAttempt
-	h.DB.WithContext(c.Request.Context()).
-		Where("user_id = ?", user.ID).
-		Preload("Test").
-		Order("created_at DESC").
-		Find(&attempts)
-
-	c.JSON(http.StatusOK, listAttemptsResponse{Attempts: attempts})
+	attempts, next, err := paged(c, h.DB.WithContext(c.Request.Context()).Where("user_id = ?", user.ID).Preload("Test"), "student_attempts",
+		func(a models.StudentAttempt) (time.Time, uuid.UUID) { return a.CreatedAt, a.ID })
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"attempts": attempts, "next_cursor": nilIfEmpty(next)})
 }
 
 // GetMySubscription godoc
@@ -167,21 +167,12 @@ func (h *ProfileHandler) GetAttempts(c *gin.Context) {
 func (h *ProfileHandler) GetMySubscription(c *gin.Context) {
 	user := middleware.GetUser(c)
 
-	var sub models.Subscription
-	err := h.DB.WithContext(c.Request.Context()).
-		Where("user_id = ? AND status = ? AND end_date >= NOW()", user.ID, models.SubActive).
-		Preload("Plan").
-		Preload("Course").
-		First(&sub).Error
+	sub, err := h.Sub.ActiveAny(c.Request.Context(), user.ID)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusOK, mySubscriptionResponse{Subscription: nil})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to fetch subscription"})
+		httpx.Fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, mySubscriptionResponse{Subscription: &sub})
+	c.JSON(http.StatusOK, mySubscriptionResponse{Subscription: sub})
 }
 
 // ── Request / Response types ──────────────────────────────────────────────────
@@ -224,63 +215,48 @@ type heartbeatRequest struct {
 
 func (h *ProfileHandler) ContentHeartbeat(c *gin.Context) {
 	user := middleware.GetUser(c)
-	contentID := c.Param("id")
-
+	ctx := c.Request.Context()
+	contentID, ok := httpx.ParamUUID(c, "id")
+	if !ok {
+		return
+	}
 	var req heartbeatRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+	if !httpx.Bind(c, &req) {
+		return
+	}
+	if req.ProgressSeconds < 0 {
+		httpx.BadRequest(c, "invalid_progress", "progress_seconds must be >= 0")
 		return
 	}
 
-	var parsedID uuid.UUID
-	var err error
-	if parsedID, err = uuid.Parse(contentID); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid content id"})
+	var n int64
+	if err := h.DB.WithContext(ctx).Model(&models.ContentItem{}).Where("id = ?", contentID).Count(&n).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	if n == 0 {
+		httpx.NotFound(c, "content_not_found", "content not found")
 		return
 	}
 
-	// Update or create watch history
-	var history models.UserWatchHistory
-	err = h.DB.WithContext(c.Request.Context()).
-		Where("user_id = ? AND content_item_id = ?", user.ID, parsedID).
-		First(&history).Error
+	// One atomic upsert: progress only moves forward, completion is sticky.
+	now := time.Now()
+	err := h.DB.WithContext(ctx).Exec(`
+		INSERT INTO user_watch_histories (id, user_id, content_item_id, progress_seconds, is_completed, last_watched_at)
+		VALUES (gen_random_uuid(), ?, ?, ?, ?, ?)
+		ON CONFLICT (user_id, content_item_id) DO UPDATE SET
+			progress_seconds = GREATEST(user_watch_histories.progress_seconds, EXCLUDED.progress_seconds),
+			is_completed     = user_watch_histories.is_completed OR EXCLUDED.is_completed,
+			last_watched_at  = EXCLUDED.last_watched_at`,
+		user.ID, contentID, req.ProgressSeconds, req.IsCompleted, now).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			history = models.UserWatchHistory{
-				UserID:          user.ID,
-				ContentItemID:   parsedID,
-				ProgressSeconds: req.ProgressSeconds,
-				IsCompleted:     req.IsCompleted,
-				LastWatchedAt:   time.Now(),
-			}
-			h.DB.Create(&history)
-		} else {
-			c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to save heartbeat"})
-			return
-		}
-	} else {
-		if req.ProgressSeconds > history.ProgressSeconds {
-			history.ProgressSeconds = req.ProgressSeconds
-		}
-		if req.IsCompleted {
-			history.IsCompleted = true
-		}
-		history.LastWatchedAt = time.Now()
-		h.DB.Save(&history)
+		httpx.Fail(c, err)
+		return
 	}
-
-	// Update daily activity
-	today := time.Now().Truncate(24 * time.Hour)
-	var daily models.DailyActivity
-	err = h.DB.Where("user_id = ? AND date = ?", user.ID, today).First(&daily).Error
-	if err == gorm.ErrRecordNotFound {
-		h.DB.Create(&models.DailyActivity{
-			UserID:    user.ID,
-			Date:      today,
-			CreatedAt: time.Now(),
-		})
+	if err := services.RecordDailyActivity(h.DB.WithContext(ctx), user.ID, now); err != nil {
+		httpx.Fail(c, err)
+		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
@@ -290,7 +266,7 @@ func (h *ProfileHandler) GetRecentContent(c *gin.Context) {
 	var history []models.UserWatchHistory
 	h.DB.WithContext(c.Request.Context()).
 		Where("user_id = ?", user.ID).
-		Preload("ContentItem").
+		Preload("ContentItem.Chapter.Subject").
 		Order("last_watched_at desc").
 		Limit(10).
 		Find(&history)
@@ -302,9 +278,8 @@ func (h *ProfileHandler) GetRecentContent(c *gin.Context) {
 		}
 
 		breadcrumb := "Subject › Chapter"
-		var chapter models.Chapter
-		if err := h.DB.Preload("Subject").Where("id = ?", hist.ContentItem.ChapterID).First(&chapter).Error; err == nil {
-			breadcrumb = chapter.Subject.Name + " › " + chapter.Name
+		if ch := hist.ContentItem.Chapter; ch.ID != uuid.Nil {
+			breadcrumb = ch.Subject.Name + " › " + ch.Name
 		}
 
 		pct := 0
@@ -350,101 +325,12 @@ type mySubscriptionResponse struct {
 //	@Router			/api/v1/me/progress/breakdown [get]
 func (h *ProfileHandler) GetProgressBreakdown(c *gin.Context) {
 	user := middleware.GetUser(c)
-
-	// Optional segmentation: ?module=qbank|test_series|practice|custom
-	module := c.Query("module")
-	modFilter := ""
-	var modArgs []interface{}
-	if module != "" {
-		modFilter = " AND t.module_type = ?"
-		modArgs = []interface{}{module}
+	res, err := services.Progress(c.Request.Context(), h.DB, user.ID, c.Query("module"), time.Now())
+	if err != nil {
+		respondService(c, err)
+		return
 	}
-
-	// Trend: the LAST 10 submitted attempts, oldest first (previously this
-	// returned the first 10 ever). No fabricated zeros when there are none.
-	var trendScores []float64
-	trendSQL := `SELECT score FROM (
-		SELECT sa.score, sa.submitted_at FROM student_attempts sa JOIN tests t ON t.id = sa.test_id
-		WHERE sa.user_id = ? AND sa.status = ? AND sa.score IS NOT NULL` + modFilter + `
-		ORDER BY sa.submitted_at DESC NULLS LAST LIMIT 10) x ORDER BY submitted_at ASC NULLS LAST`
-	h.DB.WithContext(c.Request.Context()).Raw(trendSQL, append([]interface{}{user.ID, models.AttemptSubmitted}, modArgs...)...).Scan(&trendScores)
-	trend := make([]int, len(trendScores))
-	for i, sc := range trendScores {
-		trend[i] = int(sc)
-	}
-
-	// Subject accuracy from QUESTION-level subject (custom tests span several
-	// subjects), correct ÷ attempted (unattempted rows no longer dilute it).
-	type subjectStat struct {
-		Name     string
-		Accuracy float64
-	}
-	var subStats []subjectStat
-	query := `
-		SELECT s.name AS name,
-		       (COUNT(CASE WHEN aa.is_correct IS TRUE THEN 1 END) * 100.0) / NULLIF(COUNT(aa.id), 0) AS accuracy
-		FROM attempt_answers aa
-		JOIN questions q ON aa.question_id = q.id
-		JOIN student_attempts sa ON aa.attempt_id = sa.id
-		JOIN tests t ON sa.test_id = t.id
-		JOIN subjects s ON q.subject_id = s.id
-		WHERE sa.user_id = ? AND sa.status = ? AND aa.selected_option IS NOT NULL` + modFilter + `
-		GROUP BY s.id, s.name
-		ORDER BY s.name`
-	h.DB.WithContext(c.Request.Context()).Raw(query, append([]interface{}{user.ID, models.AttemptSubmitted}, modArgs...)...).Scan(&subStats)
-
-	// Empty (never a fake Physics/Chemistry/Botany/Zoology placeholder).
-	subjects := make([]progressSubject, len(subStats))
-	for i, s := range subStats {
-		subjects[i] = progressSubject{Name: s.Name, Accuracy: int(s.Accuracy)}
-	}
-
-	// Real streak calculation
-	dayStreak := 0
-	today := time.Now().Truncate(24 * time.Hour)
-	for i := 0; ; i++ {
-		checkDate := today.AddDate(0, 0, -i)
-		var count int64
-		h.DB.Model(&models.DailyActivity{}).
-			Where("user_id = ? AND date = ?", user.ID, checkDate).
-			Count(&count)
-		if count > 0 {
-			dayStreak++
-		} else {
-			if i > 0 {
-				break
-			}
-		}
-	}
-
-	last7Days := make([]bool, 7)
-	for i := 0; i < 7; i++ {
-		checkDate := today.AddDate(0, 0, -i)
-		var count int64
-		h.DB.Model(&models.DailyActivity{}).
-			Where("user_id = ? AND date = ?", user.ID, checkDate).
-			Count(&count)
-		last7Days[6-i] = count > 0
-	}
-
-	resp := progressBreakdownResponse{
-		Trend:     trend,
-		Subjects:  subjects,
-		DayStreak: dayStreak,
-		Last7Days: last7Days,
-	}
-
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, res)
 }
 
-type progressSubject struct {
-	Name     string `json:"name"`
-	Accuracy int    `json:"accuracy"`
-}
-
-type progressBreakdownResponse struct {
-	Trend     []int             `json:"trend"`
-	Subjects  []progressSubject `json:"subjects"`
-	DayStreak int               `json:"day_streak"`
-	Last7Days []bool            `json:"last_7_days"`
-}
+type progressBreakdownResponse = services.ProgressBreakdown

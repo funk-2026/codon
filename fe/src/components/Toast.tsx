@@ -20,7 +20,7 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 const TAB_BAR_OFFSET = 72;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const { color, type, radius, space, mode } = useTheme();
+  const { color, type, radius, space } = useTheme();
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState<ToastState>(null);
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,10 +75,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 paddingVertical: space.sm,
                 paddingHorizontal: space.md,
                 gap: space.xs,
-                borderWidth: mode === 'dark' ? 1 : 0,
+                borderWidth: 1,
                 borderColor: color('border/subtle'),
                 shadowColor: color('accent/default'),
-                shadowOpacity: mode === 'light' ? 0.14 : 0,
+                shadowOpacity: 0.12,
                 shadowRadius: 16,
                 shadowOffset: { width: 0, height: 6 },
                 elevation: 4,

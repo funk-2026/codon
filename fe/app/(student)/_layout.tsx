@@ -1,68 +1,14 @@
-import { Tabs } from 'expo-router';
-import { House, Exam, BookOpen, HandHeart, User } from 'phosphor-react-native';
-import { useTheme } from '@/src/theme/ThemeProvider';
+import { RoleStack } from '@/src/navigation/RoleStack';
 
-export default function StudentTabLayout() {
-  const { color, type } = useTheme();
+// Deep links into a detail screen still get the hub tabs underneath, so Back works.
+export const unstable_settings = { anchor: '(tabs)' };
 
+export default function StudentLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: color('accent/default'),
-        tabBarInactiveTintColor: color('text/tertiary'),
-        tabBarStyle: {
-          backgroundColor: color('bg/surface'),
-          borderTopColor: color('border/subtle'),
-        },
-        tabBarLabelStyle: type['type/caption'],
+    <RoleStack
+      screens={{
+        'test-question': { gestureEnabled: false },
       }}
-    >
-      <Tabs.Screen
-        name="(home)"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <House color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(practice)"
-        options={{
-          title: 'Practice',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <Exam color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(learn)"
-        options={{
-          title: 'Learn',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <BookOpen color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(support)"
-        options={{
-          title: 'Support',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <HandHeart color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(profile)"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <User color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-    </Tabs>
+    />
   );
 }

@@ -17,9 +17,9 @@ import (
 )
 
 type S3Client struct {
-	client     *s3.Client
-	presigner  *s3.PresignClient
-	bucket     string
+	client    *s3.Client
+	presigner *s3.PresignClient
+	bucket    string
 }
 
 var Client *S3Client
@@ -106,9 +106,6 @@ func (s *S3Client) DownloadObject(ctx context.Context, key string) (io.ReadClose
 }
 
 // BuildObjectKey constructs a namespaced key under the given purpose prefix.
-func BuildObjectKey(purpose, fileName string) string {
-	return fmt.Sprintf("%s/%s", purpose, fileName)
-}
 
 // ── Backend abstraction ───────────────────────────────────────────────────────
 

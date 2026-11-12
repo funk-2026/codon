@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft } from 'phosphor-react-native';
-import { InputField, PrimaryButton, SecondaryButton, SelectField, TextButton, useToast } from '@/src/components';
+import { InputField, PrimaryButton, SelectField, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { RichField, plainText, type MediaMap, type MediaView } from '@/src/rich';
 import { ApiError } from '@/src/api/client';
 import { createBrainHackApi, getBrainHackCategories, getTeacherBrainHack, submitBrainHack, updateBrainHackApi } from '@/src/api/discover';
+import { ROUTES } from '@/src/navigation/routes';
 
 const DEFAULT_CATS = ['Focus', 'Memory', 'Exam Day'];
 const MAX_BODY = 4000;
@@ -74,7 +74,7 @@ export default function CreateBrainHackRoute() {
       if (submit) {
         await submitBrainHack(id);
         show('Submitted for review', 'success');
-        router.replace('/(teacher)/(tabs)/(content)');
+        router.replace(ROUTES.teacher.content);
       } else show('Draft saved', 'success');
     } catch (e) {
       show(
@@ -89,14 +89,10 @@ export default function CreateBrainHackRoute() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>{editId ? 'Edit Brain Hack' : 'New Brain Hack'}</Text>
-        <TextButton label={busy === 'draft' ? 'Saving…' : 'Save draft'} onPress={() => save(false)} disabled={!!busy || loadingExisting} />
-      </View>
+    <Screen>
+      <ScreenHeader title={editId ? 'Edit Brain Hack' : 'New Brain Hack'} right={<>
+<TextButton label={busy === 'draft' ? 'Saving…' : 'Save draft'} onPress={() => save(false)} disabled={!!busy || loadingExisting} />
+</>} />
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg, paddingBottom: 120 + insets.bottom }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <InputField label="Title" value={title} onChangeText={setTitle} error={touched ? errors.title ?? undefined : undefined} />
@@ -111,6 +107,6 @@ export default function CreateBrainHackRoute() {
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: color('bg/surface'), borderTopWidth: 1, borderTopColor: color('border/subtle'), padding: space.md, paddingBottom: space.md + insets.bottom }}>
         <PrimaryButton label="Submit for review" onPress={() => save(true)} loading={busy === 'submit'} disabled={!!busy || loadingExisting} />
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }

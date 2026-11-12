@@ -85,7 +85,13 @@ func (s *ReportService) Create(ctx context.Context, user *models.User, in Report
 			if err := RecomputeQuestionStats(ctx, tx, in.ItemID); err != nil {
 				return err
 			}
-			return AutoHoldCheck(tx, in.ItemID)
+			if err := AutoHoldCheck(tx, in.ItemID); err != nil {
+				return err
+			}
+		}
+		if it.OwnerID != nil { // notification commits (or rolls back) with the report
+			Notify(tx, *it.OwnerID, "question_reported", "A student reported one of your questions", in.Reason,
+				map[string]interface{}{"report_id": r.ID, "item_type": in.ItemType, "item_id": in.ItemID})
 		}
 		return nil
 	})
@@ -95,10 +101,6 @@ func (s *ReportService) Create(ctx context.Context, user *models.User, in Report
 			return &existing, false, nil
 		}
 		return nil, false, err
-	}
-	if it.OwnerID != nil {
-		Notify(s.DB, *it.OwnerID, "question_reported", "A student reported one of your questions", in.Reason,
-			map[string]interface{}{"report_id": r.ID, "item_type": in.ItemType, "item_id": in.ItemID})
 	}
 	return &r, true, nil
 }
@@ -146,6 +148,10 @@ func (s *ReportService) Resolve(ctx context.Context, actor *models.User, id uuid
 		return nil, Conflict("already_resolved", "this report was already resolved")
 	}
 	now := time.Now()
+	msg := note
+	if msg == "" {
+		msg = "Thanks for helping us improve the questions."
+	}
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&r).Updates(map[string]interface{}{"status": status, "resolved_by": actor.ID, "resolved_at": now, "resolution_note": note}).Error; err != nil {
 			return err
@@ -155,16 +161,12 @@ func (s *ReportService) Resolve(ctx context.Context, actor *models.User, id uuid
 				return err
 			}
 		}
+		Notify(tx, r.ReporterID, "report_resolved", "Your report was reviewed", msg, map[string]interface{}{"report_id": r.ID, "status": status})
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	msg := note
-	if msg == "" {
-		msg = "Thanks for helping us improve the questions."
-	}
-	Notify(s.DB, r.ReporterID, "report_resolved", "Your report was reviewed", msg, map[string]interface{}{"report_id": r.ID, "status": status})
 	s.DB.WithContext(ctx).First(&r, "id = ?", id)
 	return &r, nil
 }

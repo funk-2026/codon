@@ -1,15 +1,17 @@
 import { useEffect } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient, wireAppStateFocus } from '@/src/queries/queryClient';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import {
-  Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-  Manrope_800ExtraBold,
-} from '@expo-google-fonts/manrope';
+  Figtree_400Regular,
+  Figtree_500Medium,
+  Figtree_600SemiBold,
+  Figtree_700Bold,
+  Figtree_800ExtraBold,
+} from '@expo-google-fonts/figtree';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { ThemeProvider } from '@/src/theme/ThemeProvider';
 import { AuthProvider, useAuth } from '@/src/auth/AuthContext';
@@ -26,6 +28,13 @@ SplashScreen.preventAutoHideAsync();
 // sign-in flow, and vice versa — no manual redirect-on-back-press needed.
 function RootNavigator() {
   const auth = useAuth();
+  const role = auth.status === 'authenticated' ? auth.user.role : null;
+
+  // Signing out (or an expired session) must drop every cached response, so the next
+  // user never sees the previous user's data.
+  useEffect(() => {
+    if (auth.status === 'unauthenticated') queryClient.clear();
+  }, [auth.status]);
 
   return (
     <Stack screenOptions={{ headerShown: false, animation: stackAnimation }}>
@@ -39,8 +48,15 @@ function RootNavigator() {
       <Stack.Protected guard={auth.status === 'authenticated'}>
         <Stack.Screen name="profile-setup" />
         <Stack.Screen name="role-picker" />
+      </Stack.Protected>
+      {/* Role areas: admins can open every area (role picker), everyone else only their own. */}
+      <Stack.Protected guard={role === 'student' || role === 'admin'}>
         <Stack.Screen name="(student)" />
+      </Stack.Protected>
+      <Stack.Protected guard={role === 'teacher' || role === 'admin'}>
         <Stack.Screen name="(teacher)" />
+      </Stack.Protected>
+      <Stack.Protected guard={role === 'admin'}>
         <Stack.Screen name="(admin)" />
       </Stack.Protected>
       <Stack.Screen name="+not-found" />
@@ -52,12 +68,14 @@ export default function RootLayout() {
   useFrameworkReady();
 
   const [fontsLoaded, fontError] = useFonts({
-    'Manrope-Regular': Manrope_400Regular,
-    'Manrope-Medium': Manrope_500Medium,
-    'Manrope-SemiBold': Manrope_600SemiBold,
-    'Manrope-Bold': Manrope_700Bold,
-    'Manrope-ExtraBold': Manrope_800ExtraBold,
+    'Figtree-Regular': Figtree_400Regular,
+    'Figtree-Medium': Figtree_500Medium,
+    'Figtree-SemiBold': Figtree_600SemiBold,
+    'Figtree-Bold': Figtree_700Bold,
+    'Figtree-ExtraBold': Figtree_800ExtraBold,
   });
+
+  useEffect(() => wireAppStateFocus(), []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -70,6 +88,7 @@ export default function RootLayout() {
   }
 
   return (
+    <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
         <AppConfigProvider>
@@ -77,12 +96,13 @@ export default function RootLayout() {
             <PushProvider>
               <ToastProvider>
                 <RootNavigator />
-                <StatusBar style="auto" />
+                <StatusBar style="dark" />
               </ToastProvider>
             </PushProvider>
           </BookmarksProvider>
         </AppConfigProvider>
       </AuthProvider>
     </ThemeProvider>
+    </QueryClientProvider>
   );
 }

@@ -1,13 +1,15 @@
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, useToast, type BadgeStatus } from '@/src/components';
+import { WarningCircle } from 'phosphor-react-native';
+import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, useToast, type BadgeStatus, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { RichContent, type MediaMap } from '@/src/rich';
 import { ApiError } from '@/src/api/client';
 import { deleteBrainHack, getTeacherBrainHack, publishBrainHack, submitBrainHack, type TeacherBrainHack } from '@/src/api/discover';
+import { ROUTES } from '@/src/navigation/routes';
+import { useSafeBack } from '@/src/navigation/useSafeBack';
 
 const BADGE: Record<TeacherBrainHack['status'], { status: BadgeStatus; label: string }> = {
   draft: { status: 'draft', label: 'Draft' },
@@ -24,6 +26,7 @@ const BADGE: Record<TeacherBrainHack['status'], { status: BadgeStatus; label: st
 export default function TeacherBrainHackDetailRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const goBack = useSafeBack();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -66,7 +69,7 @@ export default function TeacherBrainHackDetailRoute() {
       } else {
         await deleteBrainHack(hack.id);
         show('Deleted', 'success');
-        router.back();
+        goBack();
         return;
       }
     } catch (e) {
@@ -82,14 +85,10 @@ export default function TeacherBrainHackDetailRoute() {
   const badge = hack ? BADGE[hack.status] ?? BADGE.draft : null;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md, gap: space.sm }}>
-        <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[type['type/h2'], { color: color('text/primary'), flex: 1 }]} numberOfLines={1}>Brain Hack</Text>
-        {badge ? <StatusBadge status={badge.status} label={badge.label} /> : null}
-      </View>
+    <Screen>
+      <ScreenHeader title="Brain Hack" right={<>
+{badge ? <StatusBadge status={badge.status} label={badge.label} /> : null}
+</>} />
 
       {error ? (
         <EmptyState
@@ -124,7 +123,7 @@ export default function TeacherBrainHackDetailRoute() {
             {editable ? (
               <>
                 <View style={{ flexDirection: 'row', gap: space.sm }}>
-                  <SecondaryButton label="Edit" onPress={() => router.push({ pathname: '/(teacher)/create-brain-hack', params: { id: hack.id } })} style={{ flex: 1 }} />
+                  <SecondaryButton label="Edit" onPress={() => router.push({ pathname: ROUTES.teacher.createBrainHack, params: { id: hack.id } })} style={{ flex: 1 }} />
                   <PrimaryButton label={hack.status === 'rejected' ? 'Resubmit' : 'Submit for review'} onPress={() => act('submit')} loading={busy === 'submit'} style={{ flex: 1 }} />
                 </View>
                 <View style={{ alignItems: 'center' }}>
@@ -148,6 +147,6 @@ export default function TeacherBrainHackDetailRoute() {
           <PrimaryButton label="Delete" onPress={() => act('delete')} loading={busy === 'delete'} style={{ flex: 1 }} />
         </View>
       </BottomSheet>
-    </SafeAreaView>
+    </Screen>
   );
 }

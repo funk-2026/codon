@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, CaretRight, Stack, Exam, Lightning, WarningCircle, Minus, Plus } from 'phosphor-react-native';
+import { CaretRight, Stack, Exam, Lightning, Minus, Plus } from 'phosphor-react-native';
 import { Switch } from 'react-native';
 import { teacherModules } from '@/src/modules/registry';
-import { ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
+import { CourseSelector, ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { createTest } from '@/src/api/teacher';
-import { listCourses } from '@/src/api/courses';
+import { listCourses, type Course } from '@/src/api/courses';
+import { defaultCourse } from '@/src/api/courseSelection';
+import { ROUTES } from '@/src/navigation/routes';
 
 type ModuleKey = 'qbank' | 'test_series' | 'practice';
 
@@ -41,6 +43,7 @@ export default function CreateTestRoute() {
   const [marksWrong, setMarksWrong] = useState('-1');
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [testId, setTestId] = useState<string | null>(null);
@@ -48,7 +51,8 @@ export default function CreateTestRoute() {
 
   const loadCourseInfo = useCallback(() => {
     listCourses().then(res => {
-      if (res.courses.length > 0) setCourseId((cur) => cur ?? res.courses[0].id);
+      setCourses(res.courses);
+      setCourseId((cur) => cur ?? defaultCourse(res.courses)?.id ?? null);
       setLoadError(false);
     }).catch(() => setLoadError(true));
   }, []);
@@ -97,7 +101,7 @@ export default function CreateTestRoute() {
       if (!id) return;
       show('Draft saved', 'success');
       // For MVP, proceed to question builder
-      router.push({ pathname: '/(teacher)/question-builder', params: { testId: id } });
+      router.push({ pathname: ROUTES.teacher.questionBuilder, params: { testId: id } });
     } catch (err) {
       show(err instanceof Error && err.message === 'marks' ? 'Enter valid marks: a positive number for correct answers.' : 'Failed to save draft', 'error');
     } finally {
@@ -113,7 +117,7 @@ export default function CreateTestRoute() {
         show('Fill in the title and module type first', 'error');
         return;
       }
-      router.push({ pathname: '/(teacher)/csv-upload', params: { testId: id } });
+      router.push({ pathname: ROUTES.teacher.csvUpload, params: { testId: id } });
     } catch (err) {
       show(err instanceof Error && err.message === 'marks' ? 'Enter valid marks: a positive number for correct answers.' : 'Failed to save test', 'error');
     } finally {
@@ -121,10 +125,19 @@ export default function CreateTestRoute() {
     }
   };
 
+  // Switching course invalidates the chosen location (its chapter belongs to the old course)
+  const changeCourse = (id: string) => {
+    if (id === courseId) return;
+    setCourseId(id);
+    setLocation(null);
+    setChapterId(null);
+    setSubjectId(null);
+  };
+
   const goToLocationPicker = () => {
     router.push({
-      pathname: '/(teacher)/(tabs)/(home)/course-structure-manager',
-      params: { pickerMode: '1', returnTo: '/(teacher)/create-test' },
+      pathname: ROUTES.teacher.courseStructureManager,
+      params: { pickerMode: '1', returnTo: ROUTES.teacher.createTest, ...(courseId ? { courseId } : {}) },
     });
   };
 
@@ -135,20 +148,10 @@ export default function CreateTestRoute() {
   }));
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={space.xs}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
-          New Test
-        </Text>
-        <TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
-      </View>
+    <Screen>
+      <ScreenHeader title="New Test" right={<>
+<TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
+</>} />
 
       {loadError ? (
         <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
@@ -163,6 +166,8 @@ export default function CreateTestRoute() {
       >
         <View style={{ marginTop: space.xl, gap: space.lg }}>
           <InputField label="Test Title" value={title} onChangeText={setTitle} />
+
+          <CourseSelector courses={courses} value={courseId} onChange={changeCourse} disabled={!!testId} />
 
           <View>
             <Text style={[type['type/caption'], { color: color('text/secondary'), marginBottom: space.xs }]}>
@@ -303,7 +308,7 @@ export default function CreateTestRoute() {
 
         {questionCount > 0 ? (
           <Pressable
-            onPress={() => router.push('/(teacher)/question-builder')}
+            onPress={() => router.push(ROUTES.teacher.questionBuilder)}
             style={[
               styles.questionSummary,
               { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.xl },
@@ -326,12 +331,12 @@ export default function CreateTestRoute() {
             />
           ) : (
             <>
-              <SecondaryButton label="Add More Questions" onPress={() => router.push('/(teacher)/question-builder')} />
+              <SecondaryButton label="Add More Questions" onPress={() => router.push(ROUTES.teacher.questionBuilder)} />
               <PrimaryButton
                 label="Preview & Submit"
                 onPress={() =>
                   router.push({
-                    pathname: '/(teacher)/content-preview',
+                    pathname: ROUTES.teacher.contentPreview,
                     params: {
                       type: 'Test',
                       draftTitle: title,
@@ -352,12 +357,11 @@ export default function CreateTestRoute() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center' },
   banner: { overflow: 'hidden' },
   bannerContent: { flexDirection: 'row', alignItems: 'center' },

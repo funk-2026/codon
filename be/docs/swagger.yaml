@@ -105,6 +105,17 @@ definitions:
       timed:
         type: boolean
     type: object
+  codon-backend_internal_bunny.TUSAuth:
+    properties:
+      expires:
+        type: integer
+      library_id:
+        type: string
+      signature:
+        type: string
+      video_id:
+        type: string
+    type: object
   codon-backend_internal_generation.Bottleneck:
     properties:
       filter:
@@ -208,6 +219,8 @@ definitions:
       content_type:
         type: string
       file_name:
+        type: string
+      media_id:
         type: string
       purpose:
         type: string
@@ -434,6 +447,8 @@ definitions:
     type: object
   codon-backend_internal_models.ContentItem:
     properties:
+      annotated_pdf_key:
+        type: string
       chapter:
         $ref: '#/definitions/codon-backend_internal_models.Chapter'
       chapter_id:
@@ -451,6 +466,11 @@ definitions:
       hls_playlist_url:
         type: string
       id:
+        type: string
+      notes_pdf_key:
+        description: |-
+          Lecture PDFs (videos): plain notes, and the annotated PDF of what was taught —
+          students get the annotated one only after watching the lecture.
         type: string
       rating_avg:
         type: number
@@ -644,6 +664,10 @@ definitions:
         type: string
       requires_subscription:
         type: boolean
+      reviewed_at:
+        type: string
+      reviewed_by:
+        type: string
       status:
         $ref: '#/definitions/codon-backend_internal_models.ContentStatus'
       subject_id:
@@ -1339,6 +1363,13 @@ definitions:
       updated_at:
         type: string
     type: object
+  codon-backend_internal_services.ProgressSubject:
+    properties:
+      accuracy:
+        type: integer
+      name:
+        type: string
+    type: object
   codon-backend_internal_services.RevealResult:
     properties:
       correct_option:
@@ -1399,8 +1430,18 @@ definitions:
     type: object
   internal_handlers.adminContentDetailResponse:
     properties:
+      annotated_pdf_locked:
+        type: boolean
+      annotated_pdf_url:
+        type: string
       content:
         $ref: '#/definitions/codon-backend_internal_models.ContentItem'
+      has_annotated_pdf:
+        type: boolean
+      has_notes_pdf:
+        type: boolean
+      notes_pdf_url:
+        type: string
       url:
         type: string
     type: object
@@ -1588,30 +1629,6 @@ definitions:
       order_index:
         example: 1
         type: integer
-    type: object
-  internal_handlers.createContentRequest:
-    properties:
-      chapter_id:
-        example: 550e8400-e29b-41d4-a716-446655440002
-        type: string
-      content_type:
-        enum:
-        - video
-        - document
-        example: video
-        type: string
-      course_id:
-        example: 550e8400-e29b-41d4-a716-446655440000
-        type: string
-      file_key:
-        example: video/user-uuid/file-uuid.mp4
-        type: string
-      requires_subscription:
-        example: true
-        type: boolean
-      title:
-        example: Cell Biology — Lecture 1
-        type: string
     type: object
   internal_handlers.createPlanRequest:
     properties:
@@ -1906,10 +1923,20 @@ definitions:
     type: object
   internal_handlers.getContentResponse:
     properties:
+      annotated_pdf_locked:
+        type: boolean
+      annotated_pdf_url:
+        type: string
       content:
         $ref: '#/definitions/codon-backend_internal_models.ContentItem'
+      has_annotated_pdf:
+        type: boolean
+      has_notes_pdf:
+        type: boolean
       my_rating:
         type: integer
+      notes_pdf_url:
+        type: string
       url:
         type: string
     type: object
@@ -1958,6 +1985,11 @@ definitions:
   internal_handlers.kycRequiredResponse:
     properties:
       kyc_required:
+        example: false
+        type: boolean
+      required:
+        description: Required repeats kyc_required under the name older app builds
+          read.
         example: false
         type: boolean
     type: object
@@ -2122,20 +2154,24 @@ definitions:
         example: lecture.mp4
         type: string
       purpose:
-        description: 'Purpose must be one of: kyc_document, video, csv, profile_photo'
+        description: 'Purpose must be one of: kyc_document, video, csv, profile_photo,
+          lecture_pdf'
         enum:
         - kyc_document
         - video
         - csv
         - profile_photo
+        - lecture_pdf
         example: video
         type: string
     type: object
   internal_handlers.presignResponse:
     properties:
       file_key:
-        example: video/user-uuid/file-uuid.mp4
+        example: bunny:657bb740-a71b-4529-a012-528021c31a92
         type: string
+      tus_auth:
+        $ref: '#/definitions/codon-backend_internal_bunny.TUSAuth'
       upload_url:
         example: https://s3.amazonaws.com/codon/video/...?X-Amz-Signature=...
         type: string
@@ -2150,7 +2186,7 @@ definitions:
         type: array
       subjects:
         items:
-          $ref: '#/definitions/internal_handlers.progressSubject'
+          $ref: '#/definitions/codon-backend_internal_services.ProgressSubject'
         type: array
       trend:
         items:
@@ -2165,13 +2201,6 @@ definitions:
       avg_score:
         example: 72.5
         type: number
-    type: object
-  internal_handlers.progressSubject:
-    properties:
-      accuracy:
-        type: integer
-      name:
-        type: string
     type: object
   internal_handlers.pushTokenRequest:
     properties:
@@ -2381,6 +2410,9 @@ definitions:
       enabled:
         example: true
         type: boolean
+      required:
+        description: Required is the name older app builds send; either field works.
+        type: boolean
     type: object
   internal_handlers.submitAttemptRequest:
     properties:
@@ -2451,9 +2483,14 @@ definitions:
     type: object
   internal_handlers.updateContentRequest:
     properties:
+      annotated_pdf_key:
+        type: string
       chapter_id:
         type: string
       file_key:
+        type: string
+      notes_pdf_key:
+        description: '"" removes the PDF; omitted leaves it unchanged.'
         type: string
       requires_subscription:
         type: boolean
@@ -2631,11 +2668,12 @@ info:
 paths:
   /api/v1/admin/analytics:
     get:
-      description: Returns analytics data for charts and stats, with computed deltas
-        based on date ranges
+      description: Headline numbers with period-over-period deltas and chart buckets
+        for `range` = 7D | 30D | ALL. `active_subscriptions` counts ACTIVE subscriptions
+        created in the window.
       parameters:
       - default: 7D
-        description: Time range (7D, 30D, All Time)
+        description: 7D, 30D or ALL
         in: query
         name: range
         type: string
@@ -2646,17 +2684,13 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/internal_handlers.analyticsOverviewResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/internal_handlers.errorResponse'
-        "403":
-          description: Forbidden
+        "400":
+          description: Bad Request
           schema:
             $ref: '#/definitions/internal_handlers.errorResponse'
       security:
       - BearerAuth: []
-      summary: Get admin analytics overview
+      summary: Analytics overview (Admin)
       tags:
       - Admin
   /api/v1/admin/bookmark-collections:
@@ -6754,39 +6788,6 @@ paths:
       summary: List teacher's content items
       tags:
       - Teacher
-    post:
-      consumes:
-      - application/json
-      description: Creates a draft content item (video or document). For videos, a
-        background transcoding job is automatically queued to convert the upload to
-        HLS format. The file must be uploaded to S3 first via /uploads/presign.
-      parameters:
-      - description: Content details
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handlers.createContentRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/codon-backend_internal_models.ContentItem'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/internal_handlers.errorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/internal_handlers.errorResponse'
-      security:
-      - BearerAuth: []
-      summary: Upload content item (Teacher)
-      tags:
-      - Teacher
   /api/v1/teacher/content/{id}:
     get:
       description: Returns full content item details. A teacher can view their own
@@ -8077,9 +8078,10 @@ paths:
       consumes:
       - application/json
       description: Returns a presigned S3 PUT URL (for Cloudflare R2 files) or Bunny
-        Stream TUS upload credentials (for videos) valid for 15 minutes. The client uses
-        this URL to upload the file directly without routing through backend. After
-        upload, use the returned file_key when referencing the file in other API calls.
+        Stream TUS upload credentials (for videos) valid for 15 minutes. The client
+        uses this URL/credentials to upload the file directly without routing through
+        backend. After upload, use the returned file_key when referencing the file
+        in other API calls.
       parameters:
       - description: Upload details
         in: body

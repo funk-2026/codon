@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"net/http"
 
 	"codon-backend/internal/models"
@@ -31,19 +32,19 @@ func NewCurriculumHandler(db *gorm.DB) *CurriculumHandler { return &CurriculumHa
 func (h *CurriculumHandler) CreateSubject(c *gin.Context) {
 	courseID, err := uuid.Parse(c.Param("course_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid course id"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid course id")
 		return
 	}
 
 	var req createSubjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	var course models.Course
 	if err := h.DB.WithContext(c.Request.Context()).Where("id = ?", courseID).First(&course).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "course not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "course not found")
 		return
 	}
 
@@ -55,7 +56,7 @@ func (h *CurriculumHandler) CreateSubject(c *gin.Context) {
 	}
 
 	if err := h.DB.WithContext(c.Request.Context()).Create(&subject).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create subject"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to create subject")
 		return
 	}
 	c.JSON(http.StatusCreated, subject)
@@ -80,13 +81,13 @@ func (h *CurriculumHandler) UpdateSubject(c *gin.Context) {
 
 	var subject models.Subject
 	if err := h.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&subject).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "subject not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "subject not found")
 		return
 	}
 
 	var req updateSubjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
@@ -101,7 +102,10 @@ func (h *CurriculumHandler) UpdateSubject(c *gin.Context) {
 		updates["order_index"] = *req.OrderIndex
 	}
 
-	h.DB.WithContext(c.Request.Context()).Model(&subject).Updates(updates)
+	if err := h.DB.WithContext(c.Request.Context()).Model(&subject).Updates(updates).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.WithContext(c.Request.Context()).First(&subject, subject.ID)
 	c.JSON(http.StatusOK, subject)
 }
@@ -123,19 +127,19 @@ func (h *CurriculumHandler) UpdateSubject(c *gin.Context) {
 func (h *CurriculumHandler) CreateChapter(c *gin.Context) {
 	subjectID, err := uuid.Parse(c.Param("subject_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid subject id"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid subject id")
 		return
 	}
 
 	var req createChapterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	var subject models.Subject
 	if err := h.DB.WithContext(c.Request.Context()).Where("id = ?", subjectID).First(&subject).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "subject not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "subject not found")
 		return
 	}
 
@@ -147,7 +151,7 @@ func (h *CurriculumHandler) CreateChapter(c *gin.Context) {
 	}
 
 	if err := h.DB.WithContext(c.Request.Context()).Create(&chapter).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to create chapter"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to create chapter")
 		return
 	}
 	c.JSON(http.StatusCreated, chapter)
@@ -172,13 +176,13 @@ func (h *CurriculumHandler) UpdateChapter(c *gin.Context) {
 
 	var chapter models.Chapter
 	if err := h.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&chapter).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "chapter not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "chapter not found")
 		return
 	}
 
 	var req updateChapterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
@@ -193,7 +197,10 @@ func (h *CurriculumHandler) UpdateChapter(c *gin.Context) {
 		updates["order_index"] = *req.OrderIndex
 	}
 
-	h.DB.WithContext(c.Request.Context()).Model(&chapter).Updates(updates)
+	if err := h.DB.WithContext(c.Request.Context()).Model(&chapter).Updates(updates).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.WithContext(c.Request.Context()).First(&chapter, chapter.ID)
 	c.JSON(http.StatusOK, chapter)
 }
@@ -213,7 +220,7 @@ func (h *CurriculumHandler) GetCurriculum(c *gin.Context) {
 
 	var course models.Course
 	if err := h.DB.WithContext(c.Request.Context()).Where("id = ? AND is_active = ?", courseID, true).First(&course).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "course not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "course not found")
 		return
 	}
 

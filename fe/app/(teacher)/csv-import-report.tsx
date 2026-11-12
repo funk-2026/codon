@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, CheckCircle, WarningCircle, XCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
+import { CheckCircle, WarningCircle, XCircle } from 'phosphor-react-native';
+import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ApiError } from '@/src/api/client';
 import { commitCSVImport, getCSVImportReport, type GetCSVImportResponse } from '@/src/api/teacher';
 import { track } from '@/src/analytics/track';
+import { ROUTES } from '@/src/navigation/routes';
+import { useSafeBack } from '@/src/navigation/useSafeBack';
 
 const POLL_MS = 1200;
 const MAX_POLLS = 200;
@@ -29,6 +31,7 @@ function rawPreview(raw: string): string {
 export default function CsvImportReportRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const goBack = useSafeBack();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { batchId, testId } = useLocalSearchParams<{ batchId?: string; testId?: string }>();
@@ -79,8 +82,8 @@ export default function CsvImportReportRoute() {
   const tid = testId ?? batch?.test_id;
 
   const goToTest = useCallback(() => {
-    if (tid) router.replace({ pathname: '/(teacher)/question-builder', params: { testId: tid } });
-    else router.back();
+    if (tid) router.replace({ pathname: ROUTES.teacher.questionBuilder, params: { testId: tid } });
+    else goBack();
   }, [router, tid]);
 
   const commit = async () => {
@@ -121,15 +124,8 @@ export default function CsvImportReportRoute() {
     );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-        {state !== 'processing' ? (
-          <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-            <CaretLeft size={24} color={color('text/primary')} />
-          </Pressable>
-        ) : <View style={{ width: 44 }} />}
-        <Text accessibilityRole="header" style={[type['type/h1'], { color: color('text/primary') }]}>{isValidate ? 'Check results' : 'Import results'}</Text>
-      </View>
+    <Screen>
+      <ScreenHeader title={isValidate ? 'Check results' : 'Import results'} hideBack={state === 'processing'} />
 
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: 160 + insets.bottom }} showsVerticalScrollIndicator={false}>
         {state === 'processing' ? (
@@ -190,7 +186,7 @@ export default function CsvImportReportRoute() {
                 onPress={() => (errors.length > 0 ? setConfirmOpen(true) : void commit())}
                 loading={committing}
               />
-              <SecondaryButton label="Choose a different file" onPress={() => router.back()} />
+              <SecondaryButton label="Choose a different file" onPress={() => goBack()} />
             </>
           ) : (
             <PrimaryButton label="Back to the test" onPress={goToTest} />
@@ -207,6 +203,6 @@ export default function CsvImportReportRoute() {
           <SecondaryButton label="Cancel" onPress={() => setConfirmOpen(false)} disabled={committing} />
         </View>
       </BottomSheet>
-    </SafeAreaView>
+    </Screen>
   );
 }

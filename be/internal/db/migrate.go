@@ -14,11 +14,15 @@ import (
 //go:embed migrations/*.sql
 var migrationFS embed.FS
 
+//go:embed baseline/0000_baseline.sql
+var baselineSQL string
+
 // migrationLockID is the Postgres advisory-lock key that serialises migration
 // runners (two API replicas starting at once must not both apply a file).
 const migrationLockID = 727_001
 
-// RunMigrations applies every not-yet-applied SQL file in
+// RunMigrations first creates the baseline schema on an empty database, then
+// applies every not-yet-applied SQL file in
 // internal/db/migrations, in filename order, each inside its own transaction,
 // recording them in schema_migrations. Files must be idempotent-safe on a
 // database that AutoMigrate already brought up to date (use IF NOT EXISTS,
@@ -45,6 +49,19 @@ func RunMigrations(gdb *gorm.DB) error {
 		applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
 	)`); err != nil {
 		return err
+	}
+
+	// A database with no tables yet (fresh install) starts from the baseline
+	// schema; existing databases already have it (AutoMigrate built it).
+	var usersTable *string
+	if err := conn.QueryRowContext(gdb.Statement.Context, "SELECT to_regclass('users')::text").Scan(&usersTable); err != nil {
+		return err
+	}
+	if usersTable == nil {
+		if _, err := conn.ExecContext(gdb.Statement.Context, baselineSQL); err != nil {
+			return fmt.Errorf("baseline schema: %w", err)
+		}
+		log.Printf("[migrate] applied baseline schema")
 	}
 
 	entries, err := migrationFS.ReadDir("migrations")

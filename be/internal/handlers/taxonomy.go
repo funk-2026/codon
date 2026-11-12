@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"net/http"
 	"strings"
 
@@ -98,7 +99,10 @@ func (h *TaxonomyHandler) CreateTopic(c *gin.Context) {
 	if req.OrderIndex != nil {
 		t.OrderIndex = *req.OrderIndex
 	}
-	h.DB.Create(&t)
+	if err := h.DB.Create(&t).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusCreated, t)
 }
 
@@ -129,7 +133,10 @@ func (h *TaxonomyHandler) UpdateTopic(c *gin.Context) {
 	if req.OrderIndex != nil {
 		up["order_index"] = *req.OrderIndex
 	}
-	h.DB.Model(&t).Updates(up)
+	if err := h.DB.Model(&t).Updates(up).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	h.DB.First(&t, "id = ?", t.ID)
 	c.JSON(http.StatusOK, t)
 }
@@ -149,7 +156,10 @@ func (h *TaxonomyHandler) DeleteTopic(c *gin.Context) {
 		respondErr(c, http.StatusConflict, "topic_in_use", "questions still use this topic")
 		return
 	}
-	h.DB.Delete(&models.Topic{}, "id = ?", c.Param("id"))
+	if err := h.DB.Delete(&models.Topic{}, "id = ?", c.Param("id")).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "topic deleted"})
 }
 
@@ -257,7 +267,10 @@ func (h *TaxonomyHandler) RenameTag(c *gin.Context) {
 		respondErr(c, http.StatusBadRequest, "bad_request", "an existing tag and a label are required")
 		return
 	}
-	h.DB.Model(&t).Update("label", strings.TrimSpace(req.Label))
+	if err := h.DB.Model(&t).Update("label", strings.TrimSpace(req.Label)).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, t)
 }
 
@@ -276,6 +289,9 @@ func (h *TaxonomyHandler) DeleteTag(c *gin.Context) {
 		respondErr(c, http.StatusConflict, "tag_in_use", "tag is still used by questions — merge it instead")
 		return
 	}
-	h.DB.Delete(&models.Tag{}, "id = ?", c.Param("id"))
+	if err := h.DB.Delete(&models.Tag{}, "id = ?", c.Param("id")).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "tag deleted"})
 }

@@ -8,7 +8,6 @@ import {
   View,
   type TextInputInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
@@ -17,10 +16,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle, G, Path } from 'react-native-svg';
-import { PrimaryButton } from '@/src/components';
+import { PrimaryButton, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { sendOTP } from '@/src/api/auth';
 import { ApiError } from '@/src/api/client';
+import { ROUTES } from '@/src/navigation/routes';
+import { inputText } from '@/src/theme/inputs';
 
 export function maskPhone(phone: string): string {
   const clean = phone.replace(/\D/g, '').slice(-10);
@@ -138,7 +139,7 @@ export default function PhoneEntryRoute() {
     setApiError('');
     try {
       await sendOTP(clean);
-      router.push({ pathname: '/otp-verify', params: { phone: clean } });
+      router.push({ pathname: ROUTES.auth.otpVerify, params: { phone: clean } });
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         if (__DEV__) {
@@ -162,7 +163,7 @@ export default function PhoneEntryRoute() {
   const mm = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+    <Screen>
       <View style={[styles.body, { marginHorizontal: space.md }]}>
         <Staggered delayMs={0}>
           <View style={{ marginTop: space['3xl'], alignItems: 'center' }}>
@@ -219,7 +220,7 @@ export default function PhoneEntryRoute() {
                 placeholderTextColor={color('text/tertiary')}
                 editable={!submitting}
                 style={[
-                  type['type/body-l'],
+                  inputText(type['type/body-l']),
                   {
                     flex: 1,
                     color: color('text/primary'),
@@ -230,7 +231,7 @@ export default function PhoneEntryRoute() {
                       ? color('semantic/danger')
                       : color('border/subtle'),
                     paddingHorizontal: space.sm,
-                    paddingVertical: space.sm,
+                    paddingVertical: 0,
                     minHeight: 48,
                   },
                 ]}
@@ -291,7 +292,7 @@ export default function PhoneEntryRoute() {
           <Staggered delayMs={460}>
             <Pressable
               hitSlop={space.xs}
-              onPress={() => router.push('/preview-mode')}
+              onPress={() => router.push(ROUTES.auth.previewMode)}
               style={({ pressed }) => [
                 styles.devLink,
                 { marginTop: space.lg, opacity: pressed ? 0.6 : 1 },
@@ -304,12 +305,11 @@ export default function PhoneEntryRoute() {
           </Staggered>
         )}
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   body: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
   codeChip: { height: 48, justifyContent: 'center' },

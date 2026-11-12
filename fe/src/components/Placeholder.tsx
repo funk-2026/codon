@@ -37,7 +37,7 @@ export function Placeholder({
             style={({ pressed }) => [
               styles.link,
               {
-                backgroundColor: pressed ? color('accent/pressed') : color('accent/default'),
+                backgroundColor: pressed ? color('action/primary-pressed') : color('action/primary'),
                 borderRadius: radius.md,
                 paddingVertical: space.sm,
                 paddingHorizontal: space.lg,

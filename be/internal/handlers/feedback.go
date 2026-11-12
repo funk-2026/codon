@@ -36,12 +36,12 @@ func (h *FeedbackHandler) Submit(c *gin.Context) {
 
 	var req submitFeedbackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	if req.Category == "" || req.Message == "" {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "category and message are required"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "category and message are required")
 		return
 	}
 
@@ -54,7 +54,7 @@ func (h *FeedbackHandler) Submit(c *gin.Context) {
 	}
 
 	if err := h.DB.WithContext(c.Request.Context()).Create(&feedback).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to save feedback"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to save feedback")
 		return
 	}
 

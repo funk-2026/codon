@@ -1,68 +1,7 @@
-import { Tabs } from 'expo-router';
-import { House, Users, ClipboardText, CreditCard, User } from 'phosphor-react-native';
-import { useTheme } from '@/src/theme/ThemeProvider';
+import { RoleStack } from '@/src/navigation/RoleStack';
 
-export default function AdminTabLayout() {
-  const { color, type } = useTheme();
+export const unstable_settings = { anchor: '(tabs)' };
 
-  return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: color('accent/default'),
-        tabBarInactiveTintColor: color('text/tertiary'),
-        tabBarStyle: {
-          backgroundColor: color('bg/surface'),
-          borderTopColor: color('border/subtle'),
-        },
-        tabBarLabelStyle: type['type/caption'],
-      }}
-    >
-      <Tabs.Screen
-        name="(home)"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <House color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(users)"
-        options={{
-          title: 'Users',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <Users color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(review)"
-        options={{
-          title: 'Review',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <ClipboardText color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(payments)"
-        options={{
-          title: 'Payments',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <CreditCard color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="(profile)"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color: c, size, focused }) => (
-            <User color={c as string} size={size} weight={focused ? 'fill' : 'regular'} />
-          ),
-        }}
-      />
-    </Tabs>
-  );
+export default function AdminLayout() {
+  return <RoleStack />;
 }

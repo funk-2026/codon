@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -81,7 +80,6 @@ func (s *CorrectionService) Submit(ctx context.Context, actor *models.User, q *m
 // Approve applies a pending correction.
 func (s *CorrectionService) Approve(ctx context.Context, reviewer *models.User, id uuid.UUID) (*models.QuestionRevision, error) {
 	var rev models.QuestionRevision
-	var rescoreJob bool
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&rev, "id = ? AND status = ?", id, models.RevisionPending).Error; err != nil {
 			return NotFound("correction_not_found", "correction not found or already reviewed")
@@ -139,18 +137,18 @@ func (s *CorrectionService) Approve(ctx context.Context, reviewer *models.User, 
 		if err := ResolveOpenQuestionReports(tx, q.ID, models.ReportFixed, "The question was corrected: "+rev.Reason, reviewer.ID); err != nil {
 			return err
 		}
-		rescoreJob = rev.Rescore && beforeKey != q.CorrectOption
+		// the follow-up job and the notification commit together with the correction
+		if rev.Rescore && beforeKey != q.CorrectOption {
+			if err := jobs.EnqueueJob(tx, jobs.JobTypeRescoreQuestion, map[string]interface{}{"question_id": rev.QuestionID}); err != nil {
+				return err
+			}
+		}
+		Notify(tx, rev.CreatedBy, "correction_approved", "Your correction was applied", rev.Reason, map[string]interface{}{"question_id": rev.QuestionID})
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	if rescoreJob {
-		if err := jobs.EnqueueJob(s.DB, jobs.JobTypeRescoreQuestion, map[string]interface{}{"question_id": rev.QuestionID}); err != nil {
-			return &rev, err
-		}
-	}
-	Notify(s.DB, rev.CreatedBy, "correction_approved", "Your correction was applied", rev.Reason, map[string]interface{}{"question_id": rev.QuestionID})
 	return &rev, nil
 }
 
@@ -162,10 +160,16 @@ func (s *CorrectionService) Reject(ctx context.Context, reviewer *models.User, i
 	}
 	now := time.Now()
 	rev.Status, rev.ReviewedBy, rev.ReviewedAt, rev.RejectReason = models.RevisionRejected, &reviewer.ID, &now, &reason
-	if err := s.DB.WithContext(ctx).Save(&rev).Error; err != nil {
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&rev).Error; err != nil {
+			return err
+		}
+		Notify(tx, rev.CreatedBy, "correction_rejected", "Your correction was not applied", reason, map[string]interface{}{"question_id": rev.QuestionID})
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
-	Notify(s.DB, rev.CreatedBy, "correction_rejected", "Your correction was not applied", reason, map[string]interface{}{"question_id": rev.QuestionID})
 	return &rev, nil
 }
 
@@ -208,7 +212,9 @@ func (s *CorrectionService) RescoreQuestion(ctx context.Context, qid uuid.UUID) 
 		if err := tx.Exec(`
 			UPDATE attempt_answers aa SET
 				is_correct = (aa.selected_option = q.correct_option),
-				marks_awarded = CASE WHEN aa.selected_option = q.correct_option THEN t.marks_per_correct ELSE t.marks_per_wrong END
+				marks_awarded = CASE WHEN aa.selected_option = q.correct_option
+					THEN COALESCE((sa.config_snapshot->>'marks_per_correct')::numeric, t.marks_per_correct)
+					ELSE COALESCE((sa.config_snapshot->>'marks_per_wrong')::numeric, t.marks_per_wrong) END
 			FROM questions q, student_attempts sa, tests t
 			WHERE q.id = ? AND aa.question_id = q.id AND aa.attempt_id = sa.id AND sa.test_id = t.id
 			  AND sa.status = 'submitted' AND aa.selected_option IS NOT NULL`, qid).Error; err != nil {
@@ -246,17 +252,18 @@ func (s *CorrectionService) RescoreQuestion(ctx context.Context, qid uuid.UUID) 
 func RecomputeQuestionStats(ctx context.Context, tx *gorm.DB, qid uuid.UUID) error {
 	var reports int64
 	tx.Model(&models.ContentReport{}).Where("item_type = 'question' AND item_id = ?", qid).Count(&reports)
-	return tx.WithContext(ctx).Exec(fmt.Sprintf(`
+	return tx.WithContext(ctx).Exec(`
 		INSERT INTO question_stats (question_id, attempts, correct, total_time_seconds, timed_answers, report_count, updated_at)
 		SELECT ?::uuid,
 		       count(*) FILTER (WHERE aa.selected_option IS NOT NULL),
 		       count(*) FILTER (WHERE aa.is_correct IS TRUE),
 		       COALESCE(sum(aa.time_spent_seconds) FILTER (WHERE aa.selected_option IS NOT NULL), 0),
 		       count(aa.time_spent_seconds) FILTER (WHERE aa.selected_option IS NOT NULL),
-		       %d, now()
+		       ?, now()
 		FROM attempt_answers aa JOIN student_attempts sa ON sa.id = aa.attempt_id
+		JOIN users u ON u.id = sa.user_id AND u.role <> 'admin'
 		WHERE aa.question_id = ? AND sa.status = 'submitted'
 		ON CONFLICT (question_id) DO UPDATE SET attempts = EXCLUDED.attempts, correct = EXCLUDED.correct,
 			total_time_seconds = EXCLUDED.total_time_seconds, timed_answers = EXCLUDED.timed_answers,
-			report_count = EXCLUDED.report_count, updated_at = now()`, reports), qid, qid).Error
+			report_count = EXCLUDED.report_count, updated_at = now()`, qid, reports, qid).Error
 }

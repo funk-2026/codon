@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WarningCircle, X } from 'phosphor-react-native';
-import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
+import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { OptionCard, RichContent, type MediaMap, type OptionState } from '@/src/rich';
 import { getTeacherTest } from '@/src/api/teacher';
 import type { AuthoredQuestion, Test } from '@/src/api/tests';
 import { formatClock } from '@/src/attempt/logic';
+import { useSafeBack } from '@/src/navigation/useSafeBack';
 
 type Letter = 'A' | 'B' | 'C' | 'D';
 
@@ -21,6 +22,7 @@ type Letter = 'A' | 'B' | 'C' | 'D';
 export default function PreviewRunRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const goBack = useSafeBack();
   const insets = useSafeAreaInsets();
   const { testId } = useLocalSearchParams<{ testId: string }>();
 
@@ -77,7 +79,7 @@ export default function PreviewRunRoute() {
 
   const header = (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md, gap: space.sm }}>
-      <Pressable onPress={() => router.back()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Close preview" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
+      <Pressable onPress={() => goBack()} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Close preview" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
         <X size={24} color={color('text/primary')} />
       </Pressable>
       <View style={{ flex: 1 }}>
@@ -94,32 +96,32 @@ export default function PreviewRunRoute() {
 
   if (error) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <Screen>
         {header}
-        <EmptyState icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />} title="Couldn’t load the test" description="Check your connection and try again." action={<TextButton label="Close" onPress={() => router.back()} />} />
-      </SafeAreaView>
+        <EmptyState icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />} title="Couldn’t load the test" description="Check your connection and try again." action={<TextButton label="Close" onPress={() => goBack()} />} />
+      </Screen>
     );
   }
   if (!qs || !test) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <Screen>
         {header}
         <View style={{ padding: space.md }}><SkeletonBlock height={260} radius={radius.lg} /></View>
-      </SafeAreaView>
+      </Screen>
     );
   }
   if (qs.length === 0) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <Screen>
         {header}
         <EmptyState icon={<WarningCircle size={32} color={color('text/tertiary')} />} title="No questions yet" description="Add questions to preview the test." />
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   if (finished && score) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <Screen>
         {header}
         <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md }}>
           <Text style={[type['type/h1'], { color: color('text/primary') }]}>{score.marks} / {score.max}</Text>
@@ -130,16 +132,16 @@ export default function PreviewRunRoute() {
             Marking: +{test.marks_per_correct} / {test.marks_per_wrong}. This is how the result is scored for students.
           </Text>
           <PrimaryButton label="Run again" onPress={() => { setPicked({}); setChecked({}); setI(0); setElapsed(0); setFinished(false); }} />
-          <SecondaryButton label="Close preview" onPress={() => router.back()} />
+          <SecondaryButton label="Close preview" onPress={() => goBack()} />
         </ScrollView>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   const letters: Letter[] = ['A', 'B', 'C', 'D'];
   const isChecked = !!checked[q!.id];
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+    <Screen>
       {header}
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md, paddingBottom: 140 + insets.bottom }}>
         <View style={{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }}>
@@ -183,6 +185,6 @@ export default function PreviewRunRoute() {
           <PrimaryButton label="Finish" onPress={() => setFinished(true)} style={{ flex: 1 }} />
         )}
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }

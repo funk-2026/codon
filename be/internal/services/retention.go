@@ -17,6 +17,9 @@ import (
 //   - question empirical difficulty is refreshed from cohort stats (≥ 50 answers).
 func RetentionSweep(ctx context.Context, db *gorm.DB) {
 	now := time.Now()
+	if err := db.WithContext(ctx).Where("at < ?", now.Add(-24*time.Hour)).Delete(&models.RateEvent{}).Error; err != nil {
+		log.Printf("[retention] rate events: %v", err)
+	}
 	res := db.WithContext(ctx).Exec(`UPDATE tests SET archived_at = ?
 		WHERE origin = 'generated' AND archived_at IS NULL AND expires_at IS NOT NULL AND expires_at < ?
 		  AND NOT EXISTS (SELECT 1 FROM student_attempts a WHERE a.test_id = tests.id)`, now, now)
@@ -31,8 +34,10 @@ func RetentionSweep(ctx context.Context, db *gorm.DB) {
 }
 
 // PurgePersonalData erases a user's personal study data inside tx (see the
-// admin endpoint). It deliberately keeps the account, payments and any
-// content the user authored.
+// admin endpoint): attempts and answers on every test, progress, notes,
+// bookmarks, ratings, reports, preferences, devices and sessions. It
+// deliberately keeps the account row, payment records (financial retention),
+// KYC records (regulatory retention) and any content the user authored.
 func PurgePersonalData(tx *gorm.DB, userID uuid.UUID) error {
 	stmts := []string{
 		"DELETE FROM attempt_answers WHERE attempt_id IN (SELECT a.id FROM student_attempts a JOIN tests t ON t.id = a.test_id WHERE t.owner_user_id = @u AND t.origin = 'generated')",
@@ -50,6 +55,14 @@ func PurgePersonalData(tx *gorm.DB, userID uuid.UUID) error {
 		"DELETE FROM video_notes WHERE user_id = @u",
 		"DELETE FROM push_tokens WHERE user_id = @u",
 		"DELETE FROM notifications WHERE user_id = @u",
+		"DELETE FROM notification_prefs WHERE user_id = @u",
+		"DELETE FROM user_watch_histories WHERE user_id = @u",
+		"DELETE FROM daily_activities WHERE user_id = @u",
+		"DELETE FROM user_feedbacks WHERE user_id = @u",
+		"DELETE FROM attempt_answers WHERE attempt_id IN (SELECT id FROM student_attempts WHERE user_id = @u)",
+		"DELETE FROM student_attempts WHERE user_id = @u",
+		"DELETE FROM blueprint_shares WHERE owner_id = @u",
+		"DELETE FROM sessions WHERE user_id = @u",
 	}
 	for _, s := range stmts {
 		if err := tx.Exec(s, map[string]interface{}{"u": userID}).Error; err != nil {

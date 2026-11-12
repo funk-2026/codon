@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"net/http"
 	"strings"
 	"time"
@@ -557,7 +558,10 @@ func (h *AnalyticsHandler) PutNote(c *gin.Context) {
 		return
 	}
 	note := models.QuestionNote{UserID: user.ID, QuestionID: qid, Body: body}
-	h.DB.Where(models.QuestionNote{UserID: user.ID, QuestionID: qid}).Assign(models.QuestionNote{Body: body}).FirstOrCreate(&note)
+	if err := h.DB.Where(models.QuestionNote{UserID: user.ID, QuestionID: qid}).Assign(models.QuestionNote{Body: body}).FirstOrCreate(&note).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, note)
 }
 
@@ -584,7 +588,10 @@ func (h *AnalyticsHandler) ListNotes(c *gin.Context) {
 //	@Success		200			{object}	messageResponse
 //	@Router			/api/v1/me/question-notes/{question_id} [delete]
 func (h *AnalyticsHandler) DeleteNote(c *gin.Context) {
-	h.DB.Where("user_id = ? AND question_id = ?", middleware.GetUser(c).ID, c.Param("question_id")).Delete(&models.QuestionNote{})
+	if err := h.DB.Where("user_id = ? AND question_id = ?", middleware.GetUser(c).ID, c.Param("question_id")).Delete(&models.QuestionNote{}).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, messageResponse{Message: "note deleted"})
 }
 

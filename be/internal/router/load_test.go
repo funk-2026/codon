@@ -37,7 +37,7 @@ func TestGenerationLoad(t *testing.T) {
 	e.db.Exec(`INSERT INTO test_questions (test_id, question_id, position) SELECT test_id, id, order_index FROM questions WHERE test_id = ?`, test.ID)
 	e.db.Exec("ANALYZE")
 
-	eng := generation.NewEngine(e.db, services.NewSubscriptionService(e.db), nil)
+	eng := generation.NewEngine(e.db, services.NewSubscriptionService(e.db))
 	users := make([]models.User, 100)
 	for i := range users {
 		users[i] = e.w.User(t, models.RoleStudent)

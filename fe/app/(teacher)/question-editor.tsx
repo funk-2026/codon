@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, Switch, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, Eye, WarningCircle, Question } from 'phosphor-react-native';
+import { Eye, WarningCircle, Question } from 'phosphor-react-native';
 import {
-  BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast,
-} from '@/src/components';
+  BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAppConfig } from '@/src/config/AppConfigContext';
 import { ApiError } from '@/src/api/client';
@@ -20,6 +19,7 @@ import {
 import { clearDraft, isBlankDraft, loadDraft, saveDraft } from '@/src/storage/drafts';
 import { QuestionStatsCard } from '@/src/teacher/QuestionStatsCard';
 import { AuthorHelpSheet } from '@/src/teacher/AuthorHelpSheet';
+import { useSafeBack } from '@/src/navigation/useSafeBack';
 
 const LETTERS = ['A', 'B', 'C', 'D'] as const;
 const OPTION_KEYS = ['option_a', 'option_b', 'option_c', 'option_d'] as const;
@@ -31,6 +31,7 @@ const SOURCES = [
 export default function QuestionEditorRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const goBack = useSafeBack();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { config } = useAppConfig();
@@ -126,7 +127,7 @@ export default function QuestionEditorRoute() {
   }, [draft.question_text, draft.option_a, draft.option_b, draft.option_c, draft.option_d, questionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── leaving ──
-  const back = useCallback(() => (dirty ? setLeaveOpen(true) : router.back()), [dirty, router]);
+  const back = useCallback(() => (dirty ? setLeaveOpen(true) : goBack()), [dirty, router]);
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (leaveOpen || reasonOpen) return false;
@@ -181,7 +182,7 @@ export default function QuestionEditorRoute() {
         setDups([]);
       } else {
         setOriginal(draft);
-        router.back();
+        goBack();
       }
     } catch (e) {
       if (e instanceof ApiError) {
@@ -207,13 +208,11 @@ export default function QuestionEditorRoute() {
   };
 
   const Header = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.md }}>
-      <Pressable onPress={back} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Back" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
-        <CaretLeft size={24} color={color('text/primary')} />
-      </Pressable>
-      <Text accessibilityRole="header" style={[type['type/h2'], { color: color('text/primary'), flex: 1 }]} numberOfLines={1}>
-        {editing ? 'Edit question' : 'New question'}
-      </Text>
+    <ScreenHeader
+      title={editing ? 'Edit question' : 'New question'}
+      onBack={back}
+      right={
+        <>
       <Pressable onPress={() => setHelpOpen(true)} accessibilityRole="button" accessibilityLabel="Writing help" hitSlop={space.xs} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
         <Question size={22} color={color('text/secondary')} />
       </Pressable>
@@ -221,12 +220,14 @@ export default function QuestionEditorRoute() {
         <Eye size={20} color={preview ? color('accent/default') : color('text/secondary')} />
         <Text style={[type['type/body-m'], { color: preview ? color('accent/default') : color('text/secondary') }]}>{preview ? 'Editing' : 'Student view'}</Text>
       </Pressable>
-    </View>
+        </>
+      }
+    />
   );
 
   if (status !== 'ready') {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <Screen>
         {Header}
         {status === 'error' ? (
           <EmptyState
@@ -243,12 +244,12 @@ export default function QuestionEditorRoute() {
             <SkeletonBlock height={80} radius={radius.md} />
           </View>
         )}
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+    <Screen>
       {Header}
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg, paddingBottom: 140 + insets.bottom }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {restore ? (
@@ -399,8 +400,8 @@ export default function QuestionEditorRoute() {
         <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Your work is kept as a draft on this device, so you can pick it up later.</Text>
         <View style={{ gap: space.sm, marginTop: space.lg }}>
           <PrimaryButton label="Keep editing" onPress={() => setLeaveOpen(false)} />
-          <SecondaryButton label="Leave (keep draft)" onPress={() => { setLeaveOpen(false); router.back(); }} />
-          <TextButton label="Discard draft" onPress={() => { void clearDraft(testId!, questionId); setLeaveOpen(false); router.back(); }} />
+          <SecondaryButton label="Leave (keep draft)" onPress={() => { setLeaveOpen(false); goBack(); }} />
+          <TextButton label="Discard draft" onPress={() => { void clearDraft(testId!, questionId); setLeaveOpen(false); goBack(); }} />
         </View>
       </BottomSheet>
 
@@ -412,6 +413,6 @@ export default function QuestionEditorRoute() {
         </View>
       </BottomSheet>
       <AuthorHelpSheet visible={helpOpen} onClose={() => setHelpOpen(false)} />
-    </SafeAreaView>
+    </Screen>
   );
 }

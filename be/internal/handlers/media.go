@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"net/http"
 	"time"
 
@@ -156,7 +157,10 @@ func (h *MediaHandler) Update(c *gin.Context) {
 		respondErr(c, http.StatusNotFound, "media_not_found", "media not found")
 		return
 	}
-	h.DB.Model(&a).Update("alt_text", req.Alt)
+	if err := h.DB.Model(&a).Update("alt_text", req.Alt).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, a)
 }
 

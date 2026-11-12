@@ -8,6 +8,8 @@ import { useStackScreenOptions } from '@/src/components/ThemedStack';
 // own stack, so navigating into them from a different tab (or as a deep
 // link) can never silently back-fill or reset that tab's own stack
 // underneath them and turn one "back" into two (or into the wrong tab).
+export const unstable_settings = { anchor: '(tabs)' };
+
 export default function TeacherLayout() {
   const base = useStackScreenOptions();
   return (
@@ -31,6 +33,7 @@ export default function TeacherLayout() {
       <Stack.Screen name="preview-run" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="content-preview" options={{ title: 'Preview' }} />
       <Stack.Screen name="rejected-content-detail" options={{ title: 'Rejected' }} />
+      <Stack.Screen name="course-structure-manager" options={{ title: 'Course Structure' }} />
     </Stack>
   );
 }

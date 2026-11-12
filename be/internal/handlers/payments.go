@@ -1,9 +1,13 @@
 package handlers
 
 import (
+	"codon-backend/internal/httpx"
 	"encoding/json"
+	"errors"
 	"io"
+	"log"
 	"net/http"
+	"time"
 
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
@@ -43,19 +47,25 @@ func (h *PaymentHandler) Checkout(c *gin.Context) {
 
 	var req checkoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	planID, err := uuid.Parse(req.PlanID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid plan_id"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid plan_id")
 		return
 	}
 
 	result, err := h.SubSvc.Checkout(c.Request.Context(), user, planID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		var ce *services.CodedError
+		if errors.As(err, &ce) {
+			respondService(c, err)
+			return
+		}
+		log.Printf("[payments] checkout: %v", err)
+		respondErr(c, http.StatusBadGateway, "checkout_failed", "could not start checkout, please try again")
 		return
 	}
 
@@ -83,17 +93,23 @@ func (h *PaymentHandler) Checkout(c *gin.Context) {
 func (h *PaymentHandler) VerifyPayment(c *gin.Context) {
 	var req verifyPaymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	if !rzp.VerifyPaymentSignature(req.RazorpayOrderID, req.RazorpayPaymentID, req.RazorpaySignature) {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid payment signature"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid payment signature")
 		return
 	}
 
+	user := middleware.GetUser(c)
+	if !h.SubSvc.OrderBelongsTo(c.Request.Context(), req.RazorpayOrderID, user.ID) {
+		respondErr(c, http.StatusNotFound, "order_not_found", "order not found")
+		return
+	}
 	if err := h.SubSvc.ActivateSubscription(c.Request.Context(), req.RazorpayOrderID, req.RazorpayPaymentID, req.RazorpaySignature); err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		log.Printf("[payments] verify %s: %v", req.RazorpayOrderID, err)
+		respondErr(c, http.StatusInternalServerError, "internal", "could not activate subscription")
 		return
 	}
 
@@ -116,13 +132,13 @@ func (h *PaymentHandler) VerifyPayment(c *gin.Context) {
 func (h *PaymentHandler) RazorpayWebhook(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "failed to read body"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "failed to read body")
 		return
 	}
 
 	signature := c.GetHeader("X-Razorpay-Signature")
 	if !rzp.VerifyWebhookSignature(body, signature) {
-		c.JSON(http.StatusUnauthorized, errorResponse{Error: "invalid webhook signature"})
+		respondErr(c, http.StatusUnauthorized, "unauthorized", "invalid webhook signature")
 		return
 	}
 
@@ -141,7 +157,7 @@ func (h *PaymentHandler) RazorpayWebhook(c *gin.Context) {
 		} `json:"payload"`
 	}
 	if err := json.Unmarshal(body, &event); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid JSON"})
+		respondErr(c, http.StatusBadRequest, "bad_request", "invalid JSON")
 		return
 	}
 
@@ -150,13 +166,18 @@ func (h *PaymentHandler) RazorpayWebhook(c *gin.Context) {
 
 	switch event.Event {
 	case "payment.captured":
-		if err := h.SubSvc.ActivateSubscription(c.Request.Context(), orderID, paymentID, "webhook"); err != nil {
-			c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		if err := h.SubSvc.ActivateSubscription(c.Request.Context(), orderID, paymentID, ""); err != nil {
+			log.Printf("[payments] webhook activate %s: %v", orderID, err)
+			respondErr(c, http.StatusInternalServerError, "internal", "could not activate subscription")
 			return
 		}
 	case "payment.failed":
 		reason := event.Payload.Payment.Entity.Error.Description
-		h.SubSvc.MarkPaymentFailed(c.Request.Context(), orderID, reason)
+		if err := h.SubSvc.MarkPaymentFailed(c.Request.Context(), orderID, reason); err != nil {
+			log.Printf("[payments] webhook fail %s: %v", orderID, err)
+			respondErr(c, http.StatusInternalServerError, "internal", "could not record failure")
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, webhookAckResponse{Status: "ok"})
@@ -187,9 +208,13 @@ func (h *PaymentHandler) ListPayments(c *gin.Context) {
 		query = query.Where("user_id = ?", userIDStr)
 	}
 
-	var payments []models.PaymentRecord
-	query.Preload("User").Preload("Subscription.Plan").Order("created_at DESC").Find(&payments)
-	c.JSON(http.StatusOK, listPaymentsResponse{Payments: payments})
+	payments, next, err := paged(c, query.Preload("User").Preload("Subscription.Plan"), "payment_records",
+		func(p models.PaymentRecord) (time.Time, uuid.UUID) { return p.CreatedAt, p.ID })
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"payments": payments, "next_cursor": nilIfEmpty(next)})
 }
 
 // GetPayment godoc
@@ -207,7 +232,7 @@ func (h *PaymentHandler) GetPayment(c *gin.Context) {
 	id := c.Param("id")
 	var payment models.PaymentRecord
 	if err := h.DB.WithContext(c.Request.Context()).Preload("User").Preload("Subscription.Plan").Where("id = ?", id).First(&payment).Error; err != nil {
-		c.JSON(http.StatusNotFound, errorResponse{Error: "payment not found"})
+		respondErr(c, http.StatusNotFound, "not_found", "payment not found")
 		return
 	}
 	c.JSON(http.StatusOK, payment)

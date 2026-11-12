@@ -1,12 +1,19 @@
 package db_test
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"codon-backend/internal/db"
 	"codon-backend/internal/models"
 	"codon-backend/internal/testutil"
+
+	"github.com/google/uuid"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestMigrationsAppliedAndIdempotent(t *testing.T) {
@@ -54,5 +61,83 @@ func TestBackfillTestQuestionsAndMetadata(t *testing.T) {
 	}
 	if got.SourceType != "practice" {
 		t.Fatalf("source_type = %q, want practice", got.SourceType)
+	}
+}
+
+// A brand-new production database is built from the baseline + migrations
+// only (no AutoMigrate). Every table and column the models declare must exist.
+func TestFreshDatabaseFromMigrationsMatchesModels(t *testing.T) {
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	admin, err := gorm.Open(postgres.Open(url), &gorm.Config{Logger: logger.Discard})
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema := "t_fresh_" + uuid.NewString()[:8]
+	admin.Exec("CREATE SCHEMA " + schema)
+	t.Cleanup(func() { admin.Exec("DROP SCHEMA " + schema + " CASCADE") })
+
+	sep := "?"
+	if strings.Contains(url, "?") {
+		sep = "&"
+	}
+	g, err := gorm.Open(postgres.Open(url+sep+"search_path="+schema), &gorm.Config{Logger: logger.Discard})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RunMigrations(g); err != nil {
+		t.Fatalf("fresh migrate: %v", err)
+	}
+	if err := db.SeedAll(g); err != nil {
+		t.Fatalf("seed on fresh schema: %v", err)
+	}
+	for _, m := range db.AllModels() {
+		if !g.Migrator().HasTable(m) {
+			t.Errorf("table missing for %T", m)
+			continue
+		}
+		stmt := &gorm.Statement{DB: g}
+		if err := stmt.Parse(m); err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range stmt.Schema.Fields {
+			if f.DBName != "" && !g.Migrator().HasColumn(m, f.DBName) {
+				t.Errorf("%s.%s missing after migrations", stmt.Schema.Table, f.DBName)
+			}
+		}
+	}
+}
+
+// Reference data must come from the migrations alone (production never runs
+// the Go seeds), and the Go seeds must then be a no-op.
+func TestMigrationSeedsAreComplete(t *testing.T) {
+	g := testutil.DB(t) // migrations ran; testutil then truncated + re-seeded
+	g.Exec("TRUNCATE courses, platform_settings, bookmark_collections, custom_test_presets CASCADE")
+	// re-run only the seed migration's SQL, as a fresh install would
+	if err := g.Exec(db.MigrationSQL("0005_rate_limits_and_seeds.sql")).Error; err != nil {
+		t.Fatal(err)
+	}
+	var courses, cols, presets int64
+	g.Model(&models.Course{}).Count(&courses)
+	g.Model(&models.BookmarkCollection{}).Count(&cols)
+	g.Model(&models.CustomTestPreset{}).Count(&presets)
+	if courses != 3 || cols != 3 || presets != 16 {
+		t.Fatalf("seeds: courses=%d collections=%d presets=%d (want 3/3/16)", courses, cols, presets)
+	}
+	var neet models.Course
+	g.First(&neet, "slug = ?", "neet-ug")
+	if !neet.DefaultRequiresSubscription {
+		t.Fatal("NEET UG must default to paid")
+	}
+	// the Go seeds find everything already there
+	if err := db.SeedAll(g); err != nil {
+		t.Fatal(err)
+	}
+	var after int64
+	g.Model(&models.CustomTestPreset{}).Count(&after)
+	if after != presets {
+		t.Fatalf("Go seeds duplicated presets: %d → %d", presets, after)
 	}
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -7,15 +7,17 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
+import { EmptyState, SkeletonBlock, TextButton, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
-import { listCourses } from '@/src/api/courses';
 import { updateMe } from '@/src/api/profile';
 import type { Course } from '@/src/api/profile';
+import { ROUTES } from '@/src/navigation/routes';
+import { inputText } from '@/src/theme/inputs';
+import { useCourses } from '@/src/queries/curriculum';
 
 export default function ProfileSetupRoute() {
   const { color, type, space, radius } = useTheme();
@@ -24,34 +26,18 @@ export default function ProfileSetupRoute() {
   const insets = useSafeAreaInsets();
 
   const [name, setName] = useState('');
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [pickedCourse, setSelectedCourse] = useState<string | null>(null);
   
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  const coursesQuery = useCourses();
+  const allCourses: Course[] = coursesQuery.data ?? [];
+  const courses = allCourses.filter((c) => c.is_active);
+  const loading = coursesQuery.isPending;
+  const loadError = coursesQuery.isError;
+  const loadCourses = () => void coursesQuery.refetch();
+  const selectedCourse = pickedCourse ?? (allCourses.length === 1 ? allCourses[0].id : null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadCourses = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await listCourses();
-      setCourses(res.courses.filter(c => c.is_active));
-      if (res.courses.length === 1) {
-        setSelectedCourse(res.courses[0].id);
-      }
-      setLoadError(false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load courses');
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCourses();
-  }, [loadCourses]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -74,11 +60,11 @@ export default function ProfileSetupRoute() {
       await refreshUser();
       
       if (user?.role === 'admin') {
-        router.replace('/(admin)/(home)');
+        router.replace(ROUTES.admin.home);
       } else if (user?.role === 'teacher') {
-        router.replace('/(teacher)/(tabs)/(home)');
+        router.replace(ROUTES.teacher.home);
       } else {
-        router.replace('/(student)/(home)');
+        router.replace(ROUTES.student.home);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to save profile');
@@ -87,7 +73,7 @@ export default function ProfileSetupRoute() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+    <Screen>
       <ScrollView
         contentContainerStyle={{
           padding: space.lg,
@@ -116,11 +102,13 @@ export default function ProfileSetupRoute() {
             placeholder="e.g. Arjun Sharma"
             placeholderTextColor={color('text/tertiary')}
             style={[
-              type['type/body-l'],
+              inputText(type['type/body-l']),
               {
                 backgroundColor: color('bg/sunken'),
                 borderRadius: radius.md,
-                padding: space.md,
+                paddingHorizontal: space.md,
+                paddingVertical: 0,
+                height: 56,
                 color: color('text/primary'),
                 borderWidth: 1,
                 borderColor: color('border/subtle'),
@@ -201,8 +189,8 @@ export default function ProfileSetupRoute() {
               backgroundColor: saving || loading
                 ? color('border/strong')
                 : pressed
-                  ? color('accent/pressed')
-                  : color('accent/default'),
+                  ? color('action/primary-pressed')
+                  : color('action/primary'),
               borderRadius: radius.pill,
               opacity: (saving || loading) ? 0.7 : 1,
             },
@@ -213,12 +201,11 @@ export default function ProfileSetupRoute() {
           </Text>
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   submitBtn: {
     height: 56,
     justifyContent: 'center',

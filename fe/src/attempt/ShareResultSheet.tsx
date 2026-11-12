@@ -64,17 +64,17 @@ export function ShareResultSheet({ visible, onClose, data }: { visible: boolean;
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Share your result" dismissable={!busy}>
       <View style={{ gap: space.md }}>
-        {/* The captured card: fixed light palette so the image looks the same in any theme. */}
+        {/* The captured card uses brand tokens so the shared image matches the app. */}
         <View
           ref={card}
           collapsable={false}
           accessible
           accessibilityLabel={text}
-          style={{ backgroundColor: '#4B3FE4', borderRadius: radius.lg, padding: space.lg, gap: space.xs }}
+          style={{ backgroundColor: color('action/primary'), borderRadius: radius.lg, padding: space.lg, gap: space.xs }}
         >
           <Text style={[type['type/overline'], { color: 'rgba(255,255,255,0.75)' }]}>CODON · RESULT</Text>
-          <Text style={[type['type/h2'], { color: '#FFFFFF' }]} numberOfLines={2}>{data.testTitle}</Text>
-          <Text style={[type['type/numeral-display'], { color: '#FFFFFF', fontSize: 44, marginTop: space.xs }]}>
+          <Text style={[type['type/h2'], { color: color('action/on-primary') }]} numberOfLines={2}>{data.testTitle}</Text>
+          <Text style={[type['type/numeral-display'], { color: color('action/on-primary'), fontSize: 44, marginTop: space.xs }]}>
             {data.percent != null ? `${data.percent}%` : data.score}
           </Text>
           <Text style={[type['type/body-m'], { color: 'rgba(255,255,255,0.9)' }]}>
@@ -82,8 +82,8 @@ export function ShareResultSheet({ visible, onClose, data }: { visible: boolean;
           </Text>
           {streak ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: space.xs }}>
-              <Flame size={18} color="#FFD27A" weight="fill" />
-              <Text style={[type['type/body-m-medium'], { color: '#FFFFFF' }]}>{streak}-day streak</Text>
+              <Flame size={18} color={color('highlight/default')} weight="fill" />
+              <Text style={[type['type/body-m-medium'], { color: color('action/on-primary') }]}>{streak}-day streak</Text>
             </View>
           ) : null}
           <Text style={[type['type/caption'], { color: 'rgba(255,255,255,0.75)', marginTop: space.sm }]}>— {data.firstName}</Text>

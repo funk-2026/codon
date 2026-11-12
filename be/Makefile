@@ -1,13 +1,17 @@
 # Codon backend — common tasks. Requires Go (see go.mod) and, for tests, a Postgres.
 TEST_DATABASE_URL ?= postgres://test:test@127.0.0.1:55432/codon_test?sslmode=disable
 
-.PHONY: build vet test test-load swagger test-db
+.PHONY: build vet lint test test-load swagger test-db
 
 build:
 	go build ./...
 
 vet:
 	go vet ./...
+
+# golangci-lint (config in .golangci.yml); only new code is enforced
+lint:
+	golangci-lint run --new-from-rev=origin/dev
 
 # Starts a throwaway Postgres for the integration tests (port 55432).
 test-db:

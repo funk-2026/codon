@@ -394,6 +394,10 @@ func (s *QuestionService) Create(ctx context.Context, actor *models.User, test *
 	}
 	var warnings []Warning
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Serialise concurrent adds to the same test so positions never collide.
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&models.Test{}, "id = ?", test.ID).Error; err != nil {
+			return err
+		}
 		var maxOrder struct{ MaxIdx int }
 		tx.Model(&models.Question{}).Select("COALESCE(MAX(order_index), 0) AS max_idx").Where("test_id = ?", test.ID).Scan(&maxOrder)
 		q.OrderIndex = maxOrder.MaxIdx + 1

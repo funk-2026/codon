@@ -3,11 +3,12 @@ import { View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth, type Role } from '@/src/auth/AuthContext';
+import { ROUTES } from '@/src/navigation/routes';
 
 const ROLE_HOME: Record<Role, Href> = {
-  student: '/(student)/(home)',
-  teacher: '/(teacher)/(tabs)/(home)',
-  admin: '/(admin)/(home)',
+  student: ROUTES.student.home,
+  teacher: ROUTES.teacher.home,
+  admin: ROUTES.admin.home,
 };
 
 export default function IndexRoute() {
@@ -29,13 +30,13 @@ export default function IndexRoute() {
           if (activeRole) {
             router.replace(ROLE_HOME[activeRole]);
           } else {
-            router.replace('/role-picker' as any);
+            router.replace(ROUTES.auth.rolePicker as any);
           }
         } else {
           router.replace(ROLE_HOME[auth.user.role]);
         }
       } else {
-        router.replace('/phone-entry');
+        router.replace(ROUTES.auth.phoneEntry);
       }
     };
 

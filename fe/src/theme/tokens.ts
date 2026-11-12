@@ -1,7 +1,5 @@
 import { TextStyle } from 'react-native';
 
-export type ThemeMode = 'light' | 'dark';
-
 export type ColorToken =
   | 'bg/canvas'
   | 'bg/surface'
@@ -17,6 +15,16 @@ export type ColorToken =
   | 'accent/pressed'
   | 'accent/tint'
   | 'accent/on-accent'
+  | 'action/primary'
+  | 'action/primary-pressed'
+  | 'action/on-primary'
+  | 'header/bg'
+  | 'header/text'
+  | 'header/text-secondary'
+  | 'header/chip'
+  | 'highlight/default'
+  | 'highlight/tint'
+  | 'highlight/on-tint'
   | 'semantic/success'
   | 'semantic/warning'
   | 'semantic/danger'
@@ -24,78 +32,69 @@ export type ColorToken =
   | 'semantic/warning-tint'
   | 'semantic/danger-tint'
   | 'wellness/bg'
+  | 'wellness/header'
   | 'wellness/surface'
   | 'wellness/accent'
   | 'wellness/accent-secondary'
   | 'wellness/text-primary'
   | 'media/paper';
 
-export const colors: Record<ThemeMode, Record<ColorToken, string>> = {
-  light: {
-    'bg/canvas': '#FAFAF9',
-    'bg/surface': '#FFFFFF',
-    'bg/surface-raised': '#FFFFFF',
-    'bg/sunken': '#F2F1ED',
-    'border/subtle': '#E7E5DF',
-    'border/strong': '#CFCCC3',
-    'text/primary': '#1C1B1F',
-    'text/secondary': '#5B5A63',
-    'text/tertiary': '#9C9AA3',
-    'text/inverse': '#FFFFFF',
-    'accent/default': '#4B3FE4',
-    'accent/pressed': '#3C31C2',
-    'accent/tint': '#EDEBFC',
-    'accent/on-accent': '#FFFFFF',
-    'semantic/success': '#1E9E6B',
-    'semantic/warning': '#C97C1D',
-    'semantic/danger': '#D53F3F',
-    'semantic/success-tint': '#E5F5EE',
-    'semantic/warning-tint': '#FBF0DE',
-    'semantic/danger-tint': '#FBE9E9',
-    'wellness/bg': '#FBF3EC',
-    'wellness/surface': '#FFFFFF',
-    'wellness/accent': '#E0714B',
-    'wellness/accent-secondary': '#7A9B7E',
-    'wellness/text-primary': '#2B211B',
-    'media/paper': '#FFFFFF',
-  },
-  dark: {
-    'bg/canvas': '#0F0F13',
-    'bg/surface': '#1A1A20',
-    'bg/surface-raised': '#22222A',
-    'bg/sunken': '#15151A',
-    'border/subtle': '#2E2E38',
-    'border/strong': '#3D3D48',
-    'text/primary': '#F5F4F2',
-    'text/secondary': '#B4B2BC',
-    'text/tertiary': '#78767F',
-    'text/inverse': '#0F0F13',
-    'accent/default': '#7A70F0',
-    'accent/pressed': '#9089F4',
-    'accent/tint': '#241F3D',
-    'accent/on-accent': '#0F0F13',
-    'semantic/success': '#3DDB9A',
-    'semantic/warning': '#F0A64B',
-    'semantic/danger': '#F26E6E',
-    'semantic/success-tint': '#12291F',
-    'semantic/warning-tint': '#2E2313',
-    'semantic/danger-tint': '#2E1717',
-    'wellness/bg': '#201A17',
-    'wellness/surface': '#2A211C',
-    'wellness/accent': '#F0916D',
-    'wellness/accent-secondary': '#93B597',
-    'wellness/text-primary': '#F3EAE4',
-    // Diagrams with transparent backgrounds stay legible on a light "paper" even in dark mode.
-    'media/paper': '#FFFFFF',
-  },
+/**
+ * Codon palette — "Ice and navy". Light only.
+ *
+ * - header/*  : ice-blue band at the top of main screens (home, practice, results).
+ * - action/*  : deep navy, for primary buttons (filled CTAs) only.
+ * - accent/*  : bright cobalt, for everything interactive that isn't a CTA —
+ *               progress, selection, active tabs, links, toggles, chips.
+ * - highlight : saffron, reserved for streaks, rewards and achievements.
+ * - semantic  : answer/feedback colours; clear but not neon.
+ */
+export const colors: Record<ColorToken, string> = {
+  'bg/canvas': '#F3F7FC',
+  'bg/surface': '#FFFFFF',
+  'bg/surface-raised': '#FFFFFF',
+  'bg/sunken': '#E2EAF5',
+  'border/subtle': '#D9E3F0',
+  'border/strong': '#BFCEE2',
+  'text/primary': '#0C1A30',
+  'text/secondary': '#455873',
+  'text/tertiary': '#8696AE',
+  'text/inverse': '#FFFFFF',
+  'accent/default': '#2563C9',
+  'accent/pressed': '#1D4FA3',
+  'accent/tint': '#E2EDFB',
+  'accent/on-accent': '#FFFFFF',
+  'action/primary': '#12306B',
+  'action/primary-pressed': '#0C2250',
+  'action/on-primary': '#FFFFFF',
+  'header/bg': '#CFE3F8',
+  'header/text': '#0B2447',
+  'header/text-secondary': '#44668F',
+  'header/chip': 'rgba(11, 36, 71, 0.09)',
+  'highlight/default': '#E98A00',
+  'highlight/tint': '#FDF0D3',
+  'highlight/on-tint': '#7A4E00',
+  'semantic/success': '#1F9A5B',
+  'semantic/warning': '#B97708',
+  'semantic/danger': '#D03B2C',
+  'semantic/success-tint': '#E1F4E8',
+  'semantic/warning-tint': '#FCF0D6',
+  'semantic/danger-tint': '#FCE9E6',
+  'wellness/bg': '#FFF5EE',
+  'wellness/header': '#FBE1D2',
+  'wellness/surface': '#FFFFFF',
+  'wellness/accent': '#E2704A',
+  'wellness/accent-secondary': '#5C9A72',
+  'wellness/text-primary': '#2B211B',
+  'media/paper': '#FFFFFF',
 };
 
 export const fontFamily = {
-  regular: 'Manrope-Regular',
-  medium: 'Manrope-Medium',
-  semibold: 'Manrope-SemiBold',
-  bold: 'Manrope-Bold',
-  extrabold: 'Manrope-ExtraBold',
+  regular: 'Figtree-Regular',
+  medium: 'Figtree-Medium',
+  semibold: 'Figtree-SemiBold',
+  bold: 'Figtree-Bold',
+  extrabold: 'Figtree-ExtraBold',
 } as const;
 
 export type TypeToken =

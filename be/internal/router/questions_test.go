@@ -265,19 +265,16 @@ func TestTeacherBrowseFiltersCompletenessAndBulkUpdate(t *testing.T) {
 	}
 }
 
-func TestReadSwitchAndParity(t *testing.T) {
+func TestMembershipReadsAndParity(t *testing.T) {
 	e := newEnv(t)
 	test := e.w.Test(t, models.ModulePractice, 5, true)
 	a, _ := services.LoadTestQuestions(nil2(), e.db, test.ID)
-	e.set("test_questions.read_via_join", "false")
-	b, _ := services.LoadTestQuestions(nil2(), e.db, test.ID)
-	e.set("test_questions.read_via_join", "true")
-	if len(a) != 5 || len(b) != 5 {
-		t.Fatalf("lengths %d %d", len(a), len(b))
+	if len(a) != 5 {
+		t.Fatalf("length %d", len(a))
 	}
 	for i := range a {
-		if a[i].ID != b[i].ID || a[i].Position != b[i].Position {
-			t.Fatalf("join and legacy reads disagree at %d", i)
+		if a[i].Position != i+1 {
+			t.Fatalf("question %d has position %d", i, a[i].Position)
 		}
 	}
 	rep, err := services.CheckTestQuestionParity(nil2(), e.db)

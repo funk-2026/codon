@@ -686,10 +686,7 @@ func (e *importEnv) createRow(rowNum int, row []string) {
 	// Duplicate detection (in file + against the pool).
 	probe := models.Question{QuestionText: stem, OptionA: opts[0], OptionB: opts[1], OptionC: opts[2], OptionD: opts[3], ContentFormat: format}
 	hash := ContentHash(e.ctx, e.s.DB, &probe)
-	if first, dup := e.seenHash[hash]; dup && e.batch.Mode != ImportModeValidate {
-		e.fail(rowNum, "", CodeDuplicateInFile, fmt.Sprintf("same question as row %d", first), row)
-		return
-	} else if dup {
+	if first, dup := e.seenHash[hash]; dup {
 		e.fail(rowNum, "", CodeDuplicateInFile, fmt.Sprintf("same question as row %d", first), row)
 		return
 	}
@@ -790,27 +787,4 @@ func (s *CSVImportService) logRowError(ctx context.Context, batchID uuid.UUID, r
 	s.DB.WithContext(ctx).Create(&models.CSVImportRowError{
 		BatchID: batchID, RowNumber: rowNum, ErrorMessage: msg, RawRowData: string(raw), Code: code, Field: field, Severity: severity,
 	})
-}
-
-// ProcessCSVReader keeps the old entry point (used by tests / tooling): a
-// synchronous commit-mode import of raw CSV bytes into a test.
-func (s *CSVImportService) ProcessCSVReader(ctx context.Context, batchID, testID uuid.UUID, reader io.Reader) error {
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return err
-	}
-	key := "inline/" + batchID.String() + ".csv"
-	if storage.Store == nil {
-		return fmt.Errorf("storage not configured")
-	}
-	if err := storage.Store.PutObject(ctx, key, "text/csv", data); err != nil {
-		return err
-	}
-	var batch models.CSVImportBatch
-	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
-		return err
-	}
-	s.DB.WithContext(ctx).Model(&batch).Update("file_key", key)
-	batch.FileKey = key
-	return s.Run(ctx, &batch)
 }

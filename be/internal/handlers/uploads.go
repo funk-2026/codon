@@ -5,10 +5,12 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"codon-backend/internal/bunny"
+	"codon-backend/internal/config"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 	"codon-backend/internal/storage"
@@ -47,18 +49,18 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 
 	var req presignRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 
 	allowedTypes, ok := allowedPurposes[req.Purpose]
 	if !ok {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("invalid purpose; allowed: %v", getKeys(allowedPurposes))})
+		respondErr(c, http.StatusBadRequest, "bad_request", fmt.Sprintf("invalid purpose; allowed: %v", getKeys(allowedPurposes)))
 		return
 	}
 
-	if !contains(allowedTypes, req.ContentType) {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("content_type %s not allowed for purpose %s", req.ContentType, req.Purpose)})
+	if !slices.Contains(allowedTypes, req.ContentType) {
+		respondErr(c, http.StatusBadRequest, "bad_request", fmt.Sprintf("content_type %s not allowed for purpose %s", req.ContentType, req.Purpose))
 		return
 	}
 
@@ -70,7 +72,11 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 		}
 
 		if !bunny.IsConfigured() {
-			log.Printf("[Presign] Bunny Stream not configured (BUNNY_STREAM_LIBRARY_ID/BUNNY_STREAM_API_KEY blank) — returning stub")
+			if config.AppConfig.Env == "production" {
+				respondErr(c, http.StatusServiceUnavailable, "storage_unavailable", "video upload is not configured")
+				return
+			}
+			log.Printf("[Presign] Bunny Stream not configured (BUNNY_STREAM_LIBRARY_ID/BUNNY_STREAM_API_KEY blank) — returning dev stub")
 			stubGUID := uuid.New().String()
 			c.JSON(http.StatusOK, presignResponse{
 				UploadURL: "https://video.bunnycdn.com/tusupload",
@@ -92,7 +98,7 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 		videoGUID, err := bunny.CreateVideo(c.Request.Context(), title)
 		if err != nil {
 			log.Printf("[Presign] Bunny Stream CreateVideo failed: %v", err)
-			c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to initialize video upload with Bunny Stream"})
+			respondErr(c, http.StatusInternalServerError, "internal", "failed to initialize video upload with Bunny Stream")
 			return
 		}
 
@@ -111,6 +117,10 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 	key = strings.ToLower(key)
 
 	if storage.Client == nil {
+		if config.AppConfig.Env == "production" {
+			respondErr(c, http.StatusServiceUnavailable, "storage_unavailable", "file storage is not configured")
+			return
+		}
 		c.JSON(http.StatusOK, presignResponse{
 			UploadURL: "https://example-s3.local/upload?stub=true",
 			FileKey:   key,
@@ -120,7 +130,7 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 
 	url, err := storage.Client.PresignPut(c.Request.Context(), key, req.ContentType, 15*time.Minute)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "failed to generate upload URL"})
+		respondErr(c, http.StatusInternalServerError, "internal", "failed to generate upload URL")
 		return
 	}
 
@@ -133,15 +143,6 @@ func getKeys(m map[string][]string) []string {
 		keys = append(keys, k)
 	}
 	return keys
-}
-
-func contains(slice []string, val string) bool {
-	for _, s := range slice {
-		if s == val {
-			return true
-		}
-	}
-	return false
 }
 
 // ── Request / Response types ──────────────────────────────────────────────────

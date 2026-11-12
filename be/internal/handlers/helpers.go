@@ -1,9 +1,8 @@
 package handlers
 
 import (
-	"codon-backend/internal/services"
 	"context"
-	"errors"
+	"github.com/gin-gonic/gin"
 
 	"codon-backend/internal/models"
 	"codon-backend/internal/settings"
@@ -54,4 +53,13 @@ func testDuration(db *gorm.DB, ctx context.Context, testID uuid.UUID) *int {
 	return t.DurationMinutes
 }
 
-func asCoded(err error, target **services.CodedError) bool { return errors.As(err, target) }
+// statusParam reads ?status= for admin review queues (default: pending_review)
+// and rejects values that are not a workflow status.
+func statusParam(c *gin.Context) (models.ContentStatus, bool) {
+	st := models.ContentStatus(c.DefaultQuery("status", string(models.StatusPendingReview)))
+	if !st.Valid() {
+		respondErr(c, 400, "invalid_status", "status must be one of: draft, pending_review, approved, rejected, published")
+		return "", false
+	}
+	return st, true
+}

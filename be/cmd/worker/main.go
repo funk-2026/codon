@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	config.Load()
+	config.MustLoad()
 
 	if err := db.Connect(); err != nil {
 		log.Fatalf("Worker DB connect: %v", err)
@@ -78,6 +78,10 @@ func main() {
 			log.Printf("[Worker] created %d streak nudges", n)
 		}
 	})
+	// One-off style maintenance: fills content_hash for questions that predate the column.
+	worker.RegisterTicker("content_hash_backfill", 24*time.Hour, func(ctx context.Context) {
+		services.BackfillAllContentHashes(ctx, db.DB)
+	})
 	worker.RegisterTicker("retention_sweep", 24*time.Hour, func(ctx context.Context) { services.RetentionSweep(ctx, db.DB) })
 	worker.RegisterTicker("orphan_media_gc", 6*time.Hour, func(ctx context.Context) {
 		if n, err := mediaSvc.GCOrphans(ctx, false); err != nil {
@@ -94,11 +98,12 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	go worker.Run(ctx)
+	done := make(chan struct{})
+	go func() { worker.Run(ctx); close(done) }()
 
 	<-quit
 	log.Println("[Worker] Received shutdown signal")
 	cancel()
-	time.Sleep(2 * time.Second) // allow in-flight jobs to complete
+	<-done // Run drains in-flight jobs (bounded) before returning
 	log.Println("[Worker] Stopped")
 }

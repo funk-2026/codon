@@ -1,6 +1,8 @@
 /**
  * Pure push-notification rules (no native modules) so they are unit-tested.
  */
+import { normalizeRoute } from '@/src/navigation/routes';
+
 const EXPO_TOKEN_RE = /^Expo(nent)?PushToken\[[A-Za-z0-9_-]+\]$/;
 
 export const isExpoPushToken = (t: unknown): t is string => typeof t === 'string' && EXPO_TOKEN_RE.test(t);
@@ -24,7 +26,7 @@ export function routeFromNotification(data: unknown): string | null {
   if (typeof route !== 'string') return null;
   const r = route.trim();
   if (!r.startsWith('/') || r.includes('://') || r.includes('..')) return null;
-  return ALLOWED.some((p) => r.startsWith(p)) ? r : null;
+  return ALLOWED.some((p) => r.startsWith(p)) ? normalizeRoute(r) : null;
 }
 
 /** Human copy for the settings toggle given the OS state. */

@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretLeft, CaretDown, CaretUp, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
+import { CaretDown, CaretUp, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast } from '@/src/components';
+import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest, updateContent } from '@/src/api/teacher';
 import { LecturePdfEditor, type PdfKind, type PdfSlot } from '@/src/content/LecturePdfEditor';
@@ -12,6 +12,8 @@ import { Test, AuthoredQuestion } from '@/src/api/tests';
 import { QuestionPreviewCard, type MediaMap } from '@/src/rich';
 import { ContentItem } from '@/src/api/content';
 import { ApiError } from '@/src/api/client';
+import { ROUTES } from '@/src/navigation/routes';
+import { useSafeBack } from '@/src/navigation/useSafeBack';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 type Status = 'draft' | 'pending' | 'approved' | 'published' | 'rejected';
@@ -34,15 +36,6 @@ function taxonomyBadge(status: Status): { badgeStatus: BadgeStatus; label: strin
   return map[status];
 }
 
-function shadow(): {} {
-  return {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  };
-}
 
 function breadcrumbFrom(parts: (string | undefined)[]): string {
   return parts.filter((p): p is string => !!p && p.trim().length > 0).join(' · ');
@@ -60,6 +53,7 @@ function normalizeStatus(raw: string): Status {
 export default function ContentPreviewRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const goBack = useSafeBack();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const {
@@ -203,7 +197,7 @@ export default function ContentPreviewRoute() {
     try {
       await deleteTest(id);
       show('Test deleted', 'success');
-      router.back();
+      goBack();
     } catch (err) {
       show('Failed to delete', 'error');
       setDeleting(false);
@@ -234,20 +228,10 @@ export default function ContentPreviewRoute() {
   const contentBreadcrumb = breadcrumbFrom([contentData?.course?.name, contentData?.chapter?.name]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={space.xs}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
-          Preview
-        </Text>
-        <StatusBadge status={badge.badgeStatus} label={badge.label} />
-      </View>
+    <Screen>
+      <ScreenHeader title="Preview" right={<>
+<StatusBadge status={badge.badgeStatus} label={badge.label} />
+</>} />
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
@@ -315,7 +299,7 @@ export default function ContentPreviewRoute() {
                         {canEditQuestions ? (
                           <TextButton
                             label={status === 'published' ? 'Edit question (goes to review if the answer changes)' : 'Edit question'}
-                            onPress={() => router.push({ pathname: '/(teacher)/question-editor', params: { testId: testId!, questionId: q.id } })}
+                            onPress={() => router.push({ pathname: ROUTES.teacher.questionEditor, params: { testId: testId!, questionId: q.id } })}
                             style={{ alignSelf: 'flex-end' }}
                           />
                         ) : null}
@@ -480,13 +464,13 @@ export default function ContentPreviewRoute() {
 
       {testId && (sortedQuestions?.length ?? 0) > 0 ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.sm }}>
-          <SecondaryButton label="Try it as a student" onPress={() => router.push({ pathname: '/(teacher)/preview-run', params: { testId } })} />
+          <SecondaryButton label="Try it as a student" onPress={() => router.push({ pathname: ROUTES.teacher.previewRun, params: { testId } })} />
         </View>
       ) : null}
 
       {canEditTest ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.sm }}>
-          <SecondaryButton label="Edit test & questions" onPress={() => router.push({ pathname: '/(teacher)/question-builder', params: { testId: testId! } })} />
+          <SecondaryButton label="Edit test & questions" onPress={() => router.push({ pathname: ROUTES.teacher.questionBuilder, params: { testId: testId! } })} />
         </View>
       ) : null}
 
@@ -499,7 +483,7 @@ export default function ContentPreviewRoute() {
           <PrimaryButton label="Publish" onPress={handlePublish} loading={submitting} />
         </View>
       ) : null}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -519,7 +503,6 @@ function StatChip({ icon, label }: { icon: React.ReactNode; label: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center' },
   frame: { borderWidth: 1 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap' },

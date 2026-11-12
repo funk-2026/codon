@@ -1,25 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import {
-  CaretLeft,
-  CaretRight,
-  UploadSimple,
-  TextB,
-  TextHOne,
-  ListBullets,
-  X,
-} from 'phosphor-react-native';
-import { ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast } from '@/src/components';
+import { CaretRight, UploadSimple, TextB, TextHOne, ListBullets, X } from 'phosphor-react-native';
+import { CourseSelector, ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { LecturePdfEditor, type PdfKind } from '@/src/content/LecturePdfEditor';
 import { createContent } from '@/src/api/teacher';
 import { getPresignedUrl } from '@/src/api/uploads';
-import { listCourses, getCurriculum } from '@/src/api/courses';
+import { listCourses, getCurriculum, type Course } from '@/src/api/courses';
+import { defaultCourse } from '@/src/api/courseSelection';
 import { ApiError } from '@/src/api/client';
 import * as tus from 'tus-js-client';
+import { ROUTES } from '@/src/navigation/routes';
+import { shadow } from '@/src/theme/elevation';
 
 type ContentType = 'Video' | 'Document';
 type VideoState = 'idle' | 'uploading' | 'ready' | 'failed';
@@ -29,7 +24,7 @@ export default function CreateContentRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { locationLabel, chapterId: pickedChapterId } = useLocalSearchParams<{ locationLabel?: string; chapterId?: string }>();
+  const { locationLabel, chapterId: pickedChapterId, courseId: pickedCourseId } = useLocalSearchParams<{ locationLabel?: string; chapterId?: string; courseId?: string }>();
 
   const [contentType, setContentType] = useState<ContentType>('Video');
   const [pendingTypeSwitch, setPendingTypeSwitch] = useState<ContentType | null>(null);
@@ -48,6 +43,7 @@ export default function CreateContentRoute() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const uploadTus = useRef<tus.Upload | null>(null);
@@ -55,9 +51,11 @@ export default function CreateContentRoute() {
   const loadCourseInfo = useCallback(async () => {
     try {
       const res = await listCourses();
-      if (res.courses.length > 0) {
-        setCourseId(res.courses[0].id);
-        const cRes = await getCurriculum(res.courses[0].id);
+      setCourses(res.courses);
+      const first = defaultCourse(res.courses);
+      if (first) {
+        setCourseId(first.id);
+        const cRes = await getCurriculum(first.id);
         const chaps = cRes.course.subjects.flatMap((s: any) => s.chapters);
         if (chaps.length > 0) setChapterId(chaps[0].id);
       }
@@ -74,7 +72,8 @@ export default function CreateContentRoute() {
   useEffect(() => {
     if (locationLabel) setLocation(locationLabel);
     if (pickedChapterId) setChapterId(pickedChapterId);
-  }, [locationLabel, pickedChapterId]);
+    if (pickedCourseId) setCourseId(pickedCourseId);
+  }, [locationLabel, pickedChapterId, pickedCourseId]);
 
   useEffect(() => {
     if (contentType !== 'Document' || docBody.trim().length === 0) return;
@@ -196,10 +195,25 @@ export default function CreateContentRoute() {
     setDocBody('');
   };
 
+  // Switching course: drop the old location and default to the new course's first chapter (as on first load)
+  const changeCourse = async (id: string) => {
+    if (id === courseId) return;
+    setCourseId(id);
+    setLocation(null);
+    setChapterId(null);
+    try {
+      const cRes = await getCurriculum(id);
+      const chaps = cRes.course.subjects.flatMap((s: any) => s.chapters);
+      setChapterId(chaps.length > 0 ? chaps[0].id : null);
+    } catch {
+      setLoadError(true);
+    }
+  };
+
   const goToLocationPicker = () => {
     router.push({
-      pathname: '/(teacher)/(tabs)/(home)/course-structure-manager',
-      params: { pickerMode: '1', returnTo: '/(teacher)/create-content' },
+      pathname: ROUTES.teacher.courseStructureManager,
+      params: { pickerMode: '1', returnTo: ROUTES.teacher.createContent, ...(courseId ? { courseId } : {}) },
     });
   };
 
@@ -230,7 +244,7 @@ export default function CreateContentRoute() {
         ...(contentType === 'Video' && pdfs.annotated.key ? { annotated_pdf_key: pdfs.annotated.key } : {}),
       });
       show('Content saved', 'success');
-      router.push({ pathname: '/(teacher)/content-preview', params: { type: contentType, id: res.id } });
+      router.push({ pathname: ROUTES.teacher.contentPreview, params: { type: contentType, id: res.id } });
     } catch (err) {
       show('Failed to save content', 'error');
     } finally {
@@ -239,20 +253,10 @@ export default function CreateContentRoute() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
-      <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={space.xs}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
-          <CaretLeft size={24} color={color('text/primary')} />
-        </Pressable>
-        <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
-          New Content
-        </Text>
-        <TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
-      </View>
+    <Screen>
+      <ScreenHeader title="New Content" right={<>
+<TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
+</>} />
 
       {loadError ? (
         <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
@@ -283,6 +287,8 @@ export default function CreateContentRoute() {
 
         <View style={{ marginTop: space.lg, gap: space.lg }}>
           <InputField label="Title" value={title} onChangeText={setTitle} />
+
+          <CourseSelector courses={courses} value={courseId} onChange={changeCourse} />
 
           <Pressable
             onPress={goToLocationPicker}
@@ -426,22 +432,12 @@ export default function CreateContentRoute() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-function shadow(): {} {
-  return {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  };
-}
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center' },
   segmented: { flexDirection: 'row' },
   segment: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center' },

@@ -2,6 +2,7 @@ package razorpay
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"codon-backend/internal/config"
 )
@@ -19,6 +21,8 @@ type Client struct {
 	keyID     string
 	keySecret string
 }
+
+var httpClient = &http.Client{Timeout: 15 * time.Second}
 
 var DefaultClient *Client
 
@@ -45,16 +49,16 @@ type Order struct {
 
 func (c *Client) KeyID() string { return c.keyID }
 
-func (c *Client) CreateOrder(req CreateOrderRequest) (*Order, error) {
+func (c *Client) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Order, error) {
 	body, _ := json.Marshal(req)
-	httpReq, err := http.NewRequest(http.MethodPost, baseURL+"/orders", bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/orders", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("building order request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.SetBasicAuth(c.keyID, c.keySecret)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("calling Razorpay: %w", err)
 	}

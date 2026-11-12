@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import { kvGet, kvSet } from '@/src/storage/kv';
+import { ROUTES } from '@/src/navigation/routes';
 
 /**
  * Daily practice reminder (CM-I8 / FE-6.9): a LOCAL notification scheduled on
@@ -57,7 +58,7 @@ export async function setReminder(next: ReminderState): Promise<'ok' | 'denied' 
     content: {
       title: 'Time for a quick practice',
       body: 'A short set today keeps your streak going.',
-      data: { route: '/(student)/(practice)' },
+      data: { route: ROUTES.student.practice },
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: next.hour, minute: 0, ...(Platform.OS === 'android' ? { channelId: CHANNEL } : {}) },
   });

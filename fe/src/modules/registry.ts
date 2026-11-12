@@ -1,3 +1,4 @@
+import { ROUTES } from '@/src/navigation/routes';
 /**
  * Module registry (CM-E1 / FE-0.3). One place that knows every assessment
  * "module" (Q Bank, Test Series, Practice, Custom, …): its labels, whether a
@@ -29,25 +30,25 @@ const DEFINITIONS: Record<ModuleKey, ModuleDefinition> = {
     key: 'qbank', label: 'Q Bank', shortLabel: 'Q Bank',
     descriptor: 'Topic-wise questions to build your foundation, chapter by chapter.',
     canRetake: true, teacherCreatable: true,
-    hubRoute: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'qbank' } },
+    hubRoute: { pathname: ROUTES.student.practiceHierarchy, params: { kind: 'qbank' } },
   },
   test_series: {
     key: 'test_series', label: 'Test Series', shortLabel: 'Test Series',
     descriptor: 'Full-length, exam-pattern tests that simulate the real thing.',
     canRetake: false, teacherCreatable: true,
-    hubRoute: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'test_series' } },
+    hubRoute: { pathname: ROUTES.student.practiceHierarchy, params: { kind: 'test_series' } },
   },
   practice: {
     key: 'practice', label: 'Practice', shortLabel: 'Practice',
     descriptor: 'Short, low-pressure sets to warm up or review a single topic.',
     canRetake: true, teacherCreatable: true,
-    hubRoute: { pathname: '/(student)/(practice)/hierarchy', params: { kind: 'practice' } },
+    hubRoute: { pathname: ROUTES.student.practiceHierarchy, params: { kind: 'practice' } },
   },
   custom: {
     key: 'custom', label: 'Custom Test', shortLabel: 'Custom',
     descriptor: 'Build your own test — pick topics, difficulty, count and mode.',
     canRetake: true, teacherCreatable: false, flag: 'custom_test.enabled',
-    hubRoute: { pathname: '/(student)/(practice)/custom-builder' },
+    hubRoute: { pathname: ROUTES.student.customBuilder },
   },
 };
 
@@ -64,7 +65,7 @@ export function getModule(key: string | undefined | null): ModuleDefinition {
   return {
     key: key ?? 'unknown', label: 'Test', shortLabel: 'Test', descriptor: '',
     canRetake: false, teacherCreatable: false,
-    hubRoute: { pathname: '/(student)/(practice)' },
+    hubRoute: { pathname: ROUTES.student.practice },
   };
 }
 

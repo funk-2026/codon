@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
@@ -9,8 +8,9 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import { Atom, Flask, Leaf, CheckCircle } from 'phosphor-react-native';
-import { PrimaryButton } from '@/src/components';
+import { PrimaryButton, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { ROUTES } from '@/src/navigation/routes';
 
 type CourseId = 'neet-ug' | '10th' | '9th';
 
@@ -56,11 +56,11 @@ export default function CourseSelectionRoute() {
   const handleContinue = () => {
     if (!selected || submitting) return;
     setSubmitting(true);
-    setTimeout(() => router.replace('/(student)/(home)'), 700);
+    setTimeout(() => router.replace(ROUTES.student.home), 700);
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+    <Screen>
       <View style={[styles.body, { marginHorizontal: space.md }]}>
         <Text
           style={[type['type/h1'], { color: color('text/primary'), marginTop: space['2xl'] }]}
@@ -99,7 +99,7 @@ export default function CourseSelectionRoute() {
           disabled={!selected || submitting}
         />
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -216,7 +216,6 @@ function CourseCard({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   body: { flex: 1 },
   footer: {},
   card: { justifyContent: 'center' },
