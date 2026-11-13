@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CaretRight, Stack, Exam, Lightning, Minus, Plus } from 'phosphor-react-native';
 import { Switch } from 'react-native';
 import { teacherModules } from '@/src/modules/registry';
@@ -27,9 +27,11 @@ export default function CreateTestRoute() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
 
+  // Opened from "chapters that need questions" with the place already chosen.
+  const preset = useLocalSearchParams<{ courseId?: string; chapterId?: string; locationLabel?: string }>();
   const [title, setTitle] = useState('');
   const [moduleType, setModuleType] = useState<ModuleKey | null>('qbank');
-  const [location, setLocation] = useState<string | null>(null);
+  const [location, setLocation] = useState<string | null>(preset.locationLabel ?? null);
   const [subjectId, setSubjectId] = useState<string | null>(null);
   const [requiresSub, setRequiresSub] = useState(true);
   const [timed, setTimed] = useState(true);
@@ -37,9 +39,9 @@ export default function CreateTestRoute() {
   const [marksCorrect, setMarksCorrect] = useState('4');
   const [marksWrong, setMarksWrong] = useState('-1');
   const [saving, setSaving] = useState(false);
-  const [courseId, setCourseId] = useState<string | null>(null);
+  const [courseId, setCourseId] = useState<string | null>(preset.courseId ?? null);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [chapterId, setChapterId] = useState<string | null>(null);
+  const [chapterId, setChapterId] = useState<string | null>(preset.chapterId ?? null);
   const [loadError, setLoadError] = useState(false);
   const [testId, setTestId] = useState<string | null>(null);
   const questionCount = 0; // a brand-new test has no questions until they are added

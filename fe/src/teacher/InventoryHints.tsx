@@ -1,8 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getInventory, type LowInventoryChapter } from '@/src/api/questionBank';
+import { ROUTES } from '@/src/navigation/routes';
 
 /**
  * Inventory hints (FE-2.15): chapters whose custom-test pool is below the
@@ -11,6 +13,7 @@ import { getInventory, type LowInventoryChapter } from '@/src/api/questionBank';
  */
 export function InventoryHints({ limit = 5 }: { limit?: number }) {
   const { color, type, space, radius } = useTheme();
+  const router = useRouter();
   const [rows, setRows] = useState<LowInventoryChapter[]>([]);
   const [floor, setFloor] = useState(0);
 
@@ -39,11 +42,17 @@ export function InventoryHints({ limit = 5 }: { limit?: number }) {
           Students’ custom tests draw from tagged, published questions. These chapters have fewer than {floor}.
         </Text>
         {rows.map((r) => (
-          <View
+          <Pressable
             key={r.chapter_id}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}
-            accessible
-            accessibilityLabel={`${r.chapter}, ${r.subject}: ${r.eligible} questions, needs ${r.needed} more. ${r.mine} are yours.`}
+            onPress={() =>
+              router.push({
+                pathname: ROUTES.teacher.createTest,
+                params: { courseId: r.course_id, chapterId: r.chapter_id, locationLabel: `${r.subject} · ${r.chapter}` },
+              })
+            }
+            style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 }}
+            accessibilityRole="button"
+            accessibilityLabel={`${r.chapter}, ${r.subject}: ${r.eligible} questions, needs ${r.needed} more. ${r.mine} are yours. Start a test for this chapter.`}
           >
             <View style={{ flex: 1 }}>
               <Text style={[type['type/body-m'], { color: color('text/primary') }]} numberOfLines={1}>{r.chapter}</Text>
@@ -52,7 +61,8 @@ export function InventoryHints({ limit = 5 }: { limit?: number }) {
               </Text>
             </View>
             <Text style={[type['type/body-m-medium'], { color: color('semantic/warning') }]}>+{r.needed}</Text>
-          </View>
+            <Text style={[type['type/caption'], { color: color('accent/default') }]}>Write →</Text>
+          </Pressable>
         ))}
       </View>
     </View>
