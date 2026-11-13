@@ -1,27 +1,25 @@
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, type Href } from 'expo-router';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { PlayCircle, FileText, CaretRight } from 'phosphor-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import Animated from 'react-native-reanimated';
+import { PlayCircle, FileText, Cards, CaretRight } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useRecentContent } from '@/src/queries/attempts';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
-import { CollapsingHeader, ErrorBanner, useCollapsingHeader } from '@/src/components';
+import { CollapsingHeader, ErrorBanner, SegmentedControl, useCollapsingHeader } from '@/src/components';
+import { CurriculumTree, TreeToolbar } from '@/src/screens/CurriculumTree';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
-type Category = {
-  id: 'video' | 'document';
-  title: string;
-  descriptor: string;
-  icon: React.ReactNode;
-  href: Href;
-};
+type LearnSegment = 'video' | 'document' | 'flashcards';
+const SEGMENTS: { key: LearnSegment; label: string }[] = [
+  { key: 'video', label: 'Videos' },
+  { key: 'document', label: 'Notes' },
+  { key: 'flashcards', label: 'Flashcards' },
+];
+const TREE_SEGMENTS = ['video', 'document'] as const;
+const initialSegment = (k?: string): LearnSegment => (k === 'document' || k === 'flashcards' ? k : 'video');
 
 type RecentItem = {
   id: string;
@@ -33,26 +31,20 @@ type RecentItem = {
 
 
 
-function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
-  const shown = useSharedValue(0);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      shown.value = withTiming(1, { duration: 280 });
-    }, delayMs);
-    return () => clearTimeout(t);
-  }, [delayMs, shown]);
-  const style = useAnimatedStyle(() => ({
-    opacity: shown.value,
-    transform: [{ translateY: (1 - shown.value) * 10 }],
-  }));
-  return <Animated.View style={style}>{children}</Animated.View>;
-}
-
 export default function LearnHubRoute() {
   const { color, type, space, radius } = useTheme();
   const header = useCollapsingHeader(64);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ kind?: string }>();
+  const [segment, setSegmentState] = useState<LearnSegment>(initialSegment(params.kind));
+  const [visited, setVisited] = useState<Set<LearnSegment>>(() => new Set([initialSegment(params.kind)]));
+  const setSegment = (k: LearnSegment) => {
+    setSegmentState(k);
+    setVisited((v) => (v.has(k) ? v : new Set(v).add(k)));
+  };
+  const [query, setQuery] = useState('');
+  const isTree = segment !== 'flashcards';
   const recentQuery = useRecentContent();
   useRefetchOnFocus(recentQuery.refetch);
   const recent: RecentItem[] = recentQuery.data?.recent ?? [];
@@ -60,23 +52,6 @@ export default function LearnHubRoute() {
   const loadError = recentQuery.isError;
   const loadRecent = () => void recentQuery.refetch();
   const isNewUser = !loading && recent.length === 0;
-
-  const categories: Category[] = [
-    {
-      id: 'video',
-      title: 'Video Classes',
-      descriptor: 'Recorded lectures, organized by chapter.',
-      icon: <PlayCircle size={28} color={color('accent/default')} weight="duotone" />,
-      href: { pathname: ROUTES.student.learnHierarchy, params: { kind: 'video' } } as Href,
-    },
-    {
-      id: 'document',
-      title: 'Chapter Notes',
-      descriptor: 'Structured reading notes for quick revision.',
-      icon: <FileText size={28} color={color('accent/default')} weight="duotone" />,
-      href: { pathname: ROUTES.student.learnHierarchy, params: { kind: 'document' } } as Href,
-    },
-  ];
 
   return (
     <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -106,142 +81,40 @@ export default function LearnHubRoute() {
           </View>
         ) : null}
 
-        {/* Continue Watching */}
-        {!isNewUser ? (
-          <Stagger delayMs={0}>
-            <View style={{ marginTop: space.lg }}>
-              <Text
-                style={[
-                  type['type/overline'],
-                  { color: color('text/tertiary'), marginBottom: space.xs },
-                ]}
-              >
-                CONTINUE WATCHING
-              </Text>
-              <View
-                style={[
-                  {
-                    backgroundColor: color('bg/surface'),
-                    borderRadius: radius.lg,
-                    padding: space.md,
-                  },
-                  shadow(),
-                ]}
-              >
-                <View style={styles.row}>
-                  <View
-                    style={[
-                      styles.iconWrap,
-                      { backgroundColor: color('accent/tint'), borderRadius: radius.md },
-                    ]}
-                  >
-                    <PlayCircle size={28} color={color('accent/default')} weight="duotone" />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: space.md }}>
-                    <Text
-                      style={[type['type/h3'], { color: color('text/primary') }]}
-                      numberOfLines={1}
-                    >
-                      Thermodynamics — Lecture 3
-                    </Text>
-                    <Text
-                      style={[
-                        type['type/caption'],
-                        { color: color('text/secondary'), marginTop: 2 },
-                      ]}
-                    >
-                      14:22 of 20:00
-                    </Text>
-                  </View>
-                </View>
-                <View
-                  style={{
-                    height: 4,
-                    backgroundColor: color('bg/sunken'),
-                    borderRadius: 2,
-                    marginTop: space.sm,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: '72%',
-                      height: 4,
-                      backgroundColor: color('accent/default'),
-                      borderRadius: 2,
-                    }}
-                  />
-                </View>
-                <Pressable
-                  onPress={() => router.push(ROUTES.student.videoPlayer)}
-                  style={({ pressed }) => [
-                    styles.resumeBtn,
-                    {
-                      backgroundColor: pressed
-                        ? color('action/primary-pressed')
-                        : color('action/primary'),
-                      borderRadius: radius.pill,
-                      marginTop: space.md,
-                      opacity: 0.95,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[type['type/body-m-medium'], { color: color('accent/on-accent') }]}
-                  >
-                    Resume
-                  </Text>
-                </Pressable>
+        <View style={{ marginTop: space.lg }}>
+          <SegmentedControl options={SEGMENTS} value={segment} onChange={setSegment} />
+          {/* Toolbar slot: same place and height on every segment, so nothing jumps when switching */}
+          <View style={{ marginTop: space.md, minHeight: isTree ? undefined : 40, justifyContent: 'center' }}>
+            {isTree ? (
+              <TreeToolbar query={query} onQuery={setQuery} />
+            ) : (
+              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Flashcard decks for revision.</Text>
+            )}
+          </View>
+          <View style={{ marginTop: space.md }}>
+            {/* Each tree mounts on first visit and stays mounted, so open subjects survive switching segments */}
+            {TREE_SEGMENTS.filter((k) => visited.has(k)).map((k) => (
+              <View key={k} style={{ display: segment === k ? 'flex' : 'none' }}>
+                <CurriculumTree kind={k} query={query} />
               </View>
-            </View>
-          </Stagger>
-        ) : null}
-
-        {/* Category cards */}
-        <View style={{ gap: space.md, marginTop: space.lg }}>
-          {categories.map((c, i) => (
-            <Stagger key={c.id} delayMs={(isNewUser ? 0 : 80) + i * 80}>
+            ))}
+            {segment === 'flashcards' ? (
               <Pressable
-                onPress={() => router.push(c.href)}
-                style={({ pressed }) => [
-                  styles.catCard,
-                  {
-                    backgroundColor: color('bg/surface'),
-                    borderRadius: radius.lg,
-                    padding: space.md,
-                    minHeight: 88,
-                    opacity: pressed ? 0.94 : 1,
-                  },
-                  shadow(),
-                ]}
+                onPress={() => router.push(ROUTES.student.flashcards)}
+                accessibilityRole="button"
+                style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
               >
-                <View style={styles.catRow}>
-                  <View
-                    style={[
-                      styles.catIcon,
-                      { backgroundColor: color('accent/tint'), borderRadius: radius.md },
-                    ]}
-                  >
-                    {c.icon}
-                  </View>
-                  <View style={{ flex: 1, marginLeft: space.md }}>
-                    <Text style={[type['type/h3'], { color: color('text/primary') }]}>
-                      {c.title}
-                    </Text>
-                    <Text
-                      style={[
-                        type['type/body-m'],
-                        { color: color('text/secondary'), marginTop: 2 },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {c.descriptor}
-                    </Text>
-                  </View>
-                  <CaretRight size={20} color={color('text/tertiary')} />
+                <View style={{ width: 48, height: 48, backgroundColor: color('accent/tint'), borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}>
+                  <Cards size={28} color={color('accent/default')} weight="duotone" />
                 </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[type['type/h3'], { color: color('text/primary') }]}>Flashcard decks</Text>
+                  <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Spaced-repetition review for quick recall.</Text>
+                </View>
+                <CaretRight size={20} color={color('text/tertiary')} />
               </Pressable>
-            </Stagger>
-          ))}
+            ) : null}
+          </View>
         </View>
 
         {/* Recently Watched */}
@@ -250,18 +123,6 @@ export default function LearnHubRoute() {
             <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>
               RECENTLY WATCHED
             </Text>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: ROUTES.student.learnHierarchy,
-                  params: { kind: 'video' },
-                })
-              }
-            >
-              <Text style={[type['type/caption'], { color: color('accent/default') }]}>
-                View all →
-              </Text>
-            </Pressable>
           </View>
 
           {isNewUser ? (
