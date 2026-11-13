@@ -1,15 +1,17 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { CaretRight, ChartBar, FolderOpen, GearSix, HandHeart, Tag } from 'phosphor-react-native';
+import { useQuery } from '@tanstack/react-query';
+import { CaretRight, ChartBar, ChatCircleText, ClockCounterClockwise, FolderOpen, GearSix, HandHeart, Megaphone, Tag } from 'phosphor-react-native';
 import { ErrorBanner, Screen, SkeletonBlock, TAB_EDGES } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAdminSummary } from '@/src/queries/admin';
 import { totalWaiting, useAdminInbox } from '@/src/admin/useAdminInbox';
+import { listFeedback } from '@/src/api/adminOps';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
-type Tool = { label: string; text: string; Icon: typeof GearSix; href: Href };
+type Tool = { key?: 'feedback'; label: string; text: string; Icon: typeof GearSix; href: Href };
 const GROUPS: { title: string; tools: Tool[] }[] = [
   {
     title: 'COURSE',
@@ -20,13 +22,16 @@ const GROUPS: { title: string; tools: Tool[] }[] = [
     tools: [
       { label: 'Tags and topics', text: 'Create, merge and browse', Icon: Tag, href: ROUTES.admin.taxonomy },
       { label: 'Wellness articles', text: 'Write what students read in Support', Icon: HandHeart, href: ROUTES.admin.wellness },
+      { label: 'Home banners', text: 'What students see at the top of Home', Icon: Megaphone, href: ROUTES.admin.homeUpdates },
     ],
   },
   {
     title: 'PLATFORM',
     tools: [
       { label: 'Platform settings', text: 'Verification and custom tests', Icon: GearSix, href: ROUTES.admin.platformSettings },
+      { key: 'feedback', label: 'User feedback', text: 'What people sent through Give feedback', Icon: ChatCircleText, href: ROUTES.admin.feedback },
       { label: 'Analytics', text: 'How the platform is used', Icon: ChartBar, href: ROUTES.admin.analyticsOverview },
+      { label: 'Audit log', text: 'Who changed what', Icon: ClockCounterClockwise, href: ROUTES.admin.auditLog },
     ],
   },
 ];
@@ -39,6 +44,8 @@ export default function AdminHomeRoute() {
   const inbox = useAdminInbox();
   useRefetchOnFocus(() => void Promise.all([summaryQuery.refetch(), inbox.refetch()]));
 
+  const newFeedback = useQuery({ queryKey: ['admin', 'feedback', 'new-count'], queryFn: () => listFeedback({ status: 'new', limit: 20 }), retry: false });
+  const feedbackCount = newFeedback.data?.items.length ?? 0;
   const loading = summaryQuery.isPending;
   const waiting = totalWaiting(inbox.data);
 
@@ -96,7 +103,9 @@ export default function AdminHomeRoute() {
                 </View>
                 <View style={{ flex: 1, marginLeft: space.sm }}>
                   <Text style={[type['type/h3'], { color: color('text/primary') }]}>{t.label}</Text>
-                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]} numberOfLines={1}>{t.text}</Text>
+                  <Text style={[type['type/caption'], { color: t.key === 'feedback' && feedbackCount > 0 ? color('semantic/warning') : color('text/tertiary'), marginTop: 2 }]} numberOfLines={1}>
+                    {t.key === 'feedback' && feedbackCount > 0 ? `${feedbackCount}${newFeedback.data?.next_cursor ? '+' : ''} new` : t.text}
+                  </Text>
                 </View>
                 <CaretRight size={18} color={color('text/tertiary')} />
               </Pressable>

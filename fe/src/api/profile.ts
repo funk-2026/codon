@@ -12,6 +12,8 @@ export type UserProfile = {
   kyc_status: string;
   created_at: string;
   last_login_at?: string;
+  suspended_at?: string | null;
+  suspended_reason?: string | null;
 };
 
 export type SubscriptionPlan = {

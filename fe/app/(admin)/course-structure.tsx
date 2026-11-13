@@ -10,7 +10,9 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { shadow } from '@/src/theme/elevation';
 import { listCourses, getCurriculum } from '@/src/api/courses';
 import { defaultCourse } from '@/src/api/courseSelection';
-import { adminListAllContent, adminListAllTests, createChapter, createSubject } from '@/src/api/admin';
+import { adminListAllContent, adminListAllTests, createChapter, createSubject, updateChapter, updateSubject } from '@/src/api/admin';
+import { takedown } from '@/src/api/adminOps';
+import { ReasonSheet } from '@/src/admin/ReasonSheet';
 import { allPages } from '@/src/api/paginate';
 
 type ItemType = 'video' | 'document' | 'test';
@@ -56,6 +58,8 @@ export default function CourseStructureRoute() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
+  const [rename, setRename] = useState<{ kind: 'subject' | 'chapter'; id: string } | null>(null);
+  const [down, setDown] = useState<{ id: string; title: string; type: ItemType } | null>(null);
   const close = () => { setSubjectSheet(false); setChapterFor(null); setName(''); setDescription(''); };
 
   const addSubject = async () => {
@@ -82,6 +86,40 @@ export default function CourseStructureRoute() {
       close();
     } catch {
       show('Failed to add chapter', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doRename = async () => {
+    if (!rename || !name.trim() || busy) return;
+    setBusy(true);
+    try {
+      await (rename.kind === 'subject' ? updateSubject(rename.id, { name: name.trim() }) : updateChapter(rename.id, { name: name.trim() }));
+      await queryClient.invalidateQueries({ queryKey: curriculumKey });
+      show('Renamed', 'success');
+      setRename(null);
+      setName('');
+    } catch {
+      show('Couldn’t rename. Try again.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const doTakedown = async (reason: string) => {
+    if (!down) return;
+    setBusy(true);
+    try {
+      await takedown(down.type === 'test' ? 'tests' : 'content', down.id, reason);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin', 'all-content'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin', 'all-tests'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] }),
+      ]);
+      show('Taken down. The author can fix it and resubmit.', 'success');
+      setDown(null);
+    } catch (e) {
+      show(e instanceof Error && e.message ? e.message : 'Couldn’t take it down. Try again.', 'error');
     } finally {
       setBusy(false);
     }
@@ -148,6 +186,7 @@ export default function CourseStructureRoute() {
                           </Pressable>
                           {open ? (
                             <View style={{ paddingHorizontal: space.md, paddingBottom: space.sm, gap: space['2xs'] }}>
+                              <TextButton label="Rename chapter" onPress={() => { setName(c.name); setRename({ kind: 'chapter', id: c.id }); }} style={{ alignSelf: 'flex-start' }} />
                               {content.isPending || tests.isPending ? (
                                 <SkeletonBlock height={44} radius={radius.sm} />
                               ) : items.length === 0 ? (
@@ -161,6 +200,7 @@ export default function CourseStructureRoute() {
                                       <Icon size={20} color={color('accent/default')} />
                                       <Text style={[type['type/body-m-medium'], { color: color('text/primary'), flex: 1 }]} numberOfLines={2}>{i.title}</Text>
                                       <StatusBadge status={b.status} label={b.label} />
+                                      {i.status === 'published' ? <TextButton label="Take down" onPress={() => setDown({ id: i.id, title: i.title, type: i.type })} /> : null}
                                     </View>
                                   );
                                 })
@@ -170,6 +210,7 @@ export default function CourseStructureRoute() {
                         </View>
                       );
                     })}
+                    <TextButton label="Rename subject" onPress={() => { setName(s.name); setRename({ kind: 'subject', id: s.id }); }} style={{ alignSelf: 'flex-start', marginLeft: space.xs }} />
                     <Pressable onPress={() => { setName(''); setChapterFor({ id: s.id, name: s.name }); }} accessibilityRole="button" style={{ padding: space.sm, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
                       <Plus size={18} color={color('accent/default')} weight="bold" />
                       <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>Add a chapter</Text>
@@ -189,6 +230,21 @@ export default function CourseStructureRoute() {
           <PrimaryButton label="Add subject" onPress={addSubject} loading={busy} disabled={!name.trim()} />
         </View>
       </BottomSheet>
+      <BottomSheet visible={!!rename} onClose={() => { setRename(null); setName(''); }} title={rename?.kind === 'subject' ? 'Rename subject' : 'Rename chapter'} dismissable={!busy}>
+        <View style={{ gap: space.md, paddingHorizontal: space.lg, paddingTop: space.sm }}>
+          <InputField label="Name" value={name} onChangeText={setName} maxLength={120} />
+          <PrimaryButton label="Save" onPress={doRename} loading={busy} disabled={!name.trim()} />
+        </View>
+      </BottomSheet>
+      <ReasonSheet
+        visible={!!down}
+        title={`Take down “${down?.title ?? ''}”?`}
+        description="Students stop seeing it right away. The author gets your reason and can fix it and resubmit."
+        confirmLabel="Take down"
+        busy={busy}
+        onClose={() => setDown(null)}
+        onConfirm={(reason) => void doTakedown(reason)}
+      />
       <BottomSheet visible={!!chapterFor} onClose={close} title={`Add a chapter to ${chapterFor?.name ?? ''}`} dismissable={!busy}>
         <View style={{ gap: space.md, paddingHorizontal: space.lg, paddingTop: space.sm }}>
           <InputField label="Chapter name" value={name} onChangeText={setName} maxLength={120} />

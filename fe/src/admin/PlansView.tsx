@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Plus, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, TextButton, useToast } from '@/src/components';
+import { ConfirmDialog, EmptyState, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { adminListSubscriptionPlans, updateSubscriptionPlan } from '@/src/api/admin';
 import { ROUTES } from '@/src/navigation/routes';
@@ -30,6 +30,7 @@ export function PlansView() {
 
   const filtered = plans.filter((p) => (tab === 'Active' ? p.is_active : !p.is_active));
 
+  const [confirmOff, setConfirmOff] = useState<{ id: string; name: string } | null>(null);
   const toggleActive = (id: string, currentActive: boolean) => {
     setPlans((prev) =>
       prev.map((p) => (p.id === id ? { ...p, is_active: !currentActive } : p))
@@ -124,7 +125,7 @@ export function PlansView() {
               </View>
               <Switch
                 value={p.is_active}
-                onValueChange={() => toggleActive(p.id, p.is_active)}
+                onValueChange={() => (p.is_active ? setConfirmOff({ id: p.id, name: p.name }) : toggleActive(p.id, p.is_active))}
                 trackColor={{ false: color('border/strong'), true: color('accent/default') }}
                 thumbColor={color('bg/surface')}
               />
@@ -133,6 +134,17 @@ export function PlansView() {
         )}
       </ScrollView>
 
+      <ConfirmDialog
+        visible={!!confirmOff}
+        title={`Turn off ${confirmOff?.name ?? 'this plan'}?`}
+        message="Students can no longer buy it. People who already have it keep their access."
+        confirmLabel="Turn off"
+        onConfirm={() => {
+          if (confirmOff) toggleActive(confirmOff.id, true);
+          setConfirmOff(null);
+        }}
+        onCancel={() => setConfirmOff(null)}
+      />
     </View>
   );
 }
