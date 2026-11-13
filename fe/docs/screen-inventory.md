@@ -1,0 +1,112 @@
+# Codon FE: screen inventory and tap counts
+
+Built from the current code in `fe/app` and `fe/src` (after the navigation refactor). It replaces the old paths in `screen-flows.md`.
+Taps are counted from the Home tab of each role, one tap per button or row, and don't include typing or answering questions.
+
+**Totals:** 8 entry/auth screens, 37 student files (5 tabs, 2 redirects), 25 teacher (4 tabs), 26 admin (5 tabs). Plus 3 layout-only files.
+
+## Entry and auth (8)
+
+`index` (router only, no UI), `phone-entry`, `otp-verify`, `profile-setup`, `course-selection`, `role-picker` (admins), `preview-mode` (dev builds only), `onboarding` (dead: only redirects to phone-entry, nothing links to it). Deep link: `custom-test/shared/[code]` opens the custom builder pre-filled.
+
+Flow: Launch → Phone entry → OTP → (first time) Profile setup → Home.
+
+## Student (37 files: 5 tabs, 2 redirects, 30 screens)
+
+Tabs: **Home, Practice, Learn, Support, Profile.** Status: reworked 2026-11-14 so each destination has one owner. Home, Practice and Learn were redesigned the same day.
+
+### Tab screens
+| Tab | Owns | Buttons that lead out |
+|---|---|---|
+| Home | What to do now | Bell (Notifications), avatar (Profile), **Continue** card (unfinished test, else last video or notes), **Start here** (new students: first test, first lesson) or **Up next** (top recommendation, opens the custom builder; needs Custom Tests on), **Today** (daily goal ring, streak, 7-day dots, "Your progress →"), plan banner (only if no plan or expiring), Brain Hack of the Day (+ See all) |
+| Practice | All tests | Segmented **Q Bank \| Test Series \| Custom**; a toolbar (search, Newest/Top rated) shared by Q Bank and Test Series; each shows a subject → chapter → test accordion that stays mounted when you switch; Custom shows Build a custom test and My custom tests; resume test, recent tests, **View all →** (Test History) |
+| Learn | All learning content | Segmented **Videos \| Notes \| Flashcards**; search toolbar shared by Videos and Notes; same accordion; Flashcards opens decks; Recently watched |
+| Support | Wellness | Featured article, categories, About MMM card |
+| Profile | Account only | Edit profile, Subscription plans, KYC (if required), Bookmarks, My reports, Settings, Manage devices, Give feedback, Switch role (admins) |
+
+### Other screens
+- **Test:** `test-pre-start`, `test-question`, `test-result`, `test-review`, `test-history`
+- **Custom test:** `custom-builder`, `custom-tests`
+- **Learn:** `video-player`, `content-reader`, `flashcards`, `flashcard-study`, `brain-hacks`, `brain-hack-detail`
+- **Money:** `subscription-plans`, `checkout`, `payment-success`, `payment-failed`
+- **Account:** `edit-profile`, `settings`, `notifications`, `manage-devices`, `give-feedback`, `my-reports`, `bookmarks`, `progress-detail`, `kyc-status`, `kyc-submission`
+- **Support:** `wellness-category`, `wellness-article`, `about-mmm`
+- **Redirects (old links only):** `practice-hierarchy` → Practice tab, `learn-hierarchy` → Learn tab. The Explore screen was deleted.
+
+### Where everything lives (one owner each)
+| Item | Only reachable from |
+|---|---|
+| Q Bank, Test Series, Custom | Practice tab |
+| Videos, Notes, Flashcards | Learn tab |
+| Test History | Practice → View all |
+| Progress detail | Home → Today → Your progress |
+| Notifications inbox | Home bell |
+| About MMM | Support |
+| Manage devices, Give feedback, Switch role | Profile |
+| Brain Hacks | Home → Brain Hack of the Day (+ See all) |
+
+### Taps to reach each thing (from Home)
+| Goal | Path | Taps |
+|---|---|---|
+| Resume test or last video | Continue card | 1 |
+| Q Bank or Test Series test, to Start | Practice → subject → chapter → test (→ Start) | 4 (5 with Start) |
+| Video lesson | Learn → subject → chapter → video | 4 |
+| Notes | Learn → Notes → subject → chapter → note | 5 |
+| Flashcards study | Learn → Flashcards → deck → study | 3 |
+| Custom test | Practice → Custom → Build | 3 |
+| Brain hack | Home card | 1 |
+| Wellness article | Support → article | 2 to 3 |
+| Subscribe | Plan banner → plan → Pay | 3 |
+| Progress detail | Today → Your progress | 1 |
+| Test history | Practice → View all | 2 |
+| Notifications | Bell | 1 |
+| Bookmarks, My reports, Edit profile, KYC, Devices, Feedback | Profile → item | 2 |
+| Settings, Log out | Profile → Settings → action | 2 to 3 |
+
+### Business decisions made
+- **Practice folded into Q Bank (student side).** Practice sets list under Q Bank, and history and the pre-start screen call them Q Bank. Stored data is unchanged.
+
+### Open gaps
+- The old Home stat tiles (Tests Taken, Avg. Score) now live only in Progress detail.
+- Custom has no search; its toolbar slot shows a description.
+- Explore's **Recommended**, **Quick start presets** and **Practise a chapter** have no screen yet.
+- Terms of Service and Privacy Policy rows in Settings do nothing.
+- Segment doesn't switch if an old link opens an already-mounted tab with a different `kind`.
+
+## Teacher (25)
+
+Tabs: **Home, My Content, Upload, Profile.**
+
+Other screens (21): `create-test`, `csv-upload`, `csv-import-report`, `question-builder`, `question-editor`, `question-bank`, `completeness`, `quick-tag`, `create-content`, `content-preview`, `preview-run`, `create-brain-hack`, `brain-hack-detail`, `flashcard-decks`, `flashcard-deck`, `rejected-content-detail`, `corrections`, `reports`, `course-structure-manager`, `manage-devices`, `give-feedback`.
+
+| Goal | Path | Taps |
+|---|---|---|
+| Create a test | Upload tab → Create test → (CSV upload → import report →) question builder → submit | 2 to 5+ |
+| Create video/notes | Upload → Create content → save draft | 2 |
+| Create brain hack / flashcards | Upload → item | 2 |
+| Fix rejected content | Home → rejected item → fix | 2 |
+| Question bank | Home → Question bank → Completeness → Quick tag → Editor | 2 to 5 |
+| Preview content | My Content → item → Preview | 2 to 3 |
+
+## Admin (26)
+
+Tabs: **Home, Users, Review, Payments, Profile.**
+
+Other screens (21): `analytics-overview`, `course-structure`, `manage-subjects`, `taxonomy`, `wellness`, `platform-settings`, `custom-test-admin`, `content-queue`, `content-preview-detail`, `moderation-tests`, `moderation-videos-docs`, `corrections-queue`, `reports-queue`, `kyc-queue`, `kyc-review-detail`, `user-detail`, `payment-detail`, `subscription-plan-list`, `subscription-plan-edit`, `manage-devices`, `give-feedback`.
+
+| Goal | Path | Taps |
+|---|---|---|
+| Review content | Review tab → Content queue → item → approve/reject | 3 to 4 |
+| KYC review | Review tab → KYC item → decide | 2 to 3 |
+| User detail | Users tab → user | 2 |
+| Payment detail | Payments tab → payment | 2 |
+| Edit a plan | Payments tab → Plans → plan | 3 |
+| Setup screens (subjects, taxonomy, wellness, settings, analytics, custom tests) | Home → item | 1 |
+
+## Open questions for teacher and admin
+
+- Teachers can still create "Practice" tests, which students now see as Q Bank. Plan: drop that option from teacher create-test, and update the label in admin moderation and the teacher CSV screen.
+
+## Backend redundancy: Practice
+
+See [backend-practice-cleanup.md](backend-practice-cleanup.md).
