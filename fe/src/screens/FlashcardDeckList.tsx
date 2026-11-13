@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Cards, Lock, Star, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
+import { CaretRight, Cards, Lightning, Lock, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { shadow } from '@/src/theme/elevation';
 import { useAuth } from '@/src/auth/AuthContext';
 import { useAppConfig } from '@/src/config/AppConfigContext';
-import { useDecks } from '@/src/queries/discover';
+import { useDecks, useQuickPreview } from '@/src/queries/discover';
+import type { Deck } from '@/src/api/discover';
 import { ROUTES } from '@/src/navigation/routes';
+import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 
 /**
  * Flashcard decks for the Learn tab. Decks always stay listed. Tapping one studies what is due
@@ -30,6 +32,11 @@ export function FlashcardDeckList({ query }: { query: string }) {
   const list = useDecks(user?.selected_course_id, debounced);
   const decks = list.data?.pages.flatMap((p) => p.decks) ?? [];
   const totalDue = decks.reduce((n, d) => n + (d.locked ? 0 : d.progress?.due ?? 0), 0);
+  const quick = useQuickPreview(user?.selected_course_id, totalDue > 0);
+  // Coming back from a study session changes every count, so refresh on focus.
+  const { refetch: refetchDecks } = list;
+  const { refetch: refetchQuick } = quick;
+  useRefetchOnFocus(useCallback(() => void Promise.all([refetchDecks(), refetchQuick()]), [refetchDecks, refetchQuick]));
 
   if (list.isPending) {
     return (
@@ -49,13 +56,106 @@ export function FlashcardDeckList({ query }: { query: string }) {
     );
   }
 
+  const queuedOf = (d: Deck) => (d.progress ? d.progress.due + d.progress.new : 0);
+  const open = (d: Deck, caughtUp: boolean) => {
+    if (d.locked) return router.push(ROUTES.student.subscriptionPlans);
+    router.push({ pathname: ROUTES.student.flashcardStudy, params: caughtUp ? { deckId: d.id, all: '1' } : { deckId: d.id } });
+  };
+  const dueDecks = debounced ? [] : decks.filter((d) => !d.locked && (d.progress?.due ?? 0) > 0);
+  const otherDecks = debounced ? decks : decks.filter((d) => !dueDecks.includes(d));
+
+  const renderDeck = (d: Deck) => {
+    const queued = queuedOf(d);
+    const caughtUp = !d.locked && d.progress != null && queued === 0;
+    const learned = d.progress?.learned ?? 0;
+    const pct = d.card_count > 0 ? Math.min(1, learned / d.card_count) : 0;
+    return (
+      <Pressable
+        key={d.id}
+        onPress={() => open(d, caughtUp)}
+        accessibilityRole="button"
+        accessibilityLabel={`${d.title}. ${d.card_count} cards.${d.locked ? ' Subscription required.' : d.progress ? ` ${d.progress.due} due, ${d.progress.new} new, ${learned} learned.` : ''}${caughtUp ? ' All caught up, opens revision.' : ''}`}
+        style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, gap: space.sm, opacity: pressed ? 0.94 : 1 }, shadow()]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
+            <Cards size={24} color={color('accent/default')} weight="duotone" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[type['type/h3'], { color: color('text/primary') }]} numberOfLines={1}>{d.title}</Text>
+            <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]} numberOfLines={1}>
+              {d.card_count} cards{d.rating_count >= minCount ? ` · ★ ${d.rating_avg.toFixed(1)}` : ''}
+            </Text>
+          </View>
+          {d.locked ? (
+            <Lock size={20} color={color('text/tertiary')} weight="fill" />
+          ) : (
+            <View
+              style={{
+                paddingHorizontal: space.md,
+                paddingVertical: space.xs,
+                borderRadius: radius.pill,
+                backgroundColor: caughtUp ? 'transparent' : color('action/primary'),
+                borderWidth: caughtUp ? 1.5 : 0,
+                borderColor: color('accent/default'),
+              }}
+            >
+              <Text style={[type['type/body-m-medium'], { color: caughtUp ? color('accent/default') : color('action/on-primary') }]}>
+                {caughtUp ? 'Revise' : 'Study'}
+              </Text>
+            </View>
+          )}
+        </View>
+        {d.description ? <Text style={[type['type/body-m'], { color: color('text/secondary') }]} numberOfLines={2}>{d.description}</Text> : null}
+        {!d.locked && d.progress ? (
+          <View style={{ gap: space.xs }}>
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: color('bg/sunken'), overflow: 'hidden' }}>
+              <View style={{ width: `${pct * 100}%`, height: 6, backgroundColor: color('semantic/success') }} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), flex: 1 }]}>{learned} of {d.card_count} learned</Text>
+              {d.progress.due > 0 ? (
+                <View style={{ backgroundColor: color('semantic/warning-tint'), borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2 }}>
+                  <Text style={[type['type/caption'], { color: color('semantic/warning') }]}>{d.progress.due} due</Text>
+                </View>
+              ) : d.progress.new > 0 ? (
+                <View style={{ backgroundColor: color('accent/tint'), borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2 }}>
+                  <Text style={[type['type/caption'], { color: color('accent/default') }]}>{d.progress.new} new</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        ) : d.locked ? (
+          <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Subscription required</Text>
+        ) : null}
+      </Pressable>
+    );
+  };
+
+  const sectionLabel = (text: string) => (
+    <Text style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.xs }]}>{text}</Text>
+  );
+
   return (
     <View style={{ gap: space.sm }}>
-      {totalDue > 0 ? (
-        <PrimaryButton
-          label={`Quick review · ${Math.min(totalDue, 10)} cards due`}
+      {totalDue > 0 && !debounced ? (
+        <Pressable
           onPress={() => router.push({ pathname: ROUTES.student.flashcardStudy, params: { quick: '1' } })}
-        />
+          accessibilityRole="button"
+          accessibilityLabel={`Quick review, ${Math.min(totalDue, 10)} cards due`}
+          style={({ pressed }) => ({ backgroundColor: color('action/primary'), borderRadius: radius.lg, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.92 : 1 })}
+        >
+          <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+            <Lightning size={28} weight="fill" color={color('action/on-primary')} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[type['type/h3'], { color: color('action/on-primary') }]}>Quick review</Text>
+            <Text style={[type['type/body-m'], { color: color('action/on-primary'), opacity: 0.85 }]}>
+              {Math.min(totalDue, 10)} cards due{quick.data ? ` · about ${Math.max(1, Math.round(quick.data.minutes_estimate))} min` : ''}
+            </Text>
+          </View>
+          <CaretRight size={22} color={color('action/on-primary')} />
+        </Pressable>
       ) : null}
       {decks.length === 0 ? (
         <EmptyState
@@ -65,47 +165,10 @@ export function FlashcardDeckList({ query }: { query: string }) {
         />
       ) : (
         <>
-          {decks.map((d) => {
-            const queued = d.progress ? d.progress.due + d.progress.new : 0;
-            const caughtUp = !d.locked && d.progress != null && queued === 0;
-            return (
-              <Pressable
-                key={d.id}
-                onPress={() => {
-                  if (d.locked) return router.push(ROUTES.student.subscriptionPlans);
-                  router.push({
-                    pathname: ROUTES.student.flashcardStudy,
-                    params: caughtUp ? { deckId: d.id, all: '1' } : { deckId: d.id },
-                  });
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`${d.title}. ${d.card_count} cards.${d.locked ? ' Subscription required.' : d.progress ? ` ${d.progress.due} due, ${d.progress.new} new.` : ''}${caughtUp ? ' All caught up, opens revision.' : ''}`}
-                style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, gap: 4, opacity: pressed ? 0.94 : 1 }, shadow()]}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
-                  <Text style={[type['type/body-m-medium'], { color: color('text/primary'), flex: 1 }]} numberOfLines={1}>{d.title}</Text>
-                  {d.locked ? <Lock size={16} color={color('text/tertiary')} weight="fill" /> : null}
-                </View>
-                {d.description ? <Text style={[type['type/caption'], { color: color('text/secondary') }]} numberOfLines={2}>{d.description}</Text> : null}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{d.card_count} cards</Text>
-                  {!d.locked && d.progress ? (
-                    <>
-                      {d.progress.due > 0 ? <Text style={[type['type/caption'], { color: color('semantic/warning') }]}>{d.progress.due} due</Text> : null}
-                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{d.progress.learned} learned</Text>
-                      {caughtUp ? <Text style={[type['type/caption'], { color: color('accent/default') }]}>Revise all</Text> : null}
-                    </>
-                  ) : d.locked ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Subscription</Text> : null}
-                  {d.rating_count >= minCount ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                      <Star size={12} weight="fill" color={color('semantic/warning')} />
-                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{d.rating_avg.toFixed(1)}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </Pressable>
-            );
-          })}
+          {dueDecks.length > 0 ? sectionLabel('DUE TODAY') : null}
+          {dueDecks.map(renderDeck)}
+          {dueDecks.length > 0 && otherDecks.length > 0 ? sectionLabel('ALL DECKS') : null}
+          {otherDecks.map(renderDeck)}
           {list.hasNextPage ? (
             <SecondaryButton label={list.isFetchingNextPage ? 'Loading…' : 'Load more'} onPress={() => void list.fetchNextPage()} loading={list.isFetchingNextPage} />
           ) : null}
