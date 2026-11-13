@@ -27,7 +27,6 @@ export default function TeacherLayout() {
       <Stack.Screen name="quick-tag" options={{ headerShown: false }} />
       <Stack.Screen name="preview-run" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="content-preview" options={{ title: 'Preview' }} />
-      <Stack.Screen name="course-structure-manager" options={{ title: 'Course Structure' }} />
     </Stack>
   );
 }

@@ -57,7 +57,6 @@ export const ROUTES = {
     content: '/(teacher)/(tabs)/content',
     contentPreview: '/(teacher)/content-preview',
     corrections: '/(teacher)/corrections',
-    courseStructureManager: '/(teacher)/course-structure-manager',
     createBrainHack: '/(teacher)/create-brain-hack',
     createContent: '/(teacher)/create-content',
     createTest: '/(teacher)/create-test',

@@ -71,9 +71,9 @@ export function getModule(key: string | undefined | null): ModuleDefinition {
   };
 }
 
-/** Modules a teacher may author (excludes generated-only ones). */
+/** Modules a teacher may author (excludes generated-only ones and folded types like Practice). */
 export function teacherModules(): ModuleDefinition[] {
-  return MODULE_ORDER.map((k) => DEFINITIONS[k]).filter((m) => m.teacherCreatable);
+  return MODULE_ORDER.map((k) => DEFINITIONS[k]).filter((m) => m.teacherCreatable && !m.foldInto);
 }
 
 /** Modules a student sees (folded types are hidden), given the current flags. */
