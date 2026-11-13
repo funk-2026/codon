@@ -5,10 +5,12 @@ export type SegmentedControlProps<T extends string> = {
   options: { key: T; label: string }[];
   value: T;
   onChange: (key: T) => void;
+  /** Colour of the selected label; the wellness area uses its own accent. */
+  accent?: 'accent/default' | 'wellness/accent';
 };
 
 /** Equal-width switcher for sibling views of one screen (Q Bank | Test Series | …). */
-export function SegmentedControl<T extends string>({ options, value, onChange }: SegmentedControlProps<T>) {
+export function SegmentedControl<T extends string>({ options, value, onChange, accent = 'accent/default' }: SegmentedControlProps<T>) {
   const { color, type, space, radius } = useTheme();
   return (
     <View
@@ -35,7 +37,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
           >
             <Text
               numberOfLines={1}
-              style={[type['type/body-m-medium'], { color: selected ? color('accent/default') : color('text/secondary') }]}
+              style={[type['type/body-m-medium'], { color: selected ? color(accent) : color('text/secondary') }]}
             >
               {o.label}
             </Text>
