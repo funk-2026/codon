@@ -101,3 +101,11 @@ Tabs: **Home, Users, Review, Payments, Profile.** See [admin-audit.md](admin-aud
 
 Other screens: `content-preview-detail` (the one review screen), `kyc-review-detail`, `user-detail`, `payment-detail`, `subscription-plan-edit`, `course-structure`, `taxonomy`, `wellness`, `platform-settings` (General \| Custom tests), `analytics-overview`.
 Redirects for old links: `moderation-tests`, `moderation-videos-docs`, `content-queue`, `corrections-queue`, `reports-queue`, `kyc-queue`, `manage-subjects`, `custom-test-admin`, `subscription-plan-list`.
+
+## Open questions for admin
+
+- The admin review screen and the teacher CSV screen still label Practice tests as "Practice" (students see them as Q Bank).
+
+## Backend redundancy: Practice
+
+See [backend-practice-cleanup.md](backend-practice-cleanup.md).
