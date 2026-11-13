@@ -1,6 +1,6 @@
 # Admin role: screen audit (2026-11-14)
 
-From the code in `fe/app/(admin)`. Nothing has been changed yet. Taps are counted from the Home tab.
+From the code in `fe/app/(admin)`. **Status: the proposal below was built on 2026-11-14 (see "What changed" at the end).** Taps are counted from the Home tab.
 
 ## Screens (26 files)
 
@@ -67,3 +67,20 @@ From the code in `fe/app/(admin)`. Nothing has been changed yet. Taps are counte
 1. **Review tab as one inbox** (segments, badge, one content queue, drop `kyc-queue`).
 2. **Home and tools:** tappable numbers, grouping, merge subjects and structure, merge settings.
 3. **Payments and Users:** Payments | Plans segments, fix the summary, shared toolbar.
+
+## What changed (built)
+
+- **Review is one inbox:** Content | KYC | Reports | Edits, each with a count badge, and the Review tab shows the total waiting. Content merges tests, lessons, Brain Hacks and decks into one list with type chips and search (longest-waiting first). Every row opens the same review screen, which now also previews Brain Hacks and decks. The six queue screens, including the duplicate KYC screen, redirect to the tab.
+- **Home:** the numbers are buttons (Users, Active plans, Waiting on you), and the tools are grouped into Course, Content and Platform as full-width rows.
+- **Course structure** is one screen (subjects, chapters, what each chapter holds, add subject, add chapter). Manage Subjects redirects to it.
+- **Platform settings** has General | Custom tests. The old custom test admin screen redirects there, and the hardcoded version text is replaced by the real app version and build.
+- **Payments:** Payments | Plans segments inside the tab. The summary now shows Captured (amount) and Successful payments (count) instead of the same number twice. Search matches name, phone or order id, as its placeholder says. The Plans list no longer shows a placeholder "— active subscribers" line.
+- **Users:** the shared search toolbar and role chips.
+
+Taps: approve a test is 3 from Home (Review → row → Approve), down from 4; KYC is 2 (Review → KYC → Approve); a payment is 2; editing a plan is 3 (Payments → Plans → plan).
+
+## Found along the way (not fixed)
+
+- Plans show no subscriber count (the old line was a placeholder, so I removed it rather than invent a number).
+- The Review inbox counts reports and edits up to 20 each ("20+" is not shown yet).
+- `custom-test-admin` still has older lint patterns (components defined inside render), which I left alone.

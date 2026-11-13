@@ -87,25 +87,17 @@ Tabs: **Home, Content, Questions, Profile.** See [teacher-audit.md](teacher-audi
 Other screens: `create-test`, `create-content`, `create-brain-hack`, `flashcard-deck`, `csv-upload`, `csv-import-report`, `question-builder`, `question-editor`, `quick-tag`, `content-preview` (the one detail screen), `preview-run`, `give-feedback`, `manage-devices`.
 Redirects for old links: `brain-hack-detail`, `rejected-content-detail`, `question-bank`, `completeness`, `corrections`, `reports`, `flashcard-decks`.
 
-## Admin (26)
+## Admin (reworked 2026-11-14)
 
-Tabs: **Home, Users, Review, Payments, Profile.**
+Tabs: **Home, Users, Review, Payments, Profile.** See [admin-audit.md](admin-audit.md).
 
-Other screens (21): `analytics-overview`, `course-structure`, `manage-subjects`, `taxonomy`, `wellness`, `platform-settings`, `custom-test-admin`, `content-queue`, `content-preview-detail`, `moderation-tests`, `moderation-videos-docs`, `corrections-queue`, `reports-queue`, `kyc-queue`, `kyc-review-detail`, `user-detail`, `payment-detail`, `subscription-plan-list`, `subscription-plan-edit`, `manage-devices`, `give-feedback`.
+| Tab | What it does |
+|---|---|
+| Home | Tappable numbers (Users, Active plans, Waiting on you); tools grouped into Course, Content, Platform |
+| Users | Search, role chips, user list → user detail |
+| Review | Segmented **Content \| KYC \| Reports \| Edits** with count badges; the tab itself shows the total; every content row opens one review screen |
+| Payments | Segmented **Payments \| Plans**; payments open payment detail, plans open plan edit |
+| Profile | Name, devices, feedback, log out |
 
-| Goal | Path | Taps |
-|---|---|---|
-| Review content | Review tab → Content queue → item → approve/reject | 3 to 4 |
-| KYC review | Review tab → KYC item → decide | 2 to 3 |
-| User detail | Users tab → user | 2 |
-| Payment detail | Payments tab → payment | 2 |
-| Edit a plan | Payments tab → Plans → plan | 3 |
-| Setup screens (subjects, taxonomy, wellness, settings, analytics, custom tests) | Home → item | 1 |
-
-## Open questions for admin
-
-- The admin moderation list and the teacher CSV screen still label Practice tests as "Practice" (students see them as Q Bank).
-
-## Backend redundancy: Practice
-
-See [backend-practice-cleanup.md](backend-practice-cleanup.md).
+Other screens: `content-preview-detail` (the one review screen), `kyc-review-detail`, `user-detail`, `payment-detail`, `subscription-plan-edit`, `course-structure`, `taxonomy`, `wellness`, `platform-settings` (General \| Custom tests), `analytics-overview`.
+Redirects for old links: `moderation-tests`, `moderation-videos-docs`, `content-queue`, `corrections-queue`, `reports-queue`, `kyc-queue`, `manage-subjects`, `custom-test-admin`, `subscription-plan-list`.
