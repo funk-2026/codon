@@ -87,6 +87,7 @@ export default function PracticeHubRoute() {
   const [visited, setVisited] = useState<Set<PracticeSegment>>(() => new Set([initialSegment(params.kind)]));
   const setSegment = (k: PracticeSegment) => {
     setSegmentState(k);
+    setQuery('');
     setVisited((v) => (v.has(k) ? v : new Set(v).add(k)));
   };
   const [query, setQuery] = useState('');

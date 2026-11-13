@@ -3,12 +3,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated from 'react-native-reanimated';
-import { PlayCircle, FileText, Cards, CaretRight } from 'phosphor-react-native';
+import { PlayCircle, FileText } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useRecentContent } from '@/src/queries/attempts';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { CollapsingHeader, ErrorBanner, SegmentedControl, useCollapsingHeader } from '@/src/components';
 import { CurriculumTree, TreeToolbar } from '@/src/screens/CurriculumTree';
+import { FlashcardDeckList } from '@/src/screens/FlashcardDeckList';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
@@ -41,10 +42,10 @@ export default function LearnHubRoute() {
   const [visited, setVisited] = useState<Set<LearnSegment>>(() => new Set([initialSegment(params.kind)]));
   const setSegment = (k: LearnSegment) => {
     setSegmentState(k);
+    setQuery('');
     setVisited((v) => (v.has(k) ? v : new Set(v).add(k)));
   };
   const [query, setQuery] = useState('');
-  const isTree = segment !== 'flashcards';
   const recentQuery = useRecentContent();
   useRefetchOnFocus(recentQuery.refetch);
   const recent: RecentItem[] = recentQuery.data?.recent ?? [];
@@ -83,13 +84,13 @@ export default function LearnHubRoute() {
 
         <View style={{ marginTop: space.lg }}>
           <SegmentedControl options={SEGMENTS} value={segment} onChange={setSegment} />
-          {/* Toolbar slot: same place and height on every segment, so nothing jumps when switching */}
-          <View style={{ marginTop: space.md, minHeight: isTree ? undefined : 40, justifyContent: 'center' }}>
-            {isTree ? (
-              <TreeToolbar query={query} onQuery={setQuery} />
-            ) : (
-              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Flashcard decks for revision.</Text>
-            )}
+          {/* One toolbar for every segment, so the container looks the same when switching */}
+          <View style={{ marginTop: space.md }}>
+            <TreeToolbar
+              query={query}
+              onQuery={setQuery}
+              placeholder={segment === 'flashcards' ? 'Search flashcard decks' : undefined}
+            />
           </View>
           <View style={{ marginTop: space.md }}>
             {/* Each tree mounts on first visit and stays mounted, so open subjects survive switching segments */}
@@ -98,22 +99,7 @@ export default function LearnHubRoute() {
                 <CurriculumTree kind={k} query={query} />
               </View>
             ))}
-            {segment === 'flashcards' ? (
-              <Pressable
-                onPress={() => router.push(ROUTES.student.flashcards)}
-                accessibilityRole="button"
-                style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
-              >
-                <View style={{ width: 48, height: 48, backgroundColor: color('accent/tint'), borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}>
-                  <Cards size={28} color={color('accent/default')} weight="duotone" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[type['type/h3'], { color: color('text/primary') }]}>Flashcard decks</Text>
-                  <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Spaced-repetition review for quick recall.</Text>
-                </View>
-                <CaretRight size={20} color={color('text/tertiary')} />
-              </Pressable>
-            ) : null}
+            {segment === 'flashcards' ? <FlashcardDeckList query={query} /> : null}
           </View>
         </View>
 
