@@ -24,14 +24,6 @@ import { shadow } from '@/src/theme/elevation';
 
 type SubState = 'active' | 'expiring' | 'none';
 
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 12) return 'Good morning';
-  if (h >= 12 && h < 17) return 'Good afternoon';
-  if (h >= 17 && h < 21) return 'Good evening';
-  return 'Welcome back';
-}
-
 function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
   const shown = useSharedValue(0);
   useEffect(() => {
@@ -104,30 +96,30 @@ export default function HomeDashboardRoute() {
 
   const firstName = user?.name?.split(' ')[0] || 'Student';
 
-  // Bell and avatar, sized to match the header state they sit in.
+  // Bell and avatar: two circles of the same size, so the right side reads as one control group.
   const headerActions = (size: 'large' | 'small') => {
-    const avatar = size === 'large' ? 40 : 32;
+    const d = size === 'large' ? 40 : 32;
     return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: size === 'large' ? space.md : space.sm }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
         <Pressable
           onPress={() => router.push(ROUTES.student.notifications)}
           hitSlop={space.xs}
           accessibilityRole="button"
           accessibilityLabel="Notifications"
+          style={[styles.avatar, { width: d, height: d, borderRadius: d / 2, backgroundColor: color('header/chip') }]}
         >
-          <Bell size={size === 'large' ? 24 : 22} color={color('header/text')} weight="regular" />
+          <Bell size={size === 'large' ? 22 : 18} color={color('header/text')} weight="regular" />
         </Pressable>
         <Pressable
           onPress={() => router.push(ROUTES.student.profile)}
           hitSlop={space.xs}
           accessibilityRole="button"
           accessibilityLabel="Open profile"
+          style={[styles.avatar, { width: d, height: d, borderRadius: d / 2, backgroundColor: color('bg/surface') }]}
         >
-          <View style={[styles.avatar, { width: avatar, height: avatar, borderRadius: avatar / 2, backgroundColor: color('bg/surface') }]}>
-            <Text style={[size === 'large' ? type['type/h3'] : type['type/body-m-medium'], { color: color('accent/default') }]}>
-              {(user?.name || 'A').charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          <Text style={[size === 'large' ? type['type/body-l'] : type['type/body-m-medium'], { color: color('accent/default'), fontWeight: '600' }]}>
+            {(user?.name || 'A').charAt(0).toUpperCase()}
+          </Text>
         </Pressable>
       </View>
     );
@@ -146,7 +138,7 @@ export default function HomeDashboardRoute() {
               <View style={[styles.streakRow, { gap: space['2xs'], marginTop: space['2xs'] }]}>
                 <Flame size={16} color={color('highlight/default')} weight="fill" />
                 <Text style={[type['type/body-m'], { color: color('header/text-secondary') }]} numberOfLines={1}>
-                  {greeting()} · {streak > 0 ? `${streak} day streak` : 'start a streak today'}
+                  {streak > 0 ? `${streak} day streak` : 'Start a streak today'}
                 </Text>
               </View>
             </View>
@@ -397,7 +389,7 @@ function ActionCard({ icon, title, caption, onPress }: { icon: React.ReactNode; 
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   streakRow: { flexDirection: 'row', alignItems: 'center' },
   avatar: { alignItems: 'center', justifyContent: 'center' },
   dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
