@@ -11,6 +11,12 @@ import { useTeacherInbox } from '@/src/teacher/useTeacherInbox';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 
 type QSegment = 'bank' | 'tags' | 'reports' | 'corrections';
+const HELP: Record<QSegment, string> = {
+  bank: 'Every question across your tests',
+  tags: 'Missing difficulty, tags or descriptions',
+  reports: 'Students flagging a problem',
+  corrections: 'Your edits to live questions, in review',
+};
 const isSegment = (v?: string): v is QSegment => v === 'bank' || v === 'tags' || v === 'reports' || v === 'corrections';
 
 /**
@@ -41,7 +47,7 @@ export default function TeacherQuestionsRoute() {
     { key: 'bank', label: 'Bank' },
     { key: 'tags', label: 'Tags', badge: counts?.needsTags },
     { key: 'reports', label: 'Reports', badge: counts?.reports },
-    { key: 'corrections', label: 'Fixes' },
+    { key: 'corrections', label: 'Edits' },
   ];
   const show = (k: QSegment) => ({ flex: 1, display: segment === k ? ('flex' as const) : ('none' as const) });
 
@@ -49,14 +55,8 @@ export default function TeacherQuestionsRoute() {
     <Screen edges={TAB_EDGES}>
       <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
         <Text style={[type['type/h1'], { color: color('text/primary') }]}>Questions</Text>
-        <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
-          {segment === 'bank'
-            ? 'Every question across your tests.'
-            : segment === 'tags'
-              ? 'Questions missing difficulty, tags or descriptions.'
-              : segment === 'reports'
-                ? 'Students flagging a problem with your questions.'
-                : 'The status of fixes you made to live questions.'}
+        <Text numberOfLines={1} style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'], minHeight: 22 }]}>
+          {HELP[segment]}
         </Text>
       </View>
       <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>

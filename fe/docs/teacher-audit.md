@@ -72,7 +72,7 @@ From the code in `fe/app/(teacher)`. **Status: the proposal below was built on 2
 - **Home:** greeting plus one **Create** button (a sheet with test, lesson, Brain Hack, deck); a "Needs you" list (rejected items with the reviewer's note, approved items to publish, open student reports, untagged questions); a tappable status summary that opens Content filtered; recent items; "chapters that need questions" now start a test for that chapter.
 - **Content:** Tests | Lessons | Hacks | Decks, status chips, search, and a + that creates the kind you're looking at. Flashcard decks are listed here too.
 - **One detail screen** (`content-preview`) for tests, lessons and Brain Hacks, with the reviewer feedback at the top. `rejected-content-detail` and `brain-hack-detail` redirect to it.
-- **Questions tab:** Bank | Tags | Reports | Fixes (the old question bank, completeness, reports and corrections screens). Reports and untagged questions show a count badge.
+- **Questions tab:** Bank | Tags | Reports | Edits (the old question bank, completeness, reports and corrections screens). Reports and untagged questions show a count badge.
 - **Create flows:** the place picker is a bottom sheet over the form (the Course Structure screens are removed); Q Bank is preselected; Practice is no longer offered.
 
 Taps for a new test to the first question: Content (1) → New test (2) → place field (3) → subject (4) → chapter (5) → Add questions (6), plus the title. About 6, down from about 8.

@@ -81,7 +81,7 @@ Tabs: **Home, Content, Questions, Profile.** See [teacher-audit.md](teacher-audi
 |---|---|
 | Home | Greeting, **Create** (sheet: test, lesson, Brain Hack, deck), **Needs you** (changes needed, approved to publish, student reports, untagged questions), status summary (tap opens Content filtered), recent items, chapters that need questions |
 | Content | Segmented **Tests \| Lessons \| Hacks \| Decks**, status chips, search, a + that creates the current kind; every row opens one detail screen (decks open the deck editor) |
-| Questions | Segmented **Bank \| Tags \| Reports \| Fixes**; badges on Tags and Reports |
+| Questions | Segmented **Bank \| Tags \| Reports \| Edits**; badges on Reports and Tags (a count) |
 | Profile | Name, sound, switch role (admins), devices, feedback, log out |
 
 Other screens: `create-test`, `create-content`, `create-brain-hack`, `flashcard-deck`, `csv-upload`, `csv-import-report`, `question-builder`, `question-editor`, `quick-tag`, `content-preview` (the one detail screen), `preview-run`, `give-feedback`, `manage-devices`.

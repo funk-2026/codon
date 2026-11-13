@@ -2,7 +2,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CheckCircle, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, TextButton, ScreenHeader, } from '@/src/components';
+import { EmptyState, PrimaryButton, SkeletonBlock, TextButton, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { type CompletenessRow, type MissingKind } from '@/src/api/questionBank';
 import { EmbedRoot } from './EmbedRoot';
@@ -38,6 +38,8 @@ export function CompletenessView({ embedded }: { embedded?: boolean }) {
     router.push({ pathname: ROUTES.teacher.quickTag, params: { missing: kind, ...(row?.chapter_id ? { chapterId: row.chapter_id, chapter: row.chapter } : {}) } });
 
   const allDone = data && KINDS.every((k) => !(data.totals[k.field as string] > 0));
+  // The gap with the most questions, so "Fix" starts where it helps most.
+  const worst = data ? [...KINDS].sort((a, b) => (data.totals[b.field as string] ?? 0) - (data.totals[a.field as string] ?? 0))[0] : null;
 
   return (
     <EmbedRoot embedded={embedded}>
@@ -52,9 +54,18 @@ export function CompletenessView({ embedded }: { embedded?: boolean }) {
           <EmptyState icon={<CheckCircle size={32} color={color('semantic/success')} weight="fill" />} title="Everything is tagged" description={`All ${data.totals.total ?? 0} of your questions have their metadata.`} />
         ) : (
           <>
-            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
-              Fully tagged questions make students’ custom tests sharper. Tap a number to fix those questions one by one.
-            </Text>
+            {worst ? (
+              <View style={{ backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.md, gap: space.sm }}>
+                <Text style={[type['type/h3'], { color: color('text/primary') }]}>
+                  {data.totals[worst.field as string]} question{data.totals[worst.field as string] === 1 ? '' : 's'} need {worst.label.toLowerCase()}
+                </Text>
+                <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+                  Fully tagged questions make students’ custom tests sharper.
+                </Text>
+                <PrimaryButton label={`Fix ${worst.label.toLowerCase()}`} onPress={() => fix(worst.key)} />
+              </View>
+            ) : null}
+            <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>OR PICK WHAT TO FIX</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>
               {KINDS.filter((k) => data.totals[k.field as string] > 0).map((k) => (
                 <Pressable

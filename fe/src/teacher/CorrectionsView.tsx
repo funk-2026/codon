@@ -1,8 +1,8 @@
+import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { PencilSimpleLine, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SecondaryButton, SkeletonBlock, TextButton, ScreenHeader, } from '@/src/components';
+import { Chip, EmptyState, SecondaryButton, SkeletonBlock, TextButton, ScreenHeader, } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listTeacherCorrections, type CorrectionQueueRow } from '@/src/api/moderation';
 import { plainText } from '@/src/rich';
@@ -13,27 +13,33 @@ const TONE = { pending: { label: 'Waiting for review', tone: 'semantic/warning' 
 
 export function CorrectionsView({ embedded }: { embedded?: boolean }) {
   const { color, type, space, radius } = useTheme();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const list = useCursorList<CorrectionQueueRow, Awaited<ReturnType<typeof listTeacherCorrections>>>(
     ['teacher', 'corrections'],
     (cursor) => listTeacherCorrections({ limit: 20, cursor }),
     (r) => r.items,
   );
-  const { rows, loading, error, load } = list;
+  const { rows: allRows, loading, error, load } = list;
+  const [filter, setFilter] = useState<'all' | CorrectionQueueRow['status']>('all');
+  const rows = filter === 'all' ? allRows : allRows.filter((r) => r.status === filter);
   const cursor = list.hasMore ? 'more' : null;
 
 
   return (
     <EmbedRoot embedded={embedded}>
       {embedded ? null : <ScreenHeader title="My corrections" />}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+        {(['all', 'pending', 'approved', 'rejected'] as const).map((k) => (
+          <Chip key={k} size="sm" label={k === 'all' ? 'All' : TONE[k].label.replace('Waiting for review', 'Waiting')} selected={filter === k} onPress={() => setFilter(k)} />
+        ))}
+      </ScrollView>
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] + insets.bottom }}>
         {loading ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} height={90} radius={radius.md} />)
         ) : error ? (
           <EmptyState icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />} title="Couldn’t load your corrections" description="Check your connection and try again." action={<TextButton label="Retry" onPress={load} />} />
         ) : rows.length === 0 ? (
-          <EmptyState icon={<PencilSimpleLine size={32} color={color('text/tertiary')} />} title="No corrections yet" description="When you fix a live question, the change is reviewed first. You can follow it here." />
+          <EmptyState icon={<PencilSimpleLine size={32} color={color('text/tertiary')} />} title={filter === 'all' ? 'No edits yet' : 'Nothing here'} description={filter === 'all' ? 'When you edit a live question, the change is reviewed first. You can follow it here.' : 'No edits match this filter.'} />
         ) : (
           <>
             {rows.map((r) => {

@@ -4,36 +4,36 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CheckSquare, FlagBanner, ImageSquare, Square, Tag, WarningCircle } from 'phosphor-react-native';
 import {
-  BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast, ScreenHeader } from '@/src/components';
+  BottomSheet, EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ManageAllBanner } from './ManageAllBanner';
 import { ApiError } from '@/src/api/client';
 import { listCourses, getCurriculum, type Subject } from '@/src/api/courses';
-import { bulkUpdateQuestions, listQuestionBank, type BulkPatch, type CompletenessRow, type MissingKind, type QuestionBankRow } from '@/src/api/questionBank';
+import { bulkUpdateQuestions, listQuestionBank, type BulkPatch, type QuestionBankRow } from '@/src/api/questionBank';
 import type { Difficulty } from '@/src/api/tests';
 import { mediaRefs, plainText } from '@/src/rich';
 import { EmbedRoot } from './EmbedRoot';
+import { TreeToolbar } from '@/src/screens/CurriculumTree';
 import { ROUTES } from '@/src/navigation/routes';
 import { useCursorList } from '@/src/queries/useCursorList';
 import { useCompleteness } from '@/src/queries/teacher';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 
 const PAGE = 25;
-type Quick = 'all' | 'reported' | MissingKind;
-const QUICK: { key: Quick; label: string }[] = [
+type Filter = 'all' | 'reported' | Difficulty;
+const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'reported', label: 'Reported' },
-  { key: 'difficulty', label: 'No difficulty' },
-  { key: 'chapter', label: 'No chapter' },
-  { key: 'topic', label: 'No topic' },
-  { key: 'tags', label: 'No tags' },
-  { key: 'alt_text', label: 'Image without description' },
+  { key: 'easy', label: 'Easy' },
+  { key: 'medium', label: 'Medium' },
+  { key: 'hard', label: 'Hard' },
 ];
+const DIFF_TONE = { easy: 'semantic/success', medium: 'semantic/warning', hard: 'semantic/danger' } as const;
 
 /**
- * The teacher's question bank (FE-2.1/2.9/2.10): every question across their
- * tests, filterable, with a "what's missing" queue and bulk edits (up to 200
- * at once, all-or-nothing on the server).
+ * The teacher's question bank: every question across their tests. Search, one filter row, and an
+ * explicit Select mode for bulk edits (up to 200 at once, all-or-nothing on the server). What is
+ * missing from a question is handled in the Tags segment, so it isn't repeated here.
  */
 export function QuestionBankView({ embedded }: { embedded?: boolean }) {
   const { color, type, space, radius } = useTheme();
@@ -41,11 +41,11 @@ export function QuestionBankView({ embedded }: { embedded?: boolean }) {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
 
-  const [quick, setQuick] = useState<Quick>('all');
-  const [difficulty, setDifficulty] = useState<Difficulty | undefined>();
+  const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
 
   useEffect(() => {
@@ -56,12 +56,11 @@ export function QuestionBankView({ embedded }: { embedded?: boolean }) {
   const params = useMemo(
     () => ({
       q: query || undefined,
-      difficulty,
-      reported: quick === 'reported' ? true : undefined,
-      missing: quick !== 'all' && quick !== 'reported' ? (quick as MissingKind) : undefined,
+      difficulty: filter === 'easy' || filter === 'medium' || filter === 'hard' ? filter : undefined,
+      reported: filter === 'reported' ? true : undefined,
       limit: PAGE,
     }),
-    [quick, difficulty, query],
+    [filter, query],
   );
 
   const list = useCursorList<QuestionBankRow, Awaited<ReturnType<typeof listQuestionBank>>>(
@@ -74,13 +73,9 @@ export function QuestionBankView({ embedded }: { embedded?: boolean }) {
   const more = list.more;
   const completeness = useCompleteness();
   useRefetchOnFocus(completeness.refetch);
-  const totals: Record<string, number> | null = completeness.data?.totals ?? null;
-  const chapters: CompletenessRow[] = completeness.data?.chapters ?? [];
   const loadMore = () => void list.loadMore().then((r) => { if (r.isError) show('Couldn’t load more.', 'error'); });
   // A new search or filter starts a fresh list, so drop any selection from the old one.
   useEffect(() => setSelected(new Set()), [params]);
-
-
 
   const toggleSel = (id: string) =>
     setSelected((s) => {
@@ -88,98 +83,85 @@ export function QuestionBankView({ embedded }: { embedded?: boolean }) {
       if (n.has(id)) n.delete(id); else if (n.size < 200) n.add(id); else show('You can edit up to 200 questions at once.', 'error');
       return n;
     });
-  const selecting = selected.size > 0;
-
-  const missingLine = totals && (totals.missing_difficulty || totals.missing_topic || totals.missing_tags || totals.missing_alt_text)
-    ? [
-        totals.missing_difficulty ? `${totals.missing_difficulty} without difficulty` : null,
-        totals.missing_tags ? `${totals.missing_tags} untagged` : null,
-        totals.missing_alt_text ? `${totals.missing_alt_text} with undescribed images` : null,
-      ].filter(Boolean).join(' · ')
-    : null;
-
-  const chip = (on: boolean) => ({
-    minHeight: 36, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center' as const,
-    backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle'),
-  });
+  const selecting = selectMode || selected.size > 0;
+  const stopSelecting = () => { setSelectMode(false); setSelected(new Set()); };
+  const unfiltered = filter === 'all' && !query;
 
   return (
     <EmbedRoot embedded={embedded}>
-      {embedded ? null : <ScreenHeader title={selecting ? `${selected.size} selected` : 'Question bank'} onBack={selecting ? () => setSelected(new Set()) : undefined} />}
+      {embedded ? null : <ScreenHeader title={selecting ? `${selected.size} selected` : 'Question bank'} onBack={selecting ? stopSelecting : undefined} />}
 
       <View style={{ paddingHorizontal: space.md, marginTop: space.xs }}>
-        <InputField label="Search questions" value={q} onChangeText={setQ} autoCorrect={false} />
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
-        {QUICK.map((c) => (
-          <Pressable key={c.key} onPress={() => setQuick(c.key)} accessibilityRole="button" accessibilityState={{ selected: quick === c.key }} style={chip(quick === c.key)}>
-            <Text style={[type['type/caption'], { color: quick === c.key ? color('accent/default') : color('text/secondary') }]}>{c.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.xs }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
-        {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
-          <Pressable key={d} onPress={() => setDifficulty((cur) => (cur === d ? undefined : d))} accessibilityRole="button" accessibilityState={{ selected: difficulty === d }} style={chip(difficulty === d)}>
-            <Text style={[type['type/caption'], { color: difficulty === d ? color('accent/default') : color('text/secondary') }]}>{d}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      <View style={{ marginHorizontal: space.md, marginTop: space.sm }}>
+        <TreeToolbar
+          query={q}
+          onQuery={setQ}
+          placeholder="Search questions"
+          chips={{ options: FILTERS, value: filter, onChange: (k) => setFilter(k as Filter) }}
+        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: space.xs, minHeight: 36 }}>
+          <Text style={[type['type/caption'], { color: color('text/tertiary'), flex: 1 }]}>
+            {selecting ? `${selected.size} selected` : loading ? ' ' : `${rows.length}${cursor ? '+' : ''} question${rows.length === 1 && !cursor ? '' : 's'}`}
+          </Text>
+          <TextButton label={selecting ? 'Cancel' : 'Select'} onPress={selecting ? stopSelecting : () => setSelectMode(true)} disabled={rows.length === 0} />
+        </View>
         <ManageAllBanner what="questions" />
       </View>
-      {missingLine && quick === 'all' ? (
-        <Pressable onPress={() => setQuick(totals?.missing_difficulty ? 'difficulty' : totals?.missing_tags ? 'tags' : 'alt_text')} accessibilityRole="button" style={{ marginHorizontal: space.md, marginTop: space.sm, backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.sm }}>
-          <Text style={[type['type/caption'], { color: color('text/primary') }]}>Needs attention: {missingLine} — tap to review</Text>
-          <Text
-            onPress={() => router.push({ pathname: ROUTES.teacher.questions, params: { segment: 'tags' } })}
-            accessibilityRole="link"
-            style={[type['type/caption'], { color: color('accent/default'), marginTop: 2 }]}
-          >
-            Fix chapter by chapter →
-          </Text>
-        </Pressable>
-      ) : null}
 
-      <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: 140 + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs, paddingBottom: 140 + insets.bottom }} showsVerticalScrollIndicator={false}>
         {loading ? (
-          [0, 1, 2, 3].map((i) => <SkeletonBlock key={i} height={90} radius={radius.md} />)
+          [0, 1, 2, 3].map((i) => <SkeletonBlock key={i} height={72} radius={radius.md} />)
         ) : error ? (
           <EmptyState icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />} title="Couldn’t load the question bank" description="Check your connection and try again." action={<TextButton label="Retry" onPress={load} />} />
         ) : rows.length === 0 ? (
-          <EmptyState icon={<Tag size={32} color={color('text/tertiary')} />} title={quick === 'all' && !query && !difficulty ? 'No questions yet' : 'No questions match'} description={quick === 'all' && !query && !difficulty ? 'Questions you add to your tests appear here.' : 'Try clearing a filter.'} />
+          <EmptyState icon={<Tag size={32} color={color('text/tertiary')} />} title={unfiltered ? 'No questions yet' : 'No questions match'} description={unfiltered ? 'Questions you add to your tests appear here.' : 'Try clearing a filter.'} />
         ) : (
           <>
             {rows.map((r) => {
               const on = selected.has(r.id);
               const imgs = new Set([r.question_text, r.option_a, r.option_b, r.option_c, r.option_d, r.explanation ?? ''].flatMap((t) => mediaRefs(t, r.content_format))).size;
               const summary = plainText(r.question_text, r.content_format) || (imgs ? '(image question)' : '(empty)');
+              const needsTags = !r.difficulty || !r.chapter_id || (r.tags?.length ?? 0) === 0;
+              const tone = r.difficulty ? DIFF_TONE[r.difficulty] : 'text/tertiary';
               return (
                 <Pressable
                   key={r.id}
                   onPress={() => (selecting ? toggleSel(r.id) : router.push({ pathname: ROUTES.teacher.questionEditor, params: { testId: r.test.id, questionId: r.id } }))}
-                  onLongPress={() => toggleSel(r.id)}
+                  onLongPress={() => { setSelectMode(true); toggleSel(r.id); }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: on }}
-                  accessibilityHint={selecting ? 'Toggles selection' : 'Opens the question. Long-press to select.'}
-                  style={({ pressed }) => ({ backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderRadius: radius.md, padding: space.md, gap: 4, opacity: pressed ? 0.94 : 1, borderWidth: on ? 1.5 : 0, borderColor: color('accent/default') })}
+                  accessibilityHint={selecting ? 'Toggles selection' : 'Opens the question'}
+                  style={({ pressed }) => ({ backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderRadius: radius.md, padding: space.sm, flexDirection: 'row', alignItems: 'center', gap: space.sm, opacity: pressed ? 0.94 : 1, borderWidth: on ? 1.5 : 0, borderColor: color('accent/default') })}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-                    {selecting ? (on ? <CheckSquare size={20} weight="fill" color={color('accent/default')} /> : <Square size={20} color={color('text/tertiary')} />) : null}
-                    <Text style={[type['type/caption'], { color: color('text/tertiary'), flex: 1 }]} numberOfLines={1}>{r.test.title}</Text>
-                    {imgs > 0 ? <ImageSquare size={14} color={color('text/tertiary')} /> : null}
-                    {r.report_count > 0 ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                        <FlagBanner size={14} weight="fill" color={color('semantic/danger')} />
-                        <Text style={[type['type/caption'], { color: color('semantic/danger') }]}>{r.report_count}</Text>
-                      </View>
-                    ) : null}
+                  {selecting ? (
+                    on ? <CheckSquare size={22} weight="fill" color={color('accent/default')} /> : <Square size={22} color={color('text/tertiary')} />
+                  ) : (
+                    <View style={{ width: 40, height: 40, borderRadius: radius.sm, backgroundColor: color('bg/sunken'), alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={[type['type/h3'], { color: color(tone) }]}>{r.difficulty ? r.difficulty.charAt(0).toUpperCase() : '–'}</Text>
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]} numberOfLines={2}>{summary}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: 2 }}>
+                      <Text style={[type['type/caption'], { color: color('text/tertiary'), flexShrink: 1 }]} numberOfLines={1}>{r.test.title}</Text>
+                      {needsTags ? (
+                        <View style={{ backgroundColor: color('semantic/warning-tint'), borderRadius: radius.pill, paddingHorizontal: space.xs }}>
+                          <Text style={[type['type/caption'], { color: color('semantic/warning') }]}>Needs tags</Text>
+                        </View>
+                      ) : null}
+                      {r.flag_status && r.flag_status !== 'active' ? (
+                        <View style={{ backgroundColor: color('semantic/danger-tint'), borderRadius: radius.pill, paddingHorizontal: space.xs }}>
+                          <Text style={[type['type/caption'], { color: color('semantic/danger') }]}>{r.flag_status.replace('_', ' ')}</Text>
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
-                  <Text style={[type['type/body-m'], { color: color('text/primary') }]} numberOfLines={2}>{summary}</Text>
-                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]} numberOfLines={1}>
-                    {[r.difficulty ?? 'no difficulty', r.chapter_id ? null : 'no chapter', (r.tags?.length ?? 0) === 0 ? 'no tags' : `${r.tags!.length} tags`, r.flag_status && r.flag_status !== 'active' ? r.flag_status.replace('_', ' ') : null].filter(Boolean).join(' · ')}
-                  </Text>
+                  {imgs > 0 ? <ImageSquare size={16} color={color('text/tertiary')} /> : null}
+                  {r.report_count > 0 ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                      <FlagBanner size={16} weight="fill" color={color('semantic/danger')} />
+                      <Text style={[type['type/caption'], { color: color('semantic/danger') }]}>{r.report_count}</Text>
+                    </View>
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -188,7 +170,7 @@ export function QuestionBankView({ embedded }: { embedded?: boolean }) {
         )}
       </ScrollView>
 
-      {selecting ? (
+      {selecting && selected.size > 0 ? (
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: color('bg/surface'), borderTopWidth: 1, borderTopColor: color('border/subtle'), padding: space.md, paddingBottom: space.md + insets.bottom, flexDirection: 'row', gap: space.sm }}>
           <View style={{ flex: 1 }}><SecondaryButton label="Clear" onPress={() => setSelected(new Set())} /></View>
           <View style={{ flex: 2 }}><PrimaryButton label={`Edit ${selected.size}`} onPress={() => setBulkOpen(true)} /></View>
@@ -199,7 +181,7 @@ export function QuestionBankView({ embedded }: { embedded?: boolean }) {
         visible={bulkOpen}
         onClose={() => setBulkOpen(false)}
         ids={[...selected]}
-        onDone={(n) => { setBulkOpen(false); show(`Updated ${n} question${n === 1 ? '' : 's'}`, 'success'); void load(); void completeness.refetch(); }}
+        onDone={(n) => { setBulkOpen(false); stopSelecting(); show(`Updated ${n} question${n === 1 ? '' : 's'}`, 'success'); void load(); void completeness.refetch(); }}
       />
     </EmbedRoot>
   );
