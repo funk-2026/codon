@@ -15,6 +15,7 @@ import { mediaRefs, plainText } from '@/src/rich';
 import { EmbedRoot } from './EmbedRoot';
 import { TreeToolbar } from '@/src/screens/CurriculumTree';
 import { ROUTES } from '@/src/navigation/routes';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCursorList } from '@/src/queries/useCursorList';
 import { useCompleteness } from '@/src/queries/teacher';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
@@ -40,6 +41,7 @@ export function QuestionBankView({ embedded }: { embedded?: boolean }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
+  const queryClient = useQueryClient();
 
   const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
@@ -181,7 +183,7 @@ export function QuestionBankView({ embedded }: { embedded?: boolean }) {
         visible={bulkOpen}
         onClose={() => setBulkOpen(false)}
         ids={[...selected]}
-        onDone={(n) => { setBulkOpen(false); stopSelecting(); show(`Updated ${n} question${n === 1 ? '' : 's'}`, 'success'); void load(); void completeness.refetch(); }}
+        onDone={(n) => { setBulkOpen(false); stopSelecting(); show(`Updated ${n} question${n === 1 ? '' : 's'}`, 'success'); void load(); void completeness.refetch(); void queryClient.invalidateQueries({ queryKey: ['teacher', 'inbox'] }); }}
       />
     </EmbedRoot>
   );

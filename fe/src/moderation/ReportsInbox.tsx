@@ -11,6 +11,7 @@ import { dismissReport, listAdminReports, listTeacherReports, resolveReport, typ
 import type { ReportStatus } from '@/src/api/reports';
 import { QuestionPreviewCard } from '@/src/rich';
 import { ROUTES } from '@/src/navigation/routes';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCursorList } from '@/src/queries/useCursorList';
 import { EmbedRoot } from '@/src/teacher/EmbedRoot';
 
@@ -29,6 +30,7 @@ export function ReportsInbox({ role, embedded }: { role: 'teacher' | 'admin'; em
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const reasons = useReportReasons();
+  const queryClient = useQueryClient();
 
   const [status, setStatus] = useState<ReportStatus | 'all'>('open');
   const [reason, setReason] = useState<string | undefined>();
@@ -54,6 +56,8 @@ export function ReportsInbox({ role, embedded }: { role: 'teacher' | 'admin'; em
       if (role === 'admin' && acting.outcome === 'dismissed') await dismissReport(acting.row.id, note.trim());
       else await resolveReport(acting.row.id, acting.outcome, note.trim());
       setRows((p) => (status === 'open' ? p.filter((r) => r.id !== acting.row.id) : p.map((r) => (r.id === acting.row.id ? { ...r, status: acting.outcome } : r))));
+      // The red count on the Reports segment and on Home comes from this query; it must drop now, not on the next focus.
+      void queryClient.invalidateQueries({ queryKey: ['teacher', 'inbox'] });
       setActing(null);
       setNote('');
       show('Report resolved — the student will be notified.', 'success');
