@@ -154,6 +154,31 @@ export function adminListContent(status?: string, p: { cursor?: string | null; l
   return apiFetch<{ content: ContentItem[]; next_cursor?: string | null }>(`/admin/content${qs({ status, ...p, cursor: p.cursor ?? undefined })}`, { method: 'GET' });
 }
 
+const STATUSES = ['draft', 'pending_review', 'approved', 'rejected', 'published'] as const;
+
+/**
+ * Every test regardless of status. The backend lists one status at a time (default: pending review),
+ * so this asks for `status=all` and, on a server without it, merges one request per status.
+ */
+export async function adminListAllTests(p: { cursor?: string | null; limit?: number; chapter_id?: string; creator_id?: string } = {}) {
+  try {
+    return await adminListTests('all', p);
+  } catch {
+    const parts = await Promise.all(STATUSES.map((s) => adminListTests(s, p).catch(() => ({ tests: [] as Test[], next_cursor: null }))));
+    return { tests: parts.flatMap((r) => r.tests), next_cursor: null as string | null };
+  }
+}
+
+/** Every content item regardless of status (see adminListAllTests). */
+export async function adminListAllContent(p: { cursor?: string | null; limit?: number; chapter_id?: string; uploader_id?: string } = {}) {
+  try {
+    return await adminListContent('all', p);
+  } catch {
+    const parts = await Promise.all(STATUSES.map((s) => adminListContent(s, p).catch(() => ({ content: [] as ContentItem[], next_cursor: null }))));
+    return { content: parts.flatMap((r) => r.content), next_cursor: null as string | null };
+  }
+}
+
 /** GET /api/v1/admin/content/:id */
 export function adminGetContent(id: string): Promise<{ content: ContentItem; url?: string }> {
   return apiFetch<{ content: ContentItem; url?: string }>(`/admin/content/${id}`, { method: 'GET' });

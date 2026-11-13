@@ -7,7 +7,7 @@ import { CaretRight, DeviceMobile, Shield, WarningCircle } from 'phosphor-react-
 import { ConfirmDialog, EmptyState, Screen, ScreenHeader, SkeletonBlock, StatusBadge, TextButton, useToast, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
-import { adminListContent, adminListKYC, adminListTests, getUser, getUserSessions, getUserSubscription, listPaymentsPage, updateTeacherPermissions, updateUserRole } from '@/src/api/admin';
+import { adminListAllContent, adminListAllTests, adminListKYC, getUser, getUserSessions, getUserSubscription, listPaymentsPage, updateTeacherPermissions, updateUserRole } from '@/src/api/admin';
 import { allPages } from '@/src/api/paginate';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
@@ -52,8 +52,8 @@ export default function UserDetailRoute() {
     queryFn: async () => {
       // Every page of both lists, then keep this teacher's items (the server filter narrows it where supported).
       const [t, c] = await Promise.all([
-        allPages((cursor) => adminListTests(undefined, { cursor, limit: 200, creator_id: id }).then((r) => ({ items: r.tests, next: r.next_cursor }))).catch(() => ({ items: [] as Awaited<ReturnType<typeof adminListTests>>['tests'] })),
-        allPages((cursor) => adminListContent(undefined, { cursor, limit: 200, uploader_id: id }).then((r) => ({ items: r.content, next: r.next_cursor }))).catch(() => ({ items: [] as Awaited<ReturnType<typeof adminListContent>>['content'] })),
+        allPages((cursor) => adminListAllTests({ cursor, limit: 200, creator_id: id }).then((r) => ({ items: r.tests, next: r.next_cursor }))).catch(() => ({ items: [] as Awaited<ReturnType<typeof adminListAllTests>>['tests'] })),
+        allPages((cursor) => adminListAllContent({ cursor, limit: 200, uploader_id: id }).then((r) => ({ items: r.content, next: r.next_cursor }))).catch(() => ({ items: [] as Awaited<ReturnType<typeof adminListAllContent>>['content'] })),
       ]);
       const mine = [...t.items.filter((x) => x.creator?.id === id), ...c.items.filter((x) => x.uploader?.id === id)];
       const norm = (st: string) => (st === 'pending_review' ? 'pending' : st);
