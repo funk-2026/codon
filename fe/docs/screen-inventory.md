@@ -20,18 +20,18 @@ Tabs: **Home, Practice, Learn, Support, Profile.** Status: reworked 2026-11-14 s
 |---|---|---|
 | Home | What to do now | Bell (Notifications), avatar (Profile), **Continue** card (unfinished test, else last video or notes), **Start here** (new students: first test, first lesson) or **Up next** (top recommendation, opens the custom builder; needs Custom Tests on), **Today** (daily goal ring, streak, 7-day dots, "Your progress →"), plan banner (only if no plan or expiring), Brain Hack of the Day (+ See all) |
 | Practice | All tests | Segmented **Q Bank \| Test Series \| Custom**; a toolbar (search, Newest/Top rated) shared by Q Bank and Test Series; each shows a subject → chapter → test accordion that stays mounted when you switch; Custom shows Build a custom test and My custom tests; resume test, recent tests, **View all →** (Test History) |
-| Learn | All learning content | Segmented **Videos \| Notes \| Flashcards**; search toolbar shared by Videos and Notes; same accordion; Flashcards opens decks; Recently watched |
+| Learn | All learning content | Segmented **Videos \| Notes \| Flashcards**; the same search toolbar on all three (text clears when you switch); Videos and Notes show the accordion; **Flashcards** shows a Quick review hero (due count and time), then decks with a progress bar, due badge and Study or Revise button (due decks first); Recently watched |
 | Support | Wellness | Featured article, categories, About MMM card |
 | Profile | Account only | Edit profile, Subscription plans, KYC (if required), Bookmarks, My reports, Settings, Manage devices, Give feedback, Switch role (admins) |
 
 ### Other screens
 - **Test:** `test-pre-start`, `test-question`, `test-result`, `test-review`, `test-history`
 - **Custom test:** `custom-builder`, `custom-tests`
-- **Learn:** `video-player`, `content-reader`, `flashcards`, `flashcard-study`, `brain-hacks`, `brain-hack-detail`
+- **Learn:** `video-player`, `content-reader`, `flashcard-study` (study queue or revise-all, flip and swipe, three ratings), `brain-hacks`, `brain-hack-detail`
 - **Money:** `subscription-plans`, `checkout`, `payment-success`, `payment-failed`
 - **Account:** `edit-profile`, `settings`, `notifications`, `manage-devices`, `give-feedback`, `my-reports`, `bookmarks`, `progress-detail`, `kyc-status`, `kyc-submission`
 - **Support:** `wellness-category`, `wellness-article`, `about-mmm`
-- **Redirects (old links only):** `practice-hierarchy` → Practice tab, `learn-hierarchy` → Learn tab. The Explore screen was deleted.
+- **Redirects (old links only):** `practice-hierarchy` → Practice tab, `learn-hierarchy` and `flashcards` → Learn tab. The Explore screen was deleted.
 
 ### Where everything lives (one owner each)
 | Item | Only reachable from |
@@ -52,7 +52,7 @@ Tabs: **Home, Practice, Learn, Support, Profile.** Status: reworked 2026-11-14 s
 | Q Bank or Test Series test, to Start | Practice → subject → chapter → test (→ Start) | 4 (5 with Start) |
 | Video lesson | Learn → subject → chapter → video | 4 |
 | Notes | Learn → Notes → subject → chapter → note | 5 |
-| Flashcards study | Learn → Flashcards → deck → study | 3 |
+| Flashcards study | Learn → Flashcards → deck (Study or Revise) | 3 |
 | Custom test | Practice → Custom → Build | 3 |
 | Brain hack | Home card | 1 |
 | Wellness article | Support → article | 2 to 3 |
@@ -64,11 +64,11 @@ Tabs: **Home, Practice, Learn, Support, Profile.** Status: reworked 2026-11-14 s
 | Settings, Log out | Profile → Settings → action | 2 to 3 |
 
 ### Business decisions made
+- **Flashcards stay available.** A deck with nothing due opens revise-all, so cards never run out. The study screen has three ratings (Again, Good, Easy); Hard is hidden but the backend still accepts it.
 - **Practice folded into Q Bank (student side).** Practice sets list under Q Bank, and history and the pre-start screen call them Q Bank. Stored data is unchanged.
 
 ### Open gaps
 - The old Home stat tiles (Tests Taken, Avg. Score) now live only in Progress detail.
-- Custom has no search; its toolbar slot shows a description.
 - Explore's **Recommended**, **Quick start presets** and **Practise a chapter** have no screen yet.
 - Terms of Service and Privacy Policy rows in Settings do nothing.
 - Segment doesn't switch if an old link opens an already-mounted tab with a different `kind`.
