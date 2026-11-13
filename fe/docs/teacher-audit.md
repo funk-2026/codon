@@ -1,6 +1,6 @@
 # Teacher role: screen audit (2026-11-14)
 
-From the code in `fe/app/(teacher)`. Nothing has been changed yet. Taps are counted from the Home tab.
+From the code in `fe/app/(teacher)`. **Status: the proposal below was built on 2026-11-14 (see "What changed" at the end).** Taps are counted from the Home tab.
 
 ## Screens (25 files)
 
@@ -65,3 +65,21 @@ From the code in `fe/app/(teacher)`. Nothing has been changed yet. Taps are coun
 1. Navigation: tabs, Home, one create entry, one detail screen.
 2. Create flows: inline place picker, drop Practice.
 3. Questions tab and inboxes with badges.
+
+## What changed (built)
+
+- **Tabs are now Home, Content, Questions, Profile.** The Upload tab, Home's quick actions and the speed dial are gone. Old links to retired screens redirect.
+- **Home:** greeting plus one **Create** button (a sheet with test, lesson, Brain Hack, deck); a "Needs you" list (rejected items with the reviewer's note, approved items to publish, open student reports, untagged questions); a tappable status summary that opens Content filtered; recent items; "chapters that need questions" now start a test for that chapter.
+- **Content:** Tests | Lessons | Hacks | Decks, status chips, search, and a + that creates the kind you're looking at. Flashcard decks are listed here too.
+- **One detail screen** (`content-preview`) for tests, lessons and Brain Hacks, with the reviewer feedback at the top. `rejected-content-detail` and `brain-hack-detail` redirect to it.
+- **Questions tab:** Bank | Tags | Reports | Fixes (the old question bank, completeness, reports and corrections screens). Reports and untagged questions show a count badge.
+- **Create flows:** the place picker is a bottom sheet over the form (the Course Structure screens are removed); Q Bank is preselected; Practice is no longer offered.
+
+Taps for a new test to the first question: Content (1) → New test (2) → place field (3) → subject (4) → chapter (5) → Add questions (6), plus the title. About 6, down from about 8.
+
+## Found along the way (not fixed)
+
+- **Document lessons are a stub.** `create-content` collects the text but sends a placeholder file key (`mock-doc-key`), so the document body is never saved.
+- **Rejected lessons can't be edited.** The old "Edit & Resubmit" opened a blank form. The detail screen now shows the feedback and lets you resubmit or change the lecture PDFs, but not the title, location or video.
+- **Brain Hack and document previews** say "isn't available yet" in the shared preview (Brain Hacks use their own detail body, so only documents are affected).
+- **Corrections** have no badge on purpose: they wait on a reviewer, not on the teacher.

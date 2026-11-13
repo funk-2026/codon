@@ -3,7 +3,7 @@
 Built from the current code in `fe/app` and `fe/src` (after the navigation refactor). It replaces the old paths in `screen-flows.md`.
 Taps are counted from the Home tab of each role, one tap per button or row, and don't include typing or answering questions.
 
-**Totals:** 8 entry/auth screens, 37 student files (5 tabs, 2 redirects), 25 teacher (4 tabs), 26 admin (5 tabs). Plus 3 layout-only files.
+**Totals:** 8 entry/auth screens, 37 student files, teacher reworked (see its section), 26 admin (5 tabs). Plus 3 layout-only files.
 
 ## Entry and auth (8)
 
@@ -73,20 +73,19 @@ Tabs: **Home, Practice, Learn, Support, Profile.** Status: reworked 2026-11-14 s
 - Terms of Service and Privacy Policy rows in Settings do nothing.
 - Segment doesn't switch if an old link opens an already-mounted tab with a different `kind`.
 
-## Teacher (25)
+## Teacher (reworked 2026-11-14)
 
-Tabs: **Home, My Content, Upload, Profile.**
+Tabs: **Home, Content, Questions, Profile.** See [teacher-audit.md](teacher-audit.md) for the reasoning.
 
-Other screens (21): `create-test`, `csv-upload`, `csv-import-report`, `question-builder`, `question-editor`, `question-bank`, `completeness`, `quick-tag`, `create-content`, `content-preview`, `preview-run`, `create-brain-hack`, `brain-hack-detail`, `flashcard-decks`, `flashcard-deck`, `rejected-content-detail`, `corrections`, `reports`, `course-structure-manager`, `manage-devices`, `give-feedback`.
+| Tab | What it does |
+|---|---|
+| Home | Greeting, **Create** (sheet: test, lesson, Brain Hack, deck), **Needs you** (changes needed, approved to publish, student reports, untagged questions), status summary (tap opens Content filtered), recent items, chapters that need questions |
+| Content | Segmented **Tests \| Lessons \| Hacks \| Decks**, status chips, search, a + that creates the current kind; every row opens one detail screen (decks open the deck editor) |
+| Questions | Segmented **Bank \| Tags \| Reports \| Fixes**; badges on Tags and Reports |
+| Profile | Name, sound, switch role (admins), devices, feedback, log out |
 
-| Goal | Path | Taps |
-|---|---|---|
-| Create a test | Upload tab → Create test → (CSV upload → import report →) question builder → submit | 2 to 5+ |
-| Create video/notes | Upload → Create content → save draft | 2 |
-| Create brain hack / flashcards | Upload → item | 2 |
-| Fix rejected content | Home → rejected item → fix | 2 |
-| Question bank | Home → Question bank → Completeness → Quick tag → Editor | 2 to 5 |
-| Preview content | My Content → item → Preview | 2 to 3 |
+Other screens: `create-test`, `create-content`, `create-brain-hack`, `flashcard-deck`, `csv-upload`, `csv-import-report`, `question-builder`, `question-editor`, `quick-tag`, `content-preview` (the one detail screen), `preview-run`, `give-feedback`, `manage-devices`.
+Redirects for old links: `brain-hack-detail`, `rejected-content-detail`, `question-bank`, `completeness`, `corrections`, `reports`, `flashcard-decks`.
 
 ## Admin (26)
 
@@ -103,9 +102,9 @@ Other screens (21): `analytics-overview`, `course-structure`, `manage-subjects`,
 | Edit a plan | Payments tab → Plans → plan | 3 |
 | Setup screens (subjects, taxonomy, wellness, settings, analytics, custom tests) | Home → item | 1 |
 
-## Open questions for teacher and admin
+## Open questions for admin
 
-- Teachers can still create "Practice" tests, which students now see as Q Bank. Plan: drop that option from teacher create-test, and update the label in admin moderation and the teacher CSV screen.
+- The admin moderation list and the teacher CSV screen still label Practice tests as "Practice" (students see them as Q Bank).
 
 ## Backend redundancy: Practice
 
