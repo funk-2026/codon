@@ -73,6 +73,9 @@ export const listDecks = (p: { course_id?: string; subject_id?: string; chapter_
   apiFetch<{ decks: Deck[]; next_cursor: string | null }>(`/flashcards/decks${qs({ ...p, cursor: p.cursor ?? undefined })}`);
 /** The deck's spaced-repetition queue: due cards first, then new. */
 export const studyDeck = (id: string, limit = 20) => apiFetch<{ deck: Deck; cards: StudyCard[]; media: MediaMap }>(`/flashcards/decks/${id}/study${qs({ limit })}`);
+/** Every card of a deck in order (no spaced-repetition filtering), for plain revision. Up to 200. */
+export const browseDeckCards = (id: string, limit = 200) =>
+  apiFetch<{ deck: Deck; cards: Flashcard[]; media: MediaMap }>(`/flashcards/decks/${id}/cards${qs({ limit })}`);
 export const quickCards = (p: { course_id?: string; chapter_id?: string; limit?: number } = {}) =>
   apiFetch<{ cards: StudyCard[]; media: MediaMap; minutes_estimate: number }>(`/flashcards/quick${qs(p)}`);
 export const reviewCard = (id: string, result: ReviewResult) =>
