@@ -12,6 +12,7 @@ import type { ReportStatus } from '@/src/api/reports';
 import { QuestionPreviewCard } from '@/src/rich';
 import { ROUTES } from '@/src/navigation/routes';
 import { useCursorList } from '@/src/queries/useCursorList';
+import { EmbedRoot } from '@/src/teacher/EmbedRoot';
 
 const STATUSES: { key: ReportStatus | 'all'; label: string }[] = [
   { key: 'open', label: 'Open' }, { key: 'fixed', label: 'Fixed' }, { key: 'no_change', label: 'No change' }, { key: 'dismissed', label: 'Dismissed' }, { key: 'all', label: 'All' },
@@ -22,7 +23,7 @@ const STATUSES: { key: ReportStatus | 'all'; label: string }[] = [
  * admins see everything and can dismiss (FE-3.4/3.5). Resolving tells the
  * reporter what happened.
  */
-export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
+export function ReportsInbox({ role, embedded }: { role: 'teacher' | 'admin'; embedded?: boolean }) {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -71,8 +72,8 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
   });
 
   return (
-    <Screen>
-      <ScreenHeader title="Question reports" />
+    <EmbedRoot embedded={embedded}>
+      {embedded ? null : <ScreenHeader title="Question reports" />}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
         {STATUSES.map((s) => (
@@ -136,6 +137,6 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
           <PrimaryButton label="Confirm" onPress={submit} loading={busy} />
         </View>
       </BottomSheet>
-    </Screen>
+    </EmbedRoot>
   );
 }

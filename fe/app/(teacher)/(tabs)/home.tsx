@@ -1,332 +1,234 @@
-import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
-import { CheckCircle, XCircle, ClipboardText, VideoCamera, Lightbulb, Books, FlagBanner, PencilSimpleLine } from 'phosphor-react-native';
-import { ErrorBanner, SkeletonBlock, Screen, TAB_EDGES } from '@/src/components';
+import { useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
+import {
+  Cards,
+  CaretRight,
+  CheckCircle,
+  ClipboardText,
+  FlagBanner,
+  Lightbulb,
+  Plus,
+  Tag,
+  VideoCamera,
+  WarningCircle,
+} from 'phosphor-react-native';
+import { BottomSheet, ErrorBanner, Screen, SkeletonBlock, StatusBadge, TAB_EDGES, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { InventoryHints } from '@/src/teacher/InventoryHints';
-import { listTeacherTests, listTeacherContent } from '@/src/api/teacher';
 import { useAuth } from '@/src/auth/AuthContext';
+import { InventoryHints } from '@/src/teacher/InventoryHints';
+import { SEGMENT_OF, STATUS_LABEL, byRecent, statusCounts, type ItemStatus, type TeacherItem } from '@/src/teacher/items';
+import { useTeacherItems } from '@/src/teacher/useTeacherItems';
+import { countLabel, useTeacherInbox } from '@/src/teacher/useTeacherInbox';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
-import { useQuery } from '@tanstack/react-query';
 
-type Activity = {
-  id: string;
-  status: 'approved' | 'rejected' | 'published';
-  type: 'Test' | 'Video' | 'Document';
-  text: string;
-  time: string;
-};
+const CREATE_OPTIONS: { label: string; text: string; href: Href; Icon: typeof ClipboardText }[] = [
+  { label: 'New test', text: 'Q Bank or Test Series, from questions or a CSV', href: ROUTES.teacher.createTest, Icon: ClipboardText },
+  { label: 'New lesson', text: 'A video lecture or a document for a chapter', href: ROUTES.teacher.createContent, Icon: VideoCamera },
+  { label: 'New Brain Hack', text: 'A short, practical tip', href: ROUTES.teacher.createBrainHack, Icon: Lightbulb },
+  { label: 'New flashcard deck', text: 'Quick-recall cards, prompt and answer', href: ROUTES.teacher.flashcardDeck, Icon: Cards },
+];
 
+const BADGE: Record<ItemStatus, BadgeStatus> = { draft: 'draft', pending: 'pending', approved: 'approved', rejected: 'rejected', published: 'published' };
 
+const open = (router: ReturnType<typeof useRouter>, item: TeacherItem) =>
+  item.type === 'Deck'
+    ? router.push({ pathname: ROUTES.teacher.flashcardDeck, params: { id: item.id } })
+    : router.push({ pathname: ROUTES.teacher.contentPreview, params: { id: item.id, type: item.type } });
 
-function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
-  const shown = useSharedValue(0);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      shown.value = withTiming(1, { duration: 300 });
-    }, delayMs);
-    return () => clearTimeout(t);
-  }, [delayMs, shown]);
-  const style = useAnimatedStyle(() => ({
-    opacity: shown.value,
-    transform: [{ translateY: (1 - shown.value) * 10 }],
-  }));
-  return <Animated.View style={style}>{children}</Animated.View>;
-}
-
-
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 12) return 'Good morning';
-  if (h >= 12 && h < 17) return 'Good afternoon';
-  if (h >= 17 && h < 21) return 'Good evening';
-  return 'Welcome back';
-}
-
-function PulsingTile({ children, pulse }: { children: React.ReactNode; pulse: boolean }) {
-  const glow = useSharedValue(0);
-  useEffect(() => {
-    if (!pulse) return;
-    glow.value = withDelay(500, withSequence(withTiming(1, { duration: 500 }), withTiming(0, { duration: 500 })));
-  }, [pulse, glow]);
-  const style = useAnimatedStyle(() => ({
-    shadowOpacity: 0.3 * glow.value,
-  }));
-  return <Animated.View style={[{ shadowColor: '#F26E6E', shadowRadius: 12 }, style]}>{children}</Animated.View>;
-}
-
+/** Home answers one question: what needs me right now? Then it gets out of the way. */
 export default function TeacherHomeRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
-  const tileWidth = (screenWidth - space.md * 2 - space.xs) / 2;
   const { user } = useAuth();
+  const [createOpen, setCreateOpen] = useState(false);
 
-  const loadQuery = useQuery({
-    queryKey: ['app-teacher-tabs-home-tsx'],
-    queryFn: () =>
-      Promise.all([listTeacherTests(), listTeacherContent()]).then(([testsRes, contentRes]) => {
-        
-        let stats = { inReview: 0, approved: 0, live: 0, changesNeeded: 0 };
-        let recentActivity = [];
-        let inReview = 0, approved = 0, live = 0, changesNeeded = 0;
-        const acts: Activity[] = [];
-        
-        const processItem = (item: any) => {
-          if (item.status === 'pending_review') inReview++;
-          if (item.status === 'approved') approved++;
-          if (item.status === 'published') live++;
-          if (item.status === 'rejected') changesNeeded++;
-          
-          if (item.status === 'approved' || item.status === 'published' || item.status === 'rejected') {
-            let text = `${item.title} was ${item.status}`;
-            if (item.status === 'rejected') text = `${item.title} needs changes`;
-            acts.push({
-              id: item.id,
-              status: item.status as Activity['status'],
-              type: item.content_type === 'video' ? 'Video' : item.content_type === 'document' ? 'Document' : 'Test',
-              text,
-              time: new Date(item.updated_at || Date.now()).toLocaleDateString(),
-            });
-          }
-        };
-        
-        (testsRes.tests || []).forEach(t => processItem(t));
-        (contentRes.content || []).forEach(c => processItem(c));
-        
-        stats = { inReview, approved, live, changesNeeded };
-        recentActivity = acts.slice(0, 5);
-        
-      
-        return { stats, recentActivity };
-      }),
-  });
-  const stats = loadQuery.data?.stats ?? { inReview: 0, approved: 0, live: 0, changesNeeded: 0 };
-  const recentActivity = loadQuery.data?.recentActivity ?? [];
-  const loading = loadQuery.isPending;
-  const loadError = loadQuery.isError;
-  const loadData = () => void loadQuery.refetch();
+  const itemsQuery = useTeacherItems();
+  const inbox = useTeacherInbox();
+  useRefetchOnFocus(() => void Promise.all([itemsQuery.refetch(), inbox.refetch()]));
 
+  const items = itemsQuery.data ?? [];
+  const counts = statusCounts(items);
+  const rejected = items.filter((i) => i.status === 'rejected').sort(byRecent);
+  const recent = [...items].sort(byRecent).slice(0, 5);
+  const reports = inbox.data?.reports ?? 0;
+  const needsTags = inbox.data?.needsTags ?? 0;
 
-  useRefetchOnFocus(loadQuery.refetch);
-
-  const attentionCount = stats.changesNeeded;
-
-  const activityIcon = (status: Activity['status']) => {
-    if (status === 'approved') return <CheckCircle size={18} color={color('semantic/success')} weight="regular" />;
-    if (status === 'rejected') return <XCircle size={18} color={color('semantic/danger')} weight="regular" />;
-    return <CheckCircle size={18} color={color('semantic/success')} weight="fill" />;
+  const toContent = (status: ItemStatus, segment?: string) =>
+    router.push({ pathname: ROUTES.teacher.content, params: { status, ...(segment ? { segment } : {}) } });
+  const firstSegmentWith = (status: ItemStatus) => {
+    const first = items.filter((i) => i.status === status).sort(byRecent)[0];
+    return first ? SEGMENT_OF[first.type] : undefined;
   };
+
+  const attention = counts.rejected + counts.approved + reports + (needsTags > 0 ? 1 : 0);
+  const firstName = user?.name?.split(' ')[0] || 'Teacher';
+  const loading = itemsQuery.isPending;
+
+  const summary: { status: ItemStatus; token: 'semantic/warning' | 'semantic/success' | 'text/secondary' }[] = [
+    { status: 'draft', token: 'text/secondary' },
+    { status: 'pending', token: 'semantic/warning' },
+    { status: 'approved', token: 'semantic/success' },
+    { status: 'published', token: 'semantic/success' },
+  ];
 
   return (
     <Screen edges={TAB_EDGES}>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] }}
-        showsVerticalScrollIndicator={false}
-      >
-        <Stagger delayMs={0}>
-          <View style={{ marginTop: space.lg }}>
-            <Text style={[type['type/h1'], { color: color('text/primary') }]}>
-              {greeting()}, {user?.name || 'Teacher'}.
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] }} showsVerticalScrollIndicator={false}>
+        <View style={{ marginTop: space.lg, flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={[type['type/h1'], { color: color('text/primary') }]} numberOfLines={1}>Hi, {firstName}</Text>
+            <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
+              {loading ? ' ' : attention > 0 ? `${attention} thing${attention === 1 ? '' : 's'} need${attention === 1 ? 's' : ''} you` : 'You’re all caught up'}
             </Text>
-            {attentionCount > 0 ? (
-              <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
-                {attentionCount} items need your attention
-              </Text>
-            ) : null}
           </View>
-        </Stagger>
+          <Pressable
+            onPress={() => setCreateOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Create something new"
+            style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: space['2xs'], backgroundColor: pressed ? color('action/primary-pressed') : color('action/primary'), borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 40 }]}
+          >
+            <Plus size={18} color={color('action/on-primary')} weight="bold" />
+            <Text style={[type['type/body-m-medium'], { color: color('action/on-primary') }]}>Create</Text>
+          </Pressable>
+        </View>
 
-        {loadError ? (
+        {itemsQuery.isError ? (
           <View style={{ marginTop: space.md }}>
-            <ErrorBanner onRetry={loadData} />
+            <ErrorBanner onRetry={() => void itemsQuery.refetch()} />
           </View>
         ) : null}
 
-        <Stagger delayMs={80}>
-          <View style={[styles.grid2, { gap: space.xs, marginTop: space.xl }]}>
-            {loading ? (
-              <>
-                <SkeletonBlock height={92} radius={radius.md} style={{ width: tileWidth }} />
-                <SkeletonBlock height={92} radius={radius.md} style={{ width: tileWidth }} />
-                <SkeletonBlock height={92} radius={radius.md} style={{ width: tileWidth }} />
-                <SkeletonBlock height={92} radius={radius.md} style={{ width: tileWidth }} />
-              </>
-            ) : (
-              <>
-                <StatusTile label="In Review" value={stats.inReview} token="semantic/warning" width={tileWidth} />
-                <StatusTile label="Approved" value={stats.approved} token="semantic/success" outline width={tileWidth} />
-                <StatusTile label="Live" value={stats.live} token="semantic/success" filled width={tileWidth} />
-                <PulsingTile pulse={stats.changesNeeded > 0}>
-                  <StatusTile label="Changes Needed" value={stats.changesNeeded} token="semantic/danger" width={tileWidth} />
-                </PulsingTile>
-              </>
-            )}
+        {loading ? (
+          <View style={{ marginTop: space.xl, gap: space.xs }}>
+            <SkeletonBlock height={64} radius={radius.md} />
+            <SkeletonBlock height={64} radius={radius.md} />
           </View>
-        </Stagger>
+        ) : attention > 0 ? (
+          <View style={{ marginTop: space.xl, gap: space.xs }}>
+            <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>NEEDS YOU</Text>
 
-        <Stagger delayMs={160}>
-          <View style={[styles.grid3, { gap: space.xs, marginTop: space.xl }]}>
-            <QuickAction
-              label="New Test"
-              icon={<ClipboardText size={22} color={color('accent/default')} weight="duotone" />}
-              onPress={() => router.push(ROUTES.teacher.createTest)}
-            />
-            <QuickAction
-              label="New Video"
-              icon={<VideoCamera size={22} color={color('accent/default')} weight="duotone" />}
-              onPress={() => router.push(ROUTES.teacher.createContent)}
-            />
-            <QuickAction
-              label="New Brain Hack"
-              icon={<Lightbulb size={22} color={color('accent/default')} weight="duotone" />}
-              onPress={() => router.push(ROUTES.teacher.createBrainHack)}
-            />
+            {rejected.slice(0, 3).map((i) => (
+              <Pressable
+                key={i.id}
+                onPress={() => open(router, i)}
+                accessibilityRole="button"
+                accessibilityLabel={`${i.title} needs changes`}
+                style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, borderLeftWidth: 4, borderLeftColor: color('semantic/danger'), opacity: pressed ? 0.94 : 1 }, shadow()]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={[type['type/body-m-medium'], { color: color('text/primary'), flex: 1 }]} numberOfLines={1}>{i.title}</Text>
+                  <StatusBadge status="rejected" label="Changes needed" />
+                </View>
+                <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]} numberOfLines={2}>
+                  {i.rejectionReason || 'Open it to see the reviewer’s note.'}
+                </Text>
+              </Pressable>
+            ))}
+            {counts.rejected > 3 ? (
+              <AttentionRow icon={<WarningCircle size={22} color={color('semantic/danger')} weight="fill" />} text={`${counts.rejected - 3} more need changes`} onPress={() => toContent('rejected', firstSegmentWith('rejected'))} />
+            ) : null}
+            {counts.approved > 0 ? (
+              <AttentionRow icon={<CheckCircle size={22} color={color('semantic/success')} weight="fill" />} text={`${counts.approved} approved, ready to publish`} onPress={() => toContent('approved', firstSegmentWith('approved'))} />
+            ) : null}
+            {reports > 0 ? (
+              <AttentionRow icon={<FlagBanner size={22} color={color('semantic/danger')} weight="fill" />} text={`${countLabel(reports)} student report${reports === 1 ? '' : 's'} on your questions`} onPress={() => router.push({ pathname: ROUTES.teacher.questions, params: { segment: 'reports' } })} />
+            ) : null}
+            {needsTags > 0 ? (
+              <AttentionRow icon={<Tag size={22} color={color('semantic/warning')} weight="fill" />} text={`${needsTags} question${needsTags === 1 ? '' : 's'} missing tags or difficulty`} onPress={() => router.push({ pathname: ROUTES.teacher.questions, params: { segment: 'tags' } })} />
+            ) : null}
           </View>
-        </Stagger>
+        ) : null}
 
-        <View style={[styles.grid3, { gap: space.xs, marginTop: space.xs }]}>
-          <QuickAction
-            label="Question Bank"
-            icon={<Books size={22} color={color('accent/default')} weight="duotone" />}
-            onPress={() => router.push(ROUTES.teacher.questionBank)}
-          />
-          <QuickAction
-            label="Reports"
-            icon={<FlagBanner size={22} color={color('accent/default')} weight="duotone" />}
-            onPress={() => router.push(ROUTES.teacher.reports)}
-          />
-          <QuickAction
-            label="Corrections"
-            icon={<PencilSimpleLine size={22} color={color('accent/default')} weight="duotone" />}
-            onPress={() => router.push(ROUTES.teacher.corrections)}
-          />
-        </View>
-
-        <InventoryHints />
-
-        <View style={{ marginTop: space.xl }}>
-          <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>
-            RECENT ACTIVITY
-          </Text>
-          {loading ? (
-            <View style={{ gap: space.sm }}>
-              <SkeletonBlock height={56} radius={radius.md} />
-              <SkeletonBlock height={56} radius={radius.md} />
-              <SkeletonBlock height={56} radius={radius.md} />
-            </View>
-          ) : (
-            <View style={{ gap: space.sm }}>
-              {recentActivity.map((a) => (
+        {!loading ? (
+          <View style={{ marginTop: space.xl }}>
+            <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>YOUR CONTENT</Text>
+            <View style={{ flexDirection: 'row', gap: space.xs }}>
+              {summary.map((s) => (
                 <Pressable
-                  key={a.id}
-                  onPress={() =>
-                    a.status === 'rejected'
-                      ? router.push({ pathname: ROUTES.teacher.rejectedContentDetail, params: { id: a.id, type: a.type } })
-                      : router.push({ pathname: ROUTES.teacher.contentPreview, params: { id: a.id, type: a.type } })
-                  }
-                  style={({ pressed }) => [
-                    styles.activityRow,
-                    { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
-                    shadow(),
-                  ]}
+                  key={s.status}
+                  onPress={() => toContent(s.status, firstSegmentWith(s.status))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${counts[s.status]} ${STATUS_LABEL[s.status].toLowerCase()}. Show them`}
+                  style={({ pressed }) => [{ flex: 1, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, opacity: pressed ? 0.94 : 1 }, shadow()]}
                 >
-                  {activityIcon(a.status)}
-                  <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]} numberOfLines={2}>
-                    {a.text}
-                  </Text>
-                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginLeft: space.xs }]}>
-                    {a.time}
-                  </Text>
+                  <Text style={[type['type/numeral-display'], { color: color(s.token), fontSize: 26 }]}>{counts[s.status]}</Text>
+                  <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]} numberOfLines={1}>{STATUS_LABEL[s.status]}</Text>
                 </Pressable>
               ))}
             </View>
-          )}
-        </View>
+          </View>
+        ) : null}
+
+        {recent.length > 0 ? (
+          <View style={{ marginTop: space.xl, gap: space.xs }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>RECENT</Text>
+              <Pressable onPress={() => router.push(ROUTES.teacher.content)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
+                <Text style={[type['type/caption'], { color: color('accent/default') }]}>All content →</Text>
+              </Pressable>
+            </View>
+            {recent.map((i) => (
+              <Pressable
+                key={i.id}
+                onPress={() => open(router, i)}
+                accessibilityRole="button"
+                style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, flexDirection: 'row', alignItems: 'center', gap: space.sm, opacity: pressed ? 0.94 : 1 }, shadow()]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]} numberOfLines={1}>{i.title}</Text>
+                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]} numberOfLines={1}>{i.breadcrumb}</Text>
+                </View>
+                <StatusBadge status={BADGE[i.status]} label={STATUS_LABEL[i.status]} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        <InventoryHints />
       </ScrollView>
+
+      <BottomSheet visible={createOpen} onClose={() => setCreateOpen(false)} title="Create">
+        <View style={{ gap: space.xs }}>
+          {CREATE_OPTIONS.map((o) => (
+            <Pressable
+              key={o.label}
+              onPress={() => {
+                setCreateOpen(false);
+                router.push(o.href);
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [{ backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.sm, flexDirection: 'row', alignItems: 'center', gap: space.sm, opacity: pressed ? 0.9 : 1 }]}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: radius.sm, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
+                <o.Icon size={22} color={color('accent/default')} weight="duotone" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[type['type/h3'], { color: color('text/primary') }]}>{o.label}</Text>
+                <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{o.text}</Text>
+              </View>
+              <CaretRight size={18} color={color('text/tertiary')} />
+            </Pressable>
+          ))}
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }
 
-function StatusTile({
-  label,
-  value,
-  token,
-  outline,
-  filled,
-  width,
-}: {
-  label: string;
-  value: number;
-  token: 'semantic/warning' | 'semantic/success' | 'semantic/danger';
-  outline?: boolean;
-  filled?: boolean;
-  width: number;
-}) {
-  const { color, type, space, radius } = useTheme();
-  return (
-    <View
-      style={[
-        {
-          width,
-          minHeight: 92,
-          justifyContent: 'center',
-          backgroundColor: filled ? color(token) : color('bg/surface'),
-          borderRadius: radius.md,
-          padding: space.md,
-          borderWidth: outline ? 1.5 : 0,
-          borderColor: outline ? color(token) : 'transparent',
-        },
-      ]}
-    >
-      <Text
-        style={[
-          type['type/numeral-display'],
-          { color: filled ? color('text/inverse') : color(token), fontSize: 30 },
-        ]}
-      >
-        {value}
-      </Text>
-      <Text
-        style={[
-          type['type/body-m-medium'],
-          { color: filled ? color('text/inverse') : color('text/secondary'), marginTop: 2 },
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function QuickAction({ label, icon, onPress }: { label: string; icon: React.ReactNode; onPress: () => void }) {
+function AttentionRow({ icon, text, onPress }: { icon: React.ReactNode; text: string; onPress: () => void }) {
   const { color, type, space, radius } = useTheme();
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.quickAction,
-        { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, opacity: pressed ? 0.92 : 1 },
-        shadow(),
-      ]}
+      accessibilityRole="button"
+      style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: space.sm, opacity: pressed ? 0.94 : 1 }, shadow()]}
     >
       {icon}
-      <Text style={[type['type/caption'], { color: color('text/primary'), marginTop: space.xs, textAlign: 'center' }]}>
-        {label}
-      </Text>
+      <Text style={[type['type/body-m-medium'], { color: color('text/primary'), flex: 1 }]}>{text}</Text>
+      <CaretRight size={18} color={color('text/tertiary')} />
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  grid2: { flexDirection: 'row', flexWrap: 'wrap' },
-  grid3: { flexDirection: 'row' },
-  quickAction: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 76 },
-  structureCard: { flexDirection: 'row', alignItems: 'center' },
-  activityRow: { flexDirection: 'row', alignItems: 'center' },
-});

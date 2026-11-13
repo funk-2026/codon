@@ -2,15 +2,16 @@ import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { PencilSimpleLine, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SecondaryButton, SkeletonBlock, TextButton, ScreenHeader, Screen } from '@/src/components';
+import { EmptyState, SecondaryButton, SkeletonBlock, TextButton, ScreenHeader, } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listTeacherCorrections, type CorrectionQueueRow } from '@/src/api/moderation';
 import { plainText } from '@/src/rich';
 import { useCursorList } from '@/src/queries/useCursorList';
+import { EmbedRoot } from './EmbedRoot';
 
 const TONE = { pending: { label: 'Waiting for review', tone: 'semantic/warning' }, approved: { label: 'Approved', tone: 'semantic/success' }, rejected: { label: 'Rejected', tone: 'semantic/danger' } } as const;
 
-export default function TeacherCorrectionsRoute() {
+export function CorrectionsView({ embedded }: { embedded?: boolean }) {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -24,8 +25,8 @@ export default function TeacherCorrectionsRoute() {
 
 
   return (
-    <Screen>
-      <ScreenHeader title="My corrections" />
+    <EmbedRoot embedded={embedded}>
+      {embedded ? null : <ScreenHeader title="My corrections" />}
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] + insets.bottom }}>
         {loading ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} height={90} radius={radius.md} />)
@@ -53,6 +54,6 @@ export default function TeacherCorrectionsRoute() {
           </>
         )}
       </ScrollView>
-    </Screen>
+    </EmbedRoot>
   );
 }

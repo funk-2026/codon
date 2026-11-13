@@ -1,432 +1,167 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import {
-  MagnifyingGlass,
-  Plus,
-  ClipboardText,
-  PlayCircle,
-  FileText,
-  Lightbulb,
-  WarningCircle,
-  X,
-} from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, Screen, TAB_EDGES } from '@/src/components';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { Cards, ClipboardText, FileText, Lightbulb, Plus, PlayCircle, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, SegmentedControl, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, Screen, TAB_EDGES } from '@/src/components';
+import { TreeToolbar } from '@/src/screens/CurriculumTree';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ManageAllBanner } from '@/src/teacher/ManageAllBanner';
-import { listTeacherContent, listTeacherTests } from '@/src/api/teacher';
-import { listTeacherBrainHacks } from '@/src/api/discover';
+import { filterItems, STATUS_LABEL, type ItemStatus, type ItemType, type Segment, type TeacherItem } from '@/src/teacher/items';
+import { useTeacherItems } from '@/src/teacher/useTeacherItems';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
-import { inputText } from '@/src/theme/inputs';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
-import { useQuery } from '@tanstack/react-query';
 
-type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
-type TypeFilter = 'All' | 'Tests' | 'Videos & Docs' | 'Brain Hacks';
-type Status = 'draft' | 'pending' | 'approved' | 'rejected' | 'published';
-type StatusFilter = 'All Statuses' | 'Draft' | 'In Review' | 'Approved' | 'Live' | 'Changes Needed';
+const SEGMENTS: { key: Segment; label: string }[] = [
+  { key: 'tests', label: 'Tests' },
+  { key: 'lessons', label: 'Lessons' },
+  { key: 'hacks', label: 'Hacks' },
+  { key: 'decks', label: 'Decks' },
+];
 
-type ContentItem = {
-  id: string;
-  title: string;
-  breadcrumb: string | null;
-  type: ContentType;
-  status: Status;
-  /** Students' rating — shown to the author once anyone has rated (FE-3.10). */
-  rating?: { avg: number; count: number };
+const CREATE: Record<Segment, { label: string; href: Href }> = {
+  tests: { label: 'New test', href: ROUTES.teacher.createTest },
+  lessons: { label: 'New lesson', href: ROUTES.teacher.createContent },
+  hacks: { label: 'New Brain Hack', href: ROUTES.teacher.createBrainHack },
+  decks: { label: 'New deck', href: ROUTES.teacher.flashcardDeck },
 };
 
-const ratingOf = (avg?: number, count?: number) => (count && count > 0 ? { avg: avg ?? 0, count } : undefined);
-
-
-
-const TYPE_FILTERS: TypeFilter[] = ['All', 'Tests', 'Videos & Docs', 'Brain Hacks'];
-const STATUS_FILTERS: StatusFilter[] = ['All Statuses', 'Draft', 'In Review', 'Approved', 'Live', 'Changes Needed'];
-
-const STATUS_FILTER_TO_STATUS: Record<StatusFilter, Status | null> = {
-  'All Statuses': null,
-  Draft: 'draft',
-  'In Review': 'pending',
-  Approved: 'approved',
-  Live: 'published',
-  'Changes Needed': 'rejected',
+const EMPTY: Record<Segment, { title: string; text: string }> = {
+  tests: { title: 'No tests yet', text: 'Build a Q Bank or Test Series test from your own questions or a CSV.' },
+  lessons: { title: 'No lessons yet', text: 'Upload a video lecture or a document for a chapter.' },
+  hacks: { title: 'No Brain Hacks yet', text: 'Share a short, practical tip students can read in a minute.' },
+  decks: { title: 'No decks yet', text: 'Make a deck of quick-recall cards: a prompt on the front, the answer on the back.' },
 };
 
-const TYPE_FILTER_TO_TYPES: Record<TypeFilter, ContentType[] | null> = {
-  All: null,
-  Tests: ['Test'],
-  'Videos & Docs': ['Video', 'Document'],
-  'Brain Hacks': ['Brain Hack'],
-};
+const STATUS_CHIPS: { key: ItemStatus | 'all'; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'draft', label: STATUS_LABEL.draft },
+  { key: 'pending', label: STATUS_LABEL.pending },
+  { key: 'approved', label: STATUS_LABEL.approved },
+  { key: 'published', label: STATUS_LABEL.published },
+  { key: 'rejected', label: STATUS_LABEL.rejected },
+];
 
-const TYPE_ICON: Record<ContentType, React.ComponentType<{ size: number; color: string }>> = {
+const ICON: Record<ItemType, React.ComponentType<{ size: number; color: string }>> = {
   Test: ClipboardText,
   Video: PlayCircle,
   Document: FileText,
   'Brain Hack': Lightbulb,
+  Deck: Cards,
 };
 
-// The backend isn't consistent about status strings across endpoints
-// (e.g. 'pending' vs 'pending_review' for the same in-review state) —
-// normalize known variants and fall back safely for anything else,
-// rather than crashing on an unrecognized value.
-function normalizeStatus(raw: string): Status {
-  if (raw === 'pending_review') return 'pending';
-  const known: Status[] = ['draft', 'pending', 'approved', 'rejected', 'published'];
-  return (known as string[]).includes(raw) ? (raw as Status) : 'draft';
-}
+const BADGE: Record<ItemStatus, BadgeStatus> = { draft: 'draft', pending: 'pending', approved: 'approved', rejected: 'rejected', published: 'published' };
 
-function taxonomyBadge(status: Status): { badgeStatus: BadgeStatus; label: string } {
-  const map: Record<Status, { badgeStatus: BadgeStatus; label: string }> = {
-    draft: { badgeStatus: 'draft', label: 'Draft' },
-    pending: { badgeStatus: 'pending', label: 'In Review' },
-    approved: { badgeStatus: 'approved', label: 'Approved' },
-    rejected: { badgeStatus: 'rejected', label: 'Changes Needed' },
-    published: { badgeStatus: 'published', label: 'Live' },
-  };
-  return map[status] ?? { badgeStatus: 'neutral', label: status };
-}
+const isSegment = (v?: string): v is Segment => SEGMENTS.some((s) => s.key === v);
+const isStatus = (v?: string): v is ItemStatus => STATUS_CHIPS.some((s) => s.key === v && v !== 'all');
 
-
-export default function MyContentListRoute() {
+/** Everything the teacher has made, one list at a time. The "+" always creates the kind you're looking at. */
+export default function TeacherContentRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('All');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All Statuses');
-  const [fabOpen, setFabOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const params = useLocalSearchParams<{ segment?: string; status?: string }>();
+
+  const [segment, setSegment] = useState<Segment>(isSegment(params.segment) ? params.segment : 'tests');
+  const [status, setStatus] = useState<ItemStatus | 'all'>(isStatus(params.status) ? params.status : 'all');
   const [query, setQuery] = useState('');
 
-
-  const loadQuery = useQuery({
-    queryKey: ['app-teacher-tabs-content-tsx'],
-    queryFn: () =>
-      // Brain Hacks live in their own table: a failure there must not blank the rest of the list.
-    Promise.all([listTeacherContent(), listTeacherTests(), listTeacherBrainHacks().catch(() => ({ brain_hacks: [] }))]).then(([cRes, tRes, hRes]) => {
-        
-        let items = [];
-         const out: ContentItem[] = [];
-         (tRes.tests || []).forEach(t => {
-            out.push({
-               id: t.id,
-               title: t.title,
-               breadcrumb: 'Test',
-               type: 'Test',
-               status: normalizeStatus(t.status),
-               rating: ratingOf(t.rating_avg, t.rating_count),
-            });
-         });
-         (cRes.content || []).forEach(c => {
-            out.push({
-               id: c.id,
-               title: c.title,
-               breadcrumb: 'Content',
-               type: c.content_type === 'video' ? 'Video' : 'Document',
-               status: normalizeStatus(c.status),
-               rating: ratingOf(c.rating_avg, c.rating_count),
-            });
-         });
-         hRes.brain_hacks.forEach(h => {
-            out.push({
-               id: h.id,
-               title: h.title,
-               breadcrumb: `Brain Hack · ${h.category}`,
-               type: 'Brain Hack',
-               status: normalizeStatus(h.status),
-               rating: ratingOf(h.rating_avg, h.rating_count),
-            });
-         });
-         items = out;
-         
-      
-        return { items };
-      }),
-  });
-  const items = loadQuery.data?.items ?? [];
-  const loading = loadQuery.isPending;
-  const loadError = loadQuery.isError;
-  const load = () => void loadQuery.refetch();
-
-
-  useRefetchOnFocus(loadQuery.refetch);
-
-  const fabProgress = useSharedValue(0);
+  // Home links here with a segment and status already chosen.
   useEffect(() => {
-    fabProgress.value = withTiming(fabOpen ? 1 : 0, { duration: 220 });
-  }, [fabOpen, fabProgress]);
+    if (isSegment(params.segment)) setSegment(params.segment);
+    setStatus(isStatus(params.status) ? params.status : 'all');
+  }, [params.segment, params.status]);
 
-  const filtered = items.filter((item) => {
-    const types = TYPE_FILTER_TO_TYPES[typeFilter];
-    if (types && !types.includes(item.type)) return false;
-    const status = STATUS_FILTER_TO_STATUS[statusFilter];
-    if (status && item.status !== status) return false;
-    if (query.trim() && !item.title.toLowerCase().includes(query.trim().toLowerCase())) return false;
-    return true;
-  });
+  const itemsQuery = useTeacherItems();
+  useRefetchOnFocus(() => itemsQuery.refetch());
+  const items = itemsQuery.data;
+  const shown = useMemo(() => (items ? filterItems(items, { segment, status, query }) : []), [items, segment, status, query]);
 
-  const isEmptyOverall = items.length === 0;
+  const open = (item: TeacherItem) =>
+    item.type === 'Deck'
+      ? router.push({ pathname: ROUTES.teacher.flashcardDeck, params: { id: item.id } })
+      : router.push({ pathname: ROUTES.teacher.contentPreview, params: { id: item.id, type: item.type } });
 
-  const openItem = (item: ContentItem) => {
-    if (item.type === 'Brain Hack') {
-      router.push({ pathname: ROUTES.teacher.brainHackDetail, params: { id: item.id } });
-    } else if (item.status === 'rejected') {
-      router.push({ pathname: ROUTES.teacher.rejectedContentDetail, params: { id: item.id, type: item.type } });
-    } else {
-      router.push({ pathname: ROUTES.teacher.contentPreview, params: { id: item.id, type: item.type } });
-    }
-  };
-
-  const useMenuStyle = (index: number) =>
-    useAnimatedStyle(() => ({
-      opacity: fabProgress.value,
-      transform: [
-        { translateY: -((index + 1) * 60) * fabProgress.value },
-        { scale: 0.6 + 0.4 * fabProgress.value },
-      ],
-    }));
-  const menuStyle0 = useMenuStyle(0);
-  const menuStyle1 = useMenuStyle(1);
-  const menuStyle2 = useMenuStyle(2);
+  const create = CREATE[segment];
+  const hasAny = (items ?? []).some((i) => filterItems([i], { segment, status: 'all', query: '' }).length > 0);
 
   return (
     <Screen edges={TAB_EDGES}>
-      <View style={[styles.header, { paddingHorizontal: space.md, marginTop: space.lg }]}>
-        <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>My Content</Text>
+      <View style={{ paddingHorizontal: space.md, marginTop: space.lg, flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>Content</Text>
         <Pressable
-          onPress={() => {
-            setSearchOpen((v) => !v);
-            if (searchOpen) setQuery('');
-          }}
-          hitSlop={space.xs}
+          onPress={() => router.push(create.href)}
+          accessibilityRole="button"
+          accessibilityLabel={create.label}
+          style={({ pressed }) => [
+            { flexDirection: 'row', alignItems: 'center', gap: space['2xs'], backgroundColor: pressed ? color('action/primary-pressed') : color('action/primary'), borderRadius: radius.pill, paddingHorizontal: space.sm, minHeight: 36 },
+          ]}
         >
-          <MagnifyingGlass size={22} color={color('text/primary')} />
+          <Plus size={18} color={color('action/on-primary')} weight="bold" />
+          <Text style={[type['type/body-m-medium'], { color: color('action/on-primary') }]}>{create.label}</Text>
         </Pressable>
       </View>
 
-      {searchOpen ? (
-        <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
-          <View
-            style={[
-              styles.searchRow,
-              { backgroundColor: color('bg/sunken'), borderRadius: radius.sm, paddingHorizontal: space.sm },
-            ]}
-          >
-            <MagnifyingGlass size={18} color={color('text/tertiary')} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search by title"
-              placeholderTextColor={color('text/tertiary')}
-              autoFocus
-              style={[inputText(type['type/body-m']), { color: color('text/primary'), flex: 1, marginLeft: space.xs, paddingVertical: space.sm }]}
-            />
-          </View>
-        </View>
-      ) : null}
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterRow}
-        contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs, marginTop: space.md }}
-      >
-        {TYPE_FILTERS.map((f) => {
-          const active = typeFilter === f;
-          return (
-            <Pressable
-              key={f}
-              onPress={() => setTypeFilter(f)}
-              style={[
-                styles.chip,
-                {
-                  borderRadius: radius.pill,
-                  paddingHorizontal: space.md,
-                  backgroundColor: active ? color('accent/tint') : color('bg/surface'),
-                  borderWidth: 1,
-                  borderColor: active ? color('accent/default') : color('border/subtle'),
-                },
-              ]}
-            >
-              <Text style={[type['type/body-m-medium'], { color: active ? color('accent/default') : color('text/primary') }]}>
-                {f}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
+      <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
+        <SegmentedControl options={SEGMENTS} value={segment} onChange={(k) => { setSegment(k); setQuery(''); }} />
+      </View>
+      <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
+        <TreeToolbar
+          query={query}
+          onQuery={setQuery}
+          placeholder="Search by title"
+          chips={{ options: STATUS_CHIPS, value: status, onChange: (k) => setStatus(k as ItemStatus | 'all') }}
+        />
+      </View>
       <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
         <ManageAllBanner />
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterRow}
-        contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs, marginTop: space.xs }}
-      >
-        {STATUS_FILTERS.map((f) => {
-          const active = statusFilter === f;
-          return (
-            <Pressable
-              key={f}
-              onPress={() => setStatusFilter(f)}
-              style={[
-                styles.chip,
-                {
-                  borderRadius: radius.pill,
-                  paddingHorizontal: space.sm,
-                  backgroundColor: active ? color('bg/sunken') : color('bg/surface'),
-                  borderWidth: 1,
-                  borderColor: active ? color('border/strong') : color('border/subtle'),
-                },
-              ]}
-            >
-              <Text style={[type['type/caption'], { color: active ? color('text/primary') : color('text/secondary') }]}>
-                {f}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
 
       <ScrollView
-        style={styles.list}
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'] + 72, gap: space.sm }}
+        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space['3xl'], gap: space.xs }}
         showsVerticalScrollIndicator={false}
       >
-        {loading ? (
-          Array.from({ length: 5 }).map((_, i) => <SkeletonBlock key={i} height={72} radius={radius.md} />)
-        ) : loadError ? (
+        {itemsQuery.isPending ? (
+          Array.from({ length: 5 }).map((_, i) => <SkeletonBlock key={i} height={64} radius={radius.md} />)
+        ) : itemsQuery.isError ? (
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load your content"
-            description="Something went wrong fetching your tests and content."
-            action={<TextButton label="Retry" onPress={load} />}
+            description="Something went wrong fetching your work."
+            action={<TextButton label="Retry" onPress={() => void itemsQuery.refetch()} />}
           />
-        ) : isEmptyOverall ? (
-          <EmptyState title="Nothing here yet" description="You haven't created anything yet — tap + to start." />
-        ) : filtered.length === 0 ? (
-          <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center', marginTop: space.xl }]}>
-            Nothing matches these filters.
-          </Text>
+        ) : !hasAny ? (
+          <EmptyState title={EMPTY[segment].title} description={EMPTY[segment].text} action={<TextButton label={create.label} onPress={() => router.push(create.href)} />} />
+        ) : shown.length === 0 ? (
+          <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center', marginTop: space.xl }]}>Nothing matches these filters.</Text>
         ) : (
-          filtered.map((item) => {
-            const Icon = TYPE_ICON[item.type];
-            const badge = taxonomyBadge(item.status);
+          shown.map((item) => {
+            const Icon = ICON[item.type];
             return (
               <Pressable
                 key={item.id}
-                onPress={() => openItem(item)}
+                onPress={() => open(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.title}. ${STATUS_LABEL[item.status]}`}
                 style={({ pressed }) => [
-                  { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
+                  { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.94 : 1 },
                   shadow(),
                 ]}
               >
-                <View style={styles.row}>
-                  <Icon size={22} color={color('text/secondary')} />
-                  <Text
-                    style={[type['type/h3'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}
-                    numberOfLines={2}
-                  >
-                    {item.title}
+                <View style={{ width: 40, height: 40, borderRadius: radius.sm, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon size={22} color={color('accent/default')} />
+                </View>
+                <View style={{ flex: 1, marginLeft: space.sm }}>
+                  <Text style={[type['type/h3'], { color: color('text/primary') }]} numberOfLines={2}>{item.title}</Text>
+                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]} numberOfLines={1}>
+                    {item.breadcrumb}{item.rating ? ` · ★ ${item.rating.avg.toFixed(1)} (${item.rating.count})` : ''}
                   </Text>
                 </View>
-                <View style={[styles.metaRow, { marginTop: space.xs }]}>
-                  <Text
-                    style={[type['type/caption'], { color: color('text/tertiary'), flex: 1, marginRight: space.sm }]}
-                    numberOfLines={1}
-                  >
-                    {item.breadcrumb ?? 'Brain Hack'}
-                    {item.rating ? ` · ★ ${item.rating.avg.toFixed(1)} (${item.rating.count})` : ''}
-                  </Text>
-                  <StatusBadge status={badge.badgeStatus} label={badge.label} />
-                </View>
+                <StatusBadge status={BADGE[item.status]} label={STATUS_LABEL[item.status]} />
               </Pressable>
             );
           })
         )}
       </ScrollView>
-
-      {fabOpen ? (
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => setFabOpen(false)} />
-      ) : null}
-
-      <View style={[styles.fabWrap, { right: space.lg, bottom: space.lg }]} pointerEvents="box-none">
-        <Animated.View style={[styles.fabMenuItem, menuStyle2]} pointerEvents={fabOpen ? 'auto' : 'none'}>
-          <FabMenuItem
-            label="New Brain Hack"
-            onPress={() => {
-              setFabOpen(false);
-              router.push(ROUTES.teacher.createBrainHack);
-            }}
-          />
-        </Animated.View>
-        <Animated.View style={[styles.fabMenuItem, menuStyle1]} pointerEvents={fabOpen ? 'auto' : 'none'}>
-          <FabMenuItem
-            label="New Video/Document"
-            onPress={() => {
-              setFabOpen(false);
-              router.push(ROUTES.teacher.createContent);
-            }}
-          />
-        </Animated.View>
-        <Animated.View style={[styles.fabMenuItem, menuStyle0]} pointerEvents={fabOpen ? 'auto' : 'none'}>
-          <FabMenuItem
-            label="New Test"
-            onPress={() => {
-              setFabOpen(false);
-              router.push(ROUTES.teacher.createTest);
-            }}
-          />
-        </Animated.View>
-
-        <Pressable
-          onPress={() => setFabOpen((v) => !v)}
-          style={({ pressed }) => [
-            styles.fab,
-            { backgroundColor: pressed ? color('action/primary-pressed') : color('action/primary'), borderRadius: 28 },
-            shadow(),
-          ]}
-        >
-          {fabOpen ? (
-            <X size={24} color={color('accent/on-accent')} weight="bold" />
-          ) : (
-            <Plus size={24} color={color('accent/on-accent')} weight="bold" />
-          )}
-        </Pressable>
-      </View>
     </Screen>
   );
 }
-
-function FabMenuItem({ label, onPress }: { label: string; onPress: () => void }) {
-  const { color, type, space, radius } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.fabMenuButton,
-        { backgroundColor: color('bg/surface'), borderRadius: radius.pill, paddingHorizontal: space.md, opacity: pressed ? 0.92 : 1 },
-        shadow(),
-      ]}
-    >
-      <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center' },
-  searchRow: { flexDirection: 'row', alignItems: 'center' },
-  filterRow: { flexGrow: 0, flexShrink: 0 },
-  list: { flex: 1 },
-  chip: { minHeight: 36, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'flex-start' },
-  metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  fabWrap: { position: 'absolute', alignItems: 'flex-end' },
-  fab: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
-  fabMenuItem: { position: 'absolute', right: 0, bottom: 0 },
-  fabMenuButton: { height: 44, alignItems: 'center', justifyContent: 'center' },
-});

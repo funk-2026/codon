@@ -4,14 +4,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CheckSquare, FlagBanner, ImageSquare, Square, Tag, WarningCircle } from 'phosphor-react-native';
 import {
-  BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
+  BottomSheet, EmptyState, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SelectField, SkeletonBlock, TagInput, TextButton, useToast, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { ManageAllBanner } from '@/src/teacher/ManageAllBanner';
+import { ManageAllBanner } from './ManageAllBanner';
 import { ApiError } from '@/src/api/client';
 import { listCourses, getCurriculum, type Subject } from '@/src/api/courses';
 import { bulkUpdateQuestions, listQuestionBank, type BulkPatch, type CompletenessRow, type MissingKind, type QuestionBankRow } from '@/src/api/questionBank';
 import type { Difficulty } from '@/src/api/tests';
 import { mediaRefs, plainText } from '@/src/rich';
+import { EmbedRoot } from './EmbedRoot';
 import { ROUTES } from '@/src/navigation/routes';
 import { useCursorList } from '@/src/queries/useCursorList';
 import { useCompleteness } from '@/src/queries/teacher';
@@ -34,7 +35,7 @@ const QUICK: { key: Quick; label: string }[] = [
  * tests, filterable, with a "what's missing" queue and bulk edits (up to 200
  * at once, all-or-nothing on the server).
  */
-export default function QuestionBankRoute() {
+export function QuestionBankView({ embedded }: { embedded?: boolean }) {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -103,8 +104,8 @@ export default function QuestionBankRoute() {
   });
 
   return (
-    <Screen>
-      <ScreenHeader title={selecting ? `${selected.size} selected` : 'Question bank'} onBack={selecting ? () => setSelected(new Set()) : undefined} />
+    <EmbedRoot embedded={embedded}>
+      {embedded ? null : <ScreenHeader title={selecting ? `${selected.size} selected` : 'Question bank'} onBack={selecting ? () => setSelected(new Set()) : undefined} />}
 
       <View style={{ paddingHorizontal: space.md, marginTop: space.xs }}>
         <InputField label="Search questions" value={q} onChangeText={setQ} autoCorrect={false} />
@@ -132,7 +133,7 @@ export default function QuestionBankRoute() {
         <Pressable onPress={() => setQuick(totals?.missing_difficulty ? 'difficulty' : totals?.missing_tags ? 'tags' : 'alt_text')} accessibilityRole="button" style={{ marginHorizontal: space.md, marginTop: space.sm, backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.sm }}>
           <Text style={[type['type/caption'], { color: color('text/primary') }]}>Needs attention: {missingLine} — tap to review</Text>
           <Text
-            onPress={() => router.push(ROUTES.teacher.completeness)}
+            onPress={() => router.push({ pathname: ROUTES.teacher.questions, params: { segment: 'tags' } })}
             accessibilityRole="link"
             style={[type['type/caption'], { color: color('accent/default'), marginTop: 2 }]}
           >
@@ -200,7 +201,7 @@ export default function QuestionBankRoute() {
         ids={[...selected]}
         onDone={(n) => { setBulkOpen(false); show(`Updated ${n} question${n === 1 ? '' : 's'}`, 'success'); void load(); void completeness.refetch(); }}
       />
-    </Screen>
+    </EmbedRoot>
   );
 }
 

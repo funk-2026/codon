@@ -2,9 +2,10 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CheckCircle, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, TextButton, ScreenHeader, Screen } from '@/src/components';
+import { EmptyState, SkeletonBlock, TextButton, ScreenHeader, } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { type CompletenessRow, type MissingKind } from '@/src/api/questionBank';
+import { EmbedRoot } from './EmbedRoot';
 import { ROUTES } from '@/src/navigation/routes';
 import { useCompleteness } from '@/src/queries/teacher';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
@@ -22,7 +23,7 @@ const KINDS: { key: MissingKind; field: keyof CompletenessRow; label: string }[]
  * missing each piece of metadata. Tap a count → the quick-tag queue for exactly
  * those questions. Reloads on focus so progress shows when you come back.
  */
-export default function CompletenessRoute() {
+export function CompletenessView({ embedded }: { embedded?: boolean }) {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -39,8 +40,8 @@ export default function CompletenessRoute() {
   const allDone = data && KINDS.every((k) => !(data.totals[k.field as string] > 0));
 
   return (
-    <Screen>
-      <ScreenHeader title="Completeness" />
+    <EmbedRoot embedded={embedded}>
+      {embedded ? null : <ScreenHeader title="Completeness" />}
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md, paddingBottom: space['3xl'] + insets.bottom }}>
         {error ? (
@@ -91,6 +92,6 @@ export default function CompletenessRoute() {
           </>
         )}
       </ScrollView>
-    </Screen>
+    </EmbedRoot>
   );
 }
