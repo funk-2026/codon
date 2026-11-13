@@ -22,7 +22,6 @@ export const ROUTES = {
     customBuilder: '/(student)/custom-builder',
     customTests: '/(student)/custom-tests',
     editProfile: '/(student)/edit-profile',
-    explore: '/(student)/explore',
     flashcardStudy: '/(student)/flashcard-study',
     flashcards: '/(student)/flashcards',
     giveFeedback: '/(student)/give-feedback',
@@ -117,6 +116,8 @@ const LEGACY_TAB_ROUTE = /^\/\((student|admin)\)\/\((home|practice|learn|support
  * Map them onto the current tree so they keep opening.
  */
 export function normalizeRoute(route: string): string {
+  // Explore was folded into Home / Practice / Learn.
+  if (route === '/(student)' + '/explore') return ROUTES.student.home;
   const m = LEGACY_TAB_ROUTE.exec(route);
   if (!m) return route;
   const [, role, tab, name] = m;

@@ -95,47 +95,42 @@ export function HomeUpdatesCarousel() {
   );
 }
 
-/** Horizontal strip of real Brain Hacks; hidden when there are none or the request fails. */
-export function BrainHacksShelf() {
+/** One Brain Hack for today (rotates daily) with a link to the full list; hidden when there are none or the request fails. */
+export function BrainHackOfTheDay() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const cardW = Math.max(130, Math.min(200, (width - space.md * 2) / 2.6));
   const [rows, setRows] = useState<BrainHack[]>([]);
+  const [dayIndex] = useState(() => Math.floor(Date.now() / 86_400_000));
 
   const load = useCallback(() => {
-    listBrainHacks({ limit: 6 }).then((r) => setRows(r.brain_hacks)).catch(() => setRows([]));
+    listBrainHacks({ limit: 12 }).then((r) => setRows(r.brain_hacks)).catch(() => setRows([]));
   }, []);
   useEffect(load, [load]);
 
   if (rows.length === 0) return null;
+  const item = rows[dayIndex % rows.length];
   return (
     <View style={{ marginTop: space.xl }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm }}>
-        <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>FREE BRAIN HACKS</Text>
+        <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>BRAIN HACK OF THE DAY</Text>
         <Pressable onPress={() => router.push(ROUTES.student.brainHacks)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
           <Text style={[type['type/caption'], { color: color('accent/default') }]}>See all →</Text>
         </Pressable>
       </View>
-      <FlatList
-        data={rows}
-        keyExtractor={(h) => h.id}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => router.push({ pathname: ROUTES.student.brainHackDetail, params: { id: item.id } })}
-            accessibilityRole="button"
-            accessibilityLabel={`${item.title}. ${item.read_minutes} minute read`}
-            style={({ pressed }) => ({ width: cardW, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, marginRight: space.sm, opacity: pressed ? 0.92 : 1, gap: space.xs })}
-          >
-            <View style={{ width: 40, height: 40, backgroundColor: color('accent/tint'), borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' }}>
-              <Flame size={20} color={color('highlight/default')} weight="duotone" />
-            </View>
-            <Text style={[type['type/h3'], { color: color('text/primary'), fontSize: 15 }]} numberOfLines={2}>{item.title}</Text>
-          </Pressable>
-        )}
-      />
+      <Pressable
+        onPress={() => router.push({ pathname: ROUTES.student.brainHackDetail, params: { id: item.id } })}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.title}. ${item.read_minutes} minute read`}
+        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, opacity: pressed ? 0.94 : 1 })}
+      >
+        <View style={{ width: 48, height: 48, backgroundColor: color('accent/tint'), borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}>
+          <Flame size={26} color={color('highlight/default')} weight="duotone" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[type['type/h3'], { color: color('text/primary') }]} numberOfLines={2}>{item.title}</Text>
+          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>{item.category} · {item.read_minutes} min read</Text>
+        </View>
+      </Pressable>
     </View>
   );
 }
