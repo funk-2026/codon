@@ -1,305 +1,311 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { CaretRight, Shield, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, StatusBadge, TextButton, useToast, SkeletonBlock, type BadgeStatus, ScreenHeader, Screen, ConfirmDialog } from '@/src/components';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { CaretRight, DeviceMobile, Shield, WarningCircle } from 'phosphor-react-native';
+import { ConfirmDialog, EmptyState, Screen, ScreenHeader, SkeletonBlock, StatusBadge, TextButton, useToast, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { getUser, updateUserRole, updateTeacherPermissions, adminListKYC } from '@/src/api/admin';
-import type { UserProfile } from '@/src/api/profile';
+import { useAuth } from '@/src/auth/AuthContext';
+import { adminListContent, adminListKYC, adminListTests, getUser, getUserSessions, getUserSubscription, updateTeacherPermissions, updateUserRole } from '@/src/api/admin';
+import { useAdminPayments } from '@/src/queries/admin';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 type Role = 'student' | 'teacher' | 'admin';
+const ROLES: Role[] = ['student', 'teacher', 'admin'];
+const ROLE_TEXT: Record<Role, string> = {
+  student: 'Learns and practises. This is how everyone starts.',
+  teacher: 'Creates tests, lessons, Brain Hacks and flashcards, and submits them for review.',
+  admin: 'Full control: approves content, manages users, payments and settings.',
+};
 
-const SEGMENTS: Role[] = ['student', 'teacher', 'admin'];
+const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const rupees = (paise: number) => `₹${(paise / 100).toLocaleString('en-IN')}`;
 
+/**
+ * A user as a support view: who they are, what they pay for, where they're signed in, and, for
+ * teachers, what they've made. Changing a role is rare and consequential, so it sits last.
+ */
 export default function UserDetailRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const me = useAuth();
+  const queryClient = useQueryClient();
+
+  const userQuery = useQuery({ queryKey: ['admin', 'user', id], queryFn: () => getUser(id), enabled: !!id });
+  const user = userQuery.data ?? null;
+  const role = (user?.role ?? 'student') as Role;
+  const isMe = me.status === 'authenticated' && me.user.id === user?.id;
+
+  const subscription = useQuery({ queryKey: ['admin', 'user', id, 'subscription'], queryFn: () => getUserSubscription(id), enabled: !!id && role === 'student' });
+  const sessions = useQuery({ queryKey: ['admin', 'user', id, 'sessions'], queryFn: () => getUserSessions(id), enabled: !!id });
+  const allPayments = useAdminPayments();
+  const payments = (allPayments.data ?? []).filter((p: { user_id: string }) => p.user_id === id) as { id: string; amount_paise: number; status: string; created_at: string; subscription?: { plan?: { name: string } } }[];
+  const made = useQuery({
+    queryKey: ['admin', 'user', id, 'made'],
+    enabled: !!id && role === 'teacher',
+    queryFn: async () => {
+      const [t, c] = await Promise.all([adminListTests().catch(() => ({ tests: [] })), adminListContent().catch(() => ({ content: [] }))]);
+      const mine = [...t.tests.filter((x) => x.creator?.id === id), ...c.content.filter((x) => x.uploader?.id === id)];
+      const norm = (st: string) => (st === 'pending_review' ? 'pending' : st);
+      return { total: mine.length, live: mine.filter((x) => norm(x.status) === 'published').length, waiting: mine.filter((x) => norm(x.status) === 'pending').length };
+    },
+  });
 
   const [pendingRole, setPendingRole] = useState<Role | null>(null);
-  const [roleUpdating, setRoleUpdating] = useState(false);
-  const [permUpdating, setPermUpdating] = useState(false);
-  const [kycNavLoading, setKycNavLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [permBusy, setPermBusy] = useState(false);
+  const [kycBusy, setKycBusy] = useState(false);
 
-  const queryClient = useQueryClient();
-  const loadQuery = useQuery({
-    queryKey: ['app-admin-user-detail-tsx', id],
-    queryFn: () =>
-      getUser(id).then((res) => {
-        
-        let user = null;
-        let canManageAllContent = false;
-        user = res;
-        canManageAllContent = res.can_manage_all_content;
-        
-      
-        return { user, canManageAllContent };
-      }),
-    enabled: !!id,
-  });
-  const user = loadQuery.data?.user ?? null;
-  const canManageAllContent = loadQuery.data?.canManageAllContent ?? false;
-  const loading = loadQuery.isPending;
-  const loadError = loadQuery.isError;
-  const loadUser = () => void loadQuery.refetch();
-  const setCanManageAllContent = (u: typeof canManageAllContent | ((p: typeof canManageAllContent) => typeof canManageAllContent)) =>
-    queryClient.setQueryData(['app-admin-user-detail-tsx', id], (old: any) => ({ ...(old ?? {}), canManageAllContent: typeof u === 'function' ? u(old?.canManageAllContent ?? false) : u }));
-  const setUser = (u: typeof user | ((p: typeof user) => typeof user)) =>
-    queryClient.setQueryData(['app-admin-user-detail-tsx', id], (old: any) => ({ ...(old ?? {}), user: typeof u === 'function' ? u(old?.user ?? null) : u }));
+  const refreshUser = () => queryClient.invalidateQueries({ queryKey: ['admin', 'user', id] });
 
-
-
-  const toggleCanManageAllContent = async (value: boolean) => {
-    if (!user || permUpdating) return;
-    const previous = canManageAllContent;
-    setCanManageAllContent(value);
-    setPermUpdating(true);
-    try {
-      await updateTeacherPermissions(user.id, value);
-    } catch (e) {
-      setCanManageAllContent(previous);
-      show('Failed to update permission', 'error');
-    } finally {
-      setPermUpdating(false);
-    }
-  };
-
-  const confirmRoleChange = async () => {
+  const changeRole = async () => {
     if (!pendingRole || !user) return;
-    setRoleUpdating(true);
+    setBusy(true);
     try {
       await updateUserRole(user.id, pendingRole);
-      setUser({ ...user, role: pendingRole });
+      await refreshUser();
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       show('Role updated', 'success');
-    } catch (e) {
+    } catch {
       show('Failed to update role', 'error');
     } finally {
-      setRoleUpdating(false);
+      setBusy(false);
       setPendingRole(null);
     }
   };
 
-  const goToKycReview = async () => {
-    if (!user || kycNavLoading) return;
-    setKycNavLoading(true);
+  const togglePermission = async (value: boolean) => {
+    if (!user || permBusy) return;
+    setPermBusy(true);
+    queryClient.setQueryData(['admin', 'user', id], { ...user, can_manage_all_content: value });
     try {
-      // There's no "get KYC record by user id" endpoint — the admin list endpoint
-      // is filtered by status, so look across all three to find this user's record.
-      const [pending, approved, rejected] = await Promise.all([
-        adminListKYC('pending'),
-        adminListKYC('approved'),
-        adminListKYC('rejected'),
-      ]);
-      const record = [...pending.records, ...approved.records, ...rejected.records].find(
-        (r) => r.user_id === user.id
-      );
-      if (!record) {
-        show('No KYC record found for this user', 'error');
-        return;
-      }
-      router.push({ pathname: ROUTES.admin.kycReviewDetail, params: { id: record.id, from: 'user-detail' } });
-    } catch (e) {
-      show('Failed to load KYC record', 'error');
+      await updateTeacherPermissions(user.id, value);
+    } catch {
+      queryClient.setQueryData(['admin', 'user', id], user);
+      show('Failed to update permission', 'error');
     } finally {
-      setKycNavLoading(false);
+      setPermBusy(false);
     }
   };
 
-  if (loading) {
+  const openKyc = async () => {
+    if (!user || kycBusy) return;
+    setKycBusy(true);
+    try {
+      // No "KYC record by user" endpoint exists, so look across the three statuses.
+      const [p, a, r] = await Promise.all([adminListKYC('pending'), adminListKYC('approved'), adminListKYC('rejected')]);
+      const record = [...p.records, ...a.records, ...r.records].find((x) => x.user_id === user.id);
+      if (!record) return show('No KYC record found for this user', 'error');
+      router.push({ pathname: ROUTES.admin.kycReviewDetail, params: { id: record.id, from: 'user-detail' } });
+    } catch {
+      show('Failed to load KYC record', 'error');
+    } finally {
+      setKycBusy(false);
+    }
+  };
+
+  if (userQuery.isPending) {
     return (
       <Screen>
-        <ScreenHeader />
-        <View style={{ padding: space.md, alignItems: 'center' }}>
-          <SkeletonBlock height={72} radius={36} style={{ width: 72 }} />
+        <ScreenHeader title="User" />
+        <View style={{ padding: space.md, gap: space.sm }}>
+          <SkeletonBlock height={96} radius={radius.lg} />
+          <SkeletonBlock height={120} radius={radius.md} />
         </View>
       </Screen>
     );
   }
-
-  if (loadError || !user) {
+  if (userQuery.isError || !user) {
     return (
       <Screen>
-        <ScreenHeader />
+        <ScreenHeader title="User" />
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
           title="Couldn't load this user"
           description="Something went wrong fetching this user's details."
-          action={<TextButton label="Retry" onPress={loadUser} />}
+          action={<TextButton label="Retry" onPress={() => void userQuery.refetch()} />}
         />
       </Screen>
     );
   }
 
-  const displayName = user.name || 'Unknown User';
-  const initials = displayName.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
-
-  const memberSince = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown';
+  const name = user.name || 'Unknown user';
+  const initials = name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
+  const sub = subscription.data?.subscription ?? null;
+  const card = [{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }, shadow()];
+  const label = (t: string) => <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>{t}</Text>;
 
   return (
     <Screen>
-      <ScreenHeader title="User Detail" />
-
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={{ alignItems: 'center', marginTop: space.xl }}>
-          <View style={[styles.avatar, { width: 72, height: 72, borderRadius: 36, backgroundColor: color('accent/tint') }]}>
+      <ScreenHeader title="User" />
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom, gap: space.lg }} showsVerticalScrollIndicator={false}>
+        <View style={{ alignItems: 'center', marginTop: space.lg }}>
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
             <Text style={[type['type/h1'], { color: color('accent/default') }]}>{initials}</Text>
           </View>
-          <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.sm }]}>{displayName}</Text>
-          <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: 2 }]}>
-            {user.phone_number}
-          </Text>
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            Member since {memberSince}
+          <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.sm }]}>{name}</Text>
+          <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: 2 }]}>{user.phone_number}</Text>
+          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2, textTransform: 'capitalize' }]}>
+            {role} · member since {when(user.created_at)}
           </Text>
         </View>
 
-        <View
-          style={[
-            { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, marginTop: space.xl },
-            shadow(),
-          ]}
-        >
-          <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>
-            ROLE
-          </Text>
-          <View style={[styles.segmented, { backgroundColor: color('bg/sunken'), borderRadius: radius.pill, padding: 3 }]}>
-            {SEGMENTS.map((seg) => {
-              const active = user.role === seg;
-              return (
-                <Pressable
-                  key={seg}
-                  onPress={() => {
-                    if (seg !== user.role) setPendingRole(seg);
-                  }}
-                  style={[
-                    styles.segment,
-                    { borderRadius: radius.pill, backgroundColor: active ? color('accent/default') : 'transparent' },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      type['type/body-m-medium'],
-                      { color: active ? color('accent/on-accent') : color('text/secondary'), textTransform: 'capitalize' },
-                    ]}
-                  >
-                    {seg}
+        {role === 'student' ? (
+          <View>
+            {label('SUBSCRIPTION')}
+            <View style={card}>
+              {subscription.isPending ? (
+                <SkeletonBlock height={44} radius={radius.sm} />
+              ) : sub ? (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[type['type/h3'], { color: color('text/primary'), flex: 1 }]}>{sub.plan?.name ?? 'Plan'}</Text>
+                    <StatusBadge status={sub.status === 'active' ? 'published' : 'pending'} label={sub.status === 'active' ? 'Active' : sub.status} />
+                  </View>
+                  <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
+                    Until {when(sub.end_date)}{sub.auto_renew ? ' · renews automatically' : ''}
                   </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        {user.role === 'teacher' ? (
-          <View
-            style={[
-              styles.row,
-              { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
-            ]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={[type['type/body-l'], { color: color('text/primary') }]}>
-                Can manage all content
-              </Text>
-              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                Allows editing and reviewing other teachers&apos; content, not just their own.
+                </>
+              ) : (
+                <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>No active subscription.</Text>
+              )}
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.sm }]}>
+                Course: {user.selected_course?.name || 'none selected'}
               </Text>
             </View>
-            <Switch
-              value={canManageAllContent}
-              onValueChange={toggleCanManageAllContent}
-              disabled={permUpdating}
-              trackColor={{ false: color('border/strong'), true: color('accent/default') }}
-              thumbColor={color('bg/surface')}
-            />
-          </View>
-        ) : null}
-
-        {user.role === 'student' ? (
-          <View
-            style={[
-              { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
-            ]}
-          >
-            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Course</Text>
-            <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: 2 }]}>
-              {user.selected_course?.name || 'No course selected'}
-            </Text>
-            <View style={{ height: 1, backgroundColor: color('border/subtle'), marginVertical: space.sm }} />
-            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Subscription</Text>
-            <Text style={[type['type/body-m'], { color: color('text/tertiary'), marginTop: 2 }]}>
-              Not available in this view yet
-            </Text>
-          </View>
-        ) : null}
-
-        {user.role === 'student' ? (
-          <Pressable
-            onPress={goToKycReview}
-            disabled={kycNavLoading}
-            style={({ pressed }) => [
-              styles.row,
-              { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg, opacity: pressed || kycNavLoading ? 0.94 : 1 },
-            ]}
-          >
-            <Shield size={20} color={color('text/secondary')} />
-            <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
-              Identity Verification
-            </Text>
-            {user.kyc_status && user.kyc_status !== 'not_required' ? (
-              <StatusBadge
-                status={
-                  (user.kyc_status === 'approved' || user.kyc_status === 'rejected'
-                    ? user.kyc_status
-                    : 'pending') as BadgeStatus
-                }
-              />
+            {payments.length > 0 ? (
+              <View style={{ marginTop: space.xs, gap: space.xs }}>
+                {payments.slice(0, 3).map((p) => (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => router.push({ pathname: ROUTES.admin.paymentDetail, params: { id: p.id } })}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.94 : 1 }, shadow()]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{rupees(p.amount_paise)} · {p.subscription?.plan?.name ?? 'Payment'}</Text>
+                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{when(p.created_at)}</Text>
+                    </View>
+                    <Text style={[type['type/caption'], { color: color(p.status === 'captured' ? 'semantic/success' : p.status === 'failed' ? 'semantic/danger' : 'text/tertiary'), textTransform: 'capitalize', marginRight: space.xs }]}>{p.status}</Text>
+                    <CaretRight size={16} color={color('text/tertiary')} />
+                  </Pressable>
+                ))}
+                {payments.length > 3 ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{payments.length - 3} older payment{payments.length - 3 === 1 ? '' : 's'} are in the Payments tab.</Text> : null}
+              </View>
             ) : null}
-            <CaretRight size={18} color={color('text/tertiary')} style={{ marginLeft: space.xs }} />
-          </Pressable>
+          </View>
         ) : null}
 
-        <View
-          style={[
-            { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
-          ]}
-        >
-          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Last login</Text>
-          <Text style={[type['type/body-l'], { color: color('text/primary'), marginTop: 2 }]}>
-            {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'Never'}
-          </Text>
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
-            Active device count isn&apos;t available in this view yet
-          </Text>
+        {role === 'student' ? (
+          <View>
+            {label('VERIFICATION')}
+            <Pressable onPress={openKyc} disabled={kycBusy} accessibilityRole="button" style={({ pressed }) => [card, { flexDirection: 'row', alignItems: 'center', opacity: pressed || kycBusy ? 0.8 : 1 }]}>
+              <Shield size={20} color={color('text/secondary')} />
+              <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>Identity verification</Text>
+              {user.kyc_status && user.kyc_status !== 'not_required' ? (
+                <StatusBadge status={(user.kyc_status === 'approved' || user.kyc_status === 'rejected' ? user.kyc_status : 'pending') as BadgeStatus} />
+              ) : (
+                <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Not required</Text>
+              )}
+              <CaretRight size={18} color={color('text/tertiary')} style={{ marginLeft: space.xs }} />
+            </Pressable>
+          </View>
+        ) : null}
+
+        {role === 'teacher' ? (
+          <View>
+            {label('THEIR WORK')}
+            <View style={card}>
+              {made.isPending ? (
+                <SkeletonBlock height={40} radius={radius.sm} />
+              ) : (
+                <Pressable onPress={() => router.push({ pathname: ROUTES.admin.review, params: { segment: 'content' } })} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type['type/h3'], { color: color('text/primary') }]}>{made.data?.total ?? 0} test{made.data?.total === 1 ? '' : 's'} and lessons</Text>
+                    <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>{made.data?.live ?? 0} live · {made.data?.waiting ?? 0} waiting for review</Text>
+                  </View>
+                  <CaretRight size={18} color={color('text/tertiary')} />
+                </Pressable>
+              )}
+              <View style={{ height: 1, backgroundColor: color('border/subtle'), marginVertical: space.sm }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[type['type/body-l'], { color: color('text/primary') }]}>Can manage all content</Text>
+                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>Lets them edit and review other teachers’ content, not just their own.</Text>
+                </View>
+                <Switch value={!!user.can_manage_all_content} onValueChange={togglePermission} disabled={permBusy} trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        <View>
+          {label('DEVICES')}
+          <View style={card}>
+            {sessions.isPending ? (
+              <SkeletonBlock height={40} radius={radius.sm} />
+            ) : sessions.isError ? (
+              <TextButton label="Couldn’t load devices. Retry" onPress={() => void sessions.refetch()} />
+            ) : (sessions.data?.sessions ?? []).length === 0 ? (
+              <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Not signed in on any device.</Text>
+            ) : (
+              <View style={{ gap: space.sm }}>
+                {(sessions.data?.sessions ?? []).map((s) => (
+                  <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                    <DeviceMobile size={22} color={color('text/secondary')} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]} numberOfLines={1}>{s.device_info || 'Unknown device'}</Text>
+                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Last used {when(s.last_used_at)}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View>
+          {label('ADVANCED')}
+          <View style={card}>
+            <Text style={[type['type/body-l'], { color: color('text/primary') }]}>Role</Text>
+            <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>{ROLE_TEXT[role]}</Text>
+            <View style={{ flexDirection: 'row', backgroundColor: color('bg/sunken'), borderRadius: radius.pill, padding: 3, marginTop: space.sm, opacity: isMe ? 0.5 : 1 }}>
+              {ROLES.map((r) => {
+                const active = role === r;
+                return (
+                  <Pressable
+                    key={r}
+                    disabled={isMe}
+                    onPress={() => { if (r !== role) setPendingRole(r); }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    style={{ flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: active ? color('accent/default') : 'transparent' }}
+                  >
+                    <Text style={[type['type/body-m-medium'], { color: active ? color('accent/on-accent') : color('text/secondary'), textTransform: 'capitalize' }]}>{r}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {isMe ? <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>You can’t change your own role.</Text> : null}
+          </View>
         </View>
       </ScrollView>
 
       <ConfirmDialog
         visible={!!pendingRole}
-        title={`Change ${displayName}'s role to ${pendingRole}?`}
-        confirmLabel="Confirm"
-        loading={roleUpdating}
-        onConfirm={confirmRoleChange}
+        title={`Make ${name} a ${pendingRole}?`}
+        message={pendingRole ? `${ROLE_TEXT[pendingRole]}${pendingRole === 'admin' ? ' This gives them access to everything, including other people’s accounts.' : ''}` : undefined}
+        confirmLabel={pendingRole === 'admin' ? 'Make admin' : 'Confirm'}
+        tone={pendingRole === 'admin' ? 'danger' : 'default'}
+        loading={busy}
+        onConfirm={changeRole}
         onCancel={() => setPendingRole(null)}
       />
     </Screen>
   );
 }
-
-
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center' },
-  avatar: { alignItems: 'center', justifyContent: 'center' },
-  segmented: { flexDirection: 'row' },
-  segment: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center' },
-});
