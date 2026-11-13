@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CaretRight, Cards, Lightning, Lock, WarningCircle } from 'phosphor-react-native';
@@ -11,6 +11,8 @@ import { useDecks, useQuickPreview } from '@/src/queries/discover';
 import type { Deck } from '@/src/api/discover';
 import { ROUTES } from '@/src/navigation/routes';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
+
+const MAX_PAGES = 20;
 
 /**
  * Flashcard decks for the Learn tab. Decks always stay listed. Tapping one studies what is due
@@ -31,12 +33,17 @@ export function FlashcardDeckList({ query }: { query: string }) {
 
   const list = useDecks(user?.selected_course_id, debounced);
   const decks = list.data?.pages.flatMap((p) => p.decks) ?? [];
+  // Due-first ordering and the Quick review count need every deck, so keep paging until done
+  // (capped, so a runaway list can't loop forever). Searching narrows the list, so it follows the same rule.
+  const pagesLoaded = list.data?.pages.length ?? 0;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = list;
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage && pagesLoaded < MAX_PAGES) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, pagesLoaded]);
   const totalDue = decks.reduce((n, d) => n + (d.locked ? 0 : d.progress?.due ?? 0), 0);
   const quick = useQuickPreview(user?.selected_course_id, totalDue > 0);
   // Coming back from a study session changes every count, so refresh on focus.
-  const { refetch: refetchDecks } = list;
-  const { refetch: refetchQuick } = quick;
-  useRefetchOnFocus(useCallback(() => void Promise.all([refetchDecks(), refetchQuick()]), [refetchDecks, refetchQuick]));
+  useRefetchOnFocus(() => void Promise.all([list.refetch(), quick.refetch()]));
 
   if (list.isPending) {
     return (
@@ -169,7 +176,7 @@ export function FlashcardDeckList({ query }: { query: string }) {
           {dueDecks.map(renderDeck)}
           {dueDecks.length > 0 && otherDecks.length > 0 ? sectionLabel('ALL DECKS') : null}
           {otherDecks.map(renderDeck)}
-          {list.hasNextPage ? (
+          {list.hasNextPage && pagesLoaded >= MAX_PAGES ? (
             <SecondaryButton label={list.isFetchingNextPage ? 'Loading…' : 'Load more'} onPress={() => void list.fetchNextPage()} loading={list.isFetchingNextPage} />
           ) : null}
         </>
