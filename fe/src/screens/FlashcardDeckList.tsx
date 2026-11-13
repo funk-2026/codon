@@ -47,8 +47,8 @@ export function FlashcardDeckList({ query }: { query: string }) {
 
   if (list.isPending) {
     return (
-      <View style={{ gap: space.sm }}>
-        {[0, 1, 2].map((i) => <SkeletonBlock key={i} height={96} radius={radius.md} />)}
+      <View style={{ gap: space.xs }}>
+        {[0, 1, 2, 3].map((i) => <SkeletonBlock key={i} height={64} radius={radius.md} />)}
       </View>
     );
   }
@@ -82,11 +82,11 @@ export function FlashcardDeckList({ query }: { query: string }) {
         onPress={() => open(d, caughtUp)}
         accessibilityRole="button"
         accessibilityLabel={`${d.title}. ${d.card_count} cards.${d.locked ? ' Subscription required.' : d.progress ? ` ${d.progress.due} due, ${d.progress.new} new, ${learned} learned.` : ''}${caughtUp ? ' All caught up, opens revision.' : ''}`}
-        style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, gap: space.sm, opacity: pressed ? 0.94 : 1 }, shadow()]}
+        style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, gap: space.xs, opacity: pressed ? 0.94 : 1 }, shadow()]}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
-            <Cards size={24} color={color('accent/default')} weight="duotone" />
+          <View style={{ width: 40, height: 40, borderRadius: radius.sm, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
+            <Cards size={22} color={color('accent/default')} weight="duotone" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[type['type/h3'], { color: color('text/primary') }]} numberOfLines={1}>{d.title}</Text>
@@ -99,15 +99,15 @@ export function FlashcardDeckList({ query }: { query: string }) {
           ) : (
             <View
               style={{
-                paddingHorizontal: space.md,
-                paddingVertical: space.xs,
+                paddingHorizontal: space.sm,
+                paddingVertical: space['2xs'],
                 borderRadius: radius.pill,
                 backgroundColor: caughtUp ? 'transparent' : color('action/primary'),
                 borderWidth: caughtUp ? 1.5 : 0,
                 borderColor: color('accent/default'),
               }}
             >
-              <Text style={[type['type/body-m-medium'], { color: caughtUp ? color('accent/default') : color('action/on-primary') }]}>
+              <Text style={[type['type/caption'], { color: caughtUp ? color('accent/default') : color('action/on-primary'), fontWeight: '600' }]}>
                 {caughtUp ? 'Revise' : 'Study'}
               </Text>
             </View>
@@ -144,16 +144,16 @@ export function FlashcardDeckList({ query }: { query: string }) {
   );
 
   return (
-    <View style={{ gap: space.sm }}>
+    <View style={{ gap: space.xs }}>
       {totalDue > 0 && !debounced ? (
         <Pressable
           onPress={() => router.push({ pathname: ROUTES.student.flashcardStudy, params: { quick: '1' } })}
           accessibilityRole="button"
           accessibilityLabel={`Quick review, ${Math.min(totalDue, 10)} cards due`}
-          style={({ pressed }) => ({ backgroundColor: color('action/primary'), borderRadius: radius.lg, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.92 : 1 })}
+          style={({ pressed }) => ({ backgroundColor: color('action/primary'), borderRadius: radius.md, padding: space.sm, flexDirection: 'row', alignItems: 'center', gap: space.sm, opacity: pressed ? 0.92 : 1 })}
         >
-          <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-            <Lightning size={28} weight="fill" color={color('action/on-primary')} />
+          <View style={{ width: 40, height: 40, borderRadius: radius.sm, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+            <Lightning size={22} weight="fill" color={color('action/on-primary')} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[type['type/h3'], { color: color('action/on-primary') }]}>Quick review</Text>
