@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { BottomSheet, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
+import { BottomSheet, ErrorBanner, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { EmbedRoot } from '@/src/teacher/EmbedRoot';
 import { PresetEditorSheet } from '@/src/custom/PresetEditorSheet';
 import { useAppConfig } from '@/src/config/AppConfigContext';
 import {
@@ -28,7 +29,7 @@ const NICE: Record<string, string> = {
   'bookmarks.enabled': 'Bookmarks', 'reports.enabled': 'Question reports', 'ratings.enabled': 'Ratings', 'rich_content.math': 'Math rendering',
 };
 
-export default function CustomTestAdminRoute() {
+export function CustomTestAdminView({ embedded }: { embedded?: boolean }) {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -103,8 +104,8 @@ export default function CustomTestAdminRoute() {
   );
 
   return (
-    <Screen>
-      <ScreenHeader title="Custom test admin" />
+    <EmbedRoot embedded={embedded}>
+      {embedded ? null : <ScreenHeader title="Custom test admin" />}
 
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
         <Card title="Health (last 24 h)">
@@ -214,7 +215,7 @@ export default function CustomTestAdminRoute() {
         onClose={() => setEditing(null)}
         onSaved={(p) => setPresets((c) => ({ s: 'ready', d: c.d?.some((x) => x.id === p.id) ? c.d.map((x) => (x.id === p.id ? p : x)) : [...(c.d ?? []), p] }))}
       />
-    </Screen>
+    </EmbedRoot>
   );
 }
 
