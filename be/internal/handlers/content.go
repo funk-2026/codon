@@ -471,7 +471,8 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 //	@Tags			Admin
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Param			status		query		string	false	"Filter by status"	default(pending_review)
+//	@Param			status		query		string	false	"Filter by status, or all"	default(pending_review)
+//	@Param			uploader_id	query		string	false	"Only this uploader's items"
 //	@Param			course_id	query		string	false	"Filter by course ID"
 //	@Param			chapter_id	query		string	false	"Filter by chapter ID"
 //	@Success		200			{object}	listContentResponse
@@ -479,14 +480,21 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 //	@Failure		403			{object}	errorResponse
 //	@Router			/api/v1/admin/content [get]
 func (h *ContentHandler) AdminListContent(c *gin.Context) {
-	status, ok := statusParam(c)
-	if !ok {
-		return
-	}
 	courseID := c.Query("course_id")
 	chapterID := c.Query("chapter_id")
 
-	query := h.DB.WithContext(c.Request.Context()).Where("status = ?", status)
+	query := h.DB.WithContext(c.Request.Context())
+	// status=all lists every status; otherwise one status (default: pending_review).
+	if c.Query("status") != "all" {
+		status, ok := statusParam(c)
+		if !ok {
+			return
+		}
+		query = query.Where("status = ?", status)
+	}
+	if v := c.Query("uploader_id"); v != "" {
+		query = query.Where("uploaded_by = ?", v)
+	}
 
 	if courseID != "" {
 		query = query.Where("course_id = ?", courseID)

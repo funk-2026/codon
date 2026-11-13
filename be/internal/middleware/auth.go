@@ -41,6 +41,11 @@ func AuthMiddleware(sessionSvc *services.SessionService, db *gorm.DB) gin.Handle
 			return
 		}
 
+		if user.SuspendedAt != nil {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "account suspended", "code": "account_suspended"})
+			return
+		}
+
 		c.Set(ContextUser, &user)
 		c.Set(ContextSession, session)
 		c.Set(ContextUserID, user.ID)

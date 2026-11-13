@@ -142,6 +142,7 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 
 		// Payments
 		admin.GET("/payments", d.PaymentH.ListPayments)
+		admin.GET("/payments/summary", d.PaymentH.PaymentsSummary)
 		admin.GET("/payments/:id", d.PaymentH.GetPayment)
 
 		// KYC
@@ -163,6 +164,16 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 		admin.PATCH("/users/:id/teacher-permissions", d.AdminH.UpdateTeacherPermissions)
 		admin.GET("/users/:id/subscription", d.AdminH.GetUserSubscription)
 		admin.GET("/users/:id/sessions", d.AdminH.GetUserSessions)
+		admin.DELETE("/users/:id/sessions", d.AdminH.RevokeAllUserSessions)
+		admin.DELETE("/users/:id/sessions/:sid", d.AdminH.RevokeUserSession)
+		admin.POST("/users/:id/suspend", d.AdminH.SuspendUser)
+		admin.POST("/users/:id/reactivate", d.AdminH.ReactivateUser)
+		admin.POST("/users/:id/subscription/grant", d.AdminH.GrantAccess)
+		admin.GET("/users/:id/activity", d.AdminH.UserActivity)
+		admin.POST("/takedown/:kind/:id", d.AdminH.Takedown)
+		admin.GET("/audit-log", d.AdminH.ListAuditLog)
+		admin.GET("/feedback", d.AdminH.ListFeedback)
+		admin.PATCH("/feedback/:id", d.AdminH.UpdateFeedback)
 
 		// Dashboard
 		admin.GET("/dashboard/summary", d.AdminH.DashboardSummary)

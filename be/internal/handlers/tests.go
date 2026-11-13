@@ -965,19 +965,30 @@ func (h *TestHandler) AdminGetTest(c *gin.Context) {
 //	@Tags			Admin
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Param			status	query		string	false	"Filter by status"	default(pending_review)
+//	@Param			status		query		string	false	"Filter by status, or all"	default(pending_review)
+//	@Param			creator_id	query		string	false	"Only this author's tests"
+//	@Param			chapter_id	query		string	false	"Only this chapter's tests"
 //	@Success		200		{object}	listTestsResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
 //	@Router			/api/v1/admin/tests [get]
 func (h *TestHandler) AdminListTests(c *gin.Context) {
-	status, ok := statusParam(c)
-	if !ok {
-		return
+	q := h.DB.WithContext(c.Request.Context()).Where("origin = ?", models.OriginAuthored)
+	// status=all lists every status; otherwise one status (default: pending_review).
+	if c.Query("status") != "all" {
+		status, ok := statusParam(c)
+		if !ok {
+			return
+		}
+		q = q.Where("status = ?", status)
 	}
-	q := h.DB.WithContext(c.Request.Context()).
-		Where("status = ? AND origin = ?", status, models.OriginAuthored).
-		Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator")
+	if v := c.Query("creator_id"); v != "" {
+		q = q.Where("created_by = ?", v)
+	}
+	if v := c.Query("chapter_id"); v != "" {
+		q = q.Where("chapter_id = ?", v)
+	}
+	q = q.Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator")
 	tests, next, err := paged(c, q, "tests", testKey)
 	if err != nil {
 		httpx.Fail(c, err)

@@ -57,6 +57,9 @@ type User struct {
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
 	LastLoginAt         *time.Time `json:"last_login_at,omitempty"`
+	// SuspendedAt is set by an admin; a suspended user cannot sign in and every session is ended.
+	SuspendedAt     *time.Time `json:"suspended_at,omitempty"`
+	SuspendedReason *string    `gorm:"type:text" json:"suspended_reason,omitempty"`
 }
 
 type OTPRequest struct {
@@ -107,6 +110,11 @@ type UserFeedback struct {
 	AppVersion *string   `gorm:"type:text" json:"app_version,omitempty"`
 	DeviceOS   *string   `gorm:"type:text" json:"device_os,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
+	// Triage by an admin: new → in_progress → resolved.
+	Status     string     `gorm:"type:text;not null;default:'new'" json:"status"`
+	AdminNote  *string    `gorm:"type:text" json:"admin_note,omitempty"`
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
+	ResolvedBy *uuid.UUID `gorm:"type:uuid" json:"resolved_by,omitempty"`
 }
 
 // Validate UserRole

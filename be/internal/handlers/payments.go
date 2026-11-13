@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"codon-backend/internal/middleware"
@@ -192,6 +193,7 @@ func (h *PaymentHandler) RazorpayWebhook(c *gin.Context) {
 //	@Produce		json
 //	@Param			status	query		string	false	"Filter by status: created | captured | failed | refunded"
 //	@Param			user_id	query		string	false	"Filter by user UUID"
+//	@Param			search	query		string	false	"Payer name, phone or order id"
 //	@Success		200		{object}	listPaymentsResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
@@ -206,6 +208,11 @@ func (h *PaymentHandler) ListPayments(c *gin.Context) {
 	}
 	if userIDStr != "" {
 		query = query.Where("user_id = ?", userIDStr)
+	}
+	// ?search= matches the payer's name or phone, or the order id.
+	if search := strings.TrimSpace(c.Query("search")); search != "" {
+		like := "%" + search + "%"
+		query = query.Where("(user_id IN (SELECT id FROM users WHERE name ILIKE ? OR phone_number LIKE ?) OR razorpay_order_id ILIKE ?)", like, like, like)
 	}
 
 	payments, next, err := paged(c, query.Preload("User").Preload("Subscription.Plan"), "payment_records",
@@ -276,4 +283,33 @@ type webhookAckResponse struct {
 
 type listPaymentsResponse struct {
 	Payments []models.PaymentRecord `json:"payments"`
+}
+
+// PaymentsSummary godoc
+//
+//	@Summary		Totals over every payment (Admin)
+//	@Description	Captured amount and counts by outcome, across all payments (not just one page).
+//	@Tags			Subscriptions & Payments
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{object}	map[string]interface{}
+//	@Router			/api/v1/admin/payments/summary [get]
+func (h *PaymentHandler) PaymentsSummary(c *gin.Context) {
+	var out struct {
+		CapturedPaise int64 `json:"captured_paise"`
+		CapturedCount int64 `json:"captured_count"`
+		FailedCount   int64 `json:"failed_count"`
+		RefundedCount int64 `json:"refunded_count"`
+	}
+	err := h.DB.WithContext(c.Request.Context()).Raw(`
+		SELECT COALESCE(sum(amount_paise) FILTER (WHERE status = 'captured'), 0) AS captured_paise,
+		       count(*) FILTER (WHERE status = 'captured') AS captured_count,
+		       count(*) FILTER (WHERE status = 'failed')   AS failed_count,
+		       count(*) FILTER (WHERE status = 'refunded') AS refunded_count
+		FROM payment_records`).Scan(&out).Error
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, out)
 }

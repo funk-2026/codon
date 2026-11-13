@@ -97,8 +97,11 @@ func (h *AdminHandler) GetUser(c *gin.Context) {
 //	@Failure		404		{object}	errorResponse
 //	@Router			/api/v1/admin/users/{id}/role [patch]
 func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
-	_ = middleware.GetUser(c)
-	id := c.Param("id")
+	actor := middleware.GetUser(c)
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
+		return
+	}
 
 	var req updateRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -111,12 +114,34 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 		return
 	}
 
-	result := h.DB.WithContext(c.Request.Context()).
-		Model(&models.User{}).
-		Where("id = ?", id).
-		Update("role", req.Role)
-	if result.RowsAffected == 0 {
-		respondErr(c, http.StatusNotFound, "not_found", "user not found")
+	// Safeguards: nobody can change their own role, and the last admin can never be demoted.
+	if actor != nil && actor.ID == id {
+		respondErr(c, http.StatusConflict, "cannot_change_own_role", "you can't change your own role")
+		return
+	}
+
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var target models.User
+		if err := tx.Where("id = ?", id).First(&target).Error; err != nil {
+			return err
+		}
+		if target.Role == models.RoleAdmin && models.UserRole(req.Role) != models.RoleAdmin {
+			var admins int64
+			if err := tx.Model(&models.User{}).Where("role = ?", models.RoleAdmin).Count(&admins).Error; err != nil {
+				return err
+			}
+			if admins <= 1 {
+				return services.Conflict("last_admin", "there must always be at least one admin")
+			}
+		}
+		if err := tx.Model(&models.User{}).Where("id = ?", id).Update("role", req.Role).Error; err != nil {
+			return err
+		}
+		return auditAdmin(tx, actor, "user.role_change", "user:"+id.String(),
+			map[string]string{"role": string(target.Role)}, map[string]string{"role": req.Role})
+	})
+	if err != nil {
+		httpx.Fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, messageResponse{Message: "role updated"})
@@ -151,6 +176,10 @@ func (h *AdminHandler) UpdateTeacherPermissions(c *gin.Context) {
 	if result.RowsAffected == 0 {
 		respondErr(c, http.StatusNotFound, "not_found", "teacher not found")
 		return
+	}
+	if actor := middleware.GetUser(c); actor != nil {
+		_ = auditAdmin(h.DB.WithContext(c.Request.Context()), actor, "user.teacher_permissions", "user:"+id, nil,
+			map[string]bool{"can_manage_all_content": req.CanManageAllContent})
 	}
 	c.JSON(http.StatusOK, messageResponse{Message: "permissions updated"})
 }
