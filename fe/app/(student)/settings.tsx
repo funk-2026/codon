@@ -8,12 +8,10 @@ import { SecondaryButton, useToast, ScreenHeader, Screen, ConfirmDialog } from '
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { deleteAccount } from '@/src/api/profile';
-import { clearAdminActiveRole } from '@/src/auth/tokenStore';
 import { usePush } from '@/src/notifications/PushProvider';
 import { PracticeReminderRow } from '@/src/notifications/PracticeReminderRow';
 import { pushStatusCopy } from '@/src/notifications/logic';
 import { ROUTES } from '@/src/navigation/routes';
-import { useOpenRolePicker } from '@/src/navigation/useOpenRolePicker';
 
 const SOUND_EFFECTS_KEY = 'codon_pref_sound_effects';
 
@@ -71,7 +69,6 @@ function Row({
 export default function SettingsRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const openRolePicker = useOpenRolePicker();
   const insets = useSafeAreaInsets();
 
   const auth = useAuth();
@@ -183,7 +180,6 @@ export default function SettingsRoute() {
               </>
             ) : null}
             <PracticeReminderRow />
-            <Row label="Notification inbox" onPress={() => router.push(ROUTES.student.notifications)} />
           </View>
         </View>
 
@@ -194,26 +190,12 @@ export default function SettingsRoute() {
               label="Change Course"
               onPress={() => router.push({ pathname: ROUTES.auth.profileSetup as any, params: { edit: '1' } })}
             />
-            {auth.user?.role === 'admin' ? (
-              <Row
-                label="Switch Role"
-                onPress={async () => {
-                  await clearAdminActiveRole();
-                  openRolePicker();
-                }}
-              />
-            ) : null}
-            <Row
-              label="Manage Devices"
-              onPress={() => router.push(ROUTES.student.manageDevices)}
-            />
           </View>
         </View>
 
         <View style={{ marginTop: space.lg }}>
           <GroupLabel label="Support & Legal" />
           <View style={{ gap: space.xs }}>
-            <Row label="Give Feedback" onPress={() => router.push(ROUTES.student.giveFeedback)} />
             <Row label="Terms of Service" onPress={() => { }} />
             <Row label="Privacy Policy" onPress={() => { }} />
           </View>
