@@ -9,22 +9,26 @@ import Animated, {
 import {
   Stack,
   CaretRight,
-  Sliders,
   PlayCircle,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { CollapsingHeader, ErrorBanner, SegmentedControl, SkeletonBlock, useCollapsingHeader } from '@/src/components';
 import { CurriculumTree, TreeToolbar } from '@/src/screens/CurriculumTree';
+import { CUSTOM_STATE_CHIPS, CustomTestsPanel, type CustomStateFilter } from '@/src/screens/CustomTestsPanel';
 import { useAttempts } from '@/src/queries/attempts';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import type { StudentAttempt } from '@/src/api/attempts';
 import { useFlag } from '@/src/config/AppConfigContext';
-import { getModule, visibleModules } from '@/src/modules/registry';
+import { visibleModules } from '@/src/modules/registry';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
 type PracticeSegment = 'qbank' | 'test_series' | 'custom';
 const TREE_SEGMENTS = ['qbank', 'test_series'] as const;
+const SORT_CHIPS = [
+  { key: 'newest', label: 'Newest' },
+  { key: 'top', label: 'Top rated' },
+];
 const initialSegment = (k?: string): PracticeSegment =>
   k === 'test_series' || k === 'custom' ? k : 'qbank';
 
@@ -87,6 +91,7 @@ export default function PracticeHubRoute() {
   };
   const [query, setQuery] = useState('');
   const [topRated, setTopRated] = useState(false);
+  const [customState, setCustomState] = useState<CustomStateFilter>('all');
   const isTree = segment !== 'custom';
 
   return (
@@ -137,16 +142,25 @@ export default function PracticeHubRoute() {
 
         <View style={{ marginTop: space.lg }}>
           <SegmentedControl options={segments} value={segment} onChange={setSegment} />
-          {/* Toolbar slot: same place and height on every segment, so nothing jumps when switching */}
-          <View style={{ marginTop: space.md, minHeight: isTree ? undefined : 40, justifyContent: 'center' }}>
+          {/* One toolbar for every segment, so the container looks the same when switching */}
+          <View style={{ marginTop: space.md }}>
             {isTree ? (
               <TreeToolbar
                 query={query}
                 onQuery={setQuery}
-                sort={{ topRated, onChange: setTopRated }}
+                chips={{
+                  options: SORT_CHIPS,
+                  value: topRated ? 'top' : 'newest',
+                  onChange: (k) => setTopRated(k === 'top'),
+                }}
               />
             ) : (
-              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{getModule('custom').descriptor}</Text>
+              <TreeToolbar
+                query={query}
+                onQuery={setQuery}
+                placeholder="Search my custom tests"
+                chips={{ options: CUSTOM_STATE_CHIPS, value: customState, onChange: (k) => setCustomState(k as CustomStateFilter) }}
+              />
             )}
           </View>
           <View style={{ marginTop: space.md }}>
@@ -156,32 +170,7 @@ export default function PracticeHubRoute() {
                 <CurriculumTree kind={k} query={query} topRated={topRated} />
               </View>
             ))}
-            {segment === 'custom' ? (
-              <View style={{ gap: space.sm }}>
-                <Pressable
-                  onPress={() => router.push(ROUTES.student.customBuilder)}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
-                >
-                  <View style={{ width: 48, height: 48, backgroundColor: color('accent/tint'), borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}>
-                    <Sliders size={28} color={color('accent/default')} weight="duotone" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[type['type/h3'], { color: color('text/primary') }]}>Build a custom test</Text>
-                    <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>{getModule('custom').descriptor}</Text>
-                  </View>
-                  <CaretRight size={20} color={color('text/tertiary')} />
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push(ROUTES.student.customTests)}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.94 : 1 }, shadow()]}
-                >
-                  <Text style={[type['type/body-m-medium'], { color: color('text/primary'), flex: 1 }]}>My custom tests and templates</Text>
-                  <CaretRight size={20} color={color('text/tertiary')} />
-                </Pressable>
-              </View>
-            ) : null}
+            {segment === 'custom' ? <CustomTestsPanel query={query} state={customState} /> : null}
           </View>
         </View>
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   CaretDown,
@@ -47,15 +47,17 @@ function leafIcon(kind: TreeKind, ink: string) {
   return <Exam size={20} color={ink} weight="duotone" />;
 }
 
-/** Search box (and, for tests, the sort chips) shown above the tree. Lives outside it so it stays put across segments. */
+/** Search box plus an optional row of filter chips, shown above a list. Lives outside the list so it stays put across segments. */
 export function TreeToolbar({
   query,
   onQuery,
-  sort,
+  placeholder = 'Search subjects and chapters',
+  chips,
 }: {
   query: string;
   onQuery: (q: string) => void;
-  sort?: { topRated: boolean; onChange: (topRated: boolean) => void };
+  placeholder?: string;
+  chips?: { options: { key: string; label: string }[]; value: string; onChange: (key: string) => void };
 }) {
   const { color, type, space, radius } = useTheme();
   return (
@@ -65,16 +67,17 @@ export function TreeToolbar({
         <TextInput
           value={query}
           onChangeText={onQuery}
-          placeholder="Search subjects and chapters"
+          placeholder={placeholder}
           placeholderTextColor={color('text/tertiary')}
           style={[inputText(type['type/body-m']), { color: color('text/primary'), flex: 1, marginLeft: space.xs, paddingVertical: space.sm }]}
         />
       </View>
-      {sort ? (
-        <View style={{ flexDirection: 'row', gap: space.xs, marginTop: space.sm }}>
-          <Chip size="sm" label="Newest" selected={!sort.topRated} onPress={() => sort.onChange(false)} />
-          <Chip size="sm" label="Top rated" selected={sort.topRated} onPress={() => sort.onChange(true)} />
-        </View>
+      {chips ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.sm }} contentContainerStyle={{ gap: space.xs }}>
+          {chips.options.map((o) => (
+            <Chip key={o.key} size="sm" label={o.label} selected={chips.value === o.key} onPress={() => chips.onChange(o.key)} />
+          ))}
+        </ScrollView>
       ) : null}
     </View>
   );
