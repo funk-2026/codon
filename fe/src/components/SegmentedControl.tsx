@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 
 export type SegmentedControlProps<T extends string> = {
-  options: { key: T; label: string }[];
+  options: { key: T; label: string; /** A small count next to the label, shown when above zero. */ badge?: number }[];
   value: T;
   onChange: (key: T) => void;
   /** Colour of the selected label; the wellness area uses its own accent. */
@@ -35,12 +35,19 @@ export function SegmentedControl<T extends string>({ options, value, onChange, a
               backgroundColor: selected ? color('bg/surface') : 'transparent',
             }}
           >
-            <Text
-              numberOfLines={1}
-              style={[type['type/body-m-medium'], { color: selected ? color(accent) : color('text/secondary') }]}
-            >
-              {o.label}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text
+                numberOfLines={1}
+                style={[type['type/body-m-medium'], { color: selected ? color(accent) : color('text/secondary'), flexShrink: 1 }]}
+              >
+                {o.label}
+              </Text>
+              {o.badge && o.badge > 0 ? (
+                <View style={{ minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: color('semantic/danger') }}>
+                  <Text style={[type['type/caption'], { color: color('text/inverse'), fontSize: 11, lineHeight: 14 }]}>{o.badge > 99 ? '99+' : o.badge}</Text>
+                </View>
+              ) : null}
+            </View>
           </Pressable>
         );
       })}
