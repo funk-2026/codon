@@ -1,6 +1,6 @@
 # Admin: product gaps and flaws (2026-11-14)
 
-A product review of the admin role after the UX rework, from the frontend code and the backend route list. **Nothing here has been fixed yet.** "Verified" means I read the code that proves it; "to check" means it is likely but I haven't confirmed it.
+A product review of the admin role after the UX rework, from the frontend code and the backend route list. **See "Status after the fixes" at the end: most of this has since been built.** "Verified" means I read the code that proves it; "to check" means it is likely but I haven't confirmed it.
 
 ## P0: things that are wrong today
 
@@ -52,3 +52,34 @@ A product review of the admin role after the UX rework, from the frontend code a
 2. **P0 #2 and #14: role safeguards and an audit log** (backend), then **#3: a feedback inbox** (small backend route plus a screen).
 3. **P1 #4 to #9** in the app, starting with Home updates and plan delete.
 4. **P2 #11, #12, #10, #13** (sign-out, grant access, suspend, take down) as one backend batch, each recorded in the audit log.
+
+## Corrections to this review (found while fixing)
+
+- **Pages are 200 rows, not 25.** The shared `paged` helper returns up to 200 rows per page. The 25 I quoted belongs to a different helper. The fix is still needed, but the effect was smaller than written above.
+- **An audit log already existed** (`admin_audit_logs`), written by tag merges, personal-data erasure, settings, custom-test presets, bookmark collections and question corrections. What was missing is writes for role changes, permissions and the new actions, and any way to read it.
+- **"Delete a plan" is not a gap.** The backend's delete only deactivates the plan, which the Active switch already does.
+- **A bigger bug was hiding underneath:** the admin tests and content lists return one status at a time and default to pending review. Course structure and my teacher counts called them without a status, so they only ever saw items awaiting review.
+
+## Status after the fixes
+
+**Frontend, built and tested (type-check, route check, unit tests):**
+- Every list reads all pages; Users and Payments page with Load more and use server search and filters; Review follows every page; Reports and Edits show "N+"; Payments summary uses a server total.
+- Course structure and teacher counts list items of every status (`status=all`, with a per-status fallback on an older server).
+- User detail: activity, sign out of a device or everywhere, give or extend access, suspend and reactivate, account history, erase personal data.
+- New screens: **Audit log**, **User feedback**, **Home banners**.
+- Course structure: rename subjects and chapters, take a live test or lesson down.
+- Reports: reassign to a teacher. Plans: confirmation when turning a plan off, a note that edits apply to new purchases, and the price is rounded before it is sent.
+
+**Backend, written but NOT compiled or run** (no Go toolchain in the environment where this was done). Before release run `go build ./...`, `go vet ./...` and `go test ./internal/router/...`; tests were added in `internal/router/admin_ops_test.go`.
+- Role change refuses changing your own role and demoting the last admin, and is audited; teacher permission changes are audited.
+- Suspend and reactivate (new `suspended_at` columns, migration `0006`, enforced at sign-in and on every request); sign out one device or all; give or extend access; per-user activity.
+- Take down published tests, lessons, Brain Hacks and decks.
+- Read the audit log; read and triage feedback (new status columns).
+- `status=all` plus `creator_id`, `uploader_id` and `chapter_id` filters; payments `search` and `/admin/payments/summary`.
+
+**Still open**
+- **Audit coverage:** KYC decisions, content approvals and rejections, plan and subject edits are not yet written to the audit log.
+- **Take-down screens for Brain Hacks and decks:** the endpoint supports them; the app only offers it for tests and lessons.
+- **Admin notifications** when something is waiting, **announcements**, **refunds and reconciliation**, **exports**, **create a course**, **invite a teacher by phone**.
+- **Deleting a subject or chapter** (there is no backend delete).
+- **A signed-in user who gets suspended** sees the generic error until their next request; there is no dedicated "your account was suspended" screen.
