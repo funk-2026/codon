@@ -23,6 +23,8 @@ export type ModuleDefinition = {
   flag?: string;
   /** Where the module's hub card leads. */
   hubRoute: { pathname: string; params?: Record<string, string> };
+  /** Students see this type as another module (Practice sets show up under Q Bank). */
+  foldInto?: ModuleKey;
 };
 
 const DEFINITIONS: Record<ModuleKey, ModuleDefinition> = {
@@ -30,19 +32,19 @@ const DEFINITIONS: Record<ModuleKey, ModuleDefinition> = {
     key: 'qbank', label: 'Q Bank', shortLabel: 'Q Bank',
     descriptor: 'Topic-wise questions to build your foundation, chapter by chapter.',
     canRetake: true, teacherCreatable: true,
-    hubRoute: { pathname: ROUTES.student.practiceHierarchy, params: { kind: 'qbank' } },
+    hubRoute: { pathname: ROUTES.student.practice, params: { kind: 'qbank' } },
   },
   test_series: {
     key: 'test_series', label: 'Test Series', shortLabel: 'Test Series',
     descriptor: 'Full-length, exam-pattern tests that simulate the real thing.',
     canRetake: false, teacherCreatable: true,
-    hubRoute: { pathname: ROUTES.student.practiceHierarchy, params: { kind: 'test_series' } },
+    hubRoute: { pathname: ROUTES.student.practice, params: { kind: 'test_series' } },
   },
   practice: {
     key: 'practice', label: 'Practice', shortLabel: 'Practice',
     descriptor: 'Short, low-pressure sets to warm up or review a single topic.',
-    canRetake: true, teacherCreatable: true,
-    hubRoute: { pathname: ROUTES.student.practiceHierarchy, params: { kind: 'practice' } },
+    canRetake: true, teacherCreatable: true, foldInto: 'qbank',
+    hubRoute: { pathname: ROUTES.student.practice, params: { kind: 'qbank' } },
   },
   custom: {
     key: 'custom', label: 'Custom Test', shortLabel: 'Custom',
@@ -74,7 +76,18 @@ export function teacherModules(): ModuleDefinition[] {
   return MODULE_ORDER.map((k) => DEFINITIONS[k]).filter((m) => m.teacherCreatable);
 }
 
-/** Modules visible to a user given the current flags. */
+/** Modules a student sees (folded types are hidden), given the current flags. */
 export function visibleModules(flagOn: (flag: string) => boolean): ModuleDefinition[] {
-  return MODULE_ORDER.map((k) => DEFINITIONS[k]).filter((m) => !m.flag || flagOn(m.flag));
+  return MODULE_ORDER.map((k) => DEFINITIONS[k]).filter((m) => !m.foldInto && (!m.flag || flagOn(m.flag)));
+}
+
+/** The module a student sees a test under (a Practice set reads as Q Bank). */
+export function studentModule(key: string | undefined | null): ModuleDefinition {
+  const m = getModule(key);
+  return m.foldInto ? DEFINITIONS[m.foldInto] : m;
+}
+
+/** `module_type` values to request for one student-facing module (Q Bank also covers Practice sets). */
+export function moduleTypesFor(key: string): string[] {
+  return MODULE_ORDER.filter((k) => k === key || DEFINITIONS[k].foldInto === key);
 }

@@ -4,6 +4,7 @@ import { getCurriculum, listCourses } from '@/src/api/courses';
 import { getChapterContent, getContentItem } from '@/src/api/content';
 import { ApiError } from '@/src/api/client';
 import { listTests } from '@/src/api/tests';
+import { moduleTypesFor } from '@/src/modules/registry';
 import { keys } from './keys';
 import { useMe } from './profile';
 
@@ -41,8 +42,22 @@ export const useChapterTests = (
 ) =>
   useQuery({
     queryKey: keys.chapterTests(chapterId, kind, topRated),
-    queryFn: () =>
-      listTests({ chapter_id: chapterId, module_type: kind, sort: topRated ? 'rating' : undefined }),
+    queryFn: async () => {
+      // A student-facing module can cover several backend types (Q Bank also lists Practice sets).
+      const types = kind ? moduleTypesFor(kind) : [undefined];
+      const sort = topRated ? ('rating' as const) : undefined;
+      const results = await Promise.all(
+        types.map((module_type) => listTests({ chapter_id: chapterId, module_type, sort })),
+      );
+      if (results.length === 1) return results[0];
+      const tests = results.flatMap((r) => r.tests);
+      tests.sort(
+        topRated
+          ? (a, b) => (b.rating_avg ?? 0) - (a.rating_avg ?? 0) || (b.rating_count ?? 0) - (a.rating_count ?? 0)
+          : (a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''),
+      );
+      return { tests };
+    },
     enabled: enabled && !!chapterId,
   });
 

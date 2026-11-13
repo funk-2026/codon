@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getAttempts, getRecentContent } from '@/src/api/profile';
 import { getAttemptResult } from '@/src/api/attempts';
 import { ApiError } from '@/src/api/client';
-import { getModule } from '@/src/modules/registry';
+import { studentModule } from '@/src/modules/registry';
 import type { StudentAttempt } from '@/src/api/attempts';
 import { keys } from './keys';
 
@@ -37,7 +37,7 @@ export const useAttemptHistory = () =>
           if (diffDays < 1) group = 'Today';
           else if (diffDays < 7) group = 'This Week';
           
-          const module = getModule(a.test?.module_type).label;
+          const module = studentModule(a.test?.module_type).label;
 
           return {
             id: a.id,
