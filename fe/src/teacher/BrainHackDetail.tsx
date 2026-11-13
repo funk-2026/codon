@@ -23,7 +23,7 @@ const BADGE: Record<TeacherBrainHack['status'], { status: BadgeStatus; label: st
  * Teacher: one Brain Hack and its lifecycle — edit (draft/rejected), submit,
  * publish once approved, delete. Reloads on focus so edits made in the editor show.
  */
-export default function TeacherBrainHackDetailRoute() {
+export function BrainHackDetail() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const goBack = useSafeBack();
