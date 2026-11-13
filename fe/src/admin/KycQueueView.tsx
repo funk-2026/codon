@@ -1,62 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { Check, X, CheckCircle, WarningCircle, Shield, ClipboardText, PlayCircle, CaretRight, FlagBanner, PencilSimpleLine, Lightbulb } from 'phosphor-react-native';
-import { EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, useToast, Screen, TAB_EDGES } from '@/src/components';
+import { Check, X, CheckCircle, WarningCircle } from 'phosphor-react-native';
+import { EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { adminListKYC, adminApproveKYC, adminRejectKYC, getAdminDashboardSummary } from '@/src/api/admin';
+import { adminListKYC, adminApproveKYC, adminRejectKYC } from '@/src/api/admin';
 import type { KYCRecord } from '@/src/api/kyc';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-
-
-function ApprovalNavCard({
-  icon,
-  label,
-  count,
-  current,
-  onPress,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  count?: number;
-  current?: boolean;
-  onPress?: () => void;
-}) {
-  const { color, type, space, radius } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      style={({ pressed }) => [
-        styles.navCard,
-        {
-          backgroundColor: color('bg/surface'),
-          borderRadius: radius.md,
-          padding: space.sm,
-          opacity: pressed ? 0.94 : 1,
-          borderWidth: current ? 1 : 0,
-          borderColor: color('accent/default'),
-        },
-        shadow(),
-      ]}
-    >
-      {icon}
-      <Text style={[type['type/body-m-medium'], { color: color('text/primary'), marginTop: space.xs }]} numberOfLines={1}>
-        {label}
-      </Text>
-      <View style={[styles.navCardFooter, { marginTop: 2 }]}>
-        <Text style={[type['type/caption'], { color: count ? color('semantic/warning') : color('text/tertiary') }]}>
-          {count != null ? `${count} pending` : current ? 'Viewing' : ''}
-        </Text>
-        {onPress ? <CaretRight size={14} color={color('text/tertiary')} /> : null}
-      </View>
-    </Pressable>
-  );
-}
 
 
 function QueueRow({
@@ -132,7 +86,7 @@ function QueueRow({
   );
 }
 
-export default function KycReviewQueueRoute() {
+export function KycQueueView() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -140,16 +94,9 @@ export default function KycReviewQueueRoute() {
 
   const [rejectTarget, setRejectTarget] = useState<KYCRecord | null>(null);
   const [reason, setReason] = useState('');
-  const [otherCounts, setOtherCounts] = useState<{ tests?: number; content?: number }>({});
-
-  useEffect(() => {
-    getAdminDashboardSummary()
-      .then(res => setOtherCounts({ tests: res.pending_test_reviews, content: res.pending_content_reviews }))
-      .catch(() => {});
-  }, []);
 
   const queryClient = useQueryClient();
-  const loadQuery = useQuery({ queryKey: ['app-admin-tabs-review-tsx'], queryFn: () =>
+  const loadQuery = useQuery({ queryKey: ['admin','kyc','pending'], queryFn: () =>
       adminListKYC('pending').then((res) => {
         return res.records || [];
       }) });
@@ -158,12 +105,13 @@ export default function KycReviewQueueRoute() {
   const loadError = loadQuery.isError;
   const fetchRecords = () => void loadQuery.refetch();
   const setEntries = (u: typeof entries | ((p: typeof entries) => typeof entries)) =>
-    queryClient.setQueryData(['app-admin-tabs-review-tsx'], (old: typeof entries | undefined) => (typeof u === 'function' ? u(old ?? []) : u));
+    queryClient.setQueryData(['admin','kyc','pending'], (old: typeof entries | undefined) => (typeof u === 'function' ? u(old ?? []) : u));
 
   const approve = async (id: string) => {
     try {
       await adminApproveKYC(id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       show('Approved', 'success');
     } catch (e) {
       show('Failed to approve', 'error');
@@ -175,6 +123,7 @@ export default function KycReviewQueueRoute() {
     try {
       await adminRejectKYC(rejectTarget.id, reason.trim());
       setEntries((prev) => prev.filter((e) => e.id !== rejectTarget.id));
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       show('Rejected', 'success');
     } catch (e) {
       show('Failed to reject', 'error');
@@ -185,61 +134,7 @@ export default function KycReviewQueueRoute() {
   };
 
   return (
-    <Screen edges={TAB_EDGES}>
-      <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
-        <Text style={[type['type/h1'], { color: color('text/primary') }]}>Approvals</Text>
-        <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
-          Everything waiting on your review, in one place.
-        </Text>
-      </View>
-
-      <View style={[styles.navCardRow, { paddingHorizontal: space.md, marginTop: space.md, gap: space.sm }]}>
-        <ApprovalNavCard
-          icon={<Shield size={22} color={color('accent/default')} weight="duotone" />}
-          label="KYC Review"
-          count={entries.length > 0 ? entries.length : undefined}
-          current
-        />
-        <ApprovalNavCard
-          icon={<ClipboardText size={22} color={color('accent/default')} weight="duotone" />}
-          label="Test Approvals"
-          count={otherCounts.tests}
-          onPress={() => router.push(ROUTES.admin.moderationTests)}
-        />
-        <ApprovalNavCard
-          icon={<PlayCircle size={22} color={color('accent/default')} weight="duotone" />}
-          label="Content Approvals"
-          count={otherCounts.content}
-          onPress={() => router.push(ROUTES.admin.moderationVideosDocs)}
-        />
-      </View>
-      <View style={[styles.navCardRow, { paddingHorizontal: space.md, marginTop: space.sm, gap: space.sm }]}>
-        <ApprovalNavCard
-          icon={<FlagBanner size={22} color={color('accent/default')} weight="duotone" />}
-          label="Question Reports"
-          onPress={() => router.push(ROUTES.admin.reportsQueue)}
-        />
-        <ApprovalNavCard
-          icon={<PencilSimpleLine size={22} color={color('accent/default')} weight="duotone" />}
-          label="Corrections"
-          onPress={() => router.push(ROUTES.admin.correctionsQueue)}
-        />
-        <ApprovalNavCard
-          icon={<Lightbulb size={22} color={color('accent/default')} weight="duotone" />}
-          label="Hacks & Flashcards"
-          onPress={() => router.push(ROUTES.admin.contentQueue)}
-        />
-      </View>
-
-      <Text
-        style={[
-          type['type/overline'],
-          { color: color('text/tertiary'), paddingHorizontal: space.md, marginTop: space.xl },
-        ]}
-      >
-        KYC REVIEW — {entries.length} PENDING
-      </Text>
-
+    <View style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space['3xl'] + insets.bottom, gap: space.sm }}
         showsVerticalScrollIndicator={false}
@@ -297,14 +192,11 @@ export default function KycReviewQueueRoute() {
           </View>
         </View>
       </Modal>
-    </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  navCardRow: { flexDirection: 'row' },
-  navCard: { flex: 1 },
-  navCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   row: { flexDirection: 'row', alignItems: 'center' },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   idBadge: { paddingVertical: 2 },

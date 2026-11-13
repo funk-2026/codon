@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { PencilSimpleLine, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
+import { BottomSheet, Chip, EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ApiError } from '@/src/api/client';
 import { approveCorrection, listAdminCorrections, rejectCorrection, type CorrectionQueueRow } from '@/src/api/moderation';
 import { RichContent } from '@/src/rich';
 import { useCursorList } from '@/src/queries/useCursorList';
+import { useQueryClient } from '@tanstack/react-query';
+import { EmbedRoot } from '@/src/teacher/EmbedRoot';
 
 const FIELDS: { key: string; label: string; rich?: boolean }[] = [
   { key: 'question_text', label: 'Question', rich: true },
@@ -18,9 +19,9 @@ const FIELDS: { key: string; label: string; rich?: boolean }[] = [
   { key: 'difficulty', label: 'Difficulty' },
 ];
 
-export default function CorrectionsQueueRoute() {
+export function CorrectionsQueueView({ embedded }: { embedded?: boolean }) {
   const { color, type, space, radius } = useTheme();
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const [status, setStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
@@ -41,6 +42,7 @@ export default function CorrectionsQueueRoute() {
     try {
       await approveCorrection(r.id);
       setRows((p) => p.filter((x) => x.id !== r.id));
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       show('Approved and applied. Open reports on this question were resolved.', 'success');
     } catch (e) {
       show(e instanceof ApiError && e.status === 409 ? 'This was already reviewed or the question changed. Refreshing…' : 'Couldn’t approve. Try again.', 'error');
@@ -56,6 +58,7 @@ export default function CorrectionsQueueRoute() {
     try {
       await rejectCorrection(rejecting.id, reason.trim());
       setRows((p) => p.filter((x) => x.id !== rejecting.id));
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       setRejecting(null);
       setReason('');
     } catch {
@@ -65,19 +68,12 @@ export default function CorrectionsQueueRoute() {
     }
   };
 
-  const chip = (on: boolean) => ({
-    minHeight: 36, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center' as const,
-    backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle'),
-  });
-
   return (
-    <Screen>
-      <ScreenHeader title="Corrections" />
+    <EmbedRoot embedded={embedded}>
+      {embedded ? null : <ScreenHeader title="Corrections" />}
       <View style={{ flexDirection: 'row', gap: space.xs, paddingHorizontal: space.md, marginTop: space.sm }}>
         {(['pending', 'approved', 'rejected'] as const).map((s) => (
-          <Pressable key={s} onPress={() => setStatus(s)} accessibilityRole="button" accessibilityState={{ selected: status === s }} style={chip(status === s)}>
-            <Text style={[type['type/caption'], { color: status === s ? color('accent/default') : color('text/secondary'), textTransform: 'capitalize' }]}>{s}</Text>
-          </Pressable>
+          <Chip key={s} size="sm" label={s.charAt(0).toUpperCase() + s.slice(1)} selected={status === s} onPress={() => setStatus(s)} />
         ))}
       </View>
 
@@ -136,6 +132,6 @@ export default function CorrectionsQueueRoute() {
           <PrimaryButton label="Reject" onPress={reject} loading={!!busy} disabled={reason.trim().length < 3} />
         </View>
       </BottomSheet>
-    </Screen>
+    </EmbedRoot>
   );
 }

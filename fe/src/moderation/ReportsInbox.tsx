@@ -58,6 +58,7 @@ export function ReportsInbox({ role, embedded }: { role: 'teacher' | 'admin'; em
       setRows((p) => (status === 'open' ? p.filter((r) => r.id !== acting.row.id) : p.map((r) => (r.id === acting.row.id ? { ...r, status: acting.outcome } : r))));
       // The red count on the Reports segment and on Home comes from this query; it must drop now, not on the next focus.
       void queryClient.invalidateQueries({ queryKey: ['teacher', 'inbox'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       setActing(null);
       setNote('');
       show('Report resolved — the student will be notified.', 'success');

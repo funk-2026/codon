@@ -24,11 +24,14 @@ import {
   adminGetTest,
 } from '@/src/api/admin';
 import type { AuthoredQuestion } from '@/src/api/tests';
-import { QuestionPreviewCard, type MediaMap } from '@/src/rich';
+import { QuestionPreviewCard, RichContent, type MediaMap } from '@/src/rich';
+import { adminApproveBrainHack, adminApproveDeck, adminGetDeck, adminListBrainHacks, adminRejectBrainHack, adminRejectDeck, type AdminBrainHack } from '@/src/api/contentReview';
+import type { TeacherCard } from '@/src/api/flashcardsTeacher';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 import { shadow } from '@/src/theme/elevation';
 
-type ItemType = 'test' | 'Videos' | 'Documents' | 'Brain Hacks';
+type ItemType = 'test' | 'Videos' | 'Documents' | 'Brain Hacks' | 'Decks';
 
 const QUESTION_OPTIONS: { letter: string; key: 'option_a' | 'option_b' | 'option_c' | 'option_d' }[] = [
   { letter: 'A', key: 'option_a' },
@@ -69,6 +72,9 @@ export default function ContentPreviewDetailRoute() {
   const [questions, setQuestions] = useState<AuthoredQuestion[]>([]);
   const [questionMedia, setQuestionMedia] = useState<MediaMap>({});
   const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
+  const [hack, setHack] = useState<AdminBrainHack | null>(null);
+  const [deckCards, setDeckCards] = useState<TeacherCard[]>([]);
+  const queryClient = useQueryClient();
 
   const loadPreview = useCallback(() => {
     if (!id) {
@@ -85,7 +91,15 @@ export default function ContentPreviewDetailRoute() {
           })
         : itemType === 'Videos' || itemType === 'Documents'
           ? adminGetContent(id).then((res) => setPreviewUrl(res.url))
-          : Promise.resolve();
+          : itemType === 'Brain Hacks'
+            ? adminListBrainHacks().then((res) => {
+                setHack(res.brain_hacks.find((h) => h.id === id) ?? null);
+                setQuestionMedia(res.media ?? {});
+              })
+            : adminGetDeck(id).then((res) => {
+                setDeckCards(res.cards);
+                setQuestionMedia(res.media ?? {});
+              });
     run.catch(() => setPreviewError(true)).finally(() => setPreviewLoading(false));
   }, [id, itemType]);
 
@@ -103,7 +117,12 @@ export default function ContentPreviewDetailRoute() {
         await adminApproveTest(id);
       } else if (itemType === 'Videos' || itemType === 'Documents') {
         await adminApproveContent(id);
+      } else if (itemType === 'Brain Hacks') {
+        await adminApproveBrainHack(id);
+      } else {
+        await adminApproveDeck(id);
       }
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       show('Approved', 'success');
       goBack();
     } catch (err) {
@@ -121,7 +140,12 @@ export default function ContentPreviewDetailRoute() {
         await adminRejectTest(id, reason);
       } else if (itemType === 'Videos' || itemType === 'Documents') {
         await adminRejectContent(id, reason);
+      } else if (itemType === 'Brain Hacks') {
+        await adminRejectBrainHack(id, reason.trim());
+      } else {
+        await adminRejectDeck(id, reason.trim());
       }
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       setRejectOpen(false);
       setReason('');
       show('Rejected — teacher has been notified.', 'success');
@@ -152,7 +176,7 @@ export default function ContentPreviewDetailRoute() {
             shadow(),
           ]}
         >
-          <StatusBadge status="pending" label={itemType === 'test' ? 'Test' : itemType} />
+          <StatusBadge status="pending" label={itemType === 'test' ? 'Test' : itemType === 'Brain Hacks' ? 'Brain Hack' : itemType === 'Decks' ? 'Flashcard deck' : itemType} />
           <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.sm }]}>{title}</Text>
           {breadcrumb ? (
             <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>{breadcrumb}</Text>
@@ -174,19 +198,7 @@ export default function ContentPreviewDetailRoute() {
           ) : null}
         </View>
 
-        {itemType === 'Brain Hacks' ? (
-          <View
-            style={[
-              styles.noticeBox,
-              { backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.md, marginTop: space.lg },
-            ]}
-          >
-            <Info size={18} color={color('text/tertiary')} />
-            <Text style={[type['type/body-m'], { color: color('text/secondary'), flex: 1, marginLeft: space.sm }]}>
-              Brain hack content preview isn’t available in this view yet.
-            </Text>
-          </View>
-        ) : previewLoading ? (
+        {previewLoading ? (
           <SkeletonBlock height={itemType === 'Videos' ? 200 : 120} radius={radius.md} style={{ marginTop: space.lg }} />
         ) : previewError ? (
           <EmptyState
@@ -196,6 +208,27 @@ export default function ContentPreviewDetailRoute() {
             action={<TextButton label="Retry" onPress={loadPreview} />}
             style={{ marginTop: space.lg }}
           />
+        ) : itemType === 'Brain Hacks' ? (
+          hack ? (
+            <View style={{ marginTop: space.lg, gap: space.sm }}>
+              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{hack.category} · {hack.read_minutes} min read</Text>
+              <RichContent value={hack.body} format={hack.content_format} media={questionMedia} variant="explanation" />
+            </View>
+          ) : (
+            <EmptyState title="Not in the queue any more" description="It may already have been reviewed." style={{ marginTop: space.lg }} />
+          )
+        ) : itemType === 'Decks' ? (
+          <View style={{ marginTop: space.lg, gap: space.sm }}>
+            <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>CARDS ({deckCards.length})</Text>
+            {deckCards.map((c, i) => (
+              <View key={c.id} style={{ backgroundColor: color('bg/sunken'), borderRadius: radius.sm, padding: space.sm, gap: space['2xs'] }}>
+                <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>CARD {i + 1} · FRONT</Text>
+                <RichContent value={c.front} format={c.content_format} media={questionMedia} variant="option" />
+                <Text style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space['2xs'] }]}>BACK</Text>
+                <RichContent value={c.back} format={c.content_format} media={questionMedia} variant="option" />
+              </View>
+            ))}
+          </View>
         ) : itemType === 'test' ? (
           <View style={{ marginTop: space.lg, gap: space.sm }}>
             <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>
