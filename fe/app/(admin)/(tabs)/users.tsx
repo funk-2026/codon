@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, TextButton, Screen, TAB_EDGES } from '@/src/components';
+import { EmptyState, SecondaryButton, SkeletonBlock, TextButton, Screen, TAB_EDGES } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { useAdminUsers } from '@/src/queries/admin';
+import { listUsersPage } from '@/src/api/admin';
+import { useCursorList } from '@/src/queries/useCursorList';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import type { UserProfile } from '@/src/api/profile';
 import { ROUTES } from '@/src/navigation/routes';
@@ -29,31 +30,37 @@ const KYC_DOT_COLOR: Record<string, 'semantic/warning' | 'semantic/success' | 's
 export default function UserManagementListRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const usersQuery = useAdminUsers();
-  const users: UserProfile[] = usersQuery.data ?? [];
-  const loading = usersQuery.isPending;
-  const loadError = usersQuery.isError;
-  const load = () => void usersQuery.refetch();
-  useRefetchOnFocus(usersQuery.refetch);
   const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('All');
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(query.trim()), 350);
+    return () => clearTimeout(t);
+  }, [query]);
 
-  const filtered = users.filter((u) => {
-    if (roleFilter !== 'All' && u.role !== roleFilter) return false;
-    const nameMatch = u.name ? u.name.toLowerCase().includes(query.trim().toLowerCase()) : false;
-    const phoneMatch = u.phone_number.includes(query.trim());
-    if (query.trim() && !nameMatch && !phoneMatch) {
-      return false;
-    }
-    return true;
-  });
+  // Search and role are applied by the server, so any user can be found, not only the newest page.
+  const list = useCursorList<UserProfile, Awaited<ReturnType<typeof listUsersPage>>>(
+    ['admin', 'users', roleFilter, search],
+    (cursor) => listUsersPage({ role: roleFilter === 'All' ? undefined : roleFilter, search: search || undefined, limit: 50, cursor }),
+    (r) => r.users,
+  );
+  const users = list.rows;
+  const loading = list.loading;
+  const loadError = list.error;
+  const load = list.load;
+  useRefetchOnFocus(list.load);
+  // Until the server applies the filters, also match locally, so results never include the wrong people.
+  const needle = search.toLowerCase();
+  const filtered = users.filter(
+    (u) => (roleFilter === 'All' || u.role === roleFilter) && (!needle || (u.name ?? '').toLowerCase().includes(needle) || (u.phone_number ?? '').includes(search)),
+  );
 
   return (
     <Screen edges={TAB_EDGES}>
       <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
         <Text style={[type['type/h1'], { color: color('text/primary') }]}>Users</Text>
         <Text numberOfLines={1} style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'], minHeight: 22 }]}>
-          {loading ? ' ' : `${users.length} ${users.length === 1 ? 'person' : 'people'} on the platform`}
+          {loading ? ' ' : `${filtered.length}${list.hasMore ? '+' : ''} ${filtered.length === 1 && !list.hasMore ? 'person' : 'people'}${search || roleFilter !== 'All' ? ' match' : ' on the platform'}`}
         </Text>
       </View>
       <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
@@ -143,6 +150,7 @@ export default function UserManagementListRoute() {
             );
           })
         )}
+        {list.hasMore ? <SecondaryButton label={list.more ? 'Loading…' : 'Load more'} onPress={() => void list.loadMore()} loading={list.more} /> : null}
       </ScrollView>
     </Screen>
   );

@@ -9,18 +9,19 @@ export type ReviewStatus = 'pending_review' | 'approved' | 'rejected' | 'publish
 
 export type AdminBrainHack = BrainHack & { status: ReviewStatus; author_id?: string; rejection_reason?: string; created_at?: string };
 
-export const adminListBrainHacks = (status: ReviewStatus = 'pending_review') =>
-  apiFetch<{ brain_hacks: AdminBrainHack[]; media: MediaMap }>(`/admin/brain-hacks${qs({ status })}`).then((r) => ({
+export const adminListBrainHacks = (status: ReviewStatus = 'pending_review', cursor?: string | null) =>
+  apiFetch<{ brain_hacks: AdminBrainHack[]; media: MediaMap; next_cursor?: string | null }>(`/admin/brain-hacks${qs({ status, cursor: cursor ?? undefined })}`).then((r) => ({
     brain_hacks: arr(r.brain_hacks),
     media: r.media ?? {},
+    next_cursor: r.next_cursor ?? null,
   }));
 
 export const adminApproveBrainHack = (id: string) => apiFetch<{ message: string }>(`/admin/brain-hacks/${id}/approve`, { method: 'POST' });
 export const adminRejectBrainHack = (id: string, reason: string) =>
   apiFetch<{ message: string }>(`/admin/brain-hacks/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
 
-export const adminListDecks = (status: ReviewStatus = 'pending_review') =>
-  apiFetch<{ decks: TeacherDeck[] }>(`/admin/flashcard-decks${qs({ status })}`).then((r) => ({ decks: arr(r.decks) }));
+export const adminListDecks = (status: ReviewStatus = 'pending_review', cursor?: string | null) =>
+  apiFetch<{ decks: TeacherDeck[]; next_cursor?: string | null }>(`/admin/flashcard-decks${qs({ status, cursor: cursor ?? undefined })}`).then((r) => ({ decks: arr(r.decks), next_cursor: r.next_cursor ?? null }));
 
 export const adminGetDeck = (id: string) =>
   apiFetch<{ deck: TeacherDeck; cards: TeacherCard[]; media: MediaMap }>(`/admin/flashcard-decks/${id}`).then((r) => ({

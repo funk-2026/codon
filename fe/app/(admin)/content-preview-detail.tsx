@@ -92,10 +92,20 @@ export default function ContentPreviewDetailRoute() {
         : itemType === 'Videos' || itemType === 'Documents'
           ? adminGetContent(id).then((res) => setPreviewUrl(res.url))
           : itemType === 'Brain Hacks'
-            ? adminListBrainHacks().then((res) => {
-                setHack(res.brain_hacks.find((h) => h.id === id) ?? null);
-                setQuestionMedia(res.media ?? {});
-              })
+            ? (async () => {
+                // The hack may be on a later page of the queue, so keep paging until it turns up.
+                let cursor: string | null | undefined;
+                for (let page = 0; page < 10; page++) {
+                  const res = await adminListBrainHacks('pending_review', cursor);
+                  const found = res.brain_hacks.find((h) => h.id === id);
+                  if (found || !res.next_cursor) {
+                    setHack(found ?? null);
+                    setQuestionMedia(res.media ?? {});
+                    return;
+                  }
+                  cursor = res.next_cursor;
+                }
+              })()
             : adminGetDeck(id).then((res) => {
                 setDeckCards(res.cards);
                 setQuestionMedia(res.media ?? {});

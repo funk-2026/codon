@@ -7,8 +7,8 @@ import { CaretRight, DeviceMobile, Shield, WarningCircle } from 'phosphor-react-
 import { ConfirmDialog, EmptyState, Screen, ScreenHeader, SkeletonBlock, StatusBadge, TextButton, useToast, type BadgeStatus } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
-import { adminListContent, adminListKYC, adminListTests, getUser, getUserSessions, getUserSubscription, updateTeacherPermissions, updateUserRole } from '@/src/api/admin';
-import { useAdminPayments } from '@/src/queries/admin';
+import { adminListContent, adminListKYC, adminListTests, getUser, getUserSessions, getUserSubscription, listPaymentsPage, updateTeacherPermissions, updateUserRole } from '@/src/api/admin';
+import { allPages } from '@/src/api/paginate';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
@@ -43,14 +43,19 @@ export default function UserDetailRoute() {
 
   const subscription = useQuery({ queryKey: ['admin', 'user', id, 'subscription'], queryFn: () => getUserSubscription(id), enabled: !!id && role === 'student' });
   const sessions = useQuery({ queryKey: ['admin', 'user', id, 'sessions'], queryFn: () => getUserSessions(id), enabled: !!id });
-  const allPayments = useAdminPayments();
-  const payments = (allPayments.data ?? []).filter((p: { user_id: string }) => p.user_id === id) as { id: string; amount_paise: number; status: string; created_at: string; subscription?: { plan?: { name: string } } }[];
+  // Their four most recent payments (the server filters by user), so history isn't cut off by a long list.
+  const paymentsQuery = useQuery({ queryKey: ['admin', 'user', id, 'payments'], queryFn: () => listPaymentsPage({ user_id: id, limit: 4 }), enabled: !!id && role === 'student' });
+  const payments = (paymentsQuery.data?.payments ?? []).filter((p) => p.user_id === id);
   const made = useQuery({
     queryKey: ['admin', 'user', id, 'made'],
     enabled: !!id && role === 'teacher',
     queryFn: async () => {
-      const [t, c] = await Promise.all([adminListTests().catch(() => ({ tests: [] })), adminListContent().catch(() => ({ content: [] }))]);
-      const mine = [...t.tests.filter((x) => x.creator?.id === id), ...c.content.filter((x) => x.uploader?.id === id)];
+      // Every page of both lists, then keep this teacher's items (the server filter narrows it where supported).
+      const [t, c] = await Promise.all([
+        allPages((cursor) => adminListTests(undefined, { cursor, limit: 200, creator_id: id }).then((r) => ({ items: r.tests, next: r.next_cursor }))).catch(() => ({ items: [] as Awaited<ReturnType<typeof adminListTests>>['tests'] })),
+        allPages((cursor) => adminListContent(undefined, { cursor, limit: 200, uploader_id: id }).then((r) => ({ items: r.content, next: r.next_cursor }))).catch(() => ({ items: [] as Awaited<ReturnType<typeof adminListContent>>['content'] })),
+      ]);
+      const mine = [...t.items.filter((x) => x.creator?.id === id), ...c.items.filter((x) => x.uploader?.id === id)];
       const norm = (st: string) => (st === 'pending_review' ? 'pending' : st);
       return { total: mine.length, live: mine.filter((x) => norm(x.status) === 'published').length, waiting: mine.filter((x) => norm(x.status) === 'pending').length };
     },
@@ -195,7 +200,7 @@ export default function UserDetailRoute() {
                     <CaretRight size={16} color={color('text/tertiary')} />
                   </Pressable>
                 ))}
-                {payments.length > 3 ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{payments.length - 3} older payment{payments.length - 3 === 1 ? '' : 's'} are in the Payments tab.</Text> : null}
+                {payments.length > 3 ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Older payments are in the Payments tab.</Text> : null}
               </View>
             ) : null}
           </View>

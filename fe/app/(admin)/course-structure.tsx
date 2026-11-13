@@ -11,6 +11,7 @@ import { shadow } from '@/src/theme/elevation';
 import { listCourses, getCurriculum } from '@/src/api/courses';
 import { defaultCourse } from '@/src/api/courseSelection';
 import { adminListContent, adminListTests, createChapter, createSubject } from '@/src/api/admin';
+import { allPages } from '@/src/api/paginate';
 
 type ItemType = 'video' | 'document' | 'test';
 const ICON: Record<ItemType, React.ComponentType<{ size: number; color: string }>> = { video: PlayCircle, document: FileText, test: ClipboardText };
@@ -47,8 +48,8 @@ export default function CourseStructureRoute() {
   const [openChapters, setOpenChapters] = useState<Record<string, boolean>>({});
   const anyChapterOpen = Object.values(openChapters).some(Boolean);
   // What each chapter holds comes from two lists fetched once, the first time a chapter is opened.
-  const content = useQuery({ queryKey: ['admin', 'all-content'], queryFn: () => adminListContent(), enabled: anyChapterOpen });
-  const tests = useQuery({ queryKey: ['admin', 'all-tests'], queryFn: () => adminListTests(), enabled: anyChapterOpen });
+  const content = useQuery({ queryKey: ['admin', 'all-content'], queryFn: () => allPages((cursor) => adminListContent(undefined, { cursor, limit: 200 }).then((r) => ({ items: r.content, next: r.next_cursor }))), select: (r) => ({ content: r.items }), enabled: anyChapterOpen });
+  const tests = useQuery({ queryKey: ['admin', 'all-tests'], queryFn: () => allPages((cursor) => adminListTests(undefined, { cursor, limit: 200 }).then((r) => ({ items: r.tests, next: r.next_cursor }))), select: (r) => ({ tests: r.items }), enabled: anyChapterOpen });
 
   const [subjectSheet, setSubjectSheet] = useState(false);
   const [chapterFor, setChapterFor] = useState<{ id: string; name: string } | null>(null);
