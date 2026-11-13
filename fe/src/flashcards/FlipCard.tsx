@@ -37,6 +37,9 @@ export function FlipCard({ front, back, format, media, flipped, onFlip, onSwipe,
   const { color, type, space, radius } = useTheme();
   const spin = useSharedValue(0);
   const dx = useSharedValue(0);
+  // Resolve theme colours here, on the JS thread: animation worklets run on the UI thread and can't call color().
+  const dangerInk = color('semantic/danger');
+  const successInk = color('semantic/success');
 
   useEffect(() => {
     spin.value = withTiming(flipped ? 1 : 0, { duration: 320 });
@@ -76,7 +79,7 @@ export function FlipCard({ front, back, format, media, flipped, onFlip, onSwipe,
     borderColor: interpolateColor(
       dx.value,
       [-THRESHOLD, 0, THRESHOLD],
-      [color('semantic/danger'), 'transparent', color('semantic/success')],
+      [dangerInk, 'rgba(0,0,0,0)', successInk],
     ),
   }));
   const hintLeft = useAnimatedStyle(() => ({ opacity: interpolate(dx.value, [-THRESHOLD, -20, 0], [1, 0.2, 0], 'clamp') }));
