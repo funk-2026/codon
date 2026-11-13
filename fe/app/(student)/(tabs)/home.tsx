@@ -51,7 +51,7 @@ export default function HomeDashboardRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
-  const header = useCollapsingHeader(76);
+  const header = useCollapsingHeader(64);
 
 
   const me = useMe();
@@ -102,108 +102,63 @@ export default function HomeDashboardRoute() {
       : { subState: 'active', subText: `${planName} — active until ${end.toLocaleDateString()}` };
   }, [me.data]);
 
+  const firstName = user?.name?.split(' ')[0] || 'Student';
+
+  // Bell and avatar, sized to match the header state they sit in.
+  const headerActions = (size: 'large' | 'small') => {
+    const avatar = size === 'large' ? 40 : 32;
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: size === 'large' ? space.md : space.sm }}>
+        <Pressable
+          onPress={() => router.push(ROUTES.student.notifications)}
+          hitSlop={space.xs}
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
+        >
+          <Bell size={size === 'large' ? 24 : 22} color={color('header/text')} weight="regular" />
+        </Pressable>
+        <Pressable
+          onPress={() => router.push(ROUTES.student.profile)}
+          hitSlop={space.xs}
+          accessibilityRole="button"
+          accessibilityLabel="Open profile"
+        >
+          <View style={[styles.avatar, { width: avatar, height: avatar, borderRadius: avatar / 2, backgroundColor: color('bg/surface') }]}>
+            <Text style={[size === 'large' ? type['type/h3'] : type['type/body-m-medium'], { color: color('accent/default') }]}>
+              {(user?.name || 'A').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        </Pressable>
+      </View>
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
       <CollapsingHeader
         state={header}
         expanded={
-            <View style={styles.headerRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[type['type/h2'], { color: color('header/text') }]}>
-                  {greeting()}, {user?.name?.split(' ')[0] || 'Student'}
+          <View style={styles.headerRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[type['type/h1'], { color: color('header/text') }]} numberOfLines={1}>
+                Hi, {firstName}
+              </Text>
+              <View style={[styles.streakRow, { gap: space['2xs'], marginTop: space['2xs'] }]}>
+                <Flame size={16} color={color('highlight/default')} weight="fill" />
+                <Text style={[type['type/body-m'], { color: color('header/text-secondary') }]} numberOfLines={1}>
+                  {greeting()} · {streak > 0 ? `${streak} day streak` : 'start a streak today'}
                 </Text>
-                <View
-                  style={[
-                    styles.streakRow,
-                    {
-                      gap: space['2xs'],
-                      marginTop: space.xs,
-                      alignSelf: 'flex-start',
-                      backgroundColor: color('header/chip'),
-                      borderRadius: radius.pill,
-                      paddingHorizontal: space.sm,
-                      paddingVertical: space['2xs'],
-                    },
-                  ]}
-                >
-                  <Flame size={16} color={color('highlight/default')} weight="fill" />
-                  <Text style={[type['type/caption'], { color: color('header/text') }]}>
-                    {streak} day streak
-                  </Text>
-                </View>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-              <Pressable
-                onPress={() => router.push(ROUTES.student.notifications)}
-                hitSlop={space.xs}
-                accessibilityRole="button"
-                accessibilityLabel="Notifications"
-              >
-                <Bell size={24} color={color('header/text')} weight="regular" />
-              </Pressable>
-              <Pressable
-                onPress={() => router.push(ROUTES.student.profile)}
-                hitSlop={space.xs}
-                accessibilityRole="button"
-                accessibilityLabel="Open profile"
-              >
-                <View
-                  style={[
-                    styles.avatar,
-                    { width: 40, height: 40, borderRadius: 20, backgroundColor: color('bg/surface') },
-                  ]}
-                >
-                  <Text style={[type['type/h3'], { color: color('accent/default') }]}>
-                    {(user?.name || 'A').charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              </Pressable>
               </View>
             </View>
+            {headerActions('large')}
+          </View>
         }
         compact={
           <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 }}>
-              <Text style={[type['type/h3'], { color: color('header/text') }]} numberOfLines={1}>
-                {user?.name?.split(' ')[0] || 'Student'}
-              </Text>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: space['2xs'],
-                  backgroundColor: color('header/chip'),
-                  borderRadius: radius.pill,
-                  paddingHorizontal: space.xs,
-                  paddingVertical: 2,
-                }}
-              >
-                <Flame size={14} color={color('highlight/default')} weight="fill" />
-                <Text style={[type['type/caption'], { color: color('header/text') }]}>{streak}</Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-              <Pressable
-                onPress={() => router.push(ROUTES.student.notifications)}
-                hitSlop={space.xs}
-                accessibilityRole="button"
-                accessibilityLabel="Notifications"
-              >
-                <Bell size={22} color={color('header/text')} weight="regular" />
-              </Pressable>
-            <Pressable
-              onPress={() => router.push(ROUTES.student.profile)}
-              hitSlop={space.xs}
-              accessibilityRole="button"
-              accessibilityLabel="Open profile"
-            >
-              <View style={[styles.avatar, { width: 32, height: 32, borderRadius: 16, backgroundColor: color('bg/surface') }]}>
-                <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>
-                  {(user?.name || 'A').charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            </Pressable>
-            </View>
+            <Text style={[type['type/h3'], { color: color('header/text') }]} numberOfLines={1}>
+              Hi, {firstName}
+            </Text>
+            {headerActions('small')}
           </>
         }
       />
