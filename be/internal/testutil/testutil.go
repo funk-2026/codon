@@ -116,7 +116,7 @@ func NewWorld(t *testing.T, g *gorm.DB) *World {
 
 func (w *World) User(t *testing.T, role models.UserRole) models.User {
 	t.Helper()
-	u := models.User{PhoneNumber: "+91" + uuid.NewString()[:10], Role: role, KYCStatus: models.KYCNotRequired}
+	u := models.User{PhoneNumber: fmt.Sprintf("+91%010d", uuid.New().ID()), Role: role, KYCStatus: models.KYCNotRequired}
 	mustCreate(t, w.DB, &u)
 	return u
 }

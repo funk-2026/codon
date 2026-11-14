@@ -65,8 +65,9 @@ func TestSuspendAndReactivate(t *testing.T) {
 	}
 
 	e.mustDo(200, "POST", "/admin/users/"+student.ID.String()+"/reactivate", &admin, nil)
-	e.db.First(&u, "id = ?", student.ID)
-	if u.SuspendedAt != nil {
+	var after models.User
+	e.db.First(&after, "id = ?", student.ID)
+	if after.SuspendedAt != nil {
 		t.Fatal("reactivate must clear suspended_at")
 	}
 }

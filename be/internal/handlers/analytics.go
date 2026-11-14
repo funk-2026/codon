@@ -282,7 +282,7 @@ func (h *AnalyticsHandler) recommend(c *gin.Context, user *models.User) []gin.H 
 	}
 	if weakest != nil {
 		recs = append(recs, gin.H{"code": "weak_chapter", "title": "Strengthen " + weakest.Chapter,
-			"reason": "Your accuracy here is " + pct(weakest.Accuracy) + " over " + itoa(weakest.Answers) + " answers.",
+			"reason": "Your accuracy here is " + pctLabel(weakest.Accuracy) + " over " + itoa(weakest.Answers) + " answers.",
 			"patch":  gin.H{"count": 15, "strategy": "weak_first", "filters": gin.H{"chapter_ids": []uuid.UUID{*weakest.ChapterID}}}})
 	}
 	var due int64
@@ -303,7 +303,7 @@ func (h *AnalyticsHandler) recommend(c *gin.Context, user *models.User) []gin.H 
 	return recs
 }
 
-func pct(f float64) string { return itoa(int(f*100+0.5)) + "%" }
+func pctLabel(f float64) string { return itoa(int(f*100+0.5)) + "%" }
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

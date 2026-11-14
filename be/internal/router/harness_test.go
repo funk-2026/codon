@@ -60,21 +60,26 @@ func newEnv(t *testing.T) *env {
 	e.d = router.NewDeps(db, auth, services.NewSubscriptionService(db), services.NewScoringService(db))
 	e.r = gin.New()
 	router.Register(e.r.Group("/api/v1"), e.d)
-	e.r.GET("/api/v1/me/progress/breakdown", auth, handlers.NewProfileHandler(db, e.d.SubSvc).GetProgressBreakdown)
-	wh := handlers.NewWellnessHandler(db)
-	e.r.GET("/api/v1/wellness/content", auth, wh.ListWellnessContent)
-	e.r.GET("/api/v1/wellness/content/:id", auth, wh.GetWellnessContent)
-	e.r.POST("/api/v1/admin/wellness-content", auth, middleware.RequireRole(models.RoleAdmin), wh.CreateWellnessContent)
-	e.r.PATCH("/api/v1/admin/wellness-content/:id", auth, middleware.RequireRole(models.RoleAdmin), wh.UpdateWellnessContent)
-	e.r.GET("/api/v1/admin/analytics", auth, middleware.RequireRole(models.RoleAdmin), handlers.NewAdminHandler(db, nil, e.d.SubSvc).AnalyticsOverview)
-	e.r.GET("/api/v1/admin/dashboard/summary", auth, middleware.RequireRole(models.RoleAdmin), handlers.NewAdminHandler(db, nil, e.d.SubSvc).DashboardSummary)
-	// lecture content (videos/documents + lecture PDFs) — registered in cmd/api in production
-	ch := handlers.NewContentHandler(db, services.NewSubscriptionService(db))
-	e.r.POST("/api/v1/teacher/content", auth, middleware.RequireRole(models.RoleTeacher), ch.CreateContent)
-	e.r.PATCH("/api/v1/teacher/content/:id", auth, middleware.RequireRole(models.RoleTeacher), ch.UpdateContent)
-	e.r.GET("/api/v1/teacher/content/:id", auth, middleware.RequireRole(models.RoleTeacher), ch.TeacherGetContent)
-	e.r.GET("/api/v1/content/:id", auth, ch.GetContentItem)
-	e.r.POST("/api/v1/content/:id/heartbeat", auth, handlers.NewProfileHandler(db, e.d.SubSvc).ContentHeartbeat)
+	// Core routes (profile, admin, content, wellness…) are mounted the way
+	// internal/app does it, with the test auth middleware.
+	subSvc := e.d.SubSvc
+	sessionSvc := services.NewSessionService(db)
+	core := &router.CoreDeps{
+		Auth:        auth,
+		AuthH:       handlers.NewAuthHandler(db, services.NewOTPService(db, nil, 0), sessionSvc),
+		ProfileH:    handlers.NewProfileHandler(db, subSvc),
+		CourseH:     handlers.NewCourseHandler(db),
+		PlanH:       handlers.NewPlanHandler(db),
+		PaymentH:    handlers.NewPaymentHandler(db, subSvc),
+		KYCH:        handlers.NewKYCHandler(db),
+		UploadH:     handlers.NewUploadHandler(),
+		ContentH:    handlers.NewContentHandler(db, subSvc),
+		WellnessH:   handlers.NewWellnessHandler(db),
+		AdminH:      handlers.NewAdminHandler(db, sessionSvc, subSvc),
+		CurriculumH: handlers.NewCurriculumHandler(db),
+		FeedbackH:   handlers.NewFeedbackHandler(db),
+	}
+	router.RegisterCore(e.r.Group("/api/v1"), core)
 	return e
 }
 
