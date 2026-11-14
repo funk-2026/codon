@@ -27,6 +27,7 @@ func RetentionSweep(ctx context.Context, db *gorm.DB) {
 		log.Printf("[retention] archived %d expired, never-started custom tests", res.RowsAffected)
 	}
 	db.WithContext(ctx).Where("read_at IS NOT NULL AND read_at < ?", now.AddDate(0, 0, -90)).Delete(&models.Notification{})
+	db.WithContext(ctx).Where("at < ?", now.AddDate(0, 0, -90)).Delete(&models.AnalyticsEvent{})
 	db.WithContext(ctx).Exec(`UPDATE question_stats SET empirical_difficulty = CASE
 			WHEN correct::float / NULLIF(attempts, 0) >= 0.7 THEN 'easy'
 			WHEN correct::float / NULLIF(attempts, 0) >= 0.4 THEN 'medium' ELSE 'hard' END

@@ -78,6 +78,11 @@ func main() {
 			log.Printf("[Worker] created %d streak nudges", n)
 		}
 	})
+	worker.RegisterTicker("subscription_expiry_reminders", time.Hour, func(ctx context.Context) {
+		if n := pushSvc.ExpiryReminders(ctx, time.Now()); n > 0 {
+			log.Printf("[Worker] created %d subscription expiry reminders", n)
+		}
+	})
 	// One-off style maintenance: fills content_hash for questions that predate the column.
 	worker.RegisterTicker("content_hash_backfill", 24*time.Hour, func(ctx context.Context) {
 		services.BackfillAllContentHashes(ctx, db.DB)

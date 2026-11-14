@@ -74,10 +74,14 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 		me.GET("/recent-content", d.ProfileH.GetRecentContent)
 		me.GET("/attempts", d.ProfileH.GetAttempts)
 		me.GET("/subscription", d.ProfileH.GetMySubscription)
+		me.GET("/payments", d.ProfileH.MyPayments)
+		me.GET("/export", d.ProfileH.ExportMyData)
 		me.POST("/kyc", d.KYCH.SubmitKYC)
 		me.GET("/kyc", d.KYCH.GetMyKYC)
 	}
 	api.POST("/feedback", auth, d.FeedbackH.Submit)
+	api.POST("/events", auth, d.ProfileH.IngestEvents)
+	api.GET("/search", auth, d.ProfileH.Search)
 
 	// ── Catalogue (public) ──
 	courses := api.Group("/courses")

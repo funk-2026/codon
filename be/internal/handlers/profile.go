@@ -95,6 +95,19 @@ func (h *ProfileHandler) UpdateMe(c *gin.Context) {
 		updates["selected_course_id"] = *req.SelectedCourseID
 	}
 
+	if req.ExamDate != nil {
+		if *req.ExamDate == "" {
+			updates["exam_date"] = nil
+		} else {
+			d, err := time.Parse("2006-01-02", *req.ExamDate)
+			if err != nil || d.Before(time.Now().AddDate(0, 0, -1)) || d.After(time.Now().AddDate(6, 0, 0)) {
+				respondErr(c, http.StatusBadRequest, "invalid_exam_date", "exam_date must be a date from today up to six years ahead (YYYY-MM-DD)")
+				return
+			}
+			updates["exam_date"] = d
+		}
+	}
+
 	if len(updates) == 0 {
 		respondErr(c, http.StatusBadRequest, "bad_request", "no fields to update")
 		return
@@ -187,6 +200,8 @@ type updateMeRequest struct {
 	Name             *string `json:"name"              example:"Arjun Sharma"`
 	ProfilePhotoKey  *string `json:"profile_photo_key" example:"profile_photo/uuid/file.jpg"`
 	SelectedCourseID *string `json:"selected_course_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	// ExamDate is YYYY-MM-DD; an empty string clears it.
+	ExamDate *string `json:"exam_date" example:"2027-05-03"`
 }
 
 type progressResponse struct {

@@ -58,6 +58,8 @@ type User struct {
 	UpdatedAt           time.Time  `json:"updated_at"`
 	LastLoginAt         *time.Time `json:"last_login_at,omitempty"`
 	// SuspendedAt is set by an admin; a suspended user cannot sign in and every session is ended.
+	// ExamDate is the student's target exam day (a date, no time), used for the countdown on Home.
+	ExamDate        *time.Time `gorm:"type:date" json:"exam_date,omitempty"`
 	SuspendedAt     *time.Time `json:"suspended_at,omitempty"`
 	SuspendedReason *string    `gorm:"type:text" json:"suspended_reason,omitempty"`
 }

@@ -434,6 +434,11 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 		v := r.Value
 		resp.MyRating = &v
 	}
+	var hist models.UserWatchHistory
+	if h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND content_item_id = ?", user.ID, item.ID).First(&hist).Error == nil && !hist.IsCompleted && hist.ProgressSeconds > 0 {
+		p := hist.ProgressSeconds
+		resp.ProgressSeconds = &p
+	}
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -596,6 +601,8 @@ type getContentResponse struct {
 	Content  models.ContentItem `json:"content"`
 	URL      string             `json:"url,omitempty"`
 	MyRating *int               `json:"my_rating,omitempty"`
+	// ProgressSeconds is where this student left off, so the player can resume. Absent when finished or never started.
+	ProgressSeconds *int `json:"progress_seconds,omitempty"`
 	lecturePDFs
 }
 
