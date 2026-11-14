@@ -25,6 +25,8 @@ export type ModuleDefinition = {
   hubRoute: { pathname: string; params?: Record<string, string> };
   /** Students see this type as another module (Practice sets show up under Q Bank). */
   foldInto?: ModuleKey;
+  /** Has its own tab, so the Practice tab does not list it. */
+  ownTab?: boolean;
 };
 
 const DEFINITIONS: Record<ModuleKey, ModuleDefinition> = {
@@ -35,10 +37,10 @@ const DEFINITIONS: Record<ModuleKey, ModuleDefinition> = {
     hubRoute: { pathname: ROUTES.student.practice, params: { kind: 'qbank' } },
   },
   test_series: {
-    key: 'test_series', label: 'Test Series', shortLabel: 'Test Series',
-    descriptor: 'Full-length, exam-pattern tests that simulate the real thing.',
-    canRetake: false, teacherCreatable: true,
-    hubRoute: { pathname: ROUTES.student.practice, params: { kind: 'test_series' } },
+    key: 'test_series', label: 'Tests', shortLabel: 'Tests',
+    descriptor: 'Timed exam simulations with a rank, for live events and for anytime.',
+    canRetake: true, teacherCreatable: false, ownTab: true,
+    hubRoute: { pathname: ROUTES.student.tests },
   },
   practice: {
     key: 'practice', label: 'Practice', shortLabel: 'Practice',
@@ -74,6 +76,11 @@ export function getModule(key: string | undefined | null): ModuleDefinition {
 /** Modules a teacher may author (excludes generated-only ones and folded types like Practice). */
 export function teacherModules(): ModuleDefinition[] {
   return MODULE_ORDER.map((k) => DEFINITIONS[k]).filter((m) => m.teacherCreatable && !m.foldInto);
+}
+
+/** Modules for the Practice tab: everything a student sees except those with their own tab (Tests). */
+export function practiceModules(flagOn: (flag: string) => boolean): ModuleDefinition[] {
+  return visibleModules(flagOn).filter((m) => !m.ownTab);
 }
 
 /** Modules a student sees (folded types are hidden), given the current flags. */

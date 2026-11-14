@@ -19,18 +19,18 @@ import { useAttempts } from '@/src/queries/attempts';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import type { StudentAttempt } from '@/src/api/attempts';
 import { useFlag } from '@/src/config/AppConfigContext';
-import { visibleModules } from '@/src/modules/registry';
+import { practiceModules } from '@/src/modules/registry';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
-type PracticeSegment = 'qbank' | 'test_series' | 'custom';
-const TREE_SEGMENTS = ['qbank', 'test_series'] as const;
+type PracticeSegment = 'qbank' | 'custom';
+const TREE_SEGMENTS = ['qbank'] as const;
 const SORT_CHIPS = [
   { key: 'newest', label: 'Newest' },
   { key: 'top', label: 'Top rated' },
 ];
 const initialSegment = (k?: string): PracticeSegment =>
-  k === 'test_series' || k === 'custom' ? k : 'qbank';
+  k === 'custom' ? k : 'qbank';
 
 
 
@@ -79,7 +79,7 @@ export default function PracticeHubRoute() {
   const recentAttempts = attempts.slice(0, 4);
   const inProgress = attempts.find((a) => a.status === 'in_progress');
 
-  const segments = visibleModules((f) => (f === 'custom_test.enabled' ? customOn : false)).map((m) => ({
+  const segments = practiceModules((f) => (f === 'custom_test.enabled' ? customOn : false)).map((m) => ({
     key: m.key as PracticeSegment,
     label: m.shortLabel,
   }));
