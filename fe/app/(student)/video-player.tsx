@@ -338,7 +338,7 @@ export default function VideoPlayerRoute() {
                 {content?.title || 'Loading...'}
               </Text>
               <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                Video Lesson
+                Video Lesson{content?.author_name ? ` · By ${content.author_name}` : ''}
               </Text>
               {pdfs && (pdfs.has_notes_pdf || pdfs.has_annotated_pdf) ? (
                 <LecturePdfDownloads pdfs={pdfs} title={content?.title ?? 'Lecture'} />

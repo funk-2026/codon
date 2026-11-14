@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
+import { Bell } from 'phosphor-react-native';
 import {
   Cards,
   CaretRight,
@@ -17,6 +18,8 @@ import { BottomSheet, ErrorBanner, Screen, SkeletonBlock, StatusBadge, TAB_EDGES
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { InventoryHints } from '@/src/teacher/InventoryHints';
+import { ImpactCard } from '@/src/teacher/ImpactCard';
+import { useNotifications } from '@/src/queries/discover';
 import { SEGMENT_OF, STATUS_LABEL, byRecent, statusCounts, type ItemStatus, type TeacherItem } from '@/src/teacher/items';
 import { useTeacherItems } from '@/src/teacher/useTeacherItems';
 import { countLabel, useTeacherInbox } from '@/src/teacher/useTeacherInbox';
@@ -47,6 +50,7 @@ export default function TeacherHomeRoute() {
 
   const itemsQuery = useTeacherItems();
   const inbox = useTeacherInbox();
+  const unread = useNotifications().data?.pages[0]?.unread_count ?? 0;
   useRefetchOnFocus(() => void Promise.all([itemsQuery.refetch(), inbox.refetch()]));
 
   const items = itemsQuery.data ?? [];
@@ -84,6 +88,15 @@ export default function TeacherHomeRoute() {
               {loading ? ' ' : attention > 0 ? `${attention} thing${attention === 1 ? '' : 's'} need${attention === 1 ? 's' : ''} you` : 'You’re all caught up'}
             </Text>
           </View>
+          <Pressable
+            onPress={() => router.push(ROUTES.teacher.notifications)}
+            accessibilityRole="button"
+            accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: space.xs }}
+          >
+            <Bell size={22} color={color('text/primary')} />
+            {unread > 0 ? <View style={{ position: 'absolute', top: 8, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: color('semantic/danger') }} /> : null}
+          </Pressable>
           <Pressable
             onPress={() => setCreateOpen(true)}
             accessibilityRole="button"
@@ -161,6 +174,8 @@ export default function TeacherHomeRoute() {
             </View>
           </View>
         ) : null}
+
+        {!loading ? <ImpactCard /> : null}
 
         {recent.length > 0 ? (
           <View style={{ marginTop: space.xl, gap: space.xs }}>

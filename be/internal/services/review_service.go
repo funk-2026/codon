@@ -31,6 +31,9 @@ var (
 	ReviewDeck    = Reviewable{"flashcard_decks", "author_id", "flashcard deck", "deck", "deck_not_found", 3}
 )
 
+// teacherInboxRoute is where a tap on an author notification opens in the app.
+const teacherInboxRoute = "/(teacher)/notifications"
+
 // Allowed transitions — the single source of truth for the workflow.
 var (
 	fromEditable = []models.ContentStatus{models.StatusDraft, models.StatusRejected}
@@ -126,7 +129,7 @@ func (s *ReviewService) PublishDue(ctx context.Context, now time.Time) int {
 				continue
 			}
 			total++
-			Notify(s.DB.WithContext(ctx), row.Owner, r.NotifyKey+"_published", "Your "+r.Label+" is live", row.Title, map[string]interface{}{"id": row.ID})
+			Notify(s.DB.WithContext(ctx), row.Owner, r.NotifyKey+"_published", "Your "+r.Label+" is live", row.Title, map[string]interface{}{"id": row.ID, "route": teacherInboxRoute})
 		}
 	}
 	return total
@@ -274,13 +277,13 @@ func (s *ReviewService) decide(ctx context.Context, admin *models.User, r Review
 			return err
 		}
 		if to == models.StatusApproved {
-			Notify(tx, row.Owner, r.NotifyKey+"_approved", "Your "+r.Label+" was approved", row.Title, map[string]interface{}{"id": id})
+			Notify(tx, row.Owner, r.NotifyKey+"_approved", "Your "+r.Label+" was approved", row.Title, map[string]interface{}{"id": id, "route": teacherInboxRoute})
 		} else {
 			body := row.Title
 			if reason != "" {
 				body = reason
 			}
-			Notify(tx, row.Owner, r.NotifyKey+"_rejected", "Your "+r.Label+" needs changes", body, map[string]interface{}{"id": id})
+			Notify(tx, row.Owner, r.NotifyKey+"_rejected", "Your "+r.Label+" needs changes", body, map[string]interface{}{"id": id, "route": teacherInboxRoute})
 		}
 		return nil
 	})

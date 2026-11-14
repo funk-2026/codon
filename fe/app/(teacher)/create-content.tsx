@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import { CaretRight, UploadSimple, TextB, TextHOne, ListBullets, X } from 'phosphor-react-native';
+import { CaretRight, UploadSimple, X } from 'phosphor-react-native';
 import { CourseSelector, ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { LecturePdfEditor, type PdfKind } from '@/src/content/LecturePdfEditor';
@@ -40,7 +40,6 @@ export default function CreateContentRoute() {
   const [docBody, setDocBody] = useState('');
   // Lecture PDFs (videos only): notes + annotated, uploaded before the lesson is created
   const [pdfs, setPdfs] = useState<Record<PdfKind, { key?: string; name?: string }>>({ notes: {}, annotated: {} });
-  const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -69,14 +68,6 @@ export default function CreateContentRoute() {
     loadCourseInfo();
   }, [loadCourseInfo]);
 
-  useEffect(() => {
-    if (contentType !== 'Document' || docBody.trim().length === 0) return;
-    const t = setTimeout(() => {
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 800);
-    }, 10000);
-    return () => clearTimeout(t);
-  }, [docBody, contentType]);
 
   const handleSelectVideo = async () => {
     setVideoError(null);
@@ -229,7 +220,7 @@ export default function CreateContentRoute() {
         course_id: courseId!,
         content_type: contentType === 'Video' ? 'video' : 'document',
         chapter_id: chapterId!,
-        file_key: contentType === 'Video' ? videoFileKey! : 'mock-doc-key',
+        ...(contentType === 'Video' ? { file_key: videoFileKey! } : { body_text: docBody.trim() }),
         ...(contentType === 'Video' && pdfs.notes.key ? { notes_pdf_key: pdfs.notes.key } : {}),
         ...(contentType === 'Video' && pdfs.annotated.key ? { annotated_pdf_key: pdfs.annotated.key } : {}),
       });
@@ -352,21 +343,11 @@ export default function CreateContentRoute() {
             )
           ) : (
             <View>
-              <View style={[styles.toolbar, { backgroundColor: color('bg/sunken'), borderRadius: radius.sm }]}>
-                <View style={{ flexDirection: 'row', gap: space.md }}>
-                  <TextB size={18} color={color('text/secondary')} />
-                  <TextHOne size={18} color={color('text/secondary')} />
-                  <ListBullets size={18} color={color('text/secondary')} />
-                </View>
-                {savedFlash ? (
-                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Saved</Text>
-                ) : null}
-              </View>
               <TextInput
                 value={docBody}
                 onChangeText={setDocBody}
                 multiline
-                placeholder="Write the document content here…"
+                placeholder="Write the lesson here. Plain text; students read it in the app."
                 placeholderTextColor={color('text/tertiary')}
                 style={[
                   type['type/body-l'],

@@ -73,6 +73,7 @@ export const ROUTES = {
     home: '/(teacher)/(tabs)/home',
     manageDevices: '/(teacher)/manage-devices',
     previewRun: '/(teacher)/preview-run',
+    notifications: '/(teacher)/notifications',
     profile: '/(teacher)/(tabs)/profile',
     questionBank: '/(teacher)/question-bank',
     questionBuilder: '/(teacher)/question-builder',

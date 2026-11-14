@@ -209,7 +209,7 @@ func (h *TeacherExtrasHandler) transfer(c *gin.Context, table, ownerCol, label s
 	if teacher.Name != nil && strings.TrimSpace(*teacher.Name) != "" {
 		from = strings.TrimSpace(*teacher.Name)
 	}
-	services.Notify(h.DB.WithContext(ctx), to.ID, "content_transferred", from+" handed you a "+label, titles[0], map[string]interface{}{"id": id})
+	services.Notify(h.DB.WithContext(ctx), to.ID, "content_transferred", from+" handed you a "+label, titles[0], map[string]interface{}{"id": id, "route": "/(teacher)/notifications"})
 	c.JSON(http.StatusOK, messageResponse{Message: "handed over"})
 }
 
