@@ -158,3 +158,84 @@ func TestGrantAccess(t *testing.T) {
 		t.Fatalf("granting access must not create a payment record")
 	}
 }
+
+// A teacher can be created by phone number before they sign in; an existing number is refused.
+func TestInviteTeacher(t *testing.T) {
+	e := newEnv(t)
+	body := map[string]string{"phone_number": "+91 90000-11122", "name": "Asha"}
+	out := e.mustDo(201, "POST", "/admin/users/invite", &e.w.Admin, body)
+	if out["role"] != "teacher" || out["phone_number"] != "+919000011122" {
+		t.Fatalf("unexpected invited user: %v", out)
+	}
+	if code, _ := e.do("POST", "/admin/users/invite", &e.w.Admin, body); code != 409 {
+		t.Fatalf("an existing number must be 409, got %d", code)
+	}
+	if code, _ := e.do("POST", "/admin/users/invite", &e.w.Teacher, body); code != 403 {
+		t.Fatalf("only admins may invite, got %d", code)
+	}
+}
+
+// Courses can be created (a name only once); empty chapters can be deleted, used ones cannot.
+func TestCourseAndChapterManagement(t *testing.T) {
+	e := newEnv(t)
+	e.mustDo(201, "POST", "/admin/courses", &e.w.Admin, map[string]string{"name": "NEET PG 2027"})
+	if code, _ := e.do("POST", "/admin/courses", &e.w.Admin, map[string]string{"name": "NEET PG 2027"}); code != 409 {
+		t.Fatalf("a duplicate course must be 409, got %d", code)
+	}
+
+	empty := e.mustDo(201, "POST", "/admin/subjects/"+e.w.Subject.ID.String()+"/chapters", &e.w.Admin, map[string]string{"name": "Scratch"})
+	e.mustDo(200, "DELETE", "/admin/chapters/"+empty["id"].(string), &e.w.Admin, nil)
+
+	e.w.Test(t, models.ModuleQBank, 1, true) // puts a test (and question) in the world's chapter
+	if code, _ := e.do("DELETE", "/admin/chapters/"+e.w.Chapter.ID.String(), &e.w.Admin, nil); code != 409 {
+		t.Fatalf("a chapter in use must not be deleted, got %d", code)
+	}
+	if code, _ := e.do("DELETE", "/admin/subjects/"+e.w.Subject.ID.String(), &e.w.Admin, nil); code != 409 {
+		t.Fatalf("a subject with chapters must not be deleted, got %d", code)
+	}
+}
+
+// An announcement reaches only the chosen audience, and its route must be a student screen.
+func TestAnnouncement(t *testing.T) {
+	e := newEnv(t)
+	aud := e.mustDo(200, "GET", "/admin/announcements/audience?audience=students", &e.w.Admin, nil)
+	if aud["count"].(float64) < 1 {
+		t.Fatalf("the world has a student, got %v", aud)
+	}
+	if code, _ := e.do("POST", "/admin/announcements", &e.w.Admin, map[string]string{"audience": "students", "title": "Hello", "route": "/(admin)/(tabs)/review"}); code != 400 {
+		t.Fatalf("an admin route must be refused, got %d", code)
+	}
+	e.mustDo(200, "POST", "/admin/announcements", &e.w.Admin, map[string]string{"audience": "students", "title": "New batch starts", "body": "Monday"})
+	var forStudent, forTeacher int64
+	e.db.Model(&models.Notification{}).Where("user_id = ? AND type = ?", e.w.Student.ID, "announcement").Count(&forStudent)
+	e.db.Model(&models.Notification{}).Where("user_id = ? AND type = ?", e.w.Teacher.ID, "announcement").Count(&forTeacher)
+	if forStudent != 1 || forTeacher != 0 {
+		t.Fatalf("student got %d, teacher got %d (want 1 and 0)", forStudent, forTeacher)
+	}
+}
+
+// Exports are admin-only.
+func TestExportsAdminOnly(t *testing.T) {
+	e := newEnv(t)
+	for _, p := range []string{"/admin/export/users.csv", "/admin/export/payments.csv"} {
+		if code, _ := e.do("GET", p, &e.w.Admin, nil); code != 200 {
+			t.Fatalf("%s as admin → %d", p, code)
+		}
+		if code, _ := e.do("GET", p, &e.w.Student, nil); code != 403 {
+			t.Fatalf("%s as student → %d, want 403", p, code)
+		}
+	}
+}
+
+// Approving a submission is written to the audit log.
+func TestReviewDecisionIsAudited(t *testing.T) {
+	e := newEnv(t)
+	test := e.w.Test(t, models.ModuleQBank, 1, true)
+	e.db.Model(&models.Test{}).Where("id = ?", test.ID).Update("status", models.StatusPendingReview)
+	e.mustDo(200, "POST", "/admin/tests/"+test.ID.String()+"/approve", &e.w.Admin, nil)
+	var n int64
+	e.db.Model(&models.AdminAuditLog{}).Where("action = ? AND target = ?", "review.test.approved", "tests:"+test.ID.String()).Count(&n)
+	if n != 1 {
+		t.Fatalf("approval must write one audit row, got %d", n)
+	}
+}

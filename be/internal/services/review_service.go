@@ -91,7 +91,28 @@ func (s *ReviewService) ownerTransition(ctx context.Context, actor *models.User,
 	if res.RowsAffected == 0 {
 		return r.notFound(state)
 	}
+	if to == models.StatusPendingReview {
+		s.notifyAdmins(db, r, id)
+	}
 	return nil
+}
+
+// notifyAdmins tells every active admin that something is waiting for review. Best effort: a failure
+// to notify never blocks the author's submission. Push delivery picks the rows up like any other.
+func (s *ReviewService) notifyAdmins(db *gorm.DB, r Reviewable, id uuid.UUID) {
+	var titles []string
+	if err := db.Table(r.Table).Where("id = ?", id).Pluck("title", &titles).Error; err != nil || len(titles) == 0 {
+		return
+	}
+	title := titles[0]
+	var admins []uuid.UUID
+	if err := db.Model(&models.User{}).Where("role = ? AND suspended_at IS NULL", models.RoleAdmin).Pluck("id", &admins).Error; err != nil {
+		return
+	}
+	for _, a := range admins {
+		Notify(db, a, "review_waiting", "A "+r.Label+" is waiting for review", title,
+			map[string]interface{}{"id": id, "route": "/(admin)/(tabs)/review"})
+	}
 }
 
 // Approve: pending_review → approved (admin). Notifies the author.
@@ -128,6 +149,13 @@ func (s *ReviewService) decide(ctx context.Context, admin *models.User, r Review
 		}
 		if res.RowsAffected == 0 {
 			return r.notFound("pending review")
+		}
+		verb := "rejected"
+		if to == models.StatusApproved {
+			verb = "approved"
+		}
+		if err := tx.Create(&models.AdminAuditLog{ActorID: admin.ID, Action: "review." + r.NotifyKey + "." + verb, Target: r.Table + ":" + id.String()}).Error; err != nil {
+			return err
 		}
 		if to == models.StatusApproved {
 			Notify(tx, row.Owner, r.NotifyKey+"_approved", "Your "+r.Label+" was approved", row.Title, map[string]interface{}{"id": id})

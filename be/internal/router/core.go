@@ -129,7 +129,10 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 	admin := api.Group("/admin").Use(auth).Use(middleware.RequireRole(models.RoleAdmin))
 	{
 		// Curriculum: admins own the whole course structure
+		admin.POST("/courses", d.CurriculumH.CreateCourse)
 		admin.POST("/courses/:course_id/subjects", d.CurriculumH.CreateSubject)
+		admin.DELETE("/subjects/:id", d.CurriculumH.DeleteSubject)
+		admin.DELETE("/chapters/:id", d.CurriculumH.DeleteChapter)
 		admin.PATCH("/subjects/:id", d.CurriculumH.UpdateSubject)
 		admin.POST("/subjects/:subject_id/chapters", d.CurriculumH.CreateChapter)
 		admin.PATCH("/chapters/:id", d.CurriculumH.UpdateChapter)
@@ -171,6 +174,11 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 		admin.POST("/users/:id/subscription/grant", d.AdminH.GrantAccess)
 		admin.GET("/users/:id/activity", d.AdminH.UserActivity)
 		admin.POST("/takedown/:kind/:id", d.AdminH.Takedown)
+		admin.POST("/users/invite", d.AdminH.InviteTeacher)
+		admin.GET("/export/users.csv", d.AdminH.ExportUsers)
+		admin.GET("/export/payments.csv", d.AdminH.ExportPayments)
+		admin.GET("/announcements/audience", d.AdminH.AnnouncementAudience)
+		admin.POST("/announcements", d.AdminH.SendAnnouncement)
 		admin.GET("/audit-log", d.AdminH.ListAuditLog)
 		admin.GET("/feedback", d.AdminH.ListFeedback)
 		admin.PATCH("/feedback/:id", d.AdminH.UpdateFeedback)

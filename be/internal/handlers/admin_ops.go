@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -335,6 +336,14 @@ var takedownTables = map[string]string{
 	"flashcard-decks": "flashcard_decks",
 }
 
+// takedownOwner is the column holding the author, so they can be told why.
+var takedownOwner = map[string]string{
+	"tests":           "created_by",
+	"content":         "uploaded_by",
+	"brain-hacks":     "author_id",
+	"flashcard-decks": "author_id",
+}
+
 // Takedown godoc
 //
 //	@Summary		Pull published content back (Admin)
@@ -377,6 +386,16 @@ func (h *AdminHandler) Takedown(c *gin.Context) {
 		}
 		if res.RowsAffected == 0 {
 			return services.Conflict("not_published", "only published items can be taken down")
+		}
+		var owners []uuid.UUID
+		var titles []string
+		if err := tx.Table(table).Where("id = ?", id).Pluck(takedownOwner[kind], &owners).Error; err == nil && len(owners) > 0 {
+			_ = tx.Table(table).Where("id = ?", id).Pluck("title", &titles).Error
+			title := ""
+			if len(titles) > 0 {
+				title = titles[0]
+			}
+			services.Notify(tx, owners[0], "content_taken_down", "Your content was taken down", title+": "+req.Reason, map[string]interface{}{"id": id})
 		}
 		return auditAdmin(tx, actor, "content.takedown", kind+":"+id.String(), nil, map[string]string{"reason": req.Reason})
 	})
@@ -537,4 +556,240 @@ func (h *AdminHandler) UpdateFeedback(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, messageResponse{Message: "updated"})
+}
+
+// ── Inviting a teacher ───────────────────────────────────────────────────────
+
+type inviteUserRequest struct {
+	PhoneNumber string  `json:"phone_number" binding:"required"`
+	Name        *string `json:"name"`
+}
+
+// InviteTeacher godoc
+//
+//	@Summary		Create a teacher by phone number (Admin)
+//	@Description	Creates the account as a teacher before the person has signed in, so their first OTP sign-in lands them in the teacher app. If the number already has an account the response is 409 with that user's id.
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		inviteUserRequest	true	"Phone and optional name"
+//	@Success		201		{object}	models.User
+//	@Router			/api/v1/admin/users/invite [post]
+func (h *AdminHandler) InviteTeacher(c *gin.Context) {
+	actor := middleware.GetUser(c)
+	var req inviteUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+	phone := services.NormalizePhone(req.PhoneNumber)
+	if len(phone) < 8 || len(phone) > 16 {
+		respondErr(c, http.StatusBadRequest, "bad_request", "enter a valid phone number")
+		return
+	}
+	var name *string
+	if req.Name != nil {
+		if n := strings.TrimSpace(*req.Name); n != "" {
+			name = &n
+		}
+	}
+	user := models.User{PhoneNumber: phone, Name: name, Role: models.RoleTeacher, KYCStatus: models.KYCNotRequired}
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var existing models.User
+		if err := tx.Where("phone_number = ?", phone).First(&existing).Error; err == nil {
+			return services.Coded(http.StatusConflict, "user_exists", "this number already has an account", map[string]string{"user_id": existing.ID.String()})
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err := tx.Create(&user).Error; err != nil {
+			return err
+		}
+		return auditAdmin(tx, actor, "user.invite", "user:"+user.ID.String(), nil, map[string]string{"role": "teacher"})
+	})
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, user)
+}
+
+// ── Exports ──────────────────────────────────────────────────────────────────
+
+// csvCell neutralises spreadsheet formulas: a cell that starts with = + - or @ would run when opened.
+func csvCell(s string) string {
+	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
+		return "'" + s
+	}
+	return s
+}
+
+func (h *AdminHandler) streamCSV(c *gin.Context, filename, query string, header []string, row func(scan func(dest ...interface{}) error) ([]string, error)) {
+	rows, err := h.DB.WithContext(c.Request.Context()).Raw(query).Rows()
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	defer rows.Close()
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename="+filename)
+	w := csv.NewWriter(c.Writer)
+	_ = w.Write(header)
+	for rows.Next() {
+		rec, err := row(rows.Scan)
+		if err != nil {
+			break
+		}
+		_ = w.Write(rec)
+	}
+	w.Flush()
+}
+
+// ExportUsers godoc
+//
+//	@Summary		Download every user as CSV (Admin)
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Produce		text/csv
+//	@Router			/api/v1/admin/export/users.csv [get]
+func (h *AdminHandler) ExportUsers(c *gin.Context) {
+	if actor := middleware.GetUser(c); actor != nil {
+		_ = auditAdmin(h.DB.WithContext(c.Request.Context()), actor, "export.users", "users", nil, nil)
+	}
+	h.streamCSV(c, "users.csv",
+		`SELECT id::text, phone_number, COALESCE(name, ''), role, kyc_status, to_char(created_at, 'YYYY-MM-DD HH24:MI'),
+		        COALESCE(to_char(last_login_at, 'YYYY-MM-DD HH24:MI'), ''), CASE WHEN suspended_at IS NULL THEN '' ELSE 'suspended' END
+		 FROM users ORDER BY created_at DESC`,
+		[]string{"id", "phone", "name", "role", "kyc_status", "joined", "last_login", "suspended"},
+		func(scan func(dest ...interface{}) error) ([]string, error) {
+			var r [8]string
+			if err := scan(&r[0], &r[1], &r[2], &r[3], &r[4], &r[5], &r[6], &r[7]); err != nil {
+				return nil, err
+			}
+			out := make([]string, len(r))
+			for i, v := range r {
+				out[i] = csvCell(v)
+			}
+			return out, nil
+		})
+}
+
+// ExportPayments godoc
+//
+//	@Summary		Download every payment as CSV (Admin)
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Produce		text/csv
+//	@Router			/api/v1/admin/export/payments.csv [get]
+func (h *AdminHandler) ExportPayments(c *gin.Context) {
+	if actor := middleware.GetUser(c); actor != nil {
+		_ = auditAdmin(h.DB.WithContext(c.Request.Context()), actor, "export.payments", "payments", nil, nil)
+	}
+	h.streamCSV(c, "payments.csv",
+		`SELECT p.id::text, p.razorpay_order_id, COALESCE(p.razorpay_payment_id, ''), COALESCE(u.name, ''), COALESCE(u.phone_number, ''),
+		        (p.amount_paise / 100.0)::text, p.currency, p.status, to_char(p.created_at, 'YYYY-MM-DD HH24:MI')
+		 FROM payment_records p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC`,
+		[]string{"id", "order_id", "payment_id", "name", "phone", "amount", "currency", "status", "created"},
+		func(scan func(dest ...interface{}) error) ([]string, error) {
+			var r [9]string
+			if err := scan(&r[0], &r[1], &r[2], &r[3], &r[4], &r[5], &r[6], &r[7], &r[8]); err != nil {
+				return nil, err
+			}
+			out := make([]string, len(r))
+			for i, v := range r {
+				out[i] = csvCell(v)
+			}
+			return out, nil
+		})
+}
+
+// ── Announcements ────────────────────────────────────────────────────────────
+
+var announcementRoles = map[string][]string{
+	"students": {"student"},
+	"teachers": {"teacher"},
+	"all":      {"student", "teacher"},
+}
+
+// AnnouncementAudience godoc
+//
+//	@Summary		How many people an announcement would reach (Admin)
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			audience	query		string	true	"students | teachers | all"
+//	@Success		200			{object}	map[string]interface{}
+//	@Router			/api/v1/admin/announcements/audience [get]
+func (h *AdminHandler) AnnouncementAudience(c *gin.Context) {
+	roles, ok := announcementRoles[c.Query("audience")]
+	if !ok {
+		respondErr(c, http.StatusBadRequest, "bad_request", "audience must be students, teachers or all")
+		return
+	}
+	var n int64
+	if err := h.DB.WithContext(c.Request.Context()).Model(&models.User{}).Where("role IN ? AND suspended_at IS NULL", roles).Count(&n).Error; err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"count": n})
+}
+
+type announcementRequest struct {
+	Audience string `json:"audience" binding:"required"`
+	Title    string `json:"title" binding:"required,min=3,max=80"`
+	Body     string `json:"body" binding:"max=300"`
+	// Route is an optional screen to open when the notification is tapped (student screens only).
+	Route string `json:"route"`
+}
+
+// SendAnnouncement godoc
+//
+//	@Summary		Send a notification to every student, teacher or both (Admin)
+//	@Description	Stores one in-app notification per person; push delivery picks them up like any other notification.
+//	@Tags			Admin
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		announcementRequest	true	"Audience, title, body"
+//	@Success		200		{object}	map[string]interface{}
+//	@Router			/api/v1/admin/announcements [post]
+func (h *AdminHandler) SendAnnouncement(c *gin.Context) {
+	actor := middleware.GetUser(c)
+	var req announcementRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+	roles, ok := announcementRoles[req.Audience]
+	if !ok {
+		respondErr(c, http.StatusBadRequest, "bad_request", "audience must be students, teachers or all")
+		return
+	}
+	data := "{}"
+	if r := strings.TrimSpace(req.Route); r != "" {
+		if !strings.HasPrefix(r, "/(student)/") || strings.Contains(r, "..") || strings.Contains(r, "://") {
+			respondErr(c, http.StatusBadRequest, "bad_request", "route must be a student screen")
+			return
+		}
+		if b, err := json.Marshal(map[string]string{"route": r}); err == nil {
+			data = string(b)
+		}
+	}
+	var sent int64
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		res := tx.Exec(`INSERT INTO notifications (id, user_id, type, title, body, data, created_at)
+			SELECT gen_random_uuid(), id, 'announcement', ?, ?, ?::jsonb, now()
+			FROM users WHERE role IN ? AND suspended_at IS NULL`, strings.TrimSpace(req.Title), strings.TrimSpace(req.Body), data, roles)
+		if res.Error != nil {
+			return res.Error
+		}
+		sent = res.RowsAffected
+		return auditAdmin(tx, actor, "announcement.send", "audience:"+req.Audience, nil,
+			map[string]interface{}{"title": req.Title, "recipients": sent})
+	})
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"sent": sent})
 }
