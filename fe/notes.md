@@ -86,7 +86,7 @@ Grouped by theme so it scans as a roadmap, not a list of unrelated bullets. Each
 - Scope as a **module type** alongside Q Bank / Test Series / Practice — not a one-off bolted onto Practice — with its own generation logic pulling from the existing question bank.
 - Quick-link to custom test creation from Home, not just from within Practice.
 
-**Current state (updated):** **Implemented** (behind the `custom_test.enabled` flag) — a `'custom'` module type, server-side generation from a versioned blueprint, private generated tests, builder, templates, sharing, tutor mode, analytics. A *client-side* generation flow turned out not to be viable (questions are only readable per test during an attempt). See [docs/custom-test-module-fe-todo.md](docs/custom-test-module-fe-todo.md) §7 for what is verified and what still needs device QA ([docs/custom-test-module-qa.md](docs/custom-test-module-qa.md)).
+**Current state (updated):** **Implemented** (behind the `custom_test.enabled` flag) — a `'custom'` module type, server-side generation from a versioned blueprint, private generated tests, builder, templates, sharing, tutor mode, analytics. A *client-side* generation flow turned out not to be viable (questions are only readable per test during an attempt). See the custom test module spec §7 for what is verified and what still needs device QA ([docs/custom-test-module-qa.md](docs/custom-test-module-qa.md)).
 
 **Action item:** Do a structured competitive walkthrough of Marrow's custom-test flow specifically before scoping — it's the explicit reference point.
 

@@ -1,6 +1,6 @@
 # Codon FE: screen inventory and tap counts
 
-Built from the current code in `fe/app` and `fe/src` (after the navigation refactor). It replaces the old paths in `screen-flows.md`.
+Built from the current code in `fe/app` and `fe/src` (after the navigation refactor).
 Taps are counted from the Home tab of each role, one tap per button or row, and don't include typing or answering questions.
 
 **Totals:** 8 entry/auth screens, 37 student files, teacher reworked (see its section), 26 admin (5 tabs). Plus 3 layout-only files.

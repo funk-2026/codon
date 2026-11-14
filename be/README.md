@@ -328,7 +328,7 @@ Then use Razorpay's test mode to fire `payment.captured` and `payment.failed` ev
 
 ## Custom test module, rich content & platform features
 
-Implemented per `fe/docs/custom-test-module-be-todo.md` (every task there has a *Business overview* and *How to test*).
+Implemented per the custom test module spec in `fe/docs/custom-test-module.md`.
 
 | Area | Where |
 |---|---|

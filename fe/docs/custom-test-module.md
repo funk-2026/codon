@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **v0.2 — decisions D1–D11 accepted as recommended; scope extended** (rich content/images everywhere, teacher authoring flow, bookmarks/reports/ratings, follow-on epics from notes.md — see §5A and §12). Implementation plans: [FE todo](custom-test-module-fe-todo.md) · [BE todo](custom-test-module-be-todo.md). |
+| **Status** | **v0.2 — decisions D1–D11 accepted as recommended; scope extended** (rich content/images everywhere, teacher authoring flow, bookmarks/reports/ratings, follow-on epics from notes.md — see §5A and §12). Implementation plans: the task lists (removed; see git history) · the task lists (removed; see git history). |
 | **Origin** | [notes.md §B.1](../notes.md) — "Custom / user-created test modules" |
 | **Reference product** | Marrow (see §13 for what is assumed vs. verified) |
 | **Grounded against** | `fe/` and `be/` as of branch `dev` @ `0cc39f3`. Backend was **read only**; no `be/` changes are proposed as edits here, only as a handoff contract (§10). |
@@ -580,7 +580,7 @@ The FE owner does not change `be/`. These are the things the FE **needs** from t
 
 ## 11. Phasing
 
-> **v0.2:** the *authoritative* milestone plan (M0–M5, with task IDs, sizes and dependencies) is now in the [FE todo](custom-test-module-fe-todo.md) and [BE todo](custom-test-module-be-todo.md). The list below is the original v0.1 slicing, kept for feature-ID traceability. Deltas: CM-RC (rich content/images) and CM-TA (teacher authoring) are **Phase 0/1**, not later; CM-BK/RP/RG are **Phase 2**.
+> **Note:** the milestone plan and task lists that used to live in separate FE/BE todo files were built and then removed (see git history). The list below is the original slicing, kept for feature-ID traceability.
 
 Slices are ordered by dependency, not by calendar.
 
@@ -687,8 +687,4 @@ Slices are ordered by dependency, not by calendar.
 
 ## 16. Next steps (v0.2)
 
-1. ✅ D1–D11 accepted. **Confirm the three ⚑ items** in §12: D19 (what the 3 bookmark categories are), D20 (stars vs. thumbs), D22 (mobile-first vs. web authoring).
-2. **Hand the [BE todo](custom-test-module-be-todo.md) to the backend owner.** Its BE-M0 block (migrations + contract verification) and BE-M1 block (media + question metadata) gate everything else.
-3. **Start the [FE todo](custom-test-module-fe-todo.md) "Start here" block** — the platform work (deps, `RichContent` renderer, module registry, test runner) needs no backend.
-4. **Marrow walkthrough** (§13) in parallel; mark features keep/cut/add.
-5. **Update `notes.md`**: §B.1 (client-side generation not viable), §D.2 (Brain Hacks are FE mocks — A27), and the "video doesn't play" item (stale — A31).
+The module is built; remaining device checks are in `custom-test-module-qa.md`.
