@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, qs } from './client';
 import { UserProfile } from './profile';
 import { Test, AuthoredQuestion } from './tests';
 import type { MediaMap } from '@/src/rich/ast';
@@ -29,6 +29,11 @@ export function adminAnalyticsOverview(range: string = '7D'): Promise<any> {
 /** GET /api/v1/admin/users */
 export function listUsers(): Promise<{ users: UserProfile[] }> {
   return apiFetch<{ users: UserProfile[] }>('/admin/users', { method: 'GET' });
+}
+
+/** One page of users, filtered on the server (role, name or phone). */
+export function listUsersPage(p: { role?: string; search?: string; cursor?: string | null; limit?: number } = {}) {
+  return apiFetch<{ users: UserProfile[]; next_cursor: string | null }>(`/admin/users${qs({ ...p, cursor: p.cursor ?? undefined })}`, { method: 'GET' }).then((r) => ({ users: r.users ?? [], next_cursor: r.next_cursor ?? null }));
 }
 
 /** GET /api/v1/admin/users/:id — backend returns the raw user object, not wrapped */
@@ -69,6 +74,27 @@ export function listPayments(): Promise<any> {
   return apiFetch<any>('/admin/payments', { method: 'GET' });
 }
 
+export type AdminPaymentRow = {
+  id: string;
+  user_id: string;
+  user?: { name?: string | null; phone_number?: string | null };
+  subscription?: { plan?: { name: string } };
+  razorpay_order_id?: string;
+  amount_paise: number;
+  status: 'created' | 'captured' | 'failed' | 'refunded';
+  created_at: string;
+};
+
+/** One page of payments, filtered on the server (status, user, name, phone or order id). */
+export function listPaymentsPage(p: { status?: string; user_id?: string; search?: string; cursor?: string | null; limit?: number } = {}) {
+  return apiFetch<{ payments: AdminPaymentRow[]; next_cursor: string | null }>(`/admin/payments${qs({ ...p, cursor: p.cursor ?? undefined })}`, { method: 'GET' }).then((r) => ({ payments: r.payments ?? [], next_cursor: r.next_cursor ?? null }));
+}
+
+/** Totals over every payment, not just the loaded page. */
+export function getPaymentsSummary() {
+  return apiFetch<{ captured_paise: number; captured_count: number; failed_count: number; refunded_count: number }>('/admin/payments/summary', { method: 'GET' });
+}
+
 /** GET /api/v1/admin/payments/:id */
 export function getPayment(id: string): Promise<any> {
   return apiFetch<any>(`/admin/payments/${id}`, { method: 'GET' });
@@ -101,9 +127,8 @@ export function deleteSubscriptionPlan(id: string): Promise<{ message: string }>
 }
 
 /** GET /api/v1/admin/tests */
-export function adminListTests(status?: string): Promise<{ tests: Test[] }> {
-  const qs = status ? `?status=${status}` : '';
-  return apiFetch<{ tests: Test[] }>(`/admin/tests${qs}`, { method: 'GET' });
+export function adminListTests(status?: string, p: { cursor?: string | null; limit?: number; chapter_id?: string; creator_id?: string } = {}): Promise<{ tests: Test[]; next_cursor?: string | null }> {
+  return apiFetch<{ tests: Test[]; next_cursor?: string | null }>(`/admin/tests${qs({ status, ...p, cursor: p.cursor ?? undefined })}`, { method: 'GET' });
 }
 
 /** GET /api/v1/admin/tests/:id */
@@ -125,9 +150,33 @@ export function adminRejectTest(id: string, reason: string): Promise<{ message: 
 }
 
 /** GET /api/v1/admin/content */
-export function adminListContent(status?: string): Promise<{ content: ContentItem[] }> {
-  const qs = status ? `?status=${status}` : '';
-  return apiFetch<{ content: ContentItem[] }>(`/admin/content${qs}`, { method: 'GET' });
+export function adminListContent(status?: string, p: { cursor?: string | null; limit?: number; chapter_id?: string; uploader_id?: string } = {}): Promise<{ content: ContentItem[]; next_cursor?: string | null }> {
+  return apiFetch<{ content: ContentItem[]; next_cursor?: string | null }>(`/admin/content${qs({ status, ...p, cursor: p.cursor ?? undefined })}`, { method: 'GET' });
+}
+
+const STATUSES = ['draft', 'pending_review', 'approved', 'rejected', 'published'] as const;
+
+/**
+ * Every test regardless of status. The backend lists one status at a time (default: pending review),
+ * so this asks for `status=all` and, on a server without it, merges one request per status.
+ */
+export async function adminListAllTests(p: { cursor?: string | null; limit?: number; chapter_id?: string; creator_id?: string } = {}) {
+  try {
+    return await adminListTests('all', p);
+  } catch {
+    const parts = await Promise.all(STATUSES.map((s) => adminListTests(s, p).catch(() => ({ tests: [] as Test[], next_cursor: null }))));
+    return { tests: parts.flatMap((r) => r.tests), next_cursor: null as string | null };
+  }
+}
+
+/** Every content item regardless of status (see adminListAllTests). */
+export async function adminListAllContent(p: { cursor?: string | null; limit?: number; chapter_id?: string; uploader_id?: string } = {}) {
+  try {
+    return await adminListContent('all', p);
+  } catch {
+    const parts = await Promise.all(STATUSES.map((s) => adminListContent(s, p).catch(() => ({ content: [] as ContentItem[], next_cursor: null }))));
+    return { content: parts.flatMap((r) => r.content), next_cursor: null as string | null };
+  }
 }
 
 /** GET /api/v1/admin/content/:id */

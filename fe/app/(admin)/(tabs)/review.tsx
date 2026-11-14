@@ -42,11 +42,11 @@ export default function AdminReviewRoute() {
   useRefetchOnFocus(() => inbox.refetch());
   const d = inbox.data;
 
-  const options: { key: RSegment; label: string; badge?: number }[] = [
+  const options: { key: RSegment; label: string; badge?: number | string }[] = [
     { key: 'content', label: 'Content', badge: d?.items.length },
     { key: 'kyc', label: 'KYC', badge: d?.kyc },
-    { key: 'reports', label: 'Reports', badge: d?.reports },
-    { key: 'edits', label: 'Edits', badge: d?.edits },
+    { key: 'reports', label: 'Reports', badge: d?.reportsMore ? `${d.reports}+` : d?.reports },
+    { key: 'edits', label: 'Edits', badge: d?.editsMore ? `${d.edits}+` : d?.edits },
   ];
   const show = (k: RSegment) => ({ flex: 1, display: segment === k ? ('flex' as const) : ('none' as const) });
 

@@ -63,9 +63,14 @@ type ContentItem struct {
 	Reviewer        *User         `gorm:"foreignKey:ReviewedBy" json:"-"`
 	ReviewedAt      *time.Time    `json:"reviewed_at,omitempty"`
 	RejectionReason *string       `gorm:"type:text" json:"rejection_reason,omitempty"`
-	RatingAvg       float64       `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
-	RatingCount     int           `gorm:"not null;default:0" json:"rating_count"`
-	CreatedAt       time.Time     `json:"created_at"`
+	ReviewMeta
+	// Text of a document lesson written in the app (no file to upload).
+	BodyText *string `gorm:"type:text" json:"body_text,omitempty"`
+	// AuthorName is filled in for students ("by …"); never stored.
+	AuthorName  *string   `gorm:"-" json:"author_name,omitempty"`
+	RatingAvg   float64   `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
+	RatingCount int       `gorm:"not null;default:0" json:"rating_count"`
+	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt       time.Time     `json:"updated_at"`
 }
 
@@ -119,6 +124,15 @@ type MediaAsset struct {
 	ReadyAt       *time.Time `json:"ready_at,omitempty"`
 }
 
+// ReviewMeta is shared by everything that goes through the review workflow.
+type ReviewMeta struct {
+	// SubmittedAt is when the author last sent it for review; SubmitNote is what they told the reviewer.
+	SubmittedAt *time.Time `json:"submitted_at,omitempty"`
+	SubmitNote  *string    `gorm:"type:text" json:"submit_note,omitempty"`
+	// PublishAt is set while an approved item waits to go live at a chosen time.
+	PublishAt *time.Time `gorm:"index" json:"publish_at,omitempty"`
+}
+
 type MediaRef struct {
 	MediaID   uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"media_id"`
 	OwnerType string    `gorm:"type:text;primaryKey" json:"owner_type"`
@@ -139,6 +153,7 @@ type BrainHack struct {
 	ReviewedBy      *uuid.UUID    `gorm:"type:uuid" json:"reviewed_by,omitempty"`
 	ReviewedAt      *time.Time    `json:"reviewed_at,omitempty"`
 	RejectionReason *string       `gorm:"type:text" json:"rejection_reason,omitempty"`
+	ReviewMeta
 	RatingAvg       float64       `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
 	RatingCount     int           `gorm:"not null;default:0" json:"rating_count"`
 	CreatedAt       time.Time     `json:"created_at"`
@@ -158,6 +173,7 @@ type FlashcardDeck struct {
 	RejectionReason      *string       `gorm:"type:text" json:"rejection_reason,omitempty"`
 	ReviewedBy           *uuid.UUID    `gorm:"type:uuid" json:"reviewed_by,omitempty"`
 	ReviewedAt           *time.Time    `json:"reviewed_at,omitempty"`
+	ReviewMeta
 	CardCount            int           `gorm:"not null;default:0" json:"card_count"`
 	RatingAvg            float64       `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
 	RatingCount          int           `gorm:"not null;default:0" json:"rating_count"`

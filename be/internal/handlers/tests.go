@@ -106,6 +106,16 @@ func (h *TestHandler) ListTests(c *gin.Context) {
 	for i, t := range tests {
 		ids[i] = t.ID
 	}
+	creators := make([]uuid.UUID, len(tests))
+	for i, t := range tests {
+		creators[i] = t.CreatedBy
+	}
+	authors := authorNames(h.DB.WithContext(c.Request.Context()), creators)
+	for i := range tests {
+		if n, ok := authors[tests[i].CreatedBy]; ok {
+			tests[i].AuthorName = &n
+		}
+	}
 	mine := items.MyRatings(c.Request.Context(), h.DB, user.ID, items.Test, ids)
 	views := make([]testView, len(tests))
 	for i, t := range tests {
@@ -135,6 +145,9 @@ func (h *TestHandler) GetTest(c *gin.Context) {
 		First(&test).Error; err != nil || !visibleToUser(&test, user.ID) {
 		respondErr(c, http.StatusNotFound, "test_not_found", "test not found")
 		return
+	}
+	if n, ok := authorNames(h.DB.WithContext(c.Request.Context()), []uuid.UUID{test.CreatedBy})[test.CreatedBy]; ok {
+		test.AuthorName = &n
 	}
 	view := testView{Test: test}
 	var r models.Rating
@@ -208,6 +221,7 @@ func (h *TestHandler) GetQuestions(c *gin.Context) {
 		OptionD       string    `json:"option_d"`
 		OrderIndex    int       `json:"order_index"`
 		Position      int       `json:"position"`
+		Section       *string   `json:"section,omitempty"`
 	}
 
 	mc := media.NewCollector()
@@ -216,7 +230,7 @@ func (h *TestHandler) GetQuestions(c *gin.Context) {
 		resp[i] = QuestionView{
 			ID: q.ID, TestID: testID, ContentFormat: q.ContentFormat, QuestionText: q.QuestionText,
 			OptionA: q.OptionA, OptionB: q.OptionB, OptionC: q.OptionC, OptionD: q.OptionD,
-			OrderIndex: q.Position, Position: q.Position,
+			OrderIndex: q.Position, Position: q.Position, Section: q.Section,
 		}
 		mc.Add(q.ContentFormat, &resp[i].QuestionText, &resp[i].OptionA, &resp[i].OptionB, &resp[i].OptionC, &resp[i].OptionD)
 	}
@@ -311,6 +325,15 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 		DurationMinutes: req.DurationMinutes, MarksPerCorrect: marksCorrect,
 		MarksPerWrong: marksWrong, RequiresSubscription: requiresSub,
 		CreatedBy: teacher.ID, Status: models.StatusDraft,
+	}
+	if req.Instructions != nil {
+		if err := validate.MaxLen("instructions", *req.Instructions, 4000); err != nil {
+			respondErr(c, http.StatusBadRequest, "invalid_instructions", "instructions can be at most 4000 characters")
+			return
+		}
+		if t := strings.TrimSpace(*req.Instructions); t != "" {
+			test.Instructions = &t
+		}
 	}
 	if err := h.DB.WithContext(c.Request.Context()).Create(&test).Error; err != nil {
 		respondErr(c, http.StatusInternalServerError, "internal", "failed to create test")
@@ -416,6 +439,21 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 	}
 	if req.RequiresSubscription != nil {
 		updates["requires_subscription"] = *req.RequiresSubscription
+	}
+	if req.Instructions != nil {
+		if err := validate.MaxLen("instructions", *req.Instructions, 4000); err != nil {
+			respondErr(c, http.StatusBadRequest, "invalid_instructions", "instructions can be at most 4000 characters")
+			return
+		}
+		if t := strings.TrimSpace(*req.Instructions); t == "" {
+			updates["instructions"] = nil
+		} else {
+			updates["instructions"] = t
+		}
+	}
+	if len(updates) == 0 {
+		respondErr(c, http.StatusBadRequest, "bad_request", "no fields to update")
+		return
 	}
 
 	if err := h.DB.WithContext(c.Request.Context()).Model(&test).Updates(updates).Error; err != nil {
@@ -775,7 +813,7 @@ func (h *TestHandler) SubmitForReview(c *gin.Context) {
 		}
 		return h.QS.CheckPublishGate(ctx, &test)
 	}
-	if err := h.Review.Submit(c.Request.Context(), teacher, services.ReviewTest, id, gate); err != nil {
+	if err := h.Review.SubmitWithNote(c.Request.Context(), teacher, services.ReviewTest, id, gate, submitNote(c)); err != nil {
 		respondService(c, err)
 		return
 	}
@@ -965,19 +1003,30 @@ func (h *TestHandler) AdminGetTest(c *gin.Context) {
 //	@Tags			Admin
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Param			status	query		string	false	"Filter by status"	default(pending_review)
+//	@Param			status		query		string	false	"Filter by status, or all"	default(pending_review)
+//	@Param			creator_id	query		string	false	"Only this author's tests"
+//	@Param			chapter_id	query		string	false	"Only this chapter's tests"
 //	@Success		200		{object}	listTestsResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		403		{object}	errorResponse
 //	@Router			/api/v1/admin/tests [get]
 func (h *TestHandler) AdminListTests(c *gin.Context) {
-	status, ok := statusParam(c)
-	if !ok {
-		return
+	q := h.DB.WithContext(c.Request.Context()).Where("origin = ?", models.OriginAuthored)
+	// status=all lists every status; otherwise one status (default: pending_review).
+	if c.Query("status") != "all" {
+		status, ok := statusParam(c)
+		if !ok {
+			return
+		}
+		q = q.Where("status = ?", status)
 	}
-	q := h.DB.WithContext(c.Request.Context()).
-		Where("status = ? AND origin = ?", status, models.OriginAuthored).
-		Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator")
+	if v := c.Query("creator_id"); v != "" {
+		q = q.Where("created_by = ?", v)
+	}
+	if v := c.Query("chapter_id"); v != "" {
+		q = q.Where("chapter_id = ?", v)
+	}
+	q = q.Preload("Course").Preload("Subject").Preload("Chapter").Preload("Creator")
 	tests, next, err := paged(c, q, "tests", testKey)
 	if err != nil {
 		httpx.Fail(c, err)
@@ -1061,6 +1110,7 @@ type createTestRequest struct {
 	MarksPerCorrect      *float64 `json:"marks_per_correct" example:"4"`
 	MarksPerWrong        *float64 `json:"marks_per_wrong"   example:"-1"`
 	RequiresSubscription *bool    `json:"requires_subscription" example:"true"`
+	Instructions         *string  `json:"instructions"`
 }
 
 type updateTestRequest struct {
@@ -1072,6 +1122,7 @@ type updateTestRequest struct {
 	MarksPerCorrect      *float64 `json:"marks_per_correct"`
 	MarksPerWrong        *float64 `json:"marks_per_wrong"`
 	RequiresSubscription *bool    `json:"requires_subscription"`
+	Instructions         *string  `json:"instructions"`
 }
 
 // questionRequest is the create/patch body for a question. Every field is
@@ -1097,6 +1148,7 @@ type questionRequest struct {
 	SourceLabel    *string   `json:"source_label"`
 	CustomEligible *bool     `json:"custom_eligible"`
 	Tags           *[]string `json:"tags"`
+	Section        *string   `json:"section"`
 }
 
 func parseOptUUID(s *string) (*uuid.UUID, bool, error) {
@@ -1118,7 +1170,7 @@ func (r questionRequest) toInput() (services.QuestionInput, error) {
 		QuestionText: r.QuestionText, OptionA: r.OptionA, OptionB: r.OptionB, OptionC: r.OptionC, OptionD: r.OptionD,
 		CorrectOption: r.CorrectOption, Explanation: r.Explanation, ContentFormat: r.ContentFormat,
 		Difficulty: r.Difficulty, NCERTClass: r.NCERTClass, NCERTPage: r.NCERTPage, SourceType: r.SourceType,
-		SourceYear: r.SourceYear, SourceLabel: r.SourceLabel, CustomEligible: r.CustomEligible, Tags: r.Tags,
+		SourceYear: r.SourceYear, SourceLabel: r.SourceLabel, CustomEligible: r.CustomEligible, Tags: r.Tags, Section: r.Section,
 	}
 	var err error
 	if in.SubjectID, _, err = parseOptUUID(r.SubjectID); err != nil {

@@ -18,8 +18,11 @@ export function shouldRegisterSilently(perm: PermissionState, pushEnabledPref: b
   return perm === 'granted' && pushEnabledPref !== false;
 }
 
-/** In-app routes a notification is allowed to open (server data is untrusted). */
-const ALLOWED = ['/(student)/'];
+/**
+ * In-app routes a notification is allowed to open (server data is untrusted): student screens, the teacher
+ * inbox, and the admin Review tab for "something is waiting for review". Other admin screens stay closed.
+ */
+const ALLOWED = ['/(student)/', '/(admin)/(tabs)/review', '/(teacher)/notifications'];
 
 export function routeFromNotification(data: unknown): string | null {
   const route = (data as { route?: unknown } | null | undefined)?.route;

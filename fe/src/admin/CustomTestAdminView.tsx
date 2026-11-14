@@ -77,7 +77,8 @@ export function CustomTestAdminView({ embedded }: { embedded?: boolean }) {
   };
 
   const grouped = useMemo(() => {
-    const all = settings.d ?? [];
+    // App, legal, support, rank and event-collection settings have their own section under General.
+    const all = (settings.d ?? []).filter((s) => !/^(app|legal|support|results)\./.test(s.key) && s.key !== 'analytics.events');
     const used = new Set<string>();
     const g = GROUPS.map((gr) => {
       const items = all.filter((s) => !used.has(s.key) && gr.match(s.key));

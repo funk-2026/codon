@@ -12,7 +12,9 @@ const DEFAULT_REASON = "Your payment didn't complete. This is usually resolved b
 export default function PaymentFailedRoute() {
   const { color, type, space } = useTheme();
   const router = useRouter();
-  const { reason } = useLocalSearchParams<{ reason?: string }>();
+  const { reason, planId, order, paid } = useLocalSearchParams<{ reason?: string; planId?: string; order?: string; paid?: string }>();
+  // After the gateway took the money, "you haven't been charged" would be false.
+  const maybeCharged = paid === '1';
   const [retrying, setRetrying] = useState(false);
 
   const scale = useSharedValue(0.9);
@@ -32,7 +34,8 @@ export default function PaymentFailedRoute() {
     setRetrying(true);
     setTimeout(() => {
       setRetrying(false);
-      router.replace(ROUTES.student.checkout);
+      // Back to the plan they were paying for, not whichever plan is listed first.
+      router.replace({ pathname: ROUTES.student.checkout, params: planId ? { planId } : {} });
     }, 600);
   };
 
@@ -46,7 +49,7 @@ export default function PaymentFailedRoute() {
         <Text
           style={[type['type/h1'], { color: color('text/primary'), marginTop: space.lg, textAlign: 'center' }]}
         >
-          Payment didn&apos;t go through.
+          {maybeCharged ? 'We’re still confirming your payment.' : 'Payment didn’t go through.'}
         </Text>
         <Text
           style={[type['type/body-l'], { color: color('text/secondary'), marginTop: space.xs, textAlign: 'center' }]}
@@ -56,12 +59,19 @@ export default function PaymentFailedRoute() {
         <Text
           style={[type['type/body-m'], { color: color('text/tertiary'), marginTop: space.md, textAlign: 'center' }]}
         >
-          You haven&apos;t been charged.
+          {maybeCharged
+            ? 'Your payment may have gone through but we couldn’t confirm it yet. Check Payments in a few minutes, or contact us with your order ID.'
+            : 'You haven’t been charged.'}
         </Text>
       </View>
 
       <View style={{ paddingHorizontal: space.md, marginBottom: space.xl, gap: space.sm }}>
-        <PrimaryButton label="Try Again" onPress={handleRetry} loading={retrying} />
+        {maybeCharged ? (
+          <PrimaryButton label="Check my payments" onPress={() => router.replace(ROUTES.student.payments)} />
+        ) : (
+          <PrimaryButton label="Try Again" onPress={handleRetry} loading={retrying} />
+        )}
+        {order ? <SecondaryButton label="Get help with this payment" onPress={() => router.push({ pathname: ROUTES.student.help, params: { order } })} /> : null}
         <SecondaryButton
           label="Choose a Different Plan"
           onPress={() => router.replace(ROUTES.student.subscriptionPlans)}

@@ -93,6 +93,11 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 		return
 	}
 
+	if user.SuspendedAt != nil {
+		respondErr(c, http.StatusForbidden, "account_suspended", "this account has been suspended; contact support")
+		return
+	}
+
 	h.DB.WithContext(c.Request.Context()).Model(&user).
 		UpdateColumn("last_login_at", gorm.Expr("NOW()"))
 

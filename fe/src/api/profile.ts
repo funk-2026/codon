@@ -12,6 +12,9 @@ export type UserProfile = {
   kyc_status: string;
   created_at: string;
   last_login_at?: string;
+  exam_date?: string | null;
+  suspended_at?: string | null;
+  suspended_reason?: string | null;
 };
 
 export type SubscriptionPlan = {
@@ -61,6 +64,8 @@ export type UpdateMeRequest = {
   name?: string;
   profile_photo_key?: string;
   selected_course_id?: string;
+  /** YYYY-MM-DD; an empty string clears it. */
+  exam_date?: string;
 };
 
 /** PATCH /api/v1/me */

@@ -12,6 +12,8 @@ import {
   GearSix,
   DeviceMobile,
   ChatCircleText,
+  Question,
+  Receipt,
   CaretRight,
   ArrowsClockwise,
   BookmarkSimple,
@@ -243,6 +245,12 @@ export default function ProfileHomeRoute() {
               />
               <Divider />
               <MenuRow
+                icon={<Receipt size={20} color={color('text/secondary')} />}
+                label="Payments"
+                onPress={() => router.push(ROUTES.student.payments)}
+              />
+              <Divider />
+              <MenuRow
                 icon={<GearSix size={20} color={color('text/secondary')} />}
                 label="Settings"
                 onPress={() => router.push(ROUTES.student.settings)}
@@ -274,6 +282,12 @@ export default function ProfileHomeRoute() {
                 icon={<ChatCircleText size={20} color={color('text/secondary')} />}
                 label="Give Feedback"
                 onPress={() => router.push(ROUTES.student.giveFeedback)}
+              />
+              <Divider />
+              <MenuRow
+                icon={<Question size={20} color={color('text/secondary')} />}
+                label="Help and support"
+                onPress={() => router.push(ROUTES.student.help)}
                 last
               />
             </View>

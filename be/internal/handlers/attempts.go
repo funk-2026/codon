@@ -13,6 +13,7 @@ import (
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 	"codon-backend/internal/services"
+	"codon-backend/internal/settings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -335,7 +336,39 @@ func (h *AttemptHandler) GetResult(c *gin.Context) {
 		respondErr(c, http.StatusInternalServerError, "internal", "failed to compute breakdown")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"attempt": attempt, "breakdown": bd})
+	out := gin.H{"attempt": attempt, "breakdown": bd}
+	if cohort := h.cohortFor(c.Request.Context(), &attempt); cohort != nil {
+		out["cohort"] = cohort
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// cohortFor places a Test Series result among everyone who took that test: rank, how many, top percent
+// and the average score. Each student counts once (their first submitted attempt), and nothing is shown
+// until enough students have finished the test for the numbers to mean something.
+func (h *AttemptHandler) cohortFor(ctx context.Context, a *models.StudentAttempt) gin.H {
+	if a.Test.ModuleType != models.ModuleTestSeries || a.Score == nil {
+		return nil
+	}
+	var r struct {
+		Total  int64
+		Better int64
+		Avg    *float64
+	}
+	err := h.DB.WithContext(ctx).Raw(`
+		WITH firsts AS (
+			SELECT DISTINCT ON (a.user_id) a.user_id, a.score
+			FROM student_attempts a JOIN users u ON u.id = a.user_id
+			WHERE a.test_id = ? AND a.status = 'submitted' AND a.score IS NOT NULL AND u.role = 'student'
+			ORDER BY a.user_id, a.submitted_at ASC)
+		SELECT count(*) AS total, count(*) FILTER (WHERE score > ?) AS better, avg(score)::float8 AS avg FROM firsts`,
+		a.TestID, *a.Score).Scan(&r).Error
+	if err != nil || r.Total < int64(settings.Default.Int("results.rank_min_attempts")) {
+		return nil
+	}
+	rank := r.Better + 1
+	top := (rank*100 + r.Total - 1) / r.Total
+	return gin.H{"rank": rank, "total": r.Total, "top_percent": top, "avg_score": r.Avg}
 }
 
 type reviewItem struct {

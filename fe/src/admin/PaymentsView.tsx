@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CaretRight, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SkeletonBlock, TextButton } from '@/src/components';
+import { useQuery } from '@tanstack/react-query';
+import { EmptyState, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { TreeToolbar } from '@/src/screens/CurriculumTree';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { useAdminPayments } from '@/src/queries/admin';
+import { getPaymentsSummary, listPaymentsPage } from '@/src/api/admin';
+import { useCursorList } from '@/src/queries/useCursorList';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
@@ -37,21 +39,33 @@ const TOKEN: Record<Status, 'semantic/success' | 'text/tertiary' | 'semantic/dan
 };
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString('en-IN')}`;
 
-/** Money in. Search by name, phone or order id; the summary counts only payments that actually went through. */
+/**
+ * Money in. Status and search are applied by the server (name, phone or order id), and the summary
+ * comes from a server total over every payment, so neither depends on how much is loaded.
+ */
 export function PaymentsView() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const query = useAdminPayments();
-  useRefetchOnFocus(() => query.refetch());
-  const payments = useMemo<PaymentRecord[]>(() => query.data ?? [], [query.data]);
 
   const [q, setQ] = useState('');
+  const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(q.trim()), 350);
+    return () => clearTimeout(t);
+  }, [q]);
 
-  const captured = payments.filter((p) => p.status === 'captured');
-  const capturedPaise = captured.reduce((n, p) => n + p.amount_paise, 0);
-  const needle = q.trim().toLowerCase();
-  const shown = payments.filter(
+  const list = useCursorList<PaymentRecord, Awaited<ReturnType<typeof listPaymentsPage>>>(
+    ['admin', 'payments', filter, search],
+    (cursor) => listPaymentsPage({ status: filter === 'all' ? undefined : filter, search: search || undefined, limit: 50, cursor }),
+    (r) => r.payments as PaymentRecord[],
+  );
+  useRefetchOnFocus(list.load);
+  const summary = useQuery({ queryKey: ['admin', 'payments', 'summary'], queryFn: getPaymentsSummary, retry: false });
+
+  // Also match locally, so results are right even before the server applies the search.
+  const needle = search.toLowerCase();
+  const shown = list.rows.filter(
     (p) =>
       (filter === 'all' || p.status === filter) &&
       (!needle || [p.user?.name, p.user?.phone_number, p.razorpay_order_id].some((v) => (v ?? '').toLowerCase().includes(needle))),
@@ -63,7 +77,7 @@ export function PaymentsView() {
         <TreeToolbar query={q} onQuery={setQ} placeholder="Search by name, phone or order ID" chips={{ options: CHIPS, value: filter, onChange: (k) => setFilter(k as Filter) }} />
       </View>
 
-      {query.isPending ? (
+      {list.loading ? (
         <View style={{ paddingHorizontal: space.md, marginTop: space.md, gap: space.xs }}>
           <SkeletonBlock height={56} radius={radius.md} />
           <SkeletonBlock height={64} radius={radius.md} />
@@ -71,29 +85,31 @@ export function PaymentsView() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space['3xl'], gap: space.xs }} showsVerticalScrollIndicator={false}>
-          {query.isError ? (
+          {list.error ? (
             <EmptyState
               icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
               title="Couldn't load payments"
               description="Something went wrong fetching payment records."
-              action={<TextButton label="Retry" onPress={() => void query.refetch()} />}
+              action={<TextButton label="Retry" onPress={list.load} />}
             />
           ) : (
             <>
-              <View style={[{ flexDirection: 'row', backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm }, shadow()]}>
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={[type['type/numeral-display'], { color: color('text/primary'), fontSize: 20 }]}>{rupees(capturedPaise)}</Text>
-                  <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>Captured</Text>
+              {summary.data ? (
+                <View style={[{ flexDirection: 'row', backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm }, shadow()]}>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={[type['type/numeral-display'], { color: color('text/primary'), fontSize: 20 }]}>{rupees(summary.data.captured_paise)}</Text>
+                    <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>Captured</Text>
+                  </View>
+                  <View style={{ width: 1, backgroundColor: color('border/subtle') }} />
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={[type['type/numeral-display'], { color: color('text/primary'), fontSize: 20 }]}>{summary.data.captured_count}</Text>
+                    <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>Successful payments</Text>
+                  </View>
                 </View>
-                <View style={{ width: 1, backgroundColor: color('border/subtle') }} />
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={[type['type/numeral-display'], { color: color('text/primary'), fontSize: 20 }]}>{captured.length}</Text>
-                  <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>Successful payments</Text>
-                </View>
-              </View>
+              ) : null}
               {shown.length === 0 ? (
                 <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center', marginTop: space.xl }]}>
-                  {payments.length === 0 ? 'No payments yet.' : 'No payments match.'}
+                  {list.rows.length === 0 && filter === 'all' && !search ? 'No payments yet.' : 'No payments match.'}
                 </Text>
               ) : (
                 shown.map((p) => (
@@ -117,6 +133,7 @@ export function PaymentsView() {
                   </Pressable>
                 ))
               )}
+              {list.hasMore ? <SecondaryButton label={list.more ? 'Loading…' : 'Load more'} onPress={() => void list.loadMore()} loading={list.more} /> : null}
             </>
           )}
         </ScrollView>

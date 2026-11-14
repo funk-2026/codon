@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { track } from '@/src/analytics/track';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -31,6 +32,9 @@ export default function SubscriptionPlansRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const planQuery = usePlans();
+  useEffect(() => {
+    track('subscription.plans_viewed');
+  }, []);
   const plans = planQuery.plans ?? [];
   const loading = planQuery.isPending;
   const loadError = planQuery.isError;

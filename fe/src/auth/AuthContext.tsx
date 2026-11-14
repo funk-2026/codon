@@ -11,6 +11,7 @@ import {
 import { getMe } from '../api/profile';
 import { logout as apiLogout } from '../api/sessions';
 import { ROUTES } from '@/src/navigation/routes';
+import { markSuspended } from './suspendedNotice';
 
 export type Role = 'student' | 'teacher' | 'admin';
 
@@ -59,6 +60,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('onTokenExpired', () => {
+      signOut();
+      router.replace(ROUTES.auth.phoneEntry);
+    });
+    return () => sub.remove();
+  }, [signOut, router]);
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('onAccountSuspended', () => {
+      markSuspended();
       signOut();
       router.replace(ROUTES.auth.phoneEntry);
     });

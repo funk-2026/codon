@@ -145,6 +145,8 @@ func (h *PlanHandler) CreatePlan(c *gin.Context) {
 		respondErr(c, http.StatusInternalServerError, "internal", "failed to create plan")
 		return
 	}
+	_ = auditAdmin(h.DB.WithContext(c.Request.Context()), admin, "plan.create", "plan:"+plan.ID.String(), nil,
+		map[string]interface{}{"name": plan.Name, "price_paise": plan.PricePaise, "duration_days": plan.DurationDays, "is_active": plan.IsActive})
 	c.JSON(http.StatusCreated, plan)
 }
 
@@ -201,6 +203,7 @@ func (h *PlanHandler) UpdatePlan(c *gin.Context) {
 		return
 	}
 	h.DB.WithContext(c.Request.Context()).First(&plan, plan.ID)
+	_ = auditAdmin(h.DB.WithContext(c.Request.Context()), middleware.GetUser(c), "plan.update", "plan:"+plan.ID.String(), nil, updates)
 	c.JSON(http.StatusOK, plan)
 }
 
@@ -226,6 +229,7 @@ func (h *PlanHandler) DeletePlan(c *gin.Context) {
 		httpx.Fail(c, err)
 		return
 	}
+	_ = auditAdmin(h.DB.WithContext(c.Request.Context()), middleware.GetUser(c), "plan.deactivate", "plan:"+plan.ID.String(), nil, nil)
 	c.JSON(http.StatusOK, messageResponse{Message: "plan deactivated"})
 }
 

@@ -215,3 +215,32 @@ func (s *PushService) StreakNudges(ctx context.Context, now time.Time) int {
 	}
 	return created
 }
+
+// ExpiryReminders tells students, once per subscription, that their plan ends within three days.
+// It runs hourly but only creates notifications during the daytime (app time zone).
+func (s *PushService) ExpiryReminders(ctx context.Context, now time.Time) int {
+	if h := now.In(clock.AppZone).Hour(); h < 9 || h > 20 {
+		return 0
+	}
+	var rows []struct {
+		ID      uuid.UUID
+		UserID  uuid.UUID
+		EndDate time.Time
+		Plan    string
+	}
+	s.DB.WithContext(ctx).Raw(`SELECT s.id, s.user_id, s.end_date, p.name AS plan
+		FROM subscriptions s JOIN subscription_plans p ON p.id = s.plan_id
+		WHERE s.status = 'active' AND s.end_date > ? AND s.end_date <= ?
+		  AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.user_id = s.user_id AND n.type = 'subscription_expiring' AND n.data->>'sub' = s.id::text)`,
+		now, now.AddDate(0, 0, 3)).Scan(&rows)
+	for _, r := range rows {
+		days := int(r.EndDate.Sub(now).Hours()/24) + 1
+		when := "in " + strconv.Itoa(days) + " days"
+		if days <= 1 {
+			when = "tomorrow"
+		}
+		Notify(s.DB, r.UserID, "subscription_expiring", "Your plan ends "+when, r.Plan+": renew to keep your access.",
+			map[string]interface{}{"sub": r.ID.String(), "route": "/(student)/subscription-plans"})
+	}
+	return len(rows)
+}

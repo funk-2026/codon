@@ -112,6 +112,9 @@ export default function ContentReaderRoute() {
             <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space['2xs'] }]}>
               {content?.item?.title || 'Unable to load'}
             </Text>
+            {content?.item?.author_name ? (
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space['2xs'] }]}>By {content.item.author_name}</Text>
+            ) : null}
           </>
         )}
 
@@ -147,8 +150,10 @@ export default function ContentReaderRoute() {
         ) : (
           <>
             {/* Body */}
-            <View style={{ marginTop: space.lg, height: 500 }}>
-              {content?.url ? (
+            <View style={content?.item?.body_text ? { marginTop: space.lg } : { marginTop: space.lg, height: 500 }}>
+              {content?.item?.body_text ? (
+                <Text style={[type['type/body-l'], { color: color('text/primary') }]}>{content.item.body_text}</Text>
+              ) : content?.url ? (
                 <WebView source={{ uri: content.url }} style={styles.docView} />
               ) : (
                 <Text style={[type['type/body-l'], { color: color('text/secondary') }]}>

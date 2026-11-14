@@ -11,7 +11,9 @@ import { dismissReport, listAdminReports, listTeacherReports, resolveReport, typ
 import type { ReportStatus } from '@/src/api/reports';
 import { QuestionPreviewCard } from '@/src/rich';
 import { ROUTES } from '@/src/navigation/routes';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { listUsersPage } from '@/src/api/admin';
+import { reassignReport } from '@/src/api/adminOps';
 import { useCursorList } from '@/src/queries/useCursorList';
 import { EmbedRoot } from '@/src/teacher/EmbedRoot';
 
@@ -31,6 +33,8 @@ export function ReportsInbox({ role, embedded }: { role: 'teacher' | 'admin'; em
   const { show } = useToast();
   const reasons = useReportReasons();
   const queryClient = useQueryClient();
+  const [reassigning, setReassigning] = useState<ReportInboxRow | null>(null);
+  const teachers = useQuery({ queryKey: ['admin', 'teachers-pick'], queryFn: () => listUsersPage({ role: 'teacher', limit: 100 }).then((r) => r.users), enabled: role === 'admin' && !!reassigning });
 
   const [status, setStatus] = useState<ReportStatus | 'all'>('open');
   const [reason, setReason] = useState<string | undefined>();
@@ -114,6 +118,7 @@ export function ReportsInbox({ role, embedded }: { role: 'teacher' | 'admin'; em
                       <TextButton label="Mark fixed" onPress={() => { setActing({ row: r, outcome: 'fixed' }); setNote(''); }} />
                       <TextButton label="No change needed" onPress={() => { setActing({ row: r, outcome: 'no_change' }); setNote(''); }} />
                       <TextButton label="Dismiss" onPress={() => { setActing({ row: r, outcome: 'dismissed' }); setNote(''); }} />
+                      {role === 'admin' ? <TextButton label="Reassign" onPress={() => setReassigning(r)} /> : null}
                     </View>
                   </View>
                 ) : (
@@ -125,6 +130,37 @@ export function ReportsInbox({ role, embedded }: { role: 'teacher' | 'admin'; em
           </>
         )}
       </ScrollView>
+
+      <BottomSheet visible={!!reassigning} onClose={() => setReassigning(null)} title="Reassign to a teacher" dismissable={!busy}>
+        <View style={{ gap: space.xs, paddingHorizontal: space.lg, paddingTop: space.sm }}>
+          {teachers.isPending ? (
+            <SkeletonBlock height={48} radius={radius.md} />
+          ) : (teachers.data ?? []).length === 0 ? (
+            <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>There are no teachers to assign this to.</Text>
+          ) : (
+            (teachers.data ?? []).map((t) => (
+              <TextButton
+                key={t.id}
+                label={t.name || t.phone_number}
+                disabled={busy}
+                onPress={async () => {
+                  if (!reassigning) return;
+                  setBusy(true);
+                  try {
+                    await reassignReport(reassigning.id, t.id);
+                    show(`Assigned to ${t.name || t.phone_number}`, 'success');
+                    setReassigning(null);
+                  } catch {
+                    show('Couldn’t reassign. Try again.', 'error');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              />
+            ))
+          )}
+        </View>
+      </BottomSheet>
 
       <BottomSheet visible={!!acting} onClose={() => setActing(null)} title={acting?.outcome === 'fixed' ? 'Mark as fixed' : acting?.outcome === 'no_change' ? 'No change needed' : 'Dismiss report'} dismissable={!busy}>
         <View style={{ gap: space.md }}>

@@ -19,9 +19,9 @@ export function LockedSheet({ onClose, onViewPlans }: { onClose: () => void; onV
           style,
         ]}
       >
-        <Text style={[type['type/h2'], { color: color('text/primary') }]}>This is part of NEET UG Pro</Text>
+        <Text style={[type['type/h2'], { color: color('text/primary') }]}>This needs an active plan</Text>
         <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
-          Unlock full-length test series, the complete question bank, and all video classes.
+          A plan unlocks the full test series, the complete question bank and every video class for your course.
         </Text>
         <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.xs }}>
           <Pressable

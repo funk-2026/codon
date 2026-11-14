@@ -60,6 +60,7 @@ type QuestionInput struct {
 	SourceType     *string
 	SourceYear     *int
 	SourceLabel    *string
+	Section        *string // "" clears
 	CustomEligible *bool
 	Tags           *[]string // replace the tag set when non-nil
 }
@@ -331,6 +332,13 @@ func applyScalars(q *models.Question, in QuestionInput) error {
 			return Coded(http.StatusBadRequest, "invalid_source_year", "source_year out of range")
 		}
 		q.SourceYear = in.SourceYear
+	}
+	if in.Section != nil {
+		if t := strings.TrimSpace(*in.Section); t == "" {
+			q.Section = nil
+		} else {
+			q.Section = &t
+		}
 	}
 	if in.SourceLabel != nil {
 		q.SourceLabel = in.SourceLabel

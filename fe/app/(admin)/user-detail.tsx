@@ -4,11 +4,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CaretRight, DeviceMobile, Shield, WarningCircle } from 'phosphor-react-native';
-import { ConfirmDialog, EmptyState, Screen, ScreenHeader, SkeletonBlock, StatusBadge, TextButton, useToast, type BadgeStatus } from '@/src/components';
+import { BottomSheet, ConfirmDialog, EmptyState, InputField, PrimaryButton, Screen, ScreenHeader, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, useToast, type BadgeStatus } from '@/src/components';
+import { ReasonSheet } from '@/src/admin/ReasonSheet';
+import { getUserActivity, grantAccess, purgePersonalData, reactivateUser, revokeAllUserSessions, revokeUserSession, suspendUser } from '@/src/api/adminOps';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
-import { adminListContent, adminListKYC, adminListTests, getUser, getUserSessions, getUserSubscription, updateTeacherPermissions, updateUserRole } from '@/src/api/admin';
-import { useAdminPayments } from '@/src/queries/admin';
+import { adminListAllContent, adminListAllTests, adminListKYC, adminListSubscriptionPlans, getUser, getUserSessions, getUserSubscription, listPaymentsPage, updateTeacherPermissions, updateUserRole } from '@/src/api/admin';
+import { allPages } from '@/src/api/paginate';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
@@ -43,25 +45,57 @@ export default function UserDetailRoute() {
 
   const subscription = useQuery({ queryKey: ['admin', 'user', id, 'subscription'], queryFn: () => getUserSubscription(id), enabled: !!id && role === 'student' });
   const sessions = useQuery({ queryKey: ['admin', 'user', id, 'sessions'], queryFn: () => getUserSessions(id), enabled: !!id });
-  const allPayments = useAdminPayments();
-  const payments = (allPayments.data ?? []).filter((p: { user_id: string }) => p.user_id === id) as { id: string; amount_paise: number; status: string; created_at: string; subscription?: { plan?: { name: string } } }[];
+  // Their four most recent payments (the server filters by user), so history isn't cut off by a long list.
+  const paymentsQuery = useQuery({ queryKey: ['admin', 'user', id, 'payments'], queryFn: () => listPaymentsPage({ user_id: id, limit: 4 }), enabled: !!id && role === 'student' });
+  const payments = (paymentsQuery.data?.payments ?? []).filter((p) => p.user_id === id);
   const made = useQuery({
     queryKey: ['admin', 'user', id, 'made'],
     enabled: !!id && role === 'teacher',
     queryFn: async () => {
-      const [t, c] = await Promise.all([adminListTests().catch(() => ({ tests: [] })), adminListContent().catch(() => ({ content: [] }))]);
-      const mine = [...t.tests.filter((x) => x.creator?.id === id), ...c.content.filter((x) => x.uploader?.id === id)];
+      // Every page of both lists, then keep this teacher's items (the server filter narrows it where supported).
+      const [t, c] = await Promise.all([
+        allPages((cursor) => adminListAllTests({ cursor, limit: 200, creator_id: id }).then((r) => ({ items: r.tests, next: r.next_cursor }))).catch(() => ({ items: [] as Awaited<ReturnType<typeof adminListAllTests>>['tests'] })),
+        allPages((cursor) => adminListAllContent({ cursor, limit: 200, uploader_id: id }).then((r) => ({ items: r.content, next: r.next_cursor }))).catch(() => ({ items: [] as Awaited<ReturnType<typeof adminListAllContent>>['content'] })),
+      ]);
+      const mine = [...t.items.filter((x) => x.creator?.id === id), ...c.items.filter((x) => x.uploader?.id === id)];
       const norm = (st: string) => (st === 'pending_review' ? 'pending' : st);
       return { total: mine.length, live: mine.filter((x) => norm(x.status) === 'published').length, waiting: mine.filter((x) => norm(x.status) === 'pending').length };
     },
   });
 
   const [pendingRole, setPendingRole] = useState<Role | null>(null);
+  const [suspendOpen, setSuspendOpen] = useState(false);
+  const [grantOpen, setGrantOpen] = useState(false);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [signOutAll, setSignOutAll] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [planId, setPlanId] = useState<string | null>(null);
+  const [days, setDays] = useState('');
+  const [grantReason, setGrantReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [permBusy, setPermBusy] = useState(false);
   const [kycBusy, setKycBusy] = useState(false);
 
+  const activity = useQuery({ queryKey: ['admin', 'user', id, 'activity'], queryFn: () => getUserActivity(id), enabled: !!id, retry: false });
+  const plansQuery = useQuery({ queryKey: ['admin', 'plans', 'active'], queryFn: () => adminListSubscriptionPlans().then((r) => r.plans.filter((p) => p.is_active)), enabled: grantOpen });
+
   const refreshUser = () => queryClient.invalidateQueries({ queryKey: ['admin', 'user', id] });
+
+  // Run an admin action, then refresh what it changes. Errors show the server's reason when there is one.
+  const act = async (fn: () => Promise<unknown>, done: string, after?: () => void) => {
+    setActionBusy(true);
+    try {
+      await fn();
+      await refreshUser();
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      show(done, 'success');
+      after?.();
+    } catch (e) {
+      show(e instanceof Error && e.message ? e.message : 'That didn’t work. Try again.', 'error');
+    } finally {
+      setActionBusy(false);
+    }
+  };
 
   const changeRole = async () => {
     if (!pendingRole || !user) return;
@@ -155,6 +189,16 @@ export default function UserDetailRoute() {
           </Text>
         </View>
 
+        {user.suspended_at ? (
+          <View style={{ backgroundColor: color('semantic/danger-tint'), borderRadius: radius.md, padding: space.md, gap: space.xs }}>
+            <Text style={[type['type/h3'], { color: color('semantic/danger') }]}>Suspended</Text>
+            <Text style={[type['type/body-m'], { color: color('text/primary') }]}>
+              {user.suspended_reason || 'No reason recorded.'} Since {when(user.suspended_at)}. They can’t sign in.
+            </Text>
+            <SecondaryButton label="Reactivate account" onPress={() => void act(() => reactivateUser(user.id), 'Account reactivated')} loading={actionBusy} />
+          </View>
+        ) : null}
+
         {role === 'student' ? (
           <View>
             {label('SUBSCRIPTION')}
@@ -195,10 +239,14 @@ export default function UserDetailRoute() {
                     <CaretRight size={16} color={color('text/tertiary')} />
                   </Pressable>
                 ))}
-                {payments.length > 3 ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{payments.length - 3} older payment{payments.length - 3 === 1 ? '' : 's'} are in the Payments tab.</Text> : null}
+                {payments.length > 3 ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Older payments are in the Payments tab.</Text> : null}
               </View>
             ) : null}
           </View>
+        ) : null}
+
+        {role === 'student' ? (
+          <SecondaryButton label="Give or extend access" onPress={() => { setPlanId(null); setDays(''); setGrantReason(''); setGrantOpen(true); }} />
         ) : null}
 
         {role === 'student' ? (
@@ -244,6 +292,27 @@ export default function UserDetailRoute() {
           </View>
         ) : null}
 
+        {activity.data ? (
+          <View>
+            {label('ACTIVITY')}
+            <View style={[card, { gap: space.xs }]}>
+              <View style={{ flexDirection: 'row' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[type['type/numeral-display'], { color: color('text/primary'), fontSize: 22 }]}>{activity.data.tests_submitted}</Text>
+                  <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Tests finished</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[type['type/numeral-display'], { color: color('text/primary'), fontSize: 22 }]}>{activity.data.avg_score_pct != null ? `${Math.round(activity.data.avg_score_pct)}%` : '—'}</Text>
+                  <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Average score</Text>
+                </View>
+              </View>
+              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
+                Last signed in {when(activity.data.last_login_at)} · last test {when(activity.data.last_attempt_at)}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         <View>
           {label('DEVICES')}
           <View style={card}>
@@ -262,8 +331,14 @@ export default function UserDetailRoute() {
                       <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]} numberOfLines={1}>{s.device_info || 'Unknown device'}</Text>
                       <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Last used {when(s.last_used_at)}</Text>
                     </View>
+                    <TextButton
+                      label="Sign out"
+                      onPress={() => void act(() => revokeUserSession(user.id, s.id).then(() => sessions.refetch()), 'Signed out')}
+                      disabled={actionBusy}
+                    />
                   </View>
                 ))}
+                {(sessions.data?.sessions ?? []).length > 1 ? <TextButton label="Sign out everywhere" onPress={() => setSignOutAll(true)} disabled={actionBusy} /> : null}
               </View>
             )}
           </View>
@@ -293,9 +368,72 @@ export default function UserDetailRoute() {
             </View>
             {isMe ? <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>You can’t change your own role.</Text> : null}
           </View>
+          <View style={[card, { marginTop: space.xs, gap: space.xs }]}>
+            <TextButton label="See what admins changed on this account" onPress={() => router.push({ pathname: ROUTES.admin.auditLog, params: { target: `user:${user.id}` } })} />
+            {!isMe && !user.suspended_at ? <TextButton label="Suspend account" onPress={() => setSuspendOpen(true)} /> : null}
+            {!isMe ? <TextButton label="Erase personal data" onPress={() => setPurgeOpen(true)} /> : null}
+          </View>
         </View>
       </ScrollView>
 
+      <ReasonSheet
+        visible={suspendOpen}
+        title={`Suspend ${name}?`}
+        description="They’re signed out everywhere and can’t sign in until you reactivate the account."
+        confirmLabel="Suspend"
+        busy={actionBusy}
+        onClose={() => setSuspendOpen(false)}
+        onConfirm={(reason) => void act(() => suspendUser(user.id, reason), 'Account suspended', () => setSuspendOpen(false))}
+      />
+      <BottomSheet visible={grantOpen} onClose={() => setGrantOpen(false)} title="Give or extend access" dismissable={!actionBusy}>
+        <View style={{ gap: space.md, paddingHorizontal: space.lg, paddingTop: space.sm }}>
+          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>No payment is recorded. Extends their current plan if they have one, otherwise starts it.</Text>
+          {plansQuery.isPending ? (
+            <SkeletonBlock height={44} radius={radius.sm} />
+          ) : (
+            <View style={{ gap: space.xs }}>
+              {(plansQuery.data ?? []).map((p) => (
+                <Pressable
+                  key={p.id}
+                  onPress={() => setPlanId(p.id)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: planId === p.id }}
+                  style={{ padding: space.sm, borderRadius: radius.md, borderWidth: 1.5, borderColor: planId === p.id ? color('accent/default') : color('border/subtle'), backgroundColor: planId === p.id ? color('accent/tint') : color('bg/surface') }}
+                >
+                  <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{p.name}</Text>
+                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{p.duration_days} days</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+          <InputField label="Days to add (blank = the plan’s length)" value={days} onChangeText={(v) => setDays(v.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={4} />
+          <InputField label="Reason (kept in the audit log)" value={grantReason} onChangeText={setGrantReason} multiline maxLength={500} />
+          <PrimaryButton
+            label="Give access"
+            loading={actionBusy}
+            disabled={!planId || grantReason.trim().length < 3}
+            onPress={() => void act(() => grantAccess(user.id, { plan_id: planId as string, days: days ? Number(days) : undefined, reason: grantReason.trim() }).then(() => subscription.refetch()), 'Access updated', () => setGrantOpen(false))}
+          />
+        </View>
+      </BottomSheet>
+      <ConfirmDialog
+        visible={signOutAll}
+        title={`Sign ${name} out everywhere?`}
+        confirmLabel="Sign out"
+        loading={actionBusy}
+        onConfirm={() => void act(() => revokeAllUserSessions(user.id).then(() => sessions.refetch()), 'Signed out everywhere', () => setSignOutAll(false))}
+        onCancel={() => setSignOutAll(false)}
+      />
+      <ConfirmDialog
+        visible={purgeOpen}
+        title={`Erase ${name}’s personal data?`}
+        message="This removes their personal details for a privacy request. It can’t be undone."
+        confirmLabel="Erase"
+        tone="danger"
+        loading={actionBusy}
+        onConfirm={() => void act(() => purgePersonalData(user.id), 'Personal data erased', () => setPurgeOpen(false))}
+        onCancel={() => setPurgeOpen(false)}
+      />
       <ConfirmDialog
         visible={!!pendingRole}
         title={`Make ${name} a ${pendingRole}?`}

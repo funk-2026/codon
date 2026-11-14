@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Camera, Lock, CaretRight } from 'phosphor-react-native';
+import { Lock, CaretRight } from 'phosphor-react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMe } from '@/src/queries/profile';
+import { keys } from '@/src/queries/keys';
+import { formatExamDate, parseExamDate } from '@/src/profile/examDate';
 import { InputField, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
@@ -19,11 +23,19 @@ export default function EditProfileRoute() {
 
   const { user, refreshUser } = useAuth();
   
+  const meQuery = useMe();
+  const queryClient = useQueryClient();
   const initialName = user?.name || '';
+  const initialExam = formatExamDate(meQuery.data?.user?.exam_date);
   const [name, setName] = useState(initialName);
+  // Edited text is kept apart from the saved value, so a late-arriving profile doesn't overwrite typing.
+  const [examEdit, setExamEdit] = useState<string | null>(null);
+  const examText = examEdit ?? initialExam;
+  const examIso = examText.trim() === '' ? '' : parseExamDate(examText);
+  const examError = examIso === null ? 'Use the format DD/MM/YYYY, for example 03/05/2027.' : undefined;
   const [error, setError] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
-  const dirty = name.trim() !== initialName;
+  const dirty = name.trim() !== initialName || (examEdit !== null && examEdit.trim() !== initialExam);
 
   const handleSave = async () => {
     if (!dirty || saving) return;
@@ -31,11 +43,13 @@ export default function EditProfileRoute() {
       setError('Name cannot be empty.');
       return;
     }
+    if (examError) return;
     setError(undefined);
     setSaving(true);
     try {
-      await updateMe({ name: name.trim() });
+      await updateMe({ name: name.trim(), ...(examEdit !== null ? { exam_date: examIso ?? '' } : {}) });
       await refreshUser();
+      await queryClient.invalidateQueries({ queryKey: keys.me });
       show('Profile updated', 'success');
       goBack();
     } catch (err) {
@@ -71,27 +85,25 @@ export default function EditProfileRoute() {
               ]}
             >
               <Text style={[type['type/display'], { color: color('accent/default'), fontSize: 32 }]}>
-                AS
+                {((user?.name || 'A').trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2) || 'A').toUpperCase()}
               </Text>
             </View>
-            <Pressable
-              hitSlop={space.xs}
-              style={({ pressed }) => [
-                styles.cameraBadge,
-                {
-                  backgroundColor: color('accent/default'),
-                  borderColor: color('bg/canvas'),
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
-            >
-              <Camera size={16} color={color('accent/on-accent')} weight="bold" />
-            </Pressable>
           </View>
         </View>
 
         <View style={{ marginTop: space.xl, gap: space.lg }}>
           <InputField label="Full Name" value={name} onChangeText={setName} error={error} />
+
+          <InputField
+            label="Exam date (optional)"
+            value={examText}
+            onChangeText={setExamEdit}
+            placeholder="DD/MM/YYYY"
+            keyboardType="numbers-and-punctuation"
+            maxLength={10}
+            error={examEdit !== null ? examError : undefined}
+            helperText="Shows a countdown on Home. Leave it blank to clear it."
+          />
 
           <View>
             <Text

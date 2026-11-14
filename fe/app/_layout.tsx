@@ -21,6 +21,8 @@ import { BookmarksProvider } from '@/src/bookmarks/BookmarksContext';
 import { PushProvider } from '@/src/notifications/PushProvider';
 import { ToastProvider } from '@/src/components';
 import { stackAnimation } from '@/src/components/ThemedStack';
+import { UpdateGate } from '@/src/config/UpdateGate';
+import { AnalyticsBootstrap } from '@/src/analytics/AnalyticsBootstrap';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -98,7 +100,10 @@ export default function RootLayout() {
           <BookmarksProvider>
             <PushProvider>
               <ToastProvider>
-                <RootNavigator />
+                <UpdateGate>
+                  <AnalyticsBootstrap />
+                  <RootNavigator />
+                </UpdateGate>
                 <StatusBar style="dark" />
               </ToastProvider>
             </PushProvider>

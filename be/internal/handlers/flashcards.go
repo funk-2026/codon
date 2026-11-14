@@ -259,7 +259,7 @@ func (h *FlashcardHandler) SubmitDeck(c *gin.Context) {
 		}
 		return nil
 	}
-	if err := h.Workflow.Submit(c.Request.Context(), middleware.GetUser(c), services.ReviewDeck, id, gate); err != nil {
+	if err := h.Workflow.SubmitWithNote(c.Request.Context(), middleware.GetUser(c), services.ReviewDeck, id, gate, submitNote(c)); err != nil {
 		respondService(c, err)
 		return
 	}

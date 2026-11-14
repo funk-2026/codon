@@ -65,7 +65,7 @@ export default function SubscriptionPlanEditRoute() {
       name,
       course_id: courseId,
       duration_days: parseInt(days, 10),
-      price_paise: parseFloat(price) * 100,
+      price_paise: Math.round(parseFloat(price) * 100), // a float like 499.99 * 100 is 49998.99999, which must not reach the server
       currency: 'INR',
       benefits: benefits.filter((b) => b.trim().length > 0),
       is_active: active,
@@ -203,6 +203,12 @@ export default function SubscriptionPlanEditRoute() {
             </View>
             <TextButton label="Add Benefit" onPress={addBenefit} style={{ alignSelf: 'flex-start', marginTop: space.sm }} />
           </View>
+
+          {isEditing ? (
+            <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
+              Changes to the price or length apply to new purchases. People already subscribed keep the dates they have.
+            </Text>
+          ) : null}
 
           <View style={styles.row}>
             <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1 }]}>Active</Text>

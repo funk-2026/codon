@@ -65,6 +65,9 @@ export async function apiFetch<T = unknown>(
       DeviceEventEmitter.emit('onTokenExpired');
     }
     const b = body as { error?: string; code?: string; details?: unknown };
+    if (res.status === 403 && b.code === 'account_suspended') {
+      DeviceEventEmitter.emit('onAccountSuspended');
+    }
     throw new ApiError(b.error ?? res.statusText, res.status, b.code, b.details);
   }
 

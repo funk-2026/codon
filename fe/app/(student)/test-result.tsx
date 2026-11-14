@@ -46,6 +46,7 @@ export default function TestResultRoute() {
   const notReady = resultQuery.isPending && resultQuery.failureCount > 0;
   const attempt: StudentAttempt | null = resultQuery.data?.attempt ?? null;
   const breakdown: AttemptBreakdown | null = resultQuery.data?.breakdown ?? null;
+  const cohort = resultQuery.data?.cohort ?? null;
   const load = () => void resultQuery.refetch();
   const [mistakesOpen, setMistakesOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -193,6 +194,18 @@ export default function TestResultRoute() {
             {attempt.attempt_no && attempt.attempt_no > 1 ? ` · Attempt ${attempt.attempt_no}` : ''}
           </Text>
         </View>
+
+        {cohort ? (
+          <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.md }, shadow()]} accessible accessibilityLabel={`Rank ${cohort.rank} of ${cohort.total}, top ${cohort.top_percent} percent`}>
+            <View style={{ flex: 1 }}>
+              <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>HOW YOU DID AMONG STUDENTS</Text>
+              <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: 2 }]}>Top {cohort.top_percent}%</Text>
+              <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
+                Rank {cohort.rank} of {cohort.total}{cohort.avg_score != null ? ` · average score ${fmtScore(cohort.avg_score)}` : ''}
+              </Text>
+            </View>
+          </View>
+        ) : null}
 
         {/* Performance breakdown — sections with no data are hidden, never fabricated */}
         {weakest ? (

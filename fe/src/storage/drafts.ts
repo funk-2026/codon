@@ -22,6 +22,7 @@ export type QuestionDraft = {
   source_type?: string;
   source_year?: string;
   source_label?: string;
+  section?: string;
   custom_eligible?: boolean;
   tags?: string[];
   updatedAt: number;

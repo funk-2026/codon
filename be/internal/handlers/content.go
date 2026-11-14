@@ -30,6 +30,9 @@ func NewContentHandler(db *gorm.DB, subSvc *services.SubscriptionService) *Conte
 	return &ContentHandler{DB: db, SubSvc: subSvc, Review: services.NewReviewService(db)}
 }
 
+// textLessonKey marks a document lesson whose body lives in body_text rather than in file storage.
+const textLessonKey = "text:inline"
+
 func canManageAllContent(u *models.User) bool { return authz.ManagesAll(u) }
 
 func (h *ContentHandler) CreateContent(c *gin.Context) {
@@ -64,6 +67,18 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		respondService(c, terr)
 		return
 	}
+	body := strings.TrimSpace(req.BodyText)
+	if ct == models.ContentDocument && body != "" {
+		if len([]rune(body)) > 60000 {
+			respondErr(c, http.StatusBadRequest, "body_too_long", "a document lesson can be at most 60,000 characters")
+			return
+		}
+		req.FileKey = textLessonKey
+	}
+	if req.FileKey == "" {
+		respondErr(c, http.StatusBadRequest, "bad_request", "upload a file or write the lesson text")
+		return
+	}
 	requiresSub := course.DefaultRequiresSubscription
 	if req.RequiresSubscription != nil {
 		requiresSub = *req.RequiresSubscription
@@ -73,6 +88,9 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		Title: req.Title, CourseID: courseID, ContentType: ct, ChapterID: chapterID,
 		UploadedBy: teacher.ID, FileKey: req.FileKey,
 		RequiresSubscription: requiresSub, Status: models.StatusDraft,
+	}
+	if ct == models.ContentDocument && body != "" {
+		item.BodyText = &body
 	}
 	for _, f := range []struct {
 		key string
@@ -166,6 +184,22 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	if req.RequiresSubscription != nil {
 		updates["requires_subscription"] = *req.RequiresSubscription
 	}
+	if req.BodyText != nil {
+		t := strings.TrimSpace(*req.BodyText)
+		if item.Status != models.StatusDraft && item.Status != models.StatusRejected {
+			respondErr(c, http.StatusConflict, "conflict", "the text of a lesson can only be edited while it is a draft or needs changes")
+			return
+		}
+		if item.ContentType != models.ContentDocument || item.FileKey != textLessonKey {
+			respondErr(c, http.StatusBadRequest, "not_a_text_lesson", "only lessons written in the app have editable text")
+			return
+		}
+		if t == "" || len([]rune(t)) > 60000 {
+			respondErr(c, http.StatusBadRequest, "invalid_body", "lesson text is required (max 60,000 characters)")
+			return
+		}
+		updates["body_text"] = t
+	}
 	// Lecture PDFs can be added or replaced at any time (annotated notes often come after the class).
 	for col, v := range map[string]*string{"notes_pdf_key": req.NotesPDFKey, "annotated_pdf_key": req.AnnotatedPDFKey} {
 		switch {
@@ -222,7 +256,7 @@ func (h *ContentHandler) SubmitContentForReview(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.Review.Submit(c.Request.Context(), middleware.GetUser(c), services.ReviewContent, id, nil); err != nil {
+	if err := h.Review.SubmitWithNote(c.Request.Context(), middleware.GetUser(c), services.ReviewContent, id, nil, submitNote(c)); err != nil {
 		respondService(c, err)
 		return
 	}
@@ -310,6 +344,9 @@ func resolveContentURL(ctx context.Context, item *models.ContentItem) string {
 		}
 		return ""
 	} else if item.ContentType == models.ContentDocument {
+		if item.FileKey == textLessonKey {
+			return "" // written in the app: the text travels in body_text
+		}
 		if storage.Client != nil && item.FileKey != "" {
 			url, err := storage.Client.PresignGet(ctx, item.FileKey, 2*time.Hour)
 			if err == nil && url != "" {
@@ -382,6 +419,19 @@ func (h *ContentHandler) GetChapterContent(c *gin.Context) {
 			items[i].FileKey = ""
 			items[i].HLSPlaylistURL = nil
 		}
+		items[i].BodyText = nil // lists never carry the text; GET /content/:id does, after the access check
+	}
+	authors := authorNames(h.DB.WithContext(c.Request.Context()), func() []uuid.UUID {
+		ids := make([]uuid.UUID, len(items))
+		for i := range items {
+			ids[i] = items[i].UploadedBy
+		}
+		return ids
+	}())
+	for i := range items {
+		if n, ok := authors[items[i].UploadedBy]; ok {
+			items[i].AuthorName = &n
+		}
 	}
 
 	// the caller's own ratings, keyed by content id
@@ -428,11 +478,19 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 		return
 	}
 
+	if n, ok := authorNames(h.DB.WithContext(c.Request.Context()), []uuid.UUID{item.UploadedBy})[item.UploadedBy]; ok {
+		item.AuthorName = &n
+	}
 	resp := getContentResponse{Content: item, URL: resolveContentURL(c.Request.Context(), &item), lecturePDFs: h.lecturePDFsFor(c.Request.Context(), &item, user)}
 	var r models.Rating
 	if h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND item_type = 'content' AND item_id = ?", user.ID, item.ID).First(&r).Error == nil {
 		v := r.Value
 		resp.MyRating = &v
+	}
+	var hist models.UserWatchHistory
+	if h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND content_item_id = ?", user.ID, item.ID).First(&hist).Error == nil && !hist.IsCompleted && hist.ProgressSeconds > 0 {
+		p := hist.ProgressSeconds
+		resp.ProgressSeconds = &p
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -471,7 +529,8 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 //	@Tags			Admin
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Param			status		query		string	false	"Filter by status"	default(pending_review)
+//	@Param			status		query		string	false	"Filter by status, or all"	default(pending_review)
+//	@Param			uploader_id	query		string	false	"Only this uploader's items"
 //	@Param			course_id	query		string	false	"Filter by course ID"
 //	@Param			chapter_id	query		string	false	"Filter by chapter ID"
 //	@Success		200			{object}	listContentResponse
@@ -479,14 +538,21 @@ func (h *ContentHandler) AdminGetContent(c *gin.Context) {
 //	@Failure		403			{object}	errorResponse
 //	@Router			/api/v1/admin/content [get]
 func (h *ContentHandler) AdminListContent(c *gin.Context) {
-	status, ok := statusParam(c)
-	if !ok {
-		return
-	}
 	courseID := c.Query("course_id")
 	chapterID := c.Query("chapter_id")
 
-	query := h.DB.WithContext(c.Request.Context()).Where("status = ?", status)
+	query := h.DB.WithContext(c.Request.Context())
+	// status=all lists every status; otherwise one status (default: pending_review).
+	if c.Query("status") != "all" {
+		status, ok := statusParam(c)
+		if !ok {
+			return
+		}
+		query = query.Where("status = ?", status)
+	}
+	if v := c.Query("uploader_id"); v != "" {
+		query = query.Where("uploaded_by = ?", v)
+	}
 
 	if courseID != "" {
 		query = query.Where("course_id = ?", courseID)
@@ -572,6 +638,8 @@ type createContentRequest struct {
 	RequiresSubscription *bool  `json:"requires_subscription" example:"true"`
 	NotesPDFKey          string `json:"notes_pdf_key"     example:"lecture_pdf/user-uuid/file-uuid.pdf"`
 	AnnotatedPDFKey      string `json:"annotated_pdf_key" example:"lecture_pdf/user-uuid/file-uuid.pdf"`
+	// BodyText is the text of a document lesson written in the app (instead of an uploaded file).
+	BodyText string `json:"body_text"`
 }
 
 type updateContentRequest struct {
@@ -582,12 +650,15 @@ type updateContentRequest struct {
 	// "" removes the PDF; omitted leaves it unchanged.
 	NotesPDFKey     *string `json:"notes_pdf_key"`
 	AnnotatedPDFKey *string `json:"annotated_pdf_key"`
+	BodyText        *string `json:"body_text"`
 }
 
 type getContentResponse struct {
 	Content  models.ContentItem `json:"content"`
 	URL      string             `json:"url,omitempty"`
 	MyRating *int               `json:"my_rating,omitempty"`
+	// ProgressSeconds is where this student left off, so the player can resume. Absent when finished or never started.
+	ProgressSeconds *int `json:"progress_seconds,omitempty"`
 	lecturePDFs
 }
 

@@ -126,6 +126,15 @@ export default function TestPreStartRoute() {
               )
             ) : (
               <View>
+                {test.instructions ? (
+                  <View style={{ backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.md, marginBottom: space.md }}>
+                    <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>INSTRUCTIONS</Text>
+                    <Text style={[type['type/body-m'], { color: color('text/primary'), marginTop: 4 }]}>{test.instructions}</Text>
+                  </View>
+                ) : null}
+                {test.author_name ? (
+                  <Text style={[type['type/caption'], { color: color('text/tertiary'), marginBottom: space.sm }]}>By {test.author_name}</Text>
+                ) : null}
                 <View style={styles.statGrid}>
                   <StatCell label="Questions" value={test.total_questions.toString()} />
                   <View style={{ width: 1, backgroundColor: color('border/subtle') }} />

@@ -74,10 +74,14 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 		me.GET("/recent-content", d.ProfileH.GetRecentContent)
 		me.GET("/attempts", d.ProfileH.GetAttempts)
 		me.GET("/subscription", d.ProfileH.GetMySubscription)
+		me.GET("/payments", d.ProfileH.MyPayments)
+		me.GET("/export", d.ProfileH.ExportMyData)
 		me.POST("/kyc", d.KYCH.SubmitKYC)
 		me.GET("/kyc", d.KYCH.GetMyKYC)
 	}
 	api.POST("/feedback", auth, d.FeedbackH.Submit)
+	api.POST("/events", auth, d.ProfileH.IngestEvents)
+	api.GET("/search", auth, d.ProfileH.Search)
 
 	// ── Catalogue (public) ──
 	courses := api.Group("/courses")
@@ -129,7 +133,10 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 	admin := api.Group("/admin").Use(auth).Use(middleware.RequireRole(models.RoleAdmin))
 	{
 		// Curriculum: admins own the whole course structure
+		admin.POST("/courses", d.CurriculumH.CreateCourse)
 		admin.POST("/courses/:course_id/subjects", d.CurriculumH.CreateSubject)
+		admin.DELETE("/subjects/:id", d.CurriculumH.DeleteSubject)
+		admin.DELETE("/chapters/:id", d.CurriculumH.DeleteChapter)
 		admin.PATCH("/subjects/:id", d.CurriculumH.UpdateSubject)
 		admin.POST("/subjects/:subject_id/chapters", d.CurriculumH.CreateChapter)
 		admin.PATCH("/chapters/:id", d.CurriculumH.UpdateChapter)
@@ -142,6 +149,7 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 
 		// Payments
 		admin.GET("/payments", d.PaymentH.ListPayments)
+		admin.GET("/payments/summary", d.PaymentH.PaymentsSummary)
 		admin.GET("/payments/:id", d.PaymentH.GetPayment)
 
 		// KYC
@@ -163,6 +171,21 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 		admin.PATCH("/users/:id/teacher-permissions", d.AdminH.UpdateTeacherPermissions)
 		admin.GET("/users/:id/subscription", d.AdminH.GetUserSubscription)
 		admin.GET("/users/:id/sessions", d.AdminH.GetUserSessions)
+		admin.DELETE("/users/:id/sessions", d.AdminH.RevokeAllUserSessions)
+		admin.DELETE("/users/:id/sessions/:sid", d.AdminH.RevokeUserSession)
+		admin.POST("/users/:id/suspend", d.AdminH.SuspendUser)
+		admin.POST("/users/:id/reactivate", d.AdminH.ReactivateUser)
+		admin.POST("/users/:id/subscription/grant", d.AdminH.GrantAccess)
+		admin.GET("/users/:id/activity", d.AdminH.UserActivity)
+		admin.POST("/takedown/:kind/:id", d.AdminH.Takedown)
+		admin.POST("/users/invite", d.AdminH.InviteTeacher)
+		admin.GET("/export/users.csv", d.AdminH.ExportUsers)
+		admin.GET("/export/payments.csv", d.AdminH.ExportPayments)
+		admin.GET("/announcements/audience", d.AdminH.AnnouncementAudience)
+		admin.POST("/announcements", d.AdminH.SendAnnouncement)
+		admin.GET("/audit-log", d.AdminH.ListAuditLog)
+		admin.GET("/feedback", d.AdminH.ListFeedback)
+		admin.PATCH("/feedback/:id", d.AdminH.UpdateFeedback)
 
 		// Dashboard
 		admin.GET("/dashboard/summary", d.AdminH.DashboardSummary)

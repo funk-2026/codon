@@ -14,6 +14,8 @@ export type CreateTestRequest = {
   marks_per_correct?: number;
   marks_per_wrong?: number;
   requires_subscription?: boolean;
+  /** Shown to students before they start. */
+  instructions?: string;
 };
 
 /** POST /api/v1/teacher/tests */
@@ -33,8 +35,8 @@ export function updateTest(id: string, data: Partial<CreateTestRequest>): Promis
 }
 
 /** POST /api/v1/teacher/tests/:id/submit-for-review */
-export function submitTestForReview(id: string): Promise<{ message: string }> {
-  return apiFetch<{ message: string }>(`/teacher/tests/${id}/submit-for-review`, { method: 'POST' });
+export function submitTestForReview(id: string, note?: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/teacher/tests/${id}/submit-for-review`, { method: 'POST', body: JSON.stringify({ note: note ?? '' }) });
 }
 
 /** DELETE /api/v1/teacher/tests/:id */
@@ -82,6 +84,8 @@ export type CreateQuestionRequest = {
   source_type?: string;
   source_year?: number;
   source_label?: string;
+  /** Heading inside the test ("Physics"); "" clears it. */
+  section?: string;
   custom_eligible?: boolean;
   /** Tag LABELS; unknown ones are created, aliases resolve to the canonical tag. */
   tags?: string[];
@@ -198,11 +202,13 @@ export type CreateContentRequest = {
   course_id: string;
   content_type: 'video' | 'document';
   chapter_id: string;
-  file_key: string;
+  file_key?: string;
   requires_subscription?: boolean;
   /** lecture_pdf upload keys; on update "" removes the PDF. */
   notes_pdf_key?: string;
   annotated_pdf_key?: string;
+  /** A document lesson written in the app (send this instead of a file). */
+  body_text?: string;
 };
 
 /** POST /api/v1/teacher/content */
@@ -222,8 +228,8 @@ export function updateContent(id: string, data: Partial<CreateContentRequest>): 
 }
 
 /** POST /api/v1/teacher/content/:id/submit-for-review */
-export function submitContentForReview(id: string): Promise<{ message: string }> {
-  return apiFetch<{ message: string }>(`/teacher/content/${id}/submit-for-review`, { method: 'POST' });
+export function submitContentForReview(id: string, note?: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/teacher/content/${id}/submit-for-review`, { method: 'POST', body: JSON.stringify({ note: note ?? '' }) });
 }
 
 /** POST /api/v1/teacher/content/:id/publish */
@@ -245,3 +251,51 @@ export type TeacherContentDetail = LecturePDFs & {
 export function getTeacherContent(id: string): Promise<TeacherContentDetail> {
   return apiFetch<TeacherContentDetail>(`/teacher/content/${id}`, { method: 'GET' });
 }
+
+// ── Author tools ────────────────────────────────────────────────────────────
+
+export type ReviewKind = 'tests' | 'content' | 'brain-hacks' | 'flashcard-decks';
+
+/** POST /teacher/{kind}/:id/schedule — an approved item goes live at `publishAt`; null cancels. */
+export function scheduleItem(kind: ReviewKind, id: string, publishAt: string | null): Promise<{ message: string; publish_at: string | null }> {
+  return apiFetch(`/teacher/${kind}/${id}/schedule`, { method: 'POST', body: JSON.stringify({ publish_at: publishAt }) });
+}
+
+export type ReviewStats = { queued: number; median_hours?: number; sample_size: number };
+/** GET /teacher/review-stats */
+export const getReviewStats = () => apiFetch<ReviewStats>('/teacher/review-stats');
+
+/** DELETE /teacher/content/:id (draft/rejected lessons only) */
+export const deleteContent = (id: string) => apiFetch<{ message: string }>(`/teacher/content/${id}`, { method: 'DELETE' });
+
+/** POST /teacher/tests/:id/clone — a new draft with all the questions. */
+export const cloneTest = (id: string) => apiFetch<Test>(`/teacher/tests/${id}/clone`, { method: 'POST' });
+
+/** POST /teacher/{tests|content}/:id/transfer */
+export const transferItem = (kind: 'tests' | 'content', id: string, phoneNumber: string) =>
+  apiFetch<{ message: string }>(`/teacher/${kind}/${id}/transfer`, { method: 'POST', body: JSON.stringify({ phone_number: phoneNumber }) });
+
+export type TestStats = {
+  started: number;
+  submitted: number;
+  students: number;
+  completion_pct: number;
+  avg_percent: number;
+  avg_minutes: number;
+  hardest_questions: { question_id: string; position: number; answered: number; correct_pct: number }[];
+};
+export const getTestStats = (id: string) => apiFetch<TestStats>(`/teacher/tests/${id}/stats`);
+
+export type ContentStats = { viewers: number; completed: number; completion_pct: number; avg_minutes_watched: number };
+export const getContentStats = (id: string) => apiFetch<ContentStats>(`/teacher/content/${id}/stats`);
+
+export type TeacherImpact = {
+  published_tests: number;
+  published_lessons: number;
+  published_hacks: number;
+  published_decks: number;
+  test_attempts: number;
+  test_students: number;
+  lesson_viewers: number;
+};
+export const getTeacherImpact = () => apiFetch<TeacherImpact>('/teacher/impact');

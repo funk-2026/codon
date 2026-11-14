@@ -31,6 +31,12 @@ export type Test = {
   expires_at?: string;
   rating_avg?: number;
   rating_count?: number;
+  instructions?: string;
+  author_name?: string;
+  /** Set while an approved test waits to go live. */
+  publish_at?: string;
+  submitted_at?: string;
+  submit_note?: string;
 };
 
 export type ListTestsResponse = {
@@ -71,6 +77,8 @@ export function getTest(id: string): Promise<GetTestResponse> {
 export type Question = {
   id: string;
   test_id: string;
+  /** Optional heading inside the test ("Physics"). */
+  section?: string;
   /** `plain` = legacy row, rendered verbatim. `rich_v1` = markup (see src/rich). */
   content_format: RichFormat | string;
   question_text: string;
@@ -115,6 +123,7 @@ export type AuthoredQuestion = Omit<Question, 'position'> & {
   source_type?: string;
   source_year?: number;
   source_label?: string;
+  section?: string;
   custom_eligible?: boolean;
   question_type?: string;
   version?: number;

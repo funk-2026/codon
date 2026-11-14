@@ -55,7 +55,7 @@ var RatingRules = gin.H{
 func (h *AppConfigHandler) Get(c *gin.Context) {
 	s := settings.Default
 	flags := gin.H{}
-	for _, k := range []string{"custom_test.enabled", "custom_test.tutor_mode", "custom_test.status_filters", "bookmarks.enabled", "reports.enabled", "ratings.enabled", "rich_content.math"} {
+	for _, k := range []string{"analytics.events", "custom_test.enabled", "custom_test.tutor_mode", "custom_test.status_filters", "bookmarks.enabled", "reports.enabled", "ratings.enabled", "rich_content.math"} {
 		flags[k] = s.Bool(k)
 	}
 	var cols []models.BookmarkCollection
@@ -76,6 +76,9 @@ func (h *AppConfigHandler) Get(c *gin.Context) {
 				"min_duration_minutes": s.Int("custom_test.min_duration_minutes"), "max_duration_minutes": s.Int("custom_test.max_duration_minutes")},
 			"ratings": gin.H{"min_count_display": s.Int("ratings.min_count_display")},
 		},
+		"app":                  gin.H{"min_version": s.String("app.min_version"), "store_url_android": s.String("app.store_url_android"), "store_url_ios": s.String("app.store_url_ios")},
+		"legal":                gin.H{"terms_url": s.String("legal.terms_url"), "privacy_url": s.String("legal.privacy_url")},
+		"support":              gin.H{"email": s.String("support.email"), "whatsapp": s.String("support.whatsapp")},
 		"report_reasons":       ReportReasons,
 		"rating_rules":         RatingRules,
 		"bookmark_collections": colOut,
@@ -91,7 +94,25 @@ func (h *AppConfigHandler) Get(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json; charset=utf-8", raw)
 }
 
-var adminSettingPrefixes = []string{"custom_test.", "reports.", "media.", "import.", "richtext.", "analytics.", "pool.", "ratings.", "bookmarks.", "attempt.", "rich_content.", "test_questions."}
+// Public godoc
+//
+//	@Summary		Links and version gate that are needed before sign-in
+//	@Description	Minimum app version, store links, Terms and Privacy links, and the support contact. No authentication; nothing here is private.
+//	@Tags			Config
+//	@Produce		json
+//	@Success		200	{object}	map[string]interface{}
+//	@Router			/api/v1/public-config [get]
+func (h *AppConfigHandler) Public(c *gin.Context) {
+	s := settings.Default
+	c.Header("Cache-Control", "public, max-age=300")
+	c.JSON(http.StatusOK, gin.H{
+		"app":     gin.H{"min_version": s.String("app.min_version"), "store_url_android": s.String("app.store_url_android"), "store_url_ios": s.String("app.store_url_ios")},
+		"legal":   gin.H{"terms_url": s.String("legal.terms_url"), "privacy_url": s.String("legal.privacy_url")},
+		"support": gin.H{"email": s.String("support.email"), "whatsapp": s.String("support.whatsapp")},
+	})
+}
+
+var adminSettingPrefixes = []string{"app.", "legal.", "support.", "results.", "custom_test.", "reports.", "media.", "import.", "richtext.", "analytics.", "pool.", "ratings.", "bookmarks.", "attempt.", "rich_content.", "test_questions."}
 
 func isAdminSetting(key string) bool {
 	for _, p := range adminSettingPrefixes {
@@ -153,6 +174,10 @@ func (h *AppConfigHandler) PatchSettings(c *gin.Context) {
 			respondErr(c, http.StatusBadRequest, "unknown_setting", "unknown setting: "+k)
 			return
 		}
+		if msg := validateTextSetting(k, v); msg != "" {
+			respondErr(c, http.StatusBadRequest, "invalid_value", msg)
+			return
+		}
 		switch {
 		case def == "true" || def == "false":
 			if v != "true" && v != "false" {
@@ -180,6 +205,41 @@ func (h *AppConfigHandler) PatchSettings(c *gin.Context) {
 		}
 	}
 	h.GetSettings(c)
+}
+
+// validateTextSetting checks the free-text settings (links, version, phone). Blank always means "not set".
+func validateTextSetting(key, v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	switch {
+	case strings.HasSuffix(key, "_url"):
+		if !strings.HasPrefix(v, "https://") || len(v) > 500 {
+			return key + " must be a link starting with https://"
+		}
+	case key == "app.min_version":
+		parts := strings.Split(v, ".")
+		if len(parts) != 3 {
+			return key + " must look like 1.2.0"
+		}
+		for _, p := range parts {
+			if _, err := strconv.Atoi(p); err != nil {
+				return key + " must look like 1.2.0"
+			}
+		}
+	case key == "support.whatsapp":
+		for _, r := range v {
+			if r < '0' || r > '9' {
+				return key + " must be digits only, with the country code"
+			}
+		}
+	case key == "support.email":
+		if !strings.Contains(v, "@") || len(v) > 120 {
+			return key + " must be an email address"
+		}
+	}
+	return ""
 }
 
 func isNumeric(s string) bool {

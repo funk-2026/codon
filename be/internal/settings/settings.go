@@ -44,6 +44,21 @@ var Defaults = map[string]string{
 	"custom_test.count_rate_per_minute":  "60",
 	"custom_test.generate_rate_per_hour": "60",
 
+	// Product analytics: the app only sends events when this is on (it is also off in the app unless enabled there).
+	"analytics.events": "false",
+
+	// App version gate, store links, legal pages and support contact (all blank until an admin sets them)
+	"app.min_version":       "",
+	"app.store_url_android": "",
+	"app.store_url_ios":     "",
+	"legal.terms_url":       "",
+	"legal.privacy_url":     "",
+	"support.email":         "",
+	"support.whatsapp":      "",
+
+	// Test-series results: show rank and percentile only once this many students have finished the test
+	"results.rank_min_attempts": "10",
+
 	// Attempts
 	"attempt.answer_grace_seconds": "10",
 

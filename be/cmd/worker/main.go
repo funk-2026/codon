@@ -65,6 +65,12 @@ func main() {
 			log.Printf("[Worker] auto-submitted %d expired attempts", n)
 		}
 	})
+	reviewSvc := services.NewReviewService(db.DB)
+	worker.RegisterTicker("scheduled_publish", time.Minute, func(ctx context.Context) {
+		if n := reviewSvc.PublishDue(ctx, time.Now()); n > 0 {
+			log.Printf("[Worker] published %d scheduled items", n)
+		}
+	})
 	pushSvc := services.NewPushService(db.DB, services.NewExpoSender())
 	worker.RegisterTicker("push_dispatch", 30*time.Second, func(ctx context.Context) {
 		if n, err := pushSvc.Dispatch(ctx, 200); err != nil {
@@ -76,6 +82,11 @@ func main() {
 	worker.RegisterTicker("streak_nudges", time.Hour, func(ctx context.Context) {
 		if n := pushSvc.StreakNudges(ctx, time.Now()); n > 0 {
 			log.Printf("[Worker] created %d streak nudges", n)
+		}
+	})
+	worker.RegisterTicker("subscription_expiry_reminders", time.Hour, func(ctx context.Context) {
+		if n := pushSvc.ExpiryReminders(ctx, time.Now()); n > 0 {
+			log.Printf("[Worker] created %d subscription expiry reminders", n)
 		}
 	})
 	// One-off style maintenance: fills content_hash for questions that predate the column.

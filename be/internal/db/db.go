@@ -116,6 +116,7 @@ func AllModels() []interface{} {
 		&models.CustomTestRequest{},
 		&models.QuestionStats{},
 		&models.AdminAuditLog{},
+		&models.AnalyticsEvent{},
 		&models.QuestionNote{},
 		&models.BlueprintShare{},
 		&models.BrainHack{},

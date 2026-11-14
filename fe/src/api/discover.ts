@@ -42,7 +42,7 @@ export const createBrainHackApi = (b: BrainHackInput) =>
   apiFetch<HackEnvelope>('/teacher/brain-hacks', { method: 'POST', body: JSON.stringify({ content_format: 'rich_v1', ...b }) }).then((r) => r.brain_hack);
 export const updateBrainHackApi = (id: string, b: Partial<BrainHackInput>) =>
   apiFetch<HackEnvelope>(`/teacher/brain-hacks/${id}`, { method: 'PATCH', body: JSON.stringify(b) }).then((r) => r.brain_hack);
-export const submitBrainHack = (id: string) => apiFetch<{ message: string }>(`/teacher/brain-hacks/${id}/submit-for-review`, { method: 'POST' });
+export const submitBrainHack = (id: string, note?: string) => apiFetch<{ message: string }>(`/teacher/brain-hacks/${id}/submit-for-review`, { method: 'POST', body: JSON.stringify({ note: note ?? '' }) });
 export const listTeacherBrainHacks = () =>
   apiFetch<{ brain_hacks: TeacherBrainHack[]; media: MediaMap }>('/teacher/brain-hacks').then((r) => ({ brain_hacks: arr(r.brain_hacks), media: r.media ?? {} }));
 export const getTeacherBrainHack = (id: string) =>

@@ -2,13 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Cards, ClipboardText, FileText, Lightbulb, Plus, PlayCircle, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, SegmentedControl, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, Screen, TAB_EDGES } from '@/src/components';
+import { ConfirmDialog, EmptyState, SegmentedControl, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, Screen, TAB_EDGES } from '@/src/components';
 import { TreeToolbar } from '@/src/screens/CurriculumTree';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ManageAllBanner } from '@/src/teacher/ManageAllBanner';
 import { filterItems, STATUS_LABEL, type ItemStatus, type ItemType, type Segment, type TeacherItem } from '@/src/teacher/items';
 import { useTeacherItems } from '@/src/teacher/useTeacherItems';
 import { ROUTES } from '@/src/navigation/routes';
+import { useQueryClient } from '@tanstack/react-query';
+import { ApiError } from '@/src/api/client';
+import { submitContentForReview, submitTestForReview } from '@/src/api/teacher';
+import { submitBrainHack } from '@/src/api/discover';
+import { submitDeck } from '@/src/api/flashcardsTeacher';
+import { bulkSummary, submitAll } from '@/src/teacher/bulkSubmit';
+import { useToast } from '@/src/components';
 import { shadow } from '@/src/theme/elevation';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 
@@ -81,6 +88,24 @@ export default function TeacherContentRoute() {
       ? router.push({ pathname: ROUTES.teacher.flashcardDeck, params: { id: item.id } })
       : router.push({ pathname: ROUTES.teacher.contentPreview, params: { id: item.id, type: item.type } });
 
+  const qc = useQueryClient();
+  const { show } = useToast();
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const drafts = shown.filter((i) => i.status === 'draft');
+  const sendDrafts = async () => {
+    setBulkBusy(true);
+    const r = await submitAll(
+      drafts,
+      (i) => (i.type === 'Test' ? submitTestForReview(i.id) : i.type === 'Brain Hack' ? submitBrainHack(i.id) : i.type === 'Deck' ? submitDeck(i.id) : submitContentForReview(i.id)),
+      (e) => (e instanceof ApiError ? e.message : 'Could not be sent'),
+    );
+    setBulkBusy(false);
+    setBulkOpen(false);
+    void qc.invalidateQueries({ queryKey: ['teacher'] });
+    void itemsQuery.refetch();
+    show(bulkSummary(r), r.failed.length ? 'error' : 'success');
+  };
   const create = CREATE[segment];
   const hasAny = (items ?? []).some((i) => filterItems([i], { segment, status: 'all', query: '' }).length > 0);
 
@@ -115,6 +140,21 @@ export default function TeacherContentRoute() {
       <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
         <ManageAllBanner />
       </View>
+
+      {status === 'draft' && drafts.length >= 2 ? (
+        <View style={{ paddingHorizontal: space.md, marginTop: space.sm, alignItems: 'flex-start' }}>
+          <TextButton label={`Send all ${drafts.length} drafts for review`} onPress={() => setBulkOpen(true)} />
+        </View>
+      ) : null}
+      <ConfirmDialog
+        visible={bulkOpen}
+        title={`Send ${drafts.length} drafts for review?`}
+        message="Drafts that aren’t complete (for example a test with no questions) are skipped and listed."
+        confirmLabel="Send"
+        loading={bulkBusy}
+        onConfirm={sendDrafts}
+        onCancel={() => setBulkOpen(false)}
+      />
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space['3xl'], gap: space.xs }}

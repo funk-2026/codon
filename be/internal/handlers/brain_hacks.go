@@ -214,7 +214,7 @@ func (h *BrainHackHandler) Submit(c *gin.Context) {
 		}
 		return nil
 	}
-	if err := h.Review.Submit(c.Request.Context(), user, services.ReviewHack, id, gate); err != nil {
+	if err := h.Review.SubmitWithNote(c.Request.Context(), user, services.ReviewHack, id, gate, submitNote(c)); err != nil {
 		respondService(c, err)
 		return
 	}

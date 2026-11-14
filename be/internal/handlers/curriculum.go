@@ -3,8 +3,11 @@ package handlers
 import (
 	"codon-backend/internal/httpx"
 	"net/http"
+	"strings"
 
+	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
+	"codon-backend/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -59,6 +62,7 @@ func (h *CurriculumHandler) CreateSubject(c *gin.Context) {
 		respondErr(c, http.StatusInternalServerError, "internal", "failed to create subject")
 		return
 	}
+	_ = auditAdmin(h.DB.WithContext(c.Request.Context()), middleware.GetUser(c), "subject.create", "subject:"+subject.ID.String(), nil, map[string]string{"name": subject.Name})
 	c.JSON(http.StatusCreated, subject)
 }
 
@@ -107,6 +111,7 @@ func (h *CurriculumHandler) UpdateSubject(c *gin.Context) {
 		return
 	}
 	h.DB.WithContext(c.Request.Context()).First(&subject, subject.ID)
+	_ = auditAdmin(h.DB.WithContext(c.Request.Context()), middleware.GetUser(c), "subject.update", "subject:"+subject.ID.String(), nil, updates)
 	c.JSON(http.StatusOK, subject)
 }
 
@@ -154,6 +159,7 @@ func (h *CurriculumHandler) CreateChapter(c *gin.Context) {
 		respondErr(c, http.StatusInternalServerError, "internal", "failed to create chapter")
 		return
 	}
+	_ = auditAdmin(h.DB.WithContext(c.Request.Context()), middleware.GetUser(c), "chapter.create", "chapter:"+chapter.ID.String(), nil, map[string]string{"name": chapter.Name})
 	c.JSON(http.StatusCreated, chapter)
 }
 
@@ -202,6 +208,7 @@ func (h *CurriculumHandler) UpdateChapter(c *gin.Context) {
 		return
 	}
 	h.DB.WithContext(c.Request.Context()).First(&chapter, chapter.ID)
+	_ = auditAdmin(h.DB.WithContext(c.Request.Context()), middleware.GetUser(c), "chapter.update", "chapter:"+chapter.ID.String(), nil, updates)
 	c.JSON(http.StatusOK, chapter)
 }
 
@@ -348,4 +355,167 @@ type curriculumCourseView struct {
 
 type curriculumResponse struct {
 	Course curriculumCourseView `json:"course"`
+}
+
+// ── Courses, and removing empty subjects and chapters ────────────────────────
+
+type createCourseRequest struct {
+	Name                        string  `json:"name" binding:"required,min=2,max=80"`
+	Slug                        string  `json:"slug"`
+	Description                 *string `json:"description"`
+	DefaultRequiresSubscription *bool   `json:"default_requires_subscription"`
+}
+
+// slugify turns "NEET PG 2027" into "neet-pg-2027".
+func slugify(s string) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(s)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			dash = false
+			continue
+		}
+		if !dash && b.Len() > 0 {
+			b.WriteByte('-')
+			dash = true
+		}
+	}
+	return strings.TrimRight(b.String(), "-")
+}
+
+// CreateCourse godoc
+//
+//	@Summary		Create a course (Admin)
+//	@Tags			Courses
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		createCourseRequest	true	"Course"
+//	@Success		201		{object}	models.Course
+//	@Router			/api/v1/admin/courses [post]
+func (h *CurriculumHandler) CreateCourse(c *gin.Context) {
+	var req createCourseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondErr(c, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	slug := slugify(req.Slug)
+	if slug == "" {
+		slug = slugify(name)
+	}
+	if slug == "" {
+		respondErr(c, http.StatusBadRequest, "bad_request", "the name must contain letters or numbers")
+		return
+	}
+	course := models.Course{Name: name, Slug: slug, Description: req.Description, IsActive: true}
+	if req.DefaultRequiresSubscription != nil {
+		course.DefaultRequiresSubscription = *req.DefaultRequiresSubscription
+	}
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var taken int64
+		if err := tx.Model(&models.Course{}).Where("slug = ?", slug).Count(&taken).Error; err != nil {
+			return err
+		}
+		if taken > 0 {
+			return services.Conflict("slug_taken", "a course with this name already exists")
+		}
+		if err := tx.Create(&course).Error; err != nil {
+			return err
+		}
+		return auditAdmin(tx, middleware.GetUser(c), "course.create", "course:"+course.ID.String(), nil, map[string]string{"name": course.Name})
+	})
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, course)
+}
+
+// inUse refuses a delete while anything still points at the row. FK columns only exist on some tables,
+// so each referencing table is counted explicitly.
+func inUse(tx *gorm.DB, col string, id uuid.UUID, tables []string, code, msg string) error {
+	for _, t := range tables {
+		var n int64
+		if err := tx.Table(t).Where(col+" = ?", id).Count(&n).Error; err != nil {
+			return err
+		}
+		if n > 0 {
+			return services.Conflict(code, msg)
+		}
+	}
+	return nil
+}
+
+// DeleteChapter godoc
+//
+//	@Summary		Delete an empty chapter (Admin)
+//	@Description	Only a chapter with no lessons, tests, questions, decks or topics can be deleted.
+//	@Tags			Courses
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Chapter UUID"
+//	@Success		200	{object}	messageResponse
+//	@Router			/api/v1/admin/chapters/{id} [delete]
+func (h *CurriculumHandler) DeleteChapter(c *gin.Context) {
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
+		return
+	}
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var ch models.Chapter
+		if err := tx.Where("id = ?", id).First(&ch).Error; err != nil {
+			return err
+		}
+		if err := inUse(tx, "chapter_id", id, []string{"content_items", "tests", "questions", "flashcard_decks", "topics"},
+			"chapter_in_use", "this chapter still has content, tests or questions; move or remove them first"); err != nil {
+			return err
+		}
+		if err := tx.Where("id = ?", id).Delete(&models.Chapter{}).Error; err != nil {
+			return err
+		}
+		return auditAdmin(tx, middleware.GetUser(c), "chapter.delete", "chapter:"+id.String(), map[string]string{"name": ch.Name}, nil)
+	})
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, messageResponse{Message: "chapter deleted"})
+}
+
+// DeleteSubject godoc
+//
+//	@Summary		Delete an empty subject (Admin)
+//	@Description	Only a subject with no chapters, tests, questions or decks can be deleted.
+//	@Tags			Courses
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Subject UUID"
+//	@Success		200	{object}	messageResponse
+//	@Router			/api/v1/admin/subjects/{id} [delete]
+func (h *CurriculumHandler) DeleteSubject(c *gin.Context) {
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
+		return
+	}
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var sub models.Subject
+		if err := tx.Where("id = ?", id).First(&sub).Error; err != nil {
+			return err
+		}
+		if err := inUse(tx, "subject_id", id, []string{"chapters", "tests", "questions", "flashcard_decks"},
+			"subject_in_use", "this subject still has chapters, tests or questions; remove them first"); err != nil {
+			return err
+		}
+		if err := tx.Where("id = ?", id).Delete(&models.Subject{}).Error; err != nil {
+			return err
+		}
+		return auditAdmin(tx, middleware.GetUser(c), "subject.delete", "subject:"+id.String(), map[string]string{"name": sub.Name}, nil)
+	})
+	if err != nil {
+		httpx.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, messageResponse{Message: "subject deleted"})
 }

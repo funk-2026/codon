@@ -9,6 +9,7 @@ import { checkout, verifyPayment } from '@/src/api/subscriptions';
 import { getMe, SubscriptionPlan } from '@/src/api/profile';
 import { loadRazorpay } from '@/src/payments/razorpay';
 import { ROUTES } from '@/src/navigation/routes';
+import { track } from '@/src/analytics/track';
 import { shadow } from '@/src/theme/elevation';
 import { usePlanList } from '@/src/queries/subscriptions';
 
@@ -31,11 +32,17 @@ export default function CheckoutRoute() {
   const handlePay = async () => {
     if (!plan) return;
     setStage('launching');
+    // Known once the order exists; handed to the failure screen so support can find the payment.
+    let orderId: string | undefined;
+    // True once the gateway took the payment: a failure after this point may still have charged them.
+    let paidAtGateway = false;
+    track('subscription.checkout_started', { plan_id: plan.id });
 
     try {
       // Load before creating the order so Expo Go fails without leaving an unpaid order behind.
       const RazorpayCheckout = loadRazorpay();
       const order = await checkout({ plan_id: plan.id });
+      orderId = order.razorpay_order_id;
 
       const result = await RazorpayCheckout.open({
         key: order.key_id,
@@ -50,6 +57,7 @@ export default function CheckoutRoute() {
         },
       });
 
+      paidAtGateway = true;
       setStage('verifying');
       await verifyPayment({
         razorpay_order_id: result.razorpay_order_id,
@@ -68,15 +76,17 @@ export default function CheckoutRoute() {
         // ignore — payment-success falls back to a generic message
       }
 
+      track('subscription.paid', { plan_id: plan.id });
       router.replace({
         pathname: ROUTES.student.paymentSuccess,
         params: { planName: plan.name, amount: String(plan.price_paise / 100), validUntil },
       });
     } catch (err: any) {
       setStage('summary');
+      track('subscription.failed', { plan_id: plan.id, had_order: !!orderId });
       router.push({
         pathname: ROUTES.student.paymentFailed,
-        params: { reason: err?.description || err?.message || undefined },
+        params: { reason: err?.description || err?.message || undefined, planId: plan.id, ...(orderId ? { order: orderId } : {}), ...(paidAtGateway ? { paid: '1' } : {}) },
       });
     }
   };
@@ -118,7 +128,7 @@ export default function CheckoutRoute() {
           >
             <Text style={[type['type/h3'], { color: color('text/primary') }]}>{plan.name}</Text>
             <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-              {Math.round(plan.duration_days / 30)} months · NEET UG Pro
+              {Math.round(plan.duration_days / 30)} months · {plan.name}
             </Text>
             <View style={{ height: 1, backgroundColor: color('border/subtle'), marginVertical: space.md }} />
             <View style={styles.totalRow}>

@@ -23,6 +23,12 @@ export type ContentItem = {
   reviewed_at?: string;
   uploader?: UserProfile;
   created_at?: string;
+  /** Document lessons written in the app. */
+  body_text?: string;
+  author_name?: string;
+  publish_at?: string;
+  submitted_at?: string;
+  submit_note?: string;
 };
 
 export type ListContentResponse = {
@@ -48,6 +54,8 @@ export type LecturePDFs = {
 };
 
 export type GetContentResponse = LecturePDFs & {
+  /** Where this student left off (seconds). Absent when never watched or already finished. */
+  progress_seconds?: number;
   content: ContentItem;
   url?: string; // Pre-signed URL for document, or HLS URL for video
 };

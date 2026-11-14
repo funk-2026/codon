@@ -59,6 +59,13 @@ func (s *SessionService) CreateSession(ctx context.Context, user *models.User, d
 			Select("id").First(&models.User{}, "id = ?", user.ID).Error; err != nil {
 			return err
 		}
+		// Signing in again on the same device replaces that device's old session, so a phone can never
+		// use up both slots (and push the user's other phone out).
+		if deviceID != "" {
+			if err := tx.Where("user_id = ? AND device_id = ?", user.ID, deviceID).Delete(&models.Session{}).Error; err != nil {
+				return err
+			}
+		}
 		var active []models.Session
 		if err := tx.Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", user.ID, time.Now()).
 			Order("last_used_at ASC").Find(&active).Error; err != nil {

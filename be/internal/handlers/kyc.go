@@ -274,7 +274,10 @@ func (h *KYCHandler) review(c *gin.Context, id uuid.UUID, to models.KYCStatus, r
 		if err := tx.First(&rec, "id = ?", id).Error; err != nil {
 			return err
 		}
-		return tx.Model(&models.User{}).Where("id = ?", rec.UserID).Update("kyc_status", to).Error
+		if err := tx.Model(&models.User{}).Where("id = ?", rec.UserID).Update("kyc_status", to).Error; err != nil {
+			return err
+		}
+		return tx.Create(&models.AdminAuditLog{ActorID: reviewer, Action: "kyc." + string(to), Target: "user:" + rec.UserID.String()}).Error
 	})
 }
 

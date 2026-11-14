@@ -175,7 +175,7 @@ export default function QuestionEditorRoute() {
       await clearDraft(testId, questionId);
       if (addAnother && !editing) {
         // keep the classification so authoring a run of similar questions is fast
-        const keep: FormDraft = { ...EMPTY_DRAFT, subject_id: draft.subject_id, chapter_id: draft.chapter_id, topic_id: draft.topic_id, difficulty: draft.difficulty, source_type: draft.source_type, source_year: draft.source_year, source_label: draft.source_label, ncert_class: draft.ncert_class, custom_eligible: draft.custom_eligible };
+        const keep: FormDraft = { ...EMPTY_DRAFT, subject_id: draft.subject_id, chapter_id: draft.chapter_id, topic_id: draft.topic_id, difficulty: draft.difficulty, source_type: draft.source_type, source_year: draft.source_year, source_label: draft.source_label, section: draft.section, ncert_class: draft.ncert_class, custom_eligible: draft.custom_eligible };
         setDraft(keep);
         setOriginal(keep);
         setShowErrors(false);
@@ -362,6 +362,7 @@ export default function QuestionEditorRoute() {
                     <View style={{ flex: 1 }}><InputField label="Year" value={draft.source_year ?? ''} onChangeText={(t: string) => set('source_year', t.replace(/\D/g, '').slice(0, 4))} keyboardType="number-pad" error={err('source_year') ?? undefined} /></View>
                     <View style={{ flex: 2 }}><InputField label="Source label" value={draft.source_label ?? ''} onChangeText={(t: string) => set('source_label', t)} placeholder="e.g. NEET 2023 Q45" /></View>
                   </View>
+                  <InputField label="Section (optional)" value={draft.section ?? ''} onChangeText={(t: string) => set('section', t)} placeholder="e.g. Physics, Section B" helperText="Students see this heading above the question." />
                   <TagInput value={draft.tags ?? []} onChange={(v) => set('tags', v)} />
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
                     <View style={{ flex: 1 }}>

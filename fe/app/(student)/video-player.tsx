@@ -10,6 +10,7 @@ import Animated, {
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView, VideoTrack } from 'expo-video';
 import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
+import { track } from '@/src/analytics/track';
 import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, PictureInPicture } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat, type LecturePDFs } from '@/src/api/content';
@@ -38,6 +39,8 @@ export default function VideoPlayerRoute() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
 
+  // Where to pick up, taken from the server when the lecture opens and used once the player is ready.
+  const resumeAt = useRef(0);
   const [content, setContent] = useState<ContentItem | null>(null);
   const [pdfs, setPdfs] = useState<LecturePDFs | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
@@ -58,6 +61,8 @@ export default function VideoPlayerRoute() {
       .then((res) => {
         setContent(res.content);
         setVideoUrl(res.url);
+        resumeAt.current = res.progress_seconds && res.progress_seconds > 5 ? res.progress_seconds : 0;
+        track('video.started', { resumed: resumeAt.current > 0 });
         setPdfs(pdfsOf(res));
         return getChapterContent(res.content.chapter_id);
       })
@@ -90,6 +95,14 @@ export default function VideoPlayerRoute() {
   });
   const { status: playerStatus } = useEvent(player, 'statusChange', { status: player.status });
   const duration = player.duration || 0;
+
+  useEffect(() => {
+    if (playerStatus !== 'readyToPlay' || resumeAt.current <= 0) return;
+    const to = resumeAt.current;
+    resumeAt.current = 0;
+    // Don't jump to the very end if they had nearly finished.
+    if (!player.duration || to < player.duration - 10) player.currentTime = to;
+  }, [playerStatus, player]);
 
   const videoViewRef = useRef<VideoView>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -325,7 +338,7 @@ export default function VideoPlayerRoute() {
                 {content?.title || 'Loading...'}
               </Text>
               <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                Video Lesson
+                Video Lesson{content?.author_name ? ` · By ${content.author_name}` : ''}
               </Text>
               {pdfs && (pdfs.has_notes_pdf || pdfs.has_annotated_pdf) ? (
                 <LecturePdfDownloads pdfs={pdfs} title={content?.title ?? 'Lecture'} />

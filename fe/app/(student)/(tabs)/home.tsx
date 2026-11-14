@@ -6,7 +6,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { Flame, Exam, BookOpen, Bell, Target, CaretRight } from 'phosphor-react-native';
+import { Flame, Exam, BookOpen, Bell, MagnifyingGlass, Target, CaretRight } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { CollapsingHeader, ErrorBanner, useCollapsingHeader } from '@/src/components';
@@ -17,6 +17,7 @@ import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { DailyGoalCard } from '@/src/home/DailyGoalCard';
 import { BrainHackOfTheDay, HomeUpdatesCarousel } from '@/src/home/HomeShelves';
 import { WeekStrip } from '@/src/home/WeekStrip';
+import { daysUntil, formatExamDate } from '@/src/profile/examDate';
 import { useExplore } from '@/src/queries/discover';
 import { useFlag } from '@/src/config/AppConfigContext';
 import { ROUTES } from '@/src/navigation/routes';
@@ -81,6 +82,7 @@ export default function HomeDashboardRoute() {
         }
       : null;
   const streak = breakdown.data?.day_streak ?? 0;
+  const examDays = daysUntil(me.data?.user?.exam_date);
   const isNewUser = !((progress.data?.attempted_count ?? 0) > 0);
 
   const { subState, subText } = useMemo((): { subState: SubState; subText: string } => {
@@ -101,6 +103,15 @@ export default function HomeDashboardRoute() {
     const d = size === 'large' ? 40 : 32;
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
+        <Pressable
+          onPress={() => router.push(ROUTES.student.search)}
+          hitSlop={space.xs}
+          accessibilityRole="button"
+          accessibilityLabel="Search"
+          style={[styles.avatar, { width: d, height: d, borderRadius: d / 2, backgroundColor: color('header/chip') }]}
+        >
+          <MagnifyingGlass size={size === 'large' ? 22 : 18} color={color('header/text')} weight="regular" />
+        </Pressable>
         <Pressable
           onPress={() => router.push(ROUTES.student.notifications)}
           hitSlop={space.xs}
@@ -242,6 +253,16 @@ export default function HomeDashboardRoute() {
                       onPress={() => router.push(ROUTES.student.learn)}
                     />
                   </View>
+                ) : !next ? (
+                  <View>
+                    <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>KEEP GOING</Text>
+                    <ActionCard
+                      icon={<Target size={26} color={color('accent/default')} weight="duotone" />}
+                      title="Practise a chapter"
+                      caption="A few questions today keeps your streak and your accuracy going"
+                      onPress={() => router.push(ROUTES.student.practice)}
+                    />
+                  </View>
                 ) : next ? (
                   <View>
                     <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>UP NEXT</Text>
@@ -267,6 +288,24 @@ export default function HomeDashboardRoute() {
                     <Text style={[type['type/caption'], { color: color('accent/default') }]}>Your progress →</Text>
                   </Pressable>
                 </View>
+                {examDays != null && examDays >= 0 ? (
+                  <Pressable
+                    onPress={() => router.push(ROUTES.student.editProfile)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${examDays} days to your exam. Change the date`}
+                    style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginBottom: space.xs, flexDirection: 'row', alignItems: 'center', gap: space.md }, shadow()]}
+                  >
+                    <Text style={[type['type/numeral-display'], { color: color('accent/default'), fontSize: 34 }]}>{examDays}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[type['type/h3'], { color: color('text/primary') }]}>{examDays === 0 ? 'Exam day. Good luck!' : examDays === 1 ? 'day to your exam' : 'days to your exam'}</Text>
+                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{formatExamDate(me.data?.user?.exam_date)}</Text>
+                    </View>
+                  </Pressable>
+                ) : examDays == null ? (
+                  <Pressable onPress={() => router.push(ROUTES.student.editProfile)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center', marginBottom: space.xs }}>
+                    <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>Set your exam date for a countdown →</Text>
+                  </Pressable>
+                ) : null}
                 <DailyGoalCard />
                 <View style={{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
