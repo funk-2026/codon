@@ -153,7 +153,7 @@ Rules for all boards: first name and initial only, no photo, **opt out in one ta
 - **Attempt strategy:** how many you attempted per subject against the cohort's average attempt rate; whether guessing helped or hurt.
 - **Time analysis:** time per subject and per question, questions you spent too long on, and when your accuracy fell during the three hours (fatigue curve).
 - **Question types of mistakes:** a student marks why each wrong answer happened (did not know, forgot, silly mistake, misread, guessed). It is a tap per question and the most useful data for the next plan.
-- **Compare:** against the topper, the average and a chosen friend, per subject and per chapter.
+- **Compare:** against the topper and the average, per subject and per chapter.
 - **Percentile band:** "you are in the top 12 per cent; the top 5 per cent started at 612 marks".
 - **Rank predictor:** an honest range for the real exam, labelled as an estimate, using the live cohort and (if available) past years' cut-offs.
 
@@ -187,7 +187,7 @@ Rules for all boards: first name and initial only, no photo, **opt out in one ta
 
 1. After the **first live test**: score breakdown, subject-wise and time analysis, test board, "Practise my mistakes", and the key-challenge flow. These are what the student judges Codon on.
 2. After the **second or third**: series board, weak-chapter plan, improvement board, and the "why I got it wrong" tags.
-3. Later: friends board, parent report, rank predictor, share card.
+3. Later: parent report, rank predictor, share card.
 
 ### Cautions
 
