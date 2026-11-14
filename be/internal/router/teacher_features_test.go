@@ -163,3 +163,33 @@ func TestTeacherImpactAndTestStats(t *testing.T) {
 		t.Fatalf("another teacher must not see these stats: %d", code)
 	}
 }
+
+// One account that can open the Admin, Teacher and Student views sees only that view's notifications.
+func TestNotificationsAreScopedByView(t *testing.T) {
+	e := newEnv(t)
+	u := &e.w.Admin
+	for _, typ := range []string{"review_waiting", "test_approved", "content_taken_down", "report_resolved", "streak_nudge", "announcement"} {
+		services.Notify(e.db, u.ID, typ, typ, "x", nil)
+	}
+	count := func(aud string) int {
+		out := e.mustDo(200, "GET", "/me/notifications?audience="+aud, u, nil)
+		return len(out["items"].([]interface{}))
+	}
+	if n := count("admin"); n != 1 {
+		t.Fatalf("admin view should see only review_waiting, saw %d", n)
+	}
+	if n := count("teacher"); n != 3 { // test_approved, content_taken_down, announcement
+		t.Fatalf("teacher view saw %d, want 3", n)
+	}
+	if n := count("student"); n != 3 { // report_resolved, streak_nudge, announcement
+		t.Fatalf("student view saw %d, want 3", n)
+	}
+	if n := count(""); n != 6 {
+		t.Fatalf("no audience keeps the old behaviour, saw %d", n)
+	}
+	e.mustDo(200, "POST", "/me/notifications/read", u, map[string]interface{}{"all": true, "audience": "admin"})
+	out := e.mustDo(200, "GET", "/me/notifications?audience=student", u, nil)
+	if out["unread_count"].(float64) != 3 {
+		t.Fatalf("marking the admin view read must not touch the student view: %v", out["unread_count"])
+	}
+}

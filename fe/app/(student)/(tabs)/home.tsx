@@ -57,7 +57,7 @@ export default function HomeDashboardRoute() {
   const attempts = useAttempts();
   const loadError = me.isError || progress.isError || breakdown.isError || recent.isError;
   const loadData = () => void Promise.all([me.refetch(), progress.refetch(), breakdown.refetch(), recent.refetch(), attempts.refetch()]);
-  const notifications = useNotifications();
+  const notifications = useNotifications('student');
   const unread = notifications.data?.pages[0]?.unread_count ?? 0;
   useRefetchOnFocus(() => { loadData(); void notifications.refetch(); });
 

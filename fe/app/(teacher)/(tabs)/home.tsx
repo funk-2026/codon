@@ -50,7 +50,7 @@ export default function TeacherHomeRoute() {
 
   const itemsQuery = useTeacherItems();
   const inbox = useTeacherInbox();
-  const unread = useNotifications().data?.pages[0]?.unread_count ?? 0;
+  const unread = useNotifications('teacher').data?.pages[0]?.unread_count ?? 0;
   useRefetchOnFocus(() => void Promise.all([itemsQuery.refetch(), inbox.refetch()]));
 
   const items = itemsQuery.data ?? [];

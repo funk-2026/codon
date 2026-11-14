@@ -4,7 +4,7 @@ import { useRouter, type Href } from 'expo-router';
 import { Bell, WarningCircle } from 'phosphor-react-native';
 import { EmptyState, SecondaryButton, SkeletonBlock, TextButton, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import type { NotificationItem } from '@/src/api/discover';
+import type { NotificationAudience, NotificationItem } from '@/src/api/discover';
 import { useMarkNotificationsRead, useNotifications } from '@/src/queries/discover';
 
 const ago = (iso: string) => {
@@ -14,12 +14,12 @@ const ago = (iso: string) => {
   return h < 24 ? `${h} h ago` : `${Math.floor(h / 24)} d ago`;
 };
 
-export function NotificationsList({ routeFor, emptyText }: { routeFor: (n: NotificationItem) => string | null; emptyText: string }) {
+export function NotificationsList({ audience, routeFor, emptyText }: { audience: NotificationAudience; routeFor: (n: NotificationItem) => string | null; emptyText: string }) {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const list = useNotifications();
-  const markRead = useMarkNotificationsRead();
+  const list = useNotifications(audience);
+  const markRead = useMarkNotificationsRead(audience);
   const rows = list.data?.pages.flatMap((p) => p.items) ?? [];
   const unread = list.data?.pages[0]?.unread_count ?? 0;
   const loading = list.isPending;
