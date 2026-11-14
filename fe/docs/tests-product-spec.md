@@ -101,6 +101,72 @@ Filters by kind and by subject; locked items show the plan needed.
 
 **Retakes.** The first submitted attempt is the official one for rank. Later attempts are labelled "practice" and never change the rank.
 
+## 5A. Leaderboards and after-the-test features
+
+The test is only half the product. What happens in the hours after results decides whether a student comes back for the next one.
+
+### Leaderboards
+
+| Board | What it shows | Notes |
+|---|---|---|
+| **Test board** | Top 10 plus "you are 1,240 of 18,500" | Live participants only; anytime takers see an estimate (§6) |
+| **Subject board** | Top scorers in Physics, Chemistry, Botany, Zoology | Gives a weaker overall student something to win |
+| **Series board** | Cumulative or best-N scores across a series | The one that drives retention: "keep going, you are 3 marks off the top 100" |
+| **Friends and group board** | Only people you add by invite code or phone number | Healthier than a public board; the best choice for younger students |
+| **Improvement board** | Biggest rise in score or percentile since your last test | Rewards effort, not just ability; students outside the top still appear |
+| **City or school board** | Optional, once there is enough volume | Needs a school or city field; skip at first |
+
+Rules for all boards: first name and initial only, no photo, **opt out in one tap** (then you still see your own rank), ties share a rank, a rank needs at least 100 participants (percentile only below that), and no board for Q Bank. Many students are under 18, so default to the friends board and make the public board opt-in if you are unsure.
+
+### After the result: the feature list
+
+**Understand the score**
+- **Score breakdown:** correct, wrong, skipped, marks lost to negative marking, and "marks you would have had if you had skipped your guesses".
+- **Attempt strategy:** how many you attempted per subject against the cohort's average attempt rate; whether guessing helped or hurt.
+- **Time analysis:** time per subject and per question, questions you spent too long on, and when your accuracy fell during the three hours (fatigue curve).
+- **Question types of mistakes:** a student marks why each wrong answer happened (did not know, forgot, silly mistake, misread, guessed). It is a tap per question and the most useful data for the next plan.
+- **Compare:** against the topper, the average and a chosen friend, per subject and per chapter.
+- **Percentile band:** "you are in the top 12 per cent; the top 5 per cent started at 612 marks".
+- **Rank predictor:** an honest range for the real exam, labelled as an estimate, using the live cohort and (if available) past years' cut-offs.
+
+**Close the gaps**
+- **One-tap "Practise my mistakes":** sends wrong and skipped questions to a Q Bank set, grouped by chapter (the bridge back to learning).
+- **Weak-chapter plan:** the three chapters that cost the most marks, with the lesson, notes and a short Q Bank set for each.
+- **Revision flash cards** made from the questions you got wrong (or from the explanation's key line).
+- **Retry in tutor mode:** retake the same paper without the clock and with answers shown, clearly marked as practice (never changes rank).
+- **Solutions that teach:** explanation, a video solution link, "common wrong option and why it is tempting", and a short shortcut where the teacher adds one.
+- **Bookmark and note** on any question in the review.
+- **Ask a doubt** on a question (needs the doubts decision; see future gaps).
+
+**Trust and fairness**
+- **Challenge an answer** within the window, with a status you can follow and a notification on the outcome.
+- **Rescore notice:** if the key changes, a clear before and after ("your score went from 548 to 556").
+- **Result release and key release** notifications.
+
+**Keep them coming back**
+- **Next-test card** with a countdown, and a simple "your plan" showing the next three tests and their syllabus.
+- **Streak of tests taken**, not of days opened, and a **badge** for milestones (first mock, 5 mocks, top 10 per cent). Keep these quiet; no public shaming.
+- **Progress over time:** score and percentile for each mock in one chart, with the exam-date countdown beside it.
+- **Share card:** a clean image of your score and percentile for friends and family (opt-in, never shows others' names).
+- **Parent report:** an optional weekly summary to a parent's number or email (marks, trend, weak chapters). Needs consent from the student and careful wording.
+- **Re-attempt reminder:** after two weeks, suggest retrying the paper's weak chapters.
+
+**For teachers and admins**
+- **Teacher:** per-question accuracy, discrimination, most common wrong option, and "questions to retire", plus a list of challenged questions.
+- **Admin:** result-day dashboard (people who opened results, challenges, support tickets), rank-list export, and a cohort report by city or batch.
+
+### What I would build first
+
+1. After the **first live test**: score breakdown, subject-wise and time analysis, test board, "Practise my mistakes", and the key-challenge flow. These are what the student judges Codon on.
+2. After the **second or third**: series board, weak-chapter plan, improvement board, and the "why I got it wrong" tags.
+3. Later: friends board, parent report, rank predictor, share card.
+
+### Cautions
+
+- A public leaderboard motivates the top 10 per cent and discourages the rest. Always show a personal view ("you beat 640 students") and an improvement view next to it.
+- Do not show a rank when the cohort is small; a wrong or fragile rank costs more trust than no rank.
+- Any parent or group feature needs consent and a clear off switch.
+
 ## 6. Live versus anytime: ranking rules
 
 | | Live | Anytime (after the window) |
