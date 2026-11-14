@@ -193,3 +193,13 @@ func TestExportMyData(t *testing.T) {
 		t.Fatalf("unexpected export: %v", out)
 	}
 }
+
+// The sign-in screen can read the links without being signed in.
+func TestPublicConfigNeedsNoLogin(t *testing.T) {
+	e := newEnv(t)
+	e.set("support.email", "help@example.com")
+	cfg := e.mustDo(200, "GET", "/public-config", nil, nil)
+	if cfg["support"].(map[string]interface{})["email"] != "help@example.com" {
+		t.Fatalf("public config missing the support email: %v", cfg)
+	}
+}

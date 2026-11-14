@@ -94,6 +94,24 @@ func (h *AppConfigHandler) Get(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json; charset=utf-8", raw)
 }
 
+// Public godoc
+//
+//	@Summary		Links and version gate that are needed before sign-in
+//	@Description	Minimum app version, store links, Terms and Privacy links, and the support contact. No authentication; nothing here is private.
+//	@Tags			Config
+//	@Produce		json
+//	@Success		200	{object}	map[string]interface{}
+//	@Router			/api/v1/public-config [get]
+func (h *AppConfigHandler) Public(c *gin.Context) {
+	s := settings.Default
+	c.Header("Cache-Control", "public, max-age=300")
+	c.JSON(http.StatusOK, gin.H{
+		"app":     gin.H{"min_version": s.String("app.min_version"), "store_url_android": s.String("app.store_url_android"), "store_url_ios": s.String("app.store_url_ios")},
+		"legal":   gin.H{"terms_url": s.String("legal.terms_url"), "privacy_url": s.String("legal.privacy_url")},
+		"support": gin.H{"email": s.String("support.email"), "whatsapp": s.String("support.whatsapp")},
+	})
+}
+
 var adminSettingPrefixes = []string{"app.", "legal.", "support.", "results.", "custom_test.", "reports.", "media.", "import.", "richtext.", "analytics.", "pool.", "ratings.", "bookmarks.", "attempt.", "rich_content.", "test_questions."}
 
 func isAdminSetting(key string) bool {

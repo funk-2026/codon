@@ -60,6 +60,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	auth := d.Auth
 
 	api.GET("/app-config", auth, d.AppConfig.Get)
+	api.GET("/public-config", d.AppConfig.Public)
 
 	// Media pipeline (validated image uploads for rich content)
 	api.POST("/media/presign", auth, d.Media.Presign)
