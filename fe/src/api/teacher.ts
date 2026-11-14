@@ -16,6 +16,16 @@ export type CreateTestRequest = {
   requires_subscription?: boolean;
   /** Shown to students before they start. */
   instructions?: string;
+  // Exam settings (all optional; a plain Q Bank set leaves them out).
+  exam_style?: 'neet' | 'school';
+  kind?: 'chapter' | 'subject' | 'part' | 'full' | 'pyq';
+  delivery?: 'anytime' | 'live';
+  opens_at?: string;
+  late_entry_minutes?: number;
+  results_at?: string;
+  rank_visibility?: 'everyone' | 'subscribers';
+  series_id?: string;
+  exam_year?: number;
 };
 
 /** POST /api/v1/teacher/tests */

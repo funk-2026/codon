@@ -19,6 +19,7 @@ import { BrainHackDetail } from '@/src/teacher/BrainHackDetail';
 import { PublishSheet, SubmitForReviewSheet, TransferSheet } from '@/src/teacher/AuthorSheets';
 import { ReplaceVideo } from '@/src/teacher/ReplaceVideo';
 import { ItemStatsCard } from '@/src/teacher/ItemStatsCard';
+import { KIND_LABEL, STYLE_LABEL, patternHint } from '@/src/exam/logic';
 import { describeWait, formatScheduled } from '@/src/teacher/schedule';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
@@ -362,6 +363,17 @@ function ContentPreview() {
                 <StatChip icon={<Clock size={16} color={color('accent/default')} />} label={durationLabel} />
                 <StatChip icon={<CheckCircle size={16} color={color('accent/default')} />} label={markingLabel} />
               </View>
+              {testData?.module_type === 'test_series' ? (
+                <View style={{ paddingHorizontal: space.sm, marginTop: space.xs, gap: 2 }}>
+                  <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
+                    {STYLE_LABEL[testData.exam_style ?? 'school']} · {KIND_LABEL[testData.kind ?? 'chapter']}
+                    {testData.delivery === 'live' && testData.opens_at ? ` · Live ${new Date(testData.opens_at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ' · Anytime'}
+                  </Text>
+                  {patternHint(testData.exam_style ?? 'school', testData.kind ?? 'chapter', questionCountNum, testData.duration_minutes) ? (
+                    <Text style={[type['type/caption'], { color: color('semantic/warning') }]}>{patternHint(testData.exam_style ?? 'school', testData.kind ?? 'chapter', questionCountNum, testData.duration_minutes)}</Text>
+                  ) : null}
+                </View>
+              ) : null}
 
               <Pressable
                 onPress={() => setQuestionsExpanded((v) => !v)}

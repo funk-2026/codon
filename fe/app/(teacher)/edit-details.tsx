@@ -11,6 +11,7 @@ import type { ContentItem } from '@/src/api/content';
 import { getTeacherContent, getTeacherTest, updateContent, updateTest } from '@/src/api/teacher';
 import { ChapterPickerSheet, type PickedPlace } from '@/src/teacher/ChapterPickerSheet';
 import { ApiError } from '@/src/api/client';
+import { parseSchedule, scheduleError, toScheduleInputs } from '@/src/teacher/schedule';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 
 const TEXT_LESSON_KEY = 'text:inline';
@@ -82,6 +83,13 @@ function EditForm({ id, test, lesson }: { id: string; test: Test | null; lesson:
   const [place, setPlace] = useState<PickedPlace | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const isExam = test?.module_type === 'test_series';
+  const live = isExam && test?.delivery === 'live';
+  const initial = toScheduleInputs(test?.opens_at);
+  const [date, setDate] = useState(initial.date);
+  const [time, setTime] = useState(initial.time);
+  const [late, setLate] = useState(String(test?.late_entry_minutes ?? 15));
+  const [rank, setRank] = useState<'everyone' | 'subscribers'>(test?.rank_visibility ?? 'everyone');
 
   const editableStatus = ['draft', 'rejected'].includes(test?.status ?? lesson?.status ?? '');
   const textLesson = lesson?.file_key === TEXT_LESSON_KEY;
@@ -94,6 +102,7 @@ function EditForm({ id, test, lesson }: { id: string; test: Test | null; lesson:
     : isTest && timed && (!Number.isFinite(durationNum) || durationNum < 1 || durationNum > 600) ? 'Duration must be 1–600 minutes.'
     : isTest && (!Number.isFinite(mc) || !Number.isFinite(mw) || marksCorrect.trim() === '' || marksWrong.trim() === '') ? 'Marks must be numbers.'
     : textLesson && editableStatus && body.trim().length === 0 ? 'The lesson text can’t be empty.'
+    : live && scheduleError(date, time) && (date !== initial.date || time !== initial.time) ? scheduleError(date, time)
     : null;
 
   const save = async () => {
@@ -110,6 +119,9 @@ function EditForm({ id, test, lesson }: { id: string; test: Test | null; lesson:
           marks_per_wrong: mw,
           requires_subscription: paid,
           ...(place ? { subject_id: place.subjectId, chapter_id: place.chapterId } : {}),
+          ...(isExam ? { rank_visibility: rank } : {}),
+          ...(live && (date !== initial.date || time !== initial.time) ? { opens_at: parseSchedule(date, time)?.toISOString() } : {}),
+          ...(live ? { late_entry_minutes: Math.max(0, Math.min(240, Number(late) || 0)) } : {}),
         });
       } else {
         await updateContent(id, {
@@ -161,6 +173,19 @@ function EditForm({ id, test, lesson }: { id: string; test: Test | null; lesson:
             ) : null}
             {textLesson ? (
               <InputField label="Lesson text" value={body} onChangeText={setBody} multiline maxLength={60000} containerStyle={{ minHeight: 160 }} />
+            ) : null}
+            {live ? (
+              <View style={{ gap: space.sm }}>
+                <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>LIVE SCHEDULE</Text>
+                <View style={{ flexDirection: 'row', gap: space.sm }}>
+                  <View style={{ flex: 1.4 }}><InputField label="Date" value={date} onChangeText={setDate} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" /></View>
+                  <View style={{ flex: 1 }}><InputField label="Time (24h)" value={time} onChangeText={setTime} placeholder="HH:MM" keyboardType="numbers-and-punctuation" /></View>
+                </View>
+                <InputField label="Late entry allowed for (minutes)" value={late} onChangeText={(t: string) => setLate(t.replace(/\D/g, ''))} keyboardType="number-pad" />
+              </View>
+            ) : null}
+            {isExam && test?.exam_style === 'neet' ? (
+              <Row label="Rank for subscribers only" hint={rank === 'subscribers' ? 'Free students see their score but not their rank' : 'Everyone sees their rank'} value={rank === 'subscribers'} onChange={(v) => setRank(v ? 'subscribers' : 'everyone')} />
             ) : null}
             <Row label="Paid content" hint={paid ? 'Only subscribers can open it' : 'Free for every student'} value={paid} onChange={setPaid} />
             <Pressable

@@ -31,3 +31,13 @@ describe('describeWait', () => {
     expect(describeWait(undefined)).toBeNull();
   });
 });
+
+import { toScheduleInputs } from '../schedule';
+
+describe('toScheduleInputs', () => {
+  it('round-trips with parseSchedule', () => {
+    const at = parseSchedule('03/05/2027', '18:30');
+    expect(at && toScheduleInputs(at.toISOString())).toEqual({ date: '03/05/2027', time: '18:30' });
+    expect(toScheduleInputs(undefined)).toEqual({ date: '', time: '' });
+  });
+});

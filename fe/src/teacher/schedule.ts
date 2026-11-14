@@ -38,3 +38,11 @@ export function describeWait(hours?: number | null): string | null {
   const days = Math.round(hours / 24);
   return `about ${days} day${days === 1 ? '' : 's'}`;
 }
+
+/** The inverse of parseSchedule: an ISO time as the "DD/MM/YYYY" and "HH:MM" a teacher types, in the phone's time zone. */
+export function toScheduleInputs(iso?: string | null): { date: string; time: string } {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return { date: '', time: '' };
+  const p = (n: number) => String(n).padStart(2, '0');
+  return { date: `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`, time: `${p(d.getHours())}:${p(d.getMinutes())}` };
+}

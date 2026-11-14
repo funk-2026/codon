@@ -28,7 +28,8 @@ import { shadow } from '@/src/theme/elevation';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 
 const CREATE_OPTIONS: { label: string; text: string; href: Href; Icon: typeof ClipboardText }[] = [
-  { label: 'New test', text: 'Q Bank or Test Series, from questions or a CSV', href: ROUTES.teacher.createTest, Icon: ClipboardText },
+  { label: 'New exam', text: 'A timed test in NEET or school style, live or anytime', href: ROUTES.teacher.createExam, Icon: ClipboardText },
+  { label: 'New Q Bank set', text: 'Practice questions for a chapter, from questions or a CSV', href: ROUTES.teacher.createTest, Icon: ClipboardText },
   { label: 'New lesson', text: 'A video lecture or a document for a chapter', href: ROUTES.teacher.createContent, Icon: VideoCamera },
   { label: 'New Brain Hack', text: 'A short, practical tip', href: ROUTES.teacher.createBrainHack, Icon: Lightbulb },
   { label: 'New flashcard deck', text: 'Quick-recall cards, prompt and answer', href: ROUTES.teacher.flashcardDeck, Icon: Cards },

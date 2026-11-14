@@ -27,14 +27,14 @@ const SEGMENTS: { key: Segment; label: string }[] = [
 ];
 
 const CREATE: Record<Segment, { label: string; href: Href }> = {
-  tests: { label: 'New test', href: ROUTES.teacher.createTest },
+  tests: { label: 'New exam', href: ROUTES.teacher.createExam },
   lessons: { label: 'New lesson', href: ROUTES.teacher.createContent },
   hacks: { label: 'New Brain Hack', href: ROUTES.teacher.createBrainHack },
   decks: { label: 'New deck', href: ROUTES.teacher.flashcardDeck },
 };
 
 const EMPTY: Record<Segment, { title: string; text: string }> = {
-  tests: { title: 'No tests yet', text: 'Build a Q Bank or Test Series test from your own questions or a CSV.' },
+  tests: { title: 'No tests yet', text: 'Create an exam (NEET or school style, live or anytime) or a Q Bank set from your own questions or a CSV.' },
   lessons: { title: 'No lessons yet', text: 'Upload a video lecture or a document for a chapter.' },
   hacks: { title: 'No Brain Hacks yet', text: 'Share a short, practical tip students can read in a minute.' },
   decks: { title: 'No decks yet', text: 'Make a deck of quick-recall cards: a prompt on the front, the answer on the back.' },
@@ -141,6 +141,11 @@ export default function TeacherContentRoute() {
         <ManageAllBanner />
       </View>
 
+      {segment === 'tests' ? (
+        <View style={{ paddingHorizontal: space.md, marginTop: space.xs, alignItems: 'flex-start' }}>
+          <TextButton label="New Q Bank set instead" onPress={() => router.push(ROUTES.teacher.createTest)} />
+        </View>
+      ) : null}
       {status === 'draft' && drafts.length >= 2 ? (
         <View style={{ paddingHorizontal: space.md, marginTop: space.sm, alignItems: 'flex-start' }}>
           <TextButton label={`Send all ${drafts.length} drafts for review`} onPress={() => setBulkOpen(true)} />
