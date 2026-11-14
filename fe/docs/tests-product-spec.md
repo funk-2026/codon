@@ -1,6 +1,6 @@
 # Tests: product spec (exam simulation)
 
-Status: **decisions made, nothing built.** Written 2026-11-14 as a product review of what a "Test" must be in Codon, across the student, teacher and admin apps, and whether the course structure still makes sense.
+Status: **decisions complete, nothing built.** Next step: a Phase 1 build plan. Written 2026-11-14 as a product review of what a "Test" must be in Codon, across the student, teacher and admin apps, and whether the course structure still makes sense.
 
 This replaces the idea that a Test is "a Q Bank set with a timer". The goal: a student who takes a Codon test should feel they sat the real exam, and trust the score, the rank and the analysis.
 
@@ -22,14 +22,22 @@ Facts about the exam below (NEET pattern, marking, interface) come from general 
 | Rank visibility | **Configurable per test**: everyone, or subscribers only. Free users can see by default |
 | Key challenges | **Next release**, not the first |
 | Key changes | An **admin can recompute** after a key change, with a preview ("this changes 312 scores") and a confirm |
-| Leaderboard | There is **no friends feature** in the app, so no friends board. Public board with first name and initial and an opt-out, plus an improvement board. School tests default to **no public board** (see §15) |
+| Leaderboard | There is **no friends feature** in the app, so no friends board. Public board with first name and initial and an opt-out, plus an improvement board. School tests have **no public board** |
 | Languages | **English** for now |
 | Solutions | Written explanation only. **No video link** |
 | Papers | Re-created in the exam's pattern, written by **teachers**; labelled as such |
 | Attempts | First attempt is official, later ones are practice |
 | Structure | **Approved:** Course → Series → Test, own Tests tab, coverage from question tags. **The Practice tab keeps its name** |
 | Scale | Under **5,000** students per live test |
-| Exam-day team | My proposal in §9A |
+| Exam-day team | My proposal in §9A, accepted |
+| Age | **All users are assumed to be 18 or older for now.** No parent-consent flow, no minors rules. Revisit before school tests launch to real 9th and 10th students |
+| School tests | **Anytime only** (no live events). **No public leaderboard**: the student sees their own rank and percentile |
+| Result gap and percentile | Platform minimum result gap **15 minutes** (also the default). Percentile hidden under **30** students |
+| Who creates live tests | **Any teacher** can create one; no "paper setter" role |
+| Review | The normal admin review is enough; **no separate-reviewer rule** |
+| Exam-day support | The **same support contacts** as the rest of the app (Platform settings) |
+| OMR view | **No**: CBT-style only |
+| Rank visibility default | **Everyone**, including for a paid series; still configurable per test |
 
 ---
 
@@ -144,7 +152,7 @@ The test is only half the product. What happens in the hours after results decid
 | **Improvement board** | Biggest rise in score or percentile since your last test | Rewards effort, not just ability; students outside the top still appear |
 | **City or school board** | Optional, once there is enough volume | Needs a school or city field; skip at first |
 
-Rules for all boards: first name and initial only, no photo, **opt out in one tap** (then you still see your own rank), ties share a rank, and no board for Q Bank. There is no friends feature in the app, so there is no friends board. School tests (9th and 10th) are for under-18s: default to no public board there, and show only the student's own rank and percentile.
+Rules for all boards: first name and initial only, no photo, **opt out in one tap** (then you still see your own rank), ties share a rank, and no board for Q Bank. There is no friends feature in the app, so there is no friends board. School tests have no public board; the student sees only their own rank and percentile.
 
 ### After the result: the feature list
 
@@ -176,7 +184,7 @@ Rules for all boards: first name and initial only, no photo, **opt out in one ta
 - **Streak of tests taken**, not of days opened, and a **badge** for milestones (first mock, 5 mocks, top 10 per cent). Keep these quiet; no public shaming.
 - **Progress over time:** score and percentile for each mock in one chart, with the exam-date countdown beside it.
 - **Share card:** a clean image of your score and percentile for friends and family (opt-in, never shows others' names).
-- **Parent report:** an optional weekly summary to a parent's number or email (marks, trend, weak chapters). Needs consent from the student; for school students, consent from a parent.
+- **Parent report:** an optional weekly summary to a parent's number or email (marks, trend, weak chapters). Needs the student's consent.
 - **Re-attempt reminder:** after two weeks, suggest retrying the paper's weak chapters.
 
 **For teachers and admins**
@@ -310,16 +318,7 @@ Phase 1 alone fixes the "tests feel like Q Bank" problem. Phase 2 is the first m
 
 ## 15. Questions that remain
 
-1. **School tests and minors:** classes 9 and 10 are under 18. Confirm: no public leaderboard for school tests (own rank only), and a parent's consent for any parent report?
-2. **Result gap:** is 15 minutes the right platform minimum, and the default?
-3. **Rank percentile hiding:** is 30 the right default for hiding percentile?
-4. **Exam style names:** shown to students as "NEET style" and "School"? And what does a teacher pick if a test is for neither (for example a NEET-level chapter test)? (My answer: it is "NEET style" with a different duration.)
-5. **Anytime vs live for school tests:** do school tests need live events too, or only anytime?
-6. **Who can create a live test:** any teacher, or only teachers an admin marks as "paper setters"?
-7. **Reviewer separation:** must a live test be reviewed by a different person than the author? (Recommended: yes.)
-8. **Exam-day support channel:** the WhatsApp number from Platform settings, or a different one?
-9. **OMR-sheet view** (bubble sheet look) as an option in the NEET style: wanted, or CBT-style only for now?
-10. **Pricing:** tests free, in a plan, or per series? Rank visibility is configurable, but what is the default for a paid series?
+None blocking. One to revisit later: the 18-and-over assumption. Before school tests reach real 9th and 10th students, decide on age checks, parent consent for any parent report, and whether the own-rank-only rule is enough.
 
 ## 16. What is explicitly out of scope for now
 
