@@ -1,6 +1,6 @@
 # Student: product gaps and flaws (2026-11-14)
 
-A product review of the student side from the code (screens, API layer) and the backend routes behind it. **Nothing here has been changed.** "Verified" means I found the code that proves it; "to check" means likely but not confirmed. "BE" means the fix needs backend work.
+A product review of the student side from the code (screens, API layer) and the backend routes behind it. **Status: most of this was built on 2026-11-14; see "Status after the fixes" at the end.** "Verified" means I found the code that proves it; "to check" means likely but not confirmed. "BE" means the fix needs backend work.
 
 ## What already works well (so we don't break it)
 
@@ -69,3 +69,34 @@ A product review of the student side from the code (screens, API layer) and the 
 4. Are doubts something teachers have time to answer, or should they go to a community or a daily live session instead?
 5. Is auto-renew (UPI AutoPay) on the roadmap, and are coupons or referrals part of the growth plan?
 6. Is Hindi (or another language) a launch need or a later one?
+
+## Status after the fixes
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Analytics | **Built, off by default.** Our own backend collects events; needs the build flag and the server switch. |
+| 2 | Crash reporting and version gate | **Partly built.** Crash events go through the same collector; a minimum-version screen is built. A real crash tool needs a vendor (open decision 2). |
+| 3 | Terms and Privacy | **Built.** Links are set by an admin; hidden until set. |
+| 4 | Help and contact | **Built.** FAQ, contact buttons from admin-set links, report a payment problem. |
+| 5 | Payment history and receipts | **Built** (receipt, not a GST invoice; open decision 4). |
+| 6 | "NEET UG Pro" hardcoded | **Fixed.** |
+| 7 | Video resume | **Built** (backend returns the saved position; the player seeks to it). |
+| 8 | Rank and percentile | **Built for Test Series only**, once enough students have finished. |
+| 9 | Exam date and countdown | **Built** (Edit profile, Home countdown). |
+| 10 | Doubts | **Not built.** Needs decisions (open decision 1). |
+| 11 | Global search | **Built** (tests, lessons, flashcards, Brain Hacks by title). |
+| 12 | Offline videos and notes | **Not built** (open decision 11). |
+| 13 | First run | **Built** (a three-slide intro, once). |
+| 14 | "Up next" without custom tests | **Built** (a "Practise a chapter" card). |
+| 15 | Renewal reminders | **Built** (once, three days before a plan ends). |
+| 16 | Auto-renew, coupons, trial, referral | **Not built** (open decision 5). |
+| 17 | Payment recovery | **Mostly already covered** by the webhook and an idempotent confirm; plus a failure screen that no longer says "not charged" after the gateway took the money (open decision 6). |
+| 18 | Languages | **Not built** (open decision 7). |
+| 19 | Dark theme | **Not built** (open decision 8). |
+| 20 | Change phone or add email | **Not built** (open decision 9). |
+| 21 | Profile editing | **Partly.** Exam date added and the fake initials and dead camera button removed; photo is open decision 10. |
+| 22 | Retention features | **Not built** (open decision 12). |
+| 23 | Push | **Partly** (expiry and admin-review reminders; open decision 13). |
+| 24 | Data export | **Built** (Settings → Download my data). |
+
+Found while fixing: the app sent a new device id on every sign-in and the server's two-device limit ignored device ids, so signing in twice on one phone could sign the other phone out. Both are fixed.
