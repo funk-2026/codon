@@ -221,6 +221,7 @@ func (h *TestHandler) GetQuestions(c *gin.Context) {
 		OptionD       string    `json:"option_d"`
 		OrderIndex    int       `json:"order_index"`
 		Position      int       `json:"position"`
+		Section       *string   `json:"section,omitempty"`
 	}
 
 	mc := media.NewCollector()
@@ -229,7 +230,7 @@ func (h *TestHandler) GetQuestions(c *gin.Context) {
 		resp[i] = QuestionView{
 			ID: q.ID, TestID: testID, ContentFormat: q.ContentFormat, QuestionText: q.QuestionText,
 			OptionA: q.OptionA, OptionB: q.OptionB, OptionC: q.OptionC, OptionD: q.OptionD,
-			OrderIndex: q.Position, Position: q.Position,
+			OrderIndex: q.Position, Position: q.Position, Section: q.Section,
 		}
 		mc.Add(q.ContentFormat, &resp[i].QuestionText, &resp[i].OptionA, &resp[i].OptionB, &resp[i].OptionC, &resp[i].OptionD)
 	}

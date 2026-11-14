@@ -41,6 +41,12 @@ const QUESTION_OPTIONS: { letter: string; key: 'option_a' | 'option_b' | 'option
 ];
 
 
+/** The note a teacher left for the reviewer, wherever the API nests it. */
+function noteOf(res: unknown): string | null {
+  const r = res as { submit_note?: string; test?: { submit_note?: string }; content?: { submit_note?: string }; deck?: { submit_note?: string } } | null | undefined;
+  return r?.submit_note ?? r?.test?.submit_note ?? r?.content?.submit_note ?? r?.deck?.submit_note ?? null;
+}
+
 export default function ContentPreviewDetailRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
@@ -74,6 +80,7 @@ export default function ContentPreviewDetailRoute() {
   const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
   const [hack, setHack] = useState<AdminBrainHack | null>(null);
   const [deckCards, setDeckCards] = useState<TeacherCard[]>([]);
+  const [teacherNote, setTeacherNote] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const loadPreview = useCallback(() => {
@@ -86,11 +93,12 @@ export default function ContentPreviewDetailRoute() {
     const run =
       itemType === 'test'
         ? adminGetTest(id).then((res) => {
+            setTeacherNote(noteOf(res));
             setQuestions(res.questions);
             setQuestionMedia(res.media ?? {});
           })
         : itemType === 'Videos' || itemType === 'Documents'
-          ? adminGetContent(id).then((res) => setPreviewUrl(res.url))
+          ? adminGetContent(id).then((res) => { setPreviewUrl(res.url); setTeacherNote(noteOf(res)); })
           : itemType === 'Brain Hacks'
             ? (async () => {
                 // The hack may be on a later page of the queue, so keep paging until it turns up.
@@ -100,6 +108,7 @@ export default function ContentPreviewDetailRoute() {
                   const found = res.brain_hacks.find((h) => h.id === id);
                   if (found || !res.next_cursor) {
                     setHack(found ?? null);
+                    setTeacherNote(noteOf(found));
                     setQuestionMedia(res.media ?? {});
                     return;
                   }
@@ -107,6 +116,7 @@ export default function ContentPreviewDetailRoute() {
                 }
               })()
             : adminGetDeck(id).then((res) => {
+                setTeacherNote(noteOf(res));
                 setDeckCards(res.cards);
                 setQuestionMedia(res.media ?? {});
               });
@@ -196,6 +206,7 @@ export default function ContentPreviewDetailRoute() {
 
           <DetailRow label="Teacher" value={teacher} />
           <DetailRow label="Submitted" value={submitted} />
+          {teacherNote ? <DetailRow label="Teacher’s note" value={teacherNote} /> : null}
           {itemType === 'test' ? (
             <>
               {params.moduleType ? <DetailRow label="Module Type" value={params.moduleType} /> : null}

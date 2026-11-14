@@ -62,3 +62,44 @@ A product review of the teacher role after the UX rework, from the frontend code
 4. Is it right for students to see who made a lesson or test?
 5. Who reviews, how many people, and what turnaround do you want to promise teachers?
 6. Should a teacher be able to share or hand over a test to another teacher?
+
+---
+
+# Status after the fixes (2026-11-14)
+
+Decisions you gave: earnings are not decided yet; single-answer questions are enough for now; students see who made content; test series get sections and scheduling; the rest "build everything".
+
+Two corrections to the review above: a **formula preview already existed** (the Preview toggle on every rich field), and a **formatting/tagging help sheet already existed** inside the question editor. #18 was wrong and #11 was only half right: what was missing was a guide outside the editor.
+
+| # | Gap | Status |
+|---|---|---|
+| 1 | Edit a test after creation | Built: ⋯ → Edit details (title, description, instructions, timing, marks, paid/free, location). Draft or changes-needed only, as the server enforces. |
+| 2 | Delete / edit a lesson | Built: delete (draft or changes-needed lessons), edit title, location, paid/free, and the text of in-app lessons. Approved or live lessons can't be deleted because students may have progress on them. |
+| 3 | Performance feedback | Built: stats card on a live test (students, finished, average score, average time, hardest questions) and lesson (students, finished, minutes watched); "Your impact" on Home. Brain Hack and deck stats are not built (they have ratings only). |
+| 4 | Document lessons stub | Built: the text is stored and students read it in the app. The fake formatting toolbar and fake "Saved" flash were removed. |
+| 5 | Notification inbox | Built: bell on Home with unread dot, a teacher inbox, and push taps open it. Review outcomes open the item. |
+| 6 | Talk to the reviewer | Partly built: an optional note when sending or resending for review, shown to the admin on the review screen. A full back-and-forth thread is not built. |
+| 7 | Review turnaround | Built: the send sheet and Home show the median review time over the last 30 days and the queue length (shown once there are 3+ reviews). |
+| 8 | Duplicate a test | Built: ⋯ → Duplicate as a new draft (questions and tags are copied). |
+| 9 | Schedule | Built for tests, lessons, Brain Hacks and decks: after approval, publish now or at a date and time. Expiry/availability windows are not built. |
+| 10 | Bulk submit | Built: on Content → Drafts, "Send all drafts for review"; incomplete ones are skipped and named. |
+| 11 | Guidance | Built: Teacher guide (Profile) with review criteria, scheduling, corrections, CSV and video tips, and the support contacts from Platform settings. No sample test. |
+| 12 | Test options | Built: instructions text and per-question sections (students see the heading). Not built: shuffling (needs per-attempt remapping of answers, risky without tests), passage/case questions. |
+| 13 | Credit | Built: "By <name>" on test, lesson and video screens when the teacher has a name. No teacher profile page or bio. |
+| 14 | Earnings / recognition | Not built: undecided. |
+| 15 | Hand-over | Built: ⋯ → Hand over to another teacher by phone number (tests and lessons), with a notification. Not co-authoring. |
+| 16 | Version history | Not built. |
+| 17 | Video upload in the background | Not built: needs a device test first. The guide tells teachers to stay in the app on Wi-Fi. |
+| 19 | Student questions on content | Not built: waits on the student "doubts" decision. |
+| 20 | Other languages | Not built. |
+
+Also removed: the Profile row "My Content" (it duplicated the Content tab); it is now "Teacher guide".
+
+## Needs checking before release
+
+- **Backend is uncompiled and untested** (no Go toolchain here): run `go build ./...`, `go vet ./...`, `go test ./internal/router/...` (new tests are in `teacher_features_test.go`) and apply migration `0008_teacher_features.sql`. Gofmt has not been run on the new files either.
+- The worker has a new ticker, `scheduled_publish` (every minute). Without the worker running, scheduled items never go live.
+- A scheduled **video** lesson waits until its video is ready.
+- Editing a lesson's text is blocked once it is approved; editing its title or location is not blocked by the server on live lessons (as before).
+- Schedule times are typed as DD/MM/YYYY and HH:MM in the phone's time zone (no date picker library is installed).
+- The hand-over phone number must match how numbers are stored (the server normalizes it the same way as sign-in).

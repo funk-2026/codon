@@ -84,6 +84,8 @@ export type CreateQuestionRequest = {
   source_type?: string;
   source_year?: number;
   source_label?: string;
+  /** Heading inside the test ("Physics"); "" clears it. */
+  section?: string;
   custom_eligible?: boolean;
   /** Tag LABELS; unknown ones are created, aliases resolve to the canonical tag. */
   tags?: string[];

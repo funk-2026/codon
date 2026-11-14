@@ -70,6 +70,7 @@ export const ROUTES = {
     flashcardDeck: '/(teacher)/flashcard-deck',
     flashcardDecks: '/(teacher)/flashcard-decks',
     giveFeedback: '/(teacher)/give-feedback',
+    help: '/(teacher)/help',
     home: '/(teacher)/(tabs)/home',
     manageDevices: '/(teacher)/manage-devices',
     previewRun: '/(teacher)/preview-run',

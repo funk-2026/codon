@@ -338,7 +338,8 @@ export default function TestQuestionRoute() {
 
             <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }, shadow()]}>
               <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space['2xs'] }]}>QUESTION {current + 1}</Text>
-              <RichContent value={q.question_text} format={q.content_format} media={media} variant="stem" />
+              {q.section ? <Text style={[type['type/overline'], { color: color('accent/default'), marginBottom: space.xs }]}>{q.section.toUpperCase()}</Text> : null}
+            <RichContent value={q.question_text} format={q.content_format} media={media} variant="stem" />
             </View>
 
             <View style={{ gap: space.sm, marginTop: space.lg }} accessibilityRole="radiogroup">
