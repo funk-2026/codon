@@ -1,10 +1,35 @@
 # Tests: product spec (exam simulation)
 
-Status: **proposal, nothing built.** Written 2026-11-14 as a product review of what a "Test" must be in Codon, across the student, teacher and admin apps, and whether the course structure still makes sense.
+Status: **decisions made, nothing built.** Written 2026-11-14 as a product review of what a "Test" must be in Codon, across the student, teacher and admin apps, and whether the course structure still makes sense.
 
 This replaces the idea that a Test is "a Q Bank set with a timer". The goal: a student who takes a Codon test should feel they sat the real exam, and trust the score, the rank and the analysis.
 
 Facts about the exam below (NEET pattern, marking, interface) come from general knowledge of how NTA runs NEET UG. **Check them against the current NTA information bulletin before building**; patterns change between years. Everything else is checked against our code.
+
+## 0. Decisions made (2026-11-14)
+
+| # | Decision |
+|---|---|
+| Exam style | **The teacher chooses an exam style per test.** A style is a bundle of rules and looks: pattern defaults, interface, marking, navigation. Styles now: **NEET** (exam-hall interface, NEET pattern) and **School** (plain, nothing fancy). Adding one later (JEE) means adding a style, not rewriting tests |
+| JEE | **Future.** This is a NEET application. JEE needs numerical-answer and multiple-correct questions, so it also waits for those question types |
+| School | Classes **9 and 10**, **CBSE and state boards**. Plain objective tests (MCQ), duration and marks **set by the teacher** per test |
+| Pattern strictness | Patterns are **templates, not rules**: "inspired by" the real exam. A mock may differ (a warning, never a block) |
+| Feel | The exam hall should feel like the real NEET. NEET UG 2026 was pen and paper (OMR) and the government and NTA have said NEET moves to **computer-based test (CBT) from 2027**, so the default interface is the CBT-style palette and timer; an OMR-sheet look can be an optional view later |
+| Live | **In scope now**: everyone starts at the same time. Late entry is **fully configurable per test** (suggested default 15 minutes) |
+| Results | Released **after a configurable gap** following the window, with a **minimum gap** (suggested 15 minutes) that the platform enforces so the team has time to check. A longer gap is fine |
+| Extension | An admin **may extend** a window after an outage |
+| Ranks | Both: official rank for live takers and an estimated rank for later takers. **No hard minimum cohort**: always show "rank X of N" so it is honest; percentile is hidden under a small N (default 30, configurable) |
+| Rank visibility | **Configurable per test**: everyone, or subscribers only. Free users can see by default |
+| Key challenges | **Next release**, not the first |
+| Key changes | An **admin can recompute** after a key change, with a preview ("this changes 312 scores") and a confirm |
+| Leaderboard | There is **no friends feature** in the app, so no friends board. Public board with first name and initial and an opt-out, plus an improvement board. School tests default to **no public board** (see §15) |
+| Languages | **English** for now |
+| Solutions | Written explanation only. **No video link** |
+| Papers | Re-created in the exam's pattern, written by **teachers**; labelled as such |
+| Attempts | First attempt is official, later ones are practice |
+| Structure | **Approved:** Course → Series → Test, own Tests tab, coverage from question tags. **The Practice tab keeps its name** |
+| Scale | Under **5,000** students per live test |
+| Exam-day team | My proposal in §9A |
 
 ---
 
@@ -55,7 +80,7 @@ A past live test automatically becomes an anytime test after its window closes. 
 
 ## 4. Exam pattern as data
 
-Do not hard-code NEET. Define an **exam pattern** per course and let teachers and admins pick it when creating a test:
+Do not hard-code NEET. Define an **exam style** (with its pattern) and let the teacher pick it when creating a test. The NEET style defaults to:
 
 | Field | NEET UG (check each year) |
 |---|---|
@@ -67,7 +92,11 @@ Do not hard-code NEET. Define an **exam pattern** per course and let teachers an
 | Navigation | Free movement between sections and questions; one overall timer |
 | Languages | English plus regional languages |
 
-The pattern drives the paper builder (teacher), the instructions page and palette (student), and the validation before submit-for-review (a mock with 178 questions cannot be published as "NEET pattern"). Other courses (for example 9th or 10th unit tests) get their own patterns.
+The style drives the paper builder (teacher), the instructions page and palette (student) and gives warnings before submit-for-review (a mock with 178 questions shows "does not match the NEET pattern"). It never blocks: patterns are templates. The **School** style is plain: a simple question list, a timer, no section tabs unless the teacher adds sections, and duration and marks set by the teacher.
+
+**NEET and CBT.** NEET UG has been pen and paper (OMR). The NTA told the Supreme Court it will run NEET UG as a computer-based test from 2027. A CBT is the NTA exam-hall software: a question palette with colour states, a section bar, a countdown, and save and next. That is what the NEET style copies, so students get used to it before 2027. Marking rules differ slightly (on the OMR sheet marking two options costs −1; that cannot happen on a screen that allows one choice). Check the 2027 bulletin when it is published.
+
+JEE is a future style (JEE Main adds numerical-answer questions, JEE Advanced multiple-correct answers with partial marking and two papers).
 
 ## 5. The student's journey
 
@@ -94,7 +123,7 @@ Filters by kind and by subject; locked items show the plan needed.
 - Score, **rank** and **percentile**, accuracy and attempt rate.
 - **Subject-wise** breakdown, time per subject and per question, marks lost to negative marking, and a "hurried" list (wrong answers where you spent under 20 seconds).
 - **Compare** with the topper and the average, on each subject.
-- **Solutions** with explanation (and a video solution link), released with the answer key.
+- **Solutions** with explanation , released with the answer key.
 - A **leaderboard** (top 10 plus your position, first name and initial, opt-out).
 - **Challenge an answer key** within a window; see the outcome.
 - Add wrong and skipped questions to a **Q Bank practice set** or bookmarks in one tap (the bridge back to learning).
@@ -112,11 +141,10 @@ The test is only half the product. What happens in the hours after results decid
 | **Test board** | Top 10 plus "you are 1,240 of 18,500" | Live participants only; anytime takers see an estimate (§6) |
 | **Subject board** | Top scorers in Physics, Chemistry, Botany, Zoology | Gives a weaker overall student something to win |
 | **Series board** | Cumulative or best-N scores across a series | The one that drives retention: "keep going, you are 3 marks off the top 100" |
-| **Friends and group board** | Only people you add by invite code or phone number | Healthier than a public board; the best choice for younger students |
 | **Improvement board** | Biggest rise in score or percentile since your last test | Rewards effort, not just ability; students outside the top still appear |
 | **City or school board** | Optional, once there is enough volume | Needs a school or city field; skip at first |
 
-Rules for all boards: first name and initial only, no photo, **opt out in one tap** (then you still see your own rank), ties share a rank, a rank needs at least 100 participants (percentile only below that), and no board for Q Bank. Many students are under 18, so default to the friends board and make the public board opt-in if you are unsure.
+Rules for all boards: first name and initial only, no photo, **opt out in one tap** (then you still see your own rank), ties share a rank, and no board for Q Bank. There is no friends feature in the app, so there is no friends board. School tests (9th and 10th) are for under-18s: default to no public board there, and show only the student's own rank and percentile.
 
 ### After the result: the feature list
 
@@ -134,7 +162,7 @@ Rules for all boards: first name and initial only, no photo, **opt out in one ta
 - **Weak-chapter plan:** the three chapters that cost the most marks, with the lesson, notes and a short Q Bank set for each.
 - **Revision flash cards** made from the questions you got wrong (or from the explanation's key line).
 - **Retry in tutor mode:** retake the same paper without the clock and with answers shown, clearly marked as practice (never changes rank).
-- **Solutions that teach:** explanation, a video solution link, "common wrong option and why it is tempting", and a short shortcut where the teacher adds one.
+- **Solutions that teach:** a written explanation, "common wrong option and why it is tempting", and a short shortcut where the teacher adds one. No video links.
 - **Bookmark and note** on any question in the review.
 - **Ask a doubt** on a question (needs the doubts decision; see future gaps).
 
@@ -148,7 +176,7 @@ Rules for all boards: first name and initial only, no photo, **opt out in one ta
 - **Streak of tests taken**, not of days opened, and a **badge** for milestones (first mock, 5 mocks, top 10 per cent). Keep these quiet; no public shaming.
 - **Progress over time:** score and percentile for each mock in one chart, with the exam-date countdown beside it.
 - **Share card:** a clean image of your score and percentile for friends and family (opt-in, never shows others' names).
-- **Parent report:** an optional weekly summary to a parent's number or email (marks, trend, weak chapters). Needs consent from the student and careful wording.
+- **Parent report:** an optional weekly summary to a parent's number or email (marks, trend, weak chapters). Needs consent from the student; for school students, consent from a parent.
 - **Re-attempt reminder:** after two weeks, suggest retrying the paper's weak chapters.
 
 **For teachers and admins**
@@ -177,7 +205,7 @@ Rules for all boards: first name and initial only, no photo, **opt out in one ta
 | Result time | Fixed, same for all | Immediately after submit (the key is already out) |
 | Answers visible | After release | Right after submit |
 
-Ranks only appear once enough students have taken it (the current threshold of 10 is too low for "AIR"; use at least 100 for a rank, and show percentile only below that).
+There is no hard minimum: a rank is always shown as "rank X of N" so a small group is obvious. Percentile is hidden when N is small (default 30, configurable). Rank visibility (everyone or subscribers) is a per-test setting.
 
 ## 7. Integrity (without turning the app into a prison)
 
@@ -198,7 +226,7 @@ Today a teacher creates a test, adds questions one at a time or by CSV, and subm
 
 - **Paper builder:** choose the exam pattern, then fill each section by picking questions from the bank by chapter, topic and difficulty, with live counts ("Physics 38 of 45; Chemistry 45 of 45"). The builder warns about syllabus gaps and duplicates across tests.
 - **Questions are reused, not copied:** one question can appear in many papers; when a live paper's question is locked it stays locked (we already route edits to live questions through a correction flow).
-- **Per-question solution and video link**, required before a live test can be submitted for review.
+- **Per-question written solution**, required before a live test can be submitted for review.
 - **Proof stage:** a second teacher can be asked to attempt the paper in preview and flag problems before the admin approves it.
 - **Difficulty calibration:** after a live test, show per-question accuracy and discrimination (do top scorers get it right?), and suggest which questions to revise or retire.
 - **Challenge inbox:** key challenges for the papers they authored, with student count per question.
@@ -213,6 +241,15 @@ Today a teacher creates a test, adds questions one at a time or by CSV, and subm
 - **Publish results** (rank list, percentile) at the release time; a scheduled job does it.
 - **Audit** of every key change (who, when, why) in the existing audit log.
 - **Reports:** attempt counts, completion, average, rank distribution, per-question stats, export to CSV.
+
+## 9A. Exam-day team (my proposal)
+
+For a live test under 5,000 students, three roles, which can be two people:
+- **Operator** (owns the day): watches the live monitor, announces, decides on an extension. Must be reachable from 30 minutes before the start to 30 minutes after the end.
+- **Content reviewer:** has the paper and key open; handles "this question is wrong" reports during the window and prepares a corrected key. Not the person who wrote the paper.
+- **Support:** answers students in the app and on WhatsApp for the first hour after results.
+
+Before the first live test: a dry run with 50 internal users, a load test at about twice the expected size (10,000 simulated students), and a written outage plan (when to extend, how to announce it).
 
 ## 10. Does the course structure make sense?
 
@@ -271,19 +308,19 @@ Phase 1 alone fixes the "tests feel like Q Bank" problem. Phase 2 is the first m
 - Key-change rate per test (a high rate means authoring quality problems).
 - Support tickets per 1,000 attempts on exam days.
 
-## 15. Decisions needed from you
+## 15. Questions that remain
 
-1. **Exam pattern:** which exams must be exact first, NEET UG only or also JEE and the school classes? Which NEET pattern is the default?
-2. **Live tests:** are live events part of the first release, or do we ship Phase 1 and test it with students first?
-3. **Rank:** a rank among live participants only, or an estimated rank against the live cohort for later takers? (Recommended: both, labelled.)
-4. **Result timing:** immediate after the window, or a fixed release time (for example the evening of the test)?
-5. **Key challenges:** do you want them from the first live test? They need staff time to review.
-6. **Leaderboard:** public with first name and initial, or anonymous with only your own rank? Minimum age concerns?
-7. **Pricing:** are tests free, part of a plan, or sold per series? Is rank visible to free users?
-8. **Languages:** English only for now, or Hindi from the start of Phase 2?
-9. **Past papers:** do you have the rights to publish the original NEET papers, or will they be re-created in the same pattern?
-10. **Staff:** who operates exam day (monitoring, extensions, key review), and how many people?
+1. **School tests and minors:** classes 9 and 10 are under 18. Confirm: no public leaderboard for school tests (own rank only), and a parent's consent for any parent report?
+2. **Result gap:** is 15 minutes the right platform minimum, and the default?
+3. **Rank percentile hiding:** is 30 the right default for hiding percentile?
+4. **Exam style names:** shown to students as "NEET style" and "School"? And what does a teacher pick if a test is for neither (for example a NEET-level chapter test)? (My answer: it is "NEET style" with a different duration.)
+5. **Anytime vs live for school tests:** do school tests need live events too, or only anytime?
+6. **Who can create a live test:** any teacher, or only teachers an admin marks as "paper setters"?
+7. **Reviewer separation:** must a live test be reviewed by a different person than the author? (Recommended: yes.)
+8. **Exam-day support channel:** the WhatsApp number from Platform settings, or a different one?
+9. **OMR-sheet view** (bubble sheet look) as an option in the NEET style: wanted, or CBT-style only for now?
+10. **Pricing:** tests free, in a plan, or per series? Rank visibility is configurable, but what is the default for a paid series?
 
 ## 16. What is explicitly out of scope for now
 
-Camera or microphone proctoring, adaptive tests, multi-answer and numeric question types (NEET does not use them), paid mentor evaluation, and a web exam client.
+JEE (a future exam style), camera or microphone proctoring, adaptive tests, multi-answer and numeric question types (NEET does not use them), written-answer school papers, friends and group boards, video solutions, other languages than English, key challenges in the first release, paid mentor evaluation, and a web exam client.
