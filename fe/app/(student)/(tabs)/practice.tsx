@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -8,15 +8,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   Stack,
-  Exam,
-  Lightning,
   CaretRight,
-  Sliders,
   PlayCircle,
-  Cards,
 } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { CollapsingHeader, ErrorBanner, SkeletonBlock, useCollapsingHeader } from '@/src/components';
+import { CollapsingHeader, ErrorBanner, SegmentedControl, SkeletonBlock, useCollapsingHeader } from '@/src/components';
+import { CurriculumTree, TreeToolbar } from '@/src/screens/CurriculumTree';
+import { CUSTOM_STATE_CHIPS, CustomTestsPanel, type CustomStateFilter } from '@/src/screens/CustomTestsPanel';
 import { useAttempts } from '@/src/queries/attempts';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import type { StudentAttempt } from '@/src/api/attempts';
@@ -25,13 +23,14 @@ import { visibleModules } from '@/src/modules/registry';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
-type Category = {
-  id: string;
-  title: string;
-  descriptor: string;
-  icon: React.ReactNode;
-  href: Href;
-};
+type PracticeSegment = 'qbank' | 'test_series' | 'custom';
+const TREE_SEGMENTS = ['qbank', 'test_series'] as const;
+const SORT_CHIPS = [
+  { key: 'newest', label: 'Newest' },
+  { key: 'top', label: 'Top rated' },
+];
+const initialSegment = (k?: string): PracticeSegment =>
+  k === 'test_series' || k === 'custom' ? k : 'qbank';
 
 
 
@@ -54,6 +53,7 @@ export default function PracticeHubRoute() {
   const { color, type, space, radius } = useTheme();
   const header = useCollapsingHeader(64);
   const router = useRouter();
+  const params = useLocalSearchParams<{ kind?: string }>();
   const customOn = useFlag('custom_test.enabled');
 
   const attemptsQuery = useAttempts();
@@ -79,19 +79,21 @@ export default function PracticeHubRoute() {
   const recentAttempts = attempts.slice(0, 4);
   const inProgress = attempts.find((a) => a.status === 'in_progress');
 
-  const ICONS: Record<string, React.ReactNode> = {
-    qbank: <Stack size={28} color={color('accent/default')} weight="duotone" />,
-    test_series: <Exam size={28} color={color('accent/default')} weight="duotone" />,
-    practice: <Lightning size={28} color={color('accent/default')} weight="duotone" />,
-    custom: <Sliders size={28} color={color('accent/default')} weight="duotone" />,
-  };
-  const categories: Category[] = visibleModules((f) => (f === 'custom_test.enabled' ? customOn : false)).map((m) => ({
-    id: m.key,
-    title: m.label,
-    descriptor: m.descriptor,
-    icon: ICONS[m.key] ?? ICONS.practice,
-    href: m.hubRoute as Href,
+  const segments = visibleModules((f) => (f === 'custom_test.enabled' ? customOn : false)).map((m) => ({
+    key: m.key as PracticeSegment,
+    label: m.shortLabel,
   }));
+  const [segment, setSegmentState] = useState<PracticeSegment>(initialSegment(params.kind));
+  const [visited, setVisited] = useState<Set<PracticeSegment>>(() => new Set([initialSegment(params.kind)]));
+  const setSegment = (k: PracticeSegment) => {
+    setSegmentState(k);
+    setQuery('');
+    setVisited((v) => (v.has(k) ? v : new Set(v).add(k)));
+  };
+  const [query, setQuery] = useState('');
+  const [topRated, setTopRated] = useState(false);
+  const [customState, setCustomState] = useState<CustomStateFilter>('all');
+  const isTree = segment !== 'custom';
 
   return (
     <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -101,7 +103,7 @@ export default function PracticeHubRoute() {
           <View>
             <Text style={[type['type/h1'], { color: color('header/text') }]}>Practice</Text>
             <Text style={[type['type/body-m'], { color: color('header/text-secondary'), marginTop: space['2xs'] }]}>
-              Mock tests, custom tests and revision
+              Q Bank, test series and custom tests
             </Text>
           </View>
         }
@@ -139,67 +141,39 @@ export default function PracticeHubRoute() {
           </Pressable>
         ) : null}
 
-        <View style={{ gap: space.md, marginTop: space.lg }}>
-          {categories.map((c, i) => (
-            <Stagger key={c.id} delayMs={i * 80}>
-              <Pressable
-                onPress={() => router.push(c.href)}
-                style={({ pressed }) => [
-                  styles.catCard,
-                  {
-                    backgroundColor: color('bg/surface'),
-                    borderRadius: radius.lg,
-                    padding: space.md,
-                    minHeight: 88,
-                    opacity: pressed ? 0.94 : 1,
-                  },
-                  shadow(),
-                ]}
-              >
-                <View style={styles.catRow}>
-                  <View
-                    style={[
-                      styles.catIcon,
-                      { backgroundColor: color('accent/tint'), borderRadius: radius.md },
-                    ]}
-                  >
-                    {c.icon}
-                  </View>
-                  <View style={{ flex: 1, marginLeft: space.md }}>
-                    <Text style={[type['type/h3'], { color: color('text/primary') }]}>
-                      {c.title}
-                    </Text>
-                    <Text
-                      style={[
-                        type['type/body-m'],
-                        { color: color('text/secondary'), marginTop: 2 },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {c.descriptor}
-                    </Text>
-                  </View>
-                  <CaretRight size={20} color={color('text/tertiary')} />
-                </View>
-              </Pressable>
-            </Stagger>
-          ))}
+        <View style={{ marginTop: space.lg }}>
+          <SegmentedControl options={segments} value={segment} onChange={setSegment} />
+          {/* One toolbar for every segment, so the container looks the same when switching */}
+          <View style={{ marginTop: space.md }}>
+            {isTree ? (
+              <TreeToolbar
+                query={query}
+                onQuery={setQuery}
+                chips={{
+                  options: SORT_CHIPS,
+                  value: topRated ? 'top' : 'newest',
+                  onChange: (k) => setTopRated(k === 'top'),
+                }}
+              />
+            ) : (
+              <TreeToolbar
+                query={query}
+                onQuery={setQuery}
+                placeholder="Search my custom tests"
+                chips={{ options: CUSTOM_STATE_CHIPS, value: customState, onChange: (k) => setCustomState(k as CustomStateFilter) }}
+              />
+            )}
+          </View>
+          <View style={{ marginTop: space.md }}>
+            {/* Each tree mounts on first visit and stays mounted, so open subjects survive switching segments */}
+            {TREE_SEGMENTS.filter((k) => visited.has(k)).map((k) => (
+              <View key={k} style={{ display: segment === k ? 'flex' : 'none' }}>
+                <CurriculumTree kind={k} query={query} topRated={topRated} />
+              </View>
+            ))}
+            {segment === 'custom' ? <CustomTestsPanel query={query} state={customState} /> : null}
+          </View>
         </View>
-
-        <Pressable
-          onPress={() => router.push(ROUTES.student.flashcards)}
-          accessibilityRole="button"
-          style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, marginTop: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
-        >
-          <View style={{ width: 48, height: 48, backgroundColor: color('accent/tint'), borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}>
-            <Cards size={28} color={color('accent/default')} weight="duotone" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[type['type/h3'], { color: color('text/primary') }]}>Flashcards</Text>
-            <Text style={[type['type/body-m'], { color: color('text/secondary') }]} numberOfLines={1}>Spaced-repetition review for quick recall.</Text>
-          </View>
-          <CaretRight size={20} color={color('text/tertiary')} />
-        </Pressable>
 
         {loading ? (
           <View style={{ marginTop: space.xl }}>

@@ -89,6 +89,9 @@ export default function QuickTagRoute() {
       else if (e.translationX > 80) runOnJS(back)();
     });
 
+  // Whatever is typed but not yet confirmed still counts when Save is tapped, so nothing typed is lost.
+  const pendingTag = tagText.trim() && !picked.includes(tagText.trim()) ? tagText.trim() : '';
+
   const addTyped = () => {
     const t = tagText.trim();
     if (t && !picked.includes(t)) setPicked((p) => [...p, t]);
@@ -137,6 +140,9 @@ export default function QuickTagRoute() {
               </View>
             ) : missing === 'tags' ? (
               <>
+                <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
+                  Tap the tags that fit, or add more of your own below.
+                </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }} keyboardShouldPersistTaps="handled">
                   {[...picked.filter((p) => !popular.some((t) => t.label === p)).map((p) => ({ id: `new:${p}`, label: p })), ...popular].map((t) => {
                     const on = picked.includes(t.label);
@@ -155,9 +161,9 @@ export default function QuickTagRoute() {
                 </ScrollView>
                 <View style={{ flexDirection: 'row', gap: space.sm, alignItems: 'flex-end' }}>
                   <View style={{ flex: 1 }}>
-                    <InputField label="New tag" value={tagText} onChangeText={setTagText} onSubmitEditing={addTyped} returnKeyType="done" maxLength={40} />
+                    <InputField label="Add more tags" placeholder="Type a tag, e.g. genetics, then tap Done" placeholderTextColor={color('text/tertiary')} value={tagText} onChangeText={setTagText} onSubmitEditing={addTyped} returnKeyType="done" maxLength={40} autoCapitalize="none" autoCorrect={false} />
                   </View>
-                  <PrimaryButton label="Save" onPress={() => save({ tags_add: picked })} loading={saving} disabled={picked.length === 0} />
+                  <PrimaryButton label="Save" onPress={() => save({ tags_add: pendingTag ? [...picked, pendingTag] : picked })} loading={saving} disabled={picked.length === 0 && !pendingTag} />
                 </View>
               </>
             ) : (

@@ -22,6 +22,9 @@ export type { CollapsingHeaderProps, CollapsingHeaderState } from './CollapsingH
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
 
+export { SegmentedControl } from './SegmentedControl';
+export type { SegmentedControlProps } from './SegmentedControl';
+
 export { Chip } from './Chip';
 export type { ChipProps } from './Chip';
 

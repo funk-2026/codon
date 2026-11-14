@@ -13,7 +13,7 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { track } from '@/src/analytics/track';
 import { getTest } from '@/src/api/tests';
 import type { ActiveAttempt, Test } from '@/src/api/tests';
-import { getModule } from '@/src/modules/registry';
+import { studentModule } from '@/src/modules/registry';
 import { getCustomTest } from '@/src/api/customTests';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
@@ -80,7 +80,7 @@ export default function TestPreStartRoute() {
 
   const isResume = !!active;
   const timed = !!(test && test.duration_minutes && test.duration_minutes > 0);
-  const moduleLabel = getModule(test?.module_type).label;
+  const moduleLabel = studentModule(test?.module_type).label;
   const tutor = test?.mode === 'tutor';
 
   const instructions = [...(timed ? INSTRUCTIONS_TIMED : INSTRUCTIONS_UNTIMED), ...(tutor ? INSTRUCTIONS_TUTOR : [])];

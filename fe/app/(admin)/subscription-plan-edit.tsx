@@ -76,7 +76,7 @@ export default function SubscriptionPlanEditRoute() {
     req
       .then(() => {
         show('Plan saved', 'success');
-        router.replace(ROUTES.admin.subscriptionPlanList);
+        router.replace({ pathname: ROUTES.admin.payments, params: { segment: 'plans' } });
       })
       .catch((e) => {
         show(e.message || 'Failed to save', 'error');

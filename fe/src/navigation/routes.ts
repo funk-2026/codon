@@ -22,7 +22,6 @@ export const ROUTES = {
     customBuilder: '/(student)/custom-builder',
     customTests: '/(student)/custom-tests',
     editProfile: '/(student)/edit-profile',
-    explore: '/(student)/explore',
     flashcardStudy: '/(student)/flashcard-study',
     flashcards: '/(student)/flashcards',
     giveFeedback: '/(student)/give-feedback',
@@ -58,7 +57,6 @@ export const ROUTES = {
     content: '/(teacher)/(tabs)/content',
     contentPreview: '/(teacher)/content-preview',
     corrections: '/(teacher)/corrections',
-    courseStructureManager: '/(teacher)/course-structure-manager',
     createBrainHack: '/(teacher)/create-brain-hack',
     createContent: '/(teacher)/create-content',
     createTest: '/(teacher)/create-test',
@@ -77,7 +75,7 @@ export const ROUTES = {
     quickTag: '/(teacher)/quick-tag',
     rejectedContentDetail: '/(teacher)/rejected-content-detail',
     reports: '/(teacher)/reports',
-    upload: '/(teacher)/(tabs)/upload',
+    questions: '/(teacher)/(tabs)/questions',
   },
   admin: {
     analyticsOverview: '/(admin)/analytics-overview',
@@ -117,6 +115,10 @@ const LEGACY_TAB_ROUTE = /^\/\((student|admin)\)\/\((home|practice|learn|support
  * Map them onto the current tree so they keep opening.
  */
 export function normalizeRoute(route: string): string {
+  // The Upload tab was folded into Content.
+  if (route === '/(teacher)/(tabs)' + '/upload') return ROUTES.teacher.content;
+  // Explore was folded into Home / Practice / Learn.
+  if (route === '/(student)' + '/explore') return ROUTES.student.home;
   const m = LEGACY_TAB_ROUTE.exec(route);
   if (!m) return route;
   const [, role, tab, name] = m;

@@ -8,13 +8,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   PencilSimple,
-  ClockCounterClockwise,
-  ChartLineUp,
   Shield,
   GearSix,
   DeviceMobile,
   ChatCircleText,
-  Info,
   CaretRight,
   ArrowsClockwise,
   BookmarkSimple,
@@ -24,7 +21,6 @@ import { ErrorBanner, SkeletonBlock, Screen, TAB_EDGES } from '@/src/components'
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { useMe } from '@/src/queries/profile';
-import { useProgress } from '@/src/queries/progress';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import type { Subscription } from '@/src/api/profile';
 import { ROUTES } from '@/src/navigation/routes';
@@ -57,15 +53,13 @@ export default function ProfileHomeRoute() {
   const { user } = useAuth();
   
   const meQuery = useMe();
-  const progress = useProgress();
-  const loading = meQuery.isPending || progress.isPending;
-  const loadError = meQuery.isError || progress.isError;
-  const load = () => void Promise.all([meQuery.refetch(), progress.refetch()]);
+  const loading = meQuery.isPending;
+  const loadError = meQuery.isError;
+  const load = () => void meQuery.refetch();
   useRefetchOnFocus(load);
 
   const sub: Subscription | null = meQuery.data?.active_subscription ?? null;
   const kycRequired = meQuery.data?.kyc_required ?? false;
-  const stats = { attempts: progress.data?.attempted_count ?? 0, avg: progress.data?.avg_score ?? 0 };
 
   const name = user?.name || 'Student';
   // Note: we'd ideally resolve selected_course_id to a name, but for now we just show a generic label or fetch it
@@ -198,52 +192,6 @@ export default function ProfileHomeRoute() {
           </View>
         </Stagger>
 
-        <Stagger delayMs={160}>
-          <View style={[styles.statRow, { gap: space.xs, marginTop: space.lg }]}>
-            {loading ? (
-              <>
-                <SkeletonBlock height={72} radius={radius.md} style={{ flex: 1 }} />
-                <SkeletonBlock height={72} radius={radius.md} style={{ flex: 1 }} />
-              </>
-            ) : (
-              <>
-                <Pressable
-                  onPress={() => router.push(ROUTES.student.testHistory)}
-                  style={({ pressed }) => [
-                    styles.statTile,
-                    { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
-                    shadow(),
-                  ]}
-                >
-                  <ClockCounterClockwise size={20} color={color('accent/default')} weight="duotone" />
-                  <Text style={[type['type/body-m-medium'], { color: color('text/primary'), marginTop: space.xs }]}>
-                    Test History
-                  </Text>
-                  <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
-                    {stats.attempts} attempts
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push(ROUTES.student.progressDetail)}
-                  style={({ pressed }) => [
-                    styles.statTile,
-                    { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
-                    shadow(),
-                  ]}
-                >
-                  <ChartLineUp size={20} color={color('accent/default')} weight="duotone" />
-                  <Text style={[type['type/body-m-medium'], { color: color('text/primary'), marginTop: space.xs }]}>
-                    Progress
-                  </Text>
-                  <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
-                    {Math.round(stats.avg)}% avg
-                  </Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        </Stagger>
-
         {kycRequired ? (
           <Stagger delayMs={240}>
             <View style={{ marginTop: space.lg }}>
@@ -326,12 +274,6 @@ export default function ProfileHomeRoute() {
                 icon={<ChatCircleText size={20} color={color('text/secondary')} />}
                 label="Give Feedback"
                 onPress={() => router.push(ROUTES.student.giveFeedback)}
-              />
-              <Divider />
-              <MenuRow
-                icon={<Info size={20} color={color('text/secondary')} />}
-                label="About MMM"
-                onPress={() => router.push(ROUTES.student.aboutMmm)}
                 last
               />
             </View>

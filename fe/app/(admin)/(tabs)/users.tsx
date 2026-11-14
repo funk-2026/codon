@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MagnifyingGlass, WarningCircle } from 'phosphor-react-native';
+import { WarningCircle } from 'phosphor-react-native';
 import { EmptyState, SkeletonBlock, TextButton, Screen, TAB_EDGES } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAdminUsers } from '@/src/queries/admin';
@@ -9,7 +9,7 @@ import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import type { UserProfile } from '@/src/api/profile';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
-import { inputText } from '@/src/theme/inputs';
+import { TreeToolbar } from '@/src/screens/CurriculumTree';
 
 type RoleFilter = 'All' | 'student' | 'teacher' | 'admin';
 
@@ -52,59 +52,22 @@ export default function UserManagementListRoute() {
     <Screen edges={TAB_EDGES}>
       <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
         <Text style={[type['type/h1'], { color: color('text/primary') }]}>Users</Text>
-        <View
-          style={[
-            styles.searchRow,
-            { backgroundColor: color('bg/sunken'), borderRadius: radius.sm, paddingHorizontal: space.sm, marginTop: space.md },
-          ]}
-        >
-          <MagnifyingGlass size={18} color={color('text/tertiary')} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search by name or phone number"
-            placeholderTextColor={color('text/tertiary')}
-            style={[inputText(type['type/body-l']), { color: color('text/primary'), flex: 1, marginLeft: space.xs, paddingVertical: space.sm }]}
-          />
-        </View>
+        <Text numberOfLines={1} style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'], minHeight: 22 }]}>
+          {loading ? ' ' : `${users.length} ${users.length === 1 ? 'person' : 'people'} on the platform`}
+        </Text>
+      </View>
+      <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
+        <TreeToolbar
+          query={query}
+          onQuery={setQuery}
+          placeholder="Search by name or phone number"
+          chips={{ options: FILTERS, value: roleFilter, onChange: (k) => setRoleFilter(k as RoleFilter) }}
+        />
       </View>
 
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterRow}
-        contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs, marginTop: space.md }}
-      >
-        {FILTERS.map((f) => {
-          const active = roleFilter === f.key;
-          return (
-            <Pressable
-              key={f.key}
-              onPress={() => setRoleFilter(f.key)}
-              style={[
-                styles.chip,
-                {
-                  borderRadius: radius.pill,
-                  paddingHorizontal: space.md,
-                  backgroundColor: active ? color('accent/tint') : color('bg/surface'),
-                  borderWidth: 1,
-                  borderColor: active ? color('accent/default') : color('border/subtle'),
-                },
-              ]}
-            >
-              <Text
-                style={[type['type/body-m-medium'], { color: active ? color('accent/default') : color('text/primary') }]}
-              >
-                {f.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <ScrollView
         style={styles.list}
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'], gap: space.sm }}
+        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space['3xl'], gap: space.xs }}
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
@@ -132,7 +95,7 @@ export default function UserManagementListRoute() {
                 onPress={() => router.push({ pathname: ROUTES.admin.userDetail, params: { id: u.id } })}
                 style={({ pressed }) => [
                   styles.row,
-                  { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
+                  { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, opacity: pressed ? 0.94 : 1 },
                   shadow(),
                 ]}
               >

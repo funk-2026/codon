@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FlagBanner, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
+import { BottomSheet, Chip, EmptyState, InputField, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useReportReasons } from '@/src/config/AppConfigContext';
 import { ApiError } from '@/src/api/client';
@@ -11,7 +11,9 @@ import { dismissReport, listAdminReports, listTeacherReports, resolveReport, typ
 import type { ReportStatus } from '@/src/api/reports';
 import { QuestionPreviewCard } from '@/src/rich';
 import { ROUTES } from '@/src/navigation/routes';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCursorList } from '@/src/queries/useCursorList';
+import { EmbedRoot } from '@/src/teacher/EmbedRoot';
 
 const STATUSES: { key: ReportStatus | 'all'; label: string }[] = [
   { key: 'open', label: 'Open' }, { key: 'fixed', label: 'Fixed' }, { key: 'no_change', label: 'No change' }, { key: 'dismissed', label: 'Dismissed' }, { key: 'all', label: 'All' },
@@ -22,12 +24,13 @@ const STATUSES: { key: ReportStatus | 'all'; label: string }[] = [
  * admins see everything and can dismiss (FE-3.4/3.5). Resolving tells the
  * reporter what happened.
  */
-export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
+export function ReportsInbox({ role, embedded }: { role: 'teacher' | 'admin'; embedded?: boolean }) {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const reasons = useReportReasons();
+  const queryClient = useQueryClient();
 
   const [status, setStatus] = useState<ReportStatus | 'all'>('open');
   const [reason, setReason] = useState<string | undefined>();
@@ -53,6 +56,9 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
       if (role === 'admin' && acting.outcome === 'dismissed') await dismissReport(acting.row.id, note.trim());
       else await resolveReport(acting.row.id, acting.outcome, note.trim());
       setRows((p) => (status === 'open' ? p.filter((r) => r.id !== acting.row.id) : p.map((r) => (r.id === acting.row.id ? { ...r, status: acting.outcome } : r))));
+      // The red count on the Reports segment and on Home comes from this query; it must drop now, not on the next focus.
+      void queryClient.invalidateQueries({ queryKey: ['teacher', 'inbox'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       setActing(null);
       setNote('');
       show('Report resolved — the student will be notified.', 'success');
@@ -65,28 +71,19 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
   };
 
   const label = (k: string) => reasons.find((r) => r.key === k)?.label ?? k.replace(/_/g, ' ');
-  const chip = (on: boolean) => ({
-    minHeight: 36, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center' as const,
-    backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle'),
-  });
-
   return (
-    <Screen>
-      <ScreenHeader title="Question reports" />
+    <EmbedRoot embedded={embedded}>
+      {embedded ? null : <ScreenHeader title="Question reports" />}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
         {STATUSES.map((s) => (
-          <Pressable key={s.key} onPress={() => setStatus(s.key)} accessibilityRole="button" accessibilityState={{ selected: status === s.key }} style={chip(status === s.key)}>
-            <Text style={[type['type/caption'], { color: status === s.key ? color('accent/default') : color('text/secondary') }]}>{s.label}</Text>
-          </Pressable>
+          <Chip key={s.key} size="sm" label={s.label} selected={status === s.key} onPress={() => setStatus(s.key)} />
         ))}
       </ScrollView>
       {reasons.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.xs }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
           {reasons.map((r) => (
-            <Pressable key={r.key} onPress={() => setReason((cur) => (cur === r.key ? undefined : r.key))} accessibilityRole="button" accessibilityState={{ selected: reason === r.key }} style={chip(reason === r.key)}>
-              <Text style={[type['type/caption'], { color: reason === r.key ? color('accent/default') : color('text/secondary') }]}>{r.label}</Text>
-            </Pressable>
+            <Chip key={r.key} size="sm" label={r.label} selected={reason === r.key} onPress={() => setReason((cur) => (cur === r.key ? undefined : r.key))} />
           ))}
         </ScrollView>
       ) : null}
@@ -136,6 +133,6 @@ export function ReportsInbox({ role }: { role: 'teacher' | 'admin' }) {
           <PrimaryButton label="Confirm" onPress={submit} loading={busy} />
         </View>
       </BottomSheet>
-    </Screen>
+    </EmbedRoot>
   );
 }

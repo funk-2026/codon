@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { ErrorBanner, useToast, ScreenHeader, Screen, ConfirmDialog } from '@/src/components';
+import { useLocalSearchParams } from 'expo-router';
+import Constants from 'expo-constants';
+import { ErrorBanner, useToast, ScreenHeader, Screen, ConfirmDialog, SegmentedControl } from '@/src/components';
+import { CustomTestAdminView } from '@/src/admin/CustomTestAdminView';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { setKYCRequired } from '@/src/api/admin';
 import { shadow } from '@/src/theme/elevation';
@@ -11,7 +13,8 @@ import { useKycRequirement } from '@/src/queries/admin';
 
 export default function PlatformSettingsRoute() {
   const { color, type, space, radius } = useTheme();
-  const router = useRouter();
+  const params = useLocalSearchParams<{ segment?: string }>();
+  const [segment, setSegment] = useState<'general' | 'custom'>(params.segment === 'custom' ? 'custom' : 'general');
   const insets = useSafeAreaInsets();
   const { show } = useToast();
 
@@ -48,9 +51,14 @@ export default function PlatformSettingsRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Platform Settings" />
+      <ScreenHeader title="Platform settings" />
+      <View style={{ paddingHorizontal: space.md, marginTop: space.xs }}>
+        <SegmentedControl options={[{ key: 'general', label: 'General' }, { key: 'custom', label: 'Custom tests' }]} value={segment} onChange={setSegment} />
+      </View>
 
+      {segment === 'custom' ? <CustomTestAdminView embedded /> : null}
       <ScrollView
+        style={segment === 'custom' ? { display: 'none' } : { flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
@@ -94,11 +102,9 @@ export default function PlatformSettingsRoute() {
               shadow(),
             ]}
           >
-            <DetailRow label="App Version" value="1.0.0" />
+            <DetailRow label="App version" value={Constants.expoConfig?.version ?? '—'} />
             <Divider />
-            <DetailRow label="Environment" value="Production" />
-            <Divider />
-            <DetailRow label="Support" value="support@codon.app" />
+            <DetailRow label="Build" value={__DEV__ ? 'Development' : 'Release'} />
           </View>
         </View>
       </ScrollView>

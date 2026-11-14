@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { queryClient, wireAppStateFocus } from '@/src/queries/queryClient';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -88,6 +89,8 @@ export default function RootLayout() {
   }
 
   return (
+    // Gesture-handler v3 needs a root view above every GestureDetector (quick tag, flashcards, image zoom).
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
@@ -104,5 +107,6 @@ export default function RootLayout() {
       </AuthProvider>
     </ThemeProvider>
     </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -14,6 +14,7 @@ import { ContentItem } from '@/src/api/content';
 import { ApiError } from '@/src/api/client';
 import { ROUTES } from '@/src/navigation/routes';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
+import { BrainHackDetail } from '@/src/teacher/BrainHackDetail';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 type Status = 'draft' | 'pending' | 'approved' | 'published' | 'rejected';
@@ -50,7 +51,13 @@ function normalizeStatus(raw: string): Status {
   return (known as string[]).includes(raw) ? (raw as Status) : 'draft';
 }
 
+/** The one detail screen for everything a teacher makes. Brain Hacks have their own body; the rest share this one. */
 export default function ContentPreviewRoute() {
+  const { type } = useLocalSearchParams<{ type?: string }>();
+  return type === 'Brain Hack' ? <BrainHackDetail /> : <ContentPreview />;
+}
+
+function ContentPreview() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const goBack = useSafeBack();
@@ -237,6 +244,17 @@ export default function ContentPreviewRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
+        {status === 'rejected' ? (
+          <View style={[styles.rejectedCallout, { borderRadius: radius.md, marginTop: space.md }]}>
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: color('semantic/danger'), opacity: 0.12, borderRadius: radius.md }]} />
+            <View style={{ padding: space.sm }}>
+              <Text style={[type['type/overline'], { color: color('semantic/danger') }]}>REVIEWER FEEDBACK</Text>
+              <Text style={[type['type/body-m'], { color: color('text/primary'), marginTop: 4 }]}>
+                {rejectionReason || 'No reason was provided.'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
         <View
           style={[
             styles.frame,
@@ -414,7 +432,7 @@ export default function ContentPreviewRoute() {
             </Text>
           ) : status === 'published' ? (
             <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>
-              Live for students since 18 Jul 2026.
+              Live for students.
             </Text>
           ) : null}
         </View>
@@ -428,17 +446,6 @@ export default function ContentPreviewRoute() {
           </View>
         ) : null}
 
-        {status === 'rejected' ? (
-          <View style={[styles.rejectedCallout, { borderRadius: radius.md, marginTop: space.lg }]}>
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: color('semantic/danger'), opacity: 0.12, borderRadius: radius.md }]} />
-            <View style={{ padding: space.sm }}>
-              <Text style={[type['type/overline'], { color: color('semantic/danger') }]}>REVIEWER FEEDBACK</Text>
-              <Text style={[type['type/body-m'], { color: color('text/primary'), marginTop: 4 }]}>
-                {rejectionReason || 'No reason was provided.'}
-              </Text>
-            </View>
-          </View>
-        ) : null}
       </ScrollView>
 
       {canDelete ? (

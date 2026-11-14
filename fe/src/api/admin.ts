@@ -36,6 +36,18 @@ export function getUser(id: string): Promise<UserProfile> {
   return apiFetch<UserProfile>(`/admin/users/${id}`, { method: 'GET' });
 }
 
+/** GET /api/v1/admin/users/:id/subscription — the user's active subscription, or null. */
+export function getUserSubscription(id: string): Promise<{ subscription: import('./profile').Subscription | null }> {
+  return apiFetch(`/admin/users/${id}/subscription`, { method: 'GET' });
+}
+
+export type AdminUserSession = { id: string; device_id: string; device_info?: string | null; created_at: string; last_used_at: string; expires_at: string };
+
+/** GET /api/v1/admin/users/:id/sessions — active device sessions (read-only; there is no admin sign-out). */
+export function getUserSessions(id: string): Promise<{ sessions: AdminUserSession[]; active_count: number }> {
+  return apiFetch(`/admin/users/${id}/sessions`, { method: 'GET' });
+}
+
 /** PATCH /api/v1/admin/users/:id/role */
 export function updateUserRole(id: string, role: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/admin/users/${id}/role`, {

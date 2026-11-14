@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { CaretRight, UploadSimple, TextB, TextHOne, ListBullets, X } from 'phosphor-react-native';
 import { CourseSelector, ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
@@ -13,6 +13,7 @@ import { listCourses, getCurriculum, type Course } from '@/src/api/courses';
 import { defaultCourse } from '@/src/api/courseSelection';
 import { ApiError } from '@/src/api/client';
 import * as tus from 'tus-js-client';
+import { ChapterPickerSheet } from '@/src/teacher/ChapterPickerSheet';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
@@ -24,7 +25,6 @@ export default function CreateContentRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { locationLabel, chapterId: pickedChapterId, courseId: pickedCourseId } = useLocalSearchParams<{ locationLabel?: string; chapterId?: string; courseId?: string }>();
 
   const [contentType, setContentType] = useState<ContentType>('Video');
   const [pendingTypeSwitch, setPendingTypeSwitch] = useState<ContentType | null>(null);
@@ -68,12 +68,6 @@ export default function CreateContentRoute() {
   useEffect(() => {
     loadCourseInfo();
   }, [loadCourseInfo]);
-
-  useEffect(() => {
-    if (locationLabel) setLocation(locationLabel);
-    if (pickedChapterId) setChapterId(pickedChapterId);
-    if (pickedCourseId) setCourseId(pickedCourseId);
-  }, [locationLabel, pickedChapterId, pickedCourseId]);
 
   useEffect(() => {
     if (contentType !== 'Document' || docBody.trim().length === 0) return;
@@ -210,12 +204,8 @@ export default function CreateContentRoute() {
     }
   };
 
-  const goToLocationPicker = () => {
-    router.push({
-      pathname: ROUTES.teacher.courseStructureManager,
-      params: { pickerMode: '1', returnTo: ROUTES.teacher.createContent, ...(courseId ? { courseId } : {}) },
-    });
-  };
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const goToLocationPicker = () => setPickerOpen(true);
 
   const handleSaveDraft = () => {
     setSaving(true);
@@ -417,6 +407,19 @@ export default function CreateContentRoute() {
           disabled={!canSubmit || saving}
         />
       </View>
+
+      <ChapterPickerSheet
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        courseId={courseId}
+        selectedChapterId={location ? chapterId : null}
+        onPick={(p) => {
+          setCourseId(p.courseId);
+          setChapterId(p.chapterId);
+          setLocation(p.label);
+          setPickerOpen(false);
+        }}
+      />
 
       <Modal visible={!!pendingTypeSwitch} transparent animationType="fade" onRequestClose={() => setPendingTypeSwitch(null)}>
         <View style={[styles.scrim, { padding: space.lg }]}>

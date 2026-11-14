@@ -1,24 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowsClockwise, CheckCircle, WarningCircle } from 'phosphor-react-native';
+import { CheckCircle, WarningCircle } from 'phosphor-react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { ApiError } from '@/src/api/client';
-import { quickCards, reviewCard, studyDeck, type ReviewResult, type StudyCard } from '@/src/api/discover';
-import { RichContent, type MediaMap } from '@/src/rich';
+import { browseDeckCards, quickCards, reviewCard, studyDeck, type ReviewResult, type StudyCard } from '@/src/api/discover';
+import type { MediaMap } from '@/src/rich';
+import { FlipCard, type SwipeDir } from '@/src/flashcards/FlipCard';
+import { RatingBar } from '@/src/flashcards/RatingBar';
+import { StudyComplete } from '@/src/flashcards/StudyComplete';
+import { tap } from '@/src/flashcards/haptics';
 import { track } from '@/src/analytics/track';
 import { ROUTES } from '@/src/navigation/routes';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
-
-const RATINGS: { key: ReviewResult; label: string; hint: string; tone: 'semantic/danger' | 'semantic/warning' | 'semantic/success' | 'accent/default' }[] = [
-  { key: 'again', label: 'Again', hint: 'in 10 min', tone: 'semantic/danger' },
-  { key: 'hard', label: 'Hard', hint: 'soon', tone: 'semantic/warning' },
-  { key: 'good', label: 'Good', hint: 'tomorrow', tone: 'semantic/success' },
-  { key: 'easy', label: 'Easy', hint: 'in 3 days', tone: 'accent/default' },
-];
 
 export default function FlashcardStudyRoute() {
   const { color, type, space, radius } = useTheme();
@@ -27,7 +25,9 @@ export default function FlashcardStudyRoute() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { user } = useAuth();
-  const { deckId, quick } = useLocalSearchParams<{ deckId?: string; quick?: string }>();
+  const { deckId, quick, all } = useLocalSearchParams<{ deckId?: string; quick?: string; all?: string }>();
+  // Revision mode: every card in order, no spaced-repetition rating. Cards never run out.
+  const revise = all === '1' && !!deckId;
 
   const [cards, setCards] = useState<StudyCard[]>([]);
   const [media, setMedia] = useState<MediaMap>({});
@@ -44,7 +44,10 @@ export default function FlashcardStudyRoute() {
     setFlipped(false);
     setCounts({ again: 0, hard: 0, good: 0, easy: 0 });
     try {
-      if (quick === '1') {
+      if (revise && deckId) {
+        const r = await browseDeckCards(deckId);
+        setCards(r.cards.map((c) => ({ ...c, state: 'new' as const }))); setMedia(r.media ?? {}); setTitle(r.deck.title);
+      } else if (quick === '1') {
         const r = await quickCards({ course_id: user?.selected_course_id ?? undefined, limit: 10 });
         setCards(r.cards); setMedia(r.media ?? {}); setTitle('Quick review');
       } else if (deckId) {
@@ -55,7 +58,7 @@ export default function FlashcardStudyRoute() {
     } catch (e) {
       setState(e instanceof ApiError && e.status === 403 ? 'locked' : 'error');
     }
-  }, [deckId, quick, user?.selected_course_id]);
+  }, [deckId, quick, revise, user?.selected_course_id]);
   useEffect(() => { void load(); }, [load]);
 
   const card = cards[i];
@@ -68,6 +71,7 @@ export default function FlashcardStudyRoute() {
     try {
       await reviewCard(card.id, r);
       track('flashcards.reviewed', { result: r });
+      tap(r === 'again' ? 'light' : 'success');
       setCounts((c) => ({ ...c, [r]: c[r] + 1 }));
       setFlipped(false);
       setI((n) => n + 1);
@@ -78,87 +82,99 @@ export default function FlashcardStudyRoute() {
     }
   };
 
+  const flip = () => {
+    tap('light');
+    setFlipped((f) => !f);
+  };
+  const step = (delta: 1 | -1) => {
+    setFlipped(false);
+    setI((n) => Math.max(0, n + delta));
+  };
+  // Revise: swipe left for next, right for previous. Study: after flipping, left is Again and right is Good.
+  const onSwipe = (dir: SwipeDir) => {
+    if (revise) return step(dir === 'left' ? 1 : -1);
+    void rate(dir === 'left' ? 'again' : 'good');
+  };
+  const swipeOn = revise ? true : flipped && !saving;
+
   const remaining = useMemo(() => Math.max(0, cards.length - i), [cards.length, i]);
+  const reviseAll = () => router.replace({ pathname: ROUTES.student.flashcardStudy, params: { deckId, all: '1' } });
 
   return (
     <Screen>
       <ScreenHeader
         size="small"
         title={title}
-        right={state === 'ready' && !done ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{i + 1} / {cards.length}</Text> : null}
+        right={state === 'ready' && !done ? <Text style={[type['type/body-m-medium'], { color: color('text/secondary') }]}>{i + 1} / {cards.length}</Text> : null}
       />
       {state === 'ready' && cards.length > 0 ? (
-        <View style={{ height: 3, backgroundColor: color('bg/sunken'), marginHorizontal: space.md, borderRadius: 2, marginTop: space.xs }}>
-          <View style={{ width: `${(Math.min(i, cards.length) / cards.length) * 100}%`, height: 3, backgroundColor: color('accent/default'), borderRadius: 2 }} />
+        <View style={{ flexDirection: 'row', gap: 3, marginHorizontal: space.md, marginTop: space.xs }}>
+          {cards.length <= 30 ? (
+            cards.map((c, n) => (
+              <View key={c.id} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: n < i ? color('accent/default') : n === i ? color('accent/default') : color('bg/sunken'), opacity: n === i ? 0.45 : 1 }} />
+            ))
+          ) : (
+            <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: color('bg/sunken'), overflow: 'hidden' }}>
+              <View style={{ width: `${(Math.min(i, cards.length) / cards.length) * 100}%`, height: 6, backgroundColor: color('accent/default') }} />
+            </View>
+          )}
         </View>
       ) : null}
 
       {state === 'loading' ? (
-        <View style={{ padding: space.md }}><SkeletonBlock height={300} radius={radius.lg} /></View>
+        <View style={{ padding: space.md }}><SkeletonBlock height={360} radius={radius.lg} /></View>
       ) : state === 'locked' ? (
         <EmptyState icon={<WarningCircle size={32} color={color('text/tertiary')} />} title="This deck needs a subscription" description="Upgrade to study every deck." action={<TextButton label="See plans" onPress={() => router.replace(ROUTES.student.subscriptionPlans)} />} style={{ flex: 1, justifyContent: 'center' }} />
       ) : state === 'error' ? (
         <EmptyState icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />} title="Couldn’t load cards" description="Check your connection and try again." action={<TextButton label="Retry" onPress={load} />} style={{ flex: 1, justifyContent: 'center' }} />
       ) : cards.length === 0 ? (
-        <EmptyState icon={<CheckCircle size={32} color={color('semantic/success')} weight="fill" />} title="You’re all caught up" description="No cards are due right now. Come back later." action={<TextButton label="Back" onPress={() => goBack()} />} style={{ flex: 1, justifyContent: 'center' }} />
+        <EmptyState icon={<CheckCircle size={32} color={color('semantic/success')} weight="fill" />} title="You’re all caught up" description="No cards are due right now." action={deckId ? <TextButton label="Revise all cards" onPress={reviseAll} /> : <TextButton label="Back" onPress={() => goBack()} />} style={{ flex: 1, justifyContent: 'center' }} />
       ) : done ? (
-        <ScrollView contentContainerStyle={{ padding: space.lg, alignItems: 'center', gap: space.md }}>
-          <CheckCircle size={48} color={color('semantic/success')} weight="fill" />
-          <Text style={[type['type/h1'], { color: color('text/primary') }]}>Session complete</Text>
-          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>You reviewed {reviewed} card{reviewed === 1 ? '' : 's'}.</Text>
-          <View style={{ flexDirection: 'row', gap: space.sm }}>
-            {RATINGS.map((r) => (
-              <View key={r.key} style={{ alignItems: 'center', minWidth: 60 }}>
-                <Text style={[type['type/h2'], { color: color(r.tone) }]}>{counts[r.key]}</Text>
-                <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{r.label}</Text>
-              </View>
-            ))}
-          </View>
-          <PrimaryButton label="Study more" onPress={load} />
-          <SecondaryButton label="Done" onPress={() => goBack()} />
-        </ScrollView>
+        <StudyComplete
+          revise={revise}
+          total={reviewed}
+          knew={counts.good + counts.easy}
+          again={counts.again}
+          onAgain={load}
+          onRevise={!revise && deckId ? reviseAll : undefined}
+          onDone={() => goBack()}
+        />
       ) : card ? (
-        <>
-          <ScrollView contentContainerStyle={{ padding: space.md, flexGrow: 1, justifyContent: 'center' }}>
-            <Pressable
-              onPress={() => setFlipped((f) => !f)}
-              accessibilityRole="button"
-              accessibilityLabel={flipped ? 'Answer side. Tap to see the question.' : 'Question side. Tap to reveal the answer.'}
-              style={{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg, minHeight: 260, justifyContent: 'center', gap: space.sm }}
-            >
-              <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>{flipped ? 'ANSWER' : 'QUESTION'}</Text>
-              <RichContent value={flipped ? card.back : card.front} format={card.content_format} media={media} variant="stem" />
-              {!flipped ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: space.md }}>
-                  <ArrowsClockwise size={16} color={color('text/tertiary')} />
-                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Tap to reveal</Text>
-                </View>
-              ) : null}
-            </Pressable>
-          </ScrollView>
-          <View style={{ padding: space.md, paddingBottom: space.md + insets.bottom, gap: space.sm, backgroundColor: color('bg/surface'), borderTopWidth: 1, borderTopColor: color('border/subtle') }}>
-            {flipped ? (
-              <View style={{ flexDirection: 'row', gap: space.xs }}>
-                {RATINGS.map((r) => (
-                  <Pressable
-                    key={r.key}
-                    onPress={() => rate(r.key)}
-                    disabled={saving}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${r.label}, see again ${r.hint}`}
-                    style={({ pressed }) => ({ flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 1.5, borderColor: color(r.tone), alignItems: 'center', justifyContent: 'center', opacity: saving ? 0.5 : pressed ? 0.8 : 1 })}
-                  >
-                    <Text style={[type['type/body-m-medium'], { color: color(r.tone) }]}>{r.label}</Text>
-                    <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{r.hint}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : (
-              <PrimaryButton label="Show answer" onPress={() => setFlipped(true)} />
-            )}
-            <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'center' }]}>{remaining} left</Text>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <View style={{ flex: 1, padding: space.md }}>
+            <FlipCard
+              key={card.id}
+              front={card.front}
+              back={card.back}
+              format={card.content_format}
+              media={media}
+              flipped={flipped}
+              onFlip={flip}
+              onSwipe={swipeOn ? onSwipe : undefined}
+              swipeHints={!revise && flipped ? { left: 'Again', right: 'Good' } : undefined}
+              deckTitle={title}
+            />
           </View>
-        </>
+          <View style={{ padding: space.md, paddingBottom: space.md + insets.bottom, gap: space.sm }}>
+            {revise ? (
+              <View style={{ flexDirection: 'row', gap: space.sm }}>
+                <View style={{ flex: 1 }}>
+                  <SecondaryButton label="Previous" disabled={i === 0} onPress={() => step(-1)} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <PrimaryButton label={i === cards.length - 1 ? 'Finish' : 'Next'} onPress={() => step(1)} />
+                </View>
+              </View>
+            ) : flipped ? (
+              <RatingBar onRate={rate} disabled={saving} />
+            ) : (
+              <PrimaryButton label="Show answer" onPress={flip} />
+            )}
+            <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'center' }]}>
+              {revise ? 'Swipe or use the buttons · tap the card to flip' : flipped ? 'Swipe left for Again, right for Good' : `${remaining} left`}
+            </Text>
+          </View>
+        </GestureHandlerRootView>
       ) : null}
     </Screen>
   );

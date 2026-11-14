@@ -10,6 +10,7 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { createTest } from '@/src/api/teacher';
 import { listCourses, type Course } from '@/src/api/courses';
 import { defaultCourse } from '@/src/api/courseSelection';
+import { ChapterPickerSheet } from '@/src/teacher/ChapterPickerSheet';
 import { ROUTES } from '@/src/navigation/routes';
 
 type ModuleKey = 'qbank' | 'test_series' | 'practice';
@@ -25,16 +26,12 @@ export default function CreateTestRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
-  const { locationLabel, chapterId: pickedChapterId, courseId: pickedCourseId, subjectId: pickedSubjectId } = useLocalSearchParams<{
-    locationLabel?: string;
-    chapterId?: string;
-    courseId?: string;
-    subjectId?: string;
-  }>();
 
+  // Opened from "chapters that need questions" with the place already chosen.
+  const preset = useLocalSearchParams<{ courseId?: string; chapterId?: string; locationLabel?: string }>();
   const [title, setTitle] = useState('');
-  const [moduleType, setModuleType] = useState<ModuleKey | null>(null);
-  const [location, setLocation] = useState<string | null>(null);
+  const [moduleType, setModuleType] = useState<ModuleKey | null>('qbank');
+  const [location, setLocation] = useState<string | null>(preset.locationLabel ?? null);
   const [subjectId, setSubjectId] = useState<string | null>(null);
   const [requiresSub, setRequiresSub] = useState(true);
   const [timed, setTimed] = useState(true);
@@ -42,9 +39,9 @@ export default function CreateTestRoute() {
   const [marksCorrect, setMarksCorrect] = useState('4');
   const [marksWrong, setMarksWrong] = useState('-1');
   const [saving, setSaving] = useState(false);
-  const [courseId, setCourseId] = useState<string | null>(null);
+  const [courseId, setCourseId] = useState<string | null>(preset.courseId ?? null);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [chapterId, setChapterId] = useState<string | null>(null);
+  const [chapterId, setChapterId] = useState<string | null>(preset.chapterId ?? null);
   const [loadError, setLoadError] = useState(false);
   const [testId, setTestId] = useState<string | null>(null);
   const questionCount = 0; // a brand-new test has no questions until they are added
@@ -60,13 +57,6 @@ export default function CreateTestRoute() {
   useEffect(() => {
     loadCourseInfo();
   }, [loadCourseInfo]);
-
-  useEffect(() => {
-    if (locationLabel) setLocation(locationLabel);
-    if (pickedChapterId) setChapterId(pickedChapterId);
-    if (pickedCourseId) setCourseId(pickedCourseId);
-    if (pickedSubjectId) setSubjectId(pickedSubjectId);
-  }, [locationLabel, pickedChapterId, pickedCourseId, pickedSubjectId]);
 
   const locationSet = !!location;
   const canProceed = locationSet;
@@ -134,12 +124,8 @@ export default function CreateTestRoute() {
     setSubjectId(null);
   };
 
-  const goToLocationPicker = () => {
-    router.push({
-      pathname: ROUTES.teacher.courseStructureManager,
-      params: { pickerMode: '1', returnTo: ROUTES.teacher.createTest, ...(courseId ? { courseId } : {}) },
-    });
-  };
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const goToLocationPicker = () => setPickerOpen(true);
 
   const MODULE_TYPES = teacherModules().map((m) => ({
     key: m.key as ModuleKey,
@@ -357,6 +343,19 @@ export default function CreateTestRoute() {
           </View>
         </View>
       </ScrollView>
+      <ChapterPickerSheet
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        courseId={courseId}
+        selectedChapterId={chapterId}
+        onPick={(p) => {
+          setCourseId(p.courseId);
+          setSubjectId(p.subjectId);
+          setChapterId(p.chapterId);
+          setLocation(p.label);
+          setPickerOpen(false);
+        }}
+      />
     </Screen>
   );
 }

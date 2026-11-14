@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { getExplore, listDecks, listNotifications, markNotificationsRead } from '@/src/api/discover';
+import { getExplore, listDecks, listNotifications, markNotificationsRead, quickCards } from '@/src/api/discover';
 import { listMyReports } from '@/src/api/reports';
 import { getMyKYC } from '@/src/api/kyc';
 import { keys } from './keys';
@@ -66,3 +66,12 @@ export const useMyKyc = () => useQuery({ queryKey: keys.myKyc, queryFn: getMyKYC
 
 export const useExplore = (courseId: string | null | undefined) =>
   useQuery({ queryKey: ['explore', courseId], queryFn: () => getExplore(courseId as string), enabled: !!courseId });
+
+/** Size and time estimate of the Quick review set, shown on the Flashcards hero. */
+export const useQuickPreview = (courseId: string | null | undefined, enabled: boolean) =>
+  useQuery({
+    queryKey: ['quick-cards-preview', courseId],
+    queryFn: () => quickCards({ course_id: courseId ?? undefined, limit: 10 }),
+    enabled: enabled && !!courseId,
+    staleTime: 60_000,
+  });

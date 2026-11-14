@@ -1,314 +1,76 @@
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { Check, X, CheckCircle, WarningCircle, Shield, ClipboardText, PlayCircle, CaretRight, FlagBanner, PencilSimpleLine, Lightbulb } from 'phosphor-react-native';
-import { EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, useToast, Screen, TAB_EDGES } from '@/src/components';
+import { Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { SegmentedControl, Screen, TAB_EDGES } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { adminListKYC, adminApproveKYC, adminRejectKYC, getAdminDashboardSummary } from '@/src/api/admin';
-import type { KYCRecord } from '@/src/api/kyc';
-import { ROUTES } from '@/src/navigation/routes';
-import { shadow } from '@/src/theme/elevation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ReportsInbox } from '@/src/moderation/ReportsInbox';
+import { ContentReviewView } from '@/src/admin/ContentReviewView';
+import { KycQueueView } from '@/src/admin/KycQueueView';
+import { CorrectionsQueueView } from '@/src/admin/CorrectionsQueueView';
+import { useAdminInbox } from '@/src/admin/useAdminInbox';
+import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 
+type RSegment = 'content' | 'kyc' | 'reports' | 'edits';
+const isSegment = (v?: string): v is RSegment => v === 'content' || v === 'kyc' || v === 'reports' || v === 'edits';
 
-function ApprovalNavCard({
-  icon,
-  label,
-  count,
-  current,
-  onPress,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  count?: number;
-  current?: boolean;
-  onPress?: () => void;
-}) {
-  const { color, type, space, radius } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      style={({ pressed }) => [
-        styles.navCard,
-        {
-          backgroundColor: color('bg/surface'),
-          borderRadius: radius.md,
-          padding: space.sm,
-          opacity: pressed ? 0.94 : 1,
-          borderWidth: current ? 1 : 0,
-          borderColor: color('accent/default'),
-        },
-        shadow(),
-      ]}
-    >
-      {icon}
-      <Text style={[type['type/body-m-medium'], { color: color('text/primary'), marginTop: space.xs }]} numberOfLines={1}>
-        {label}
-      </Text>
-      <View style={[styles.navCardFooter, { marginTop: 2 }]}>
-        <Text style={[type['type/caption'], { color: count ? color('semantic/warning') : color('text/tertiary') }]}>
-          {count != null ? `${count} pending` : current ? 'Viewing' : ''}
-        </Text>
-        {onPress ? <CaretRight size={14} color={color('text/tertiary')} /> : null}
-      </View>
-    </Pressable>
-  );
-}
+const HELP: Record<RSegment, string> = {
+  content: 'Tests, lessons, Brain Hacks and decks to approve',
+  kyc: 'Identity documents to verify',
+  reports: 'Students flagging a problem with a question',
+  edits: 'Teachers’ changes to live questions',
+};
 
-
-function QueueRow({
-  entry,
-  onOpen,
-  onApprove,
-  onReject,
-}: {
-  entry: KYCRecord;
-  onOpen: () => void;
-  onApprove: () => void;
-  onReject: () => void;
-}) {
-  const { color, type, space, radius } = useTheme();
-  const opacity = useSharedValue(1);
-  const flashStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-  const displayName = entry.user?.name || 'Unknown User';
-  const displayPhone = entry.user?.phone_number || 'No Phone';
-  const displayDate = new Date(entry.submitted_at).toLocaleDateString();
-
-  return (
-    <Animated.View style={flashStyle}>
-      <Pressable
-        onPress={onOpen}
-        style={({ pressed }) => [
-          styles.row,
-          { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.96 : 1 },
-          shadow(),
-        ]}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={[type['type/h3'], { color: color('text/primary') }]}>{displayName}</Text>
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-            {displayPhone}
-          </Text>
-          <View style={styles.metaRow}>
-            <View
-              style={[styles.idBadge, { backgroundColor: color('bg/sunken'), borderRadius: radius.pill, paddingHorizontal: space.xs }]}
-            >
-              <Text style={[type['type/caption'], { color: color('text/secondary'), textTransform: 'capitalize' }]}>{entry.id_type}</Text>
-            </View>
-            <Text style={[type['type/caption'], { color: color('text/tertiary'), marginLeft: space.xs }]}>
-              {displayDate}
-            </Text>
-          </View>
-        </View>
-        <View style={{ flexDirection: 'row', gap: space.xs }}>
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              opacity.value = withTiming(0, { duration: 200 });
-              setTimeout(onApprove, 200);
-            }}
-            hitSlop={space.xs}
-            style={[styles.iconBtn, { backgroundColor: color('semantic/success'), borderRadius: 22 }]}
-          >
-            <Check size={20} color={color('text/inverse')} weight="bold" />
-          </Pressable>
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              onReject();
-            }}
-            hitSlop={space.xs}
-            style={[styles.iconBtn, { backgroundColor: color('semantic/danger'), borderRadius: 22 }]}
-          >
-            <X size={20} color={color('text/inverse')} weight="bold" />
-          </Pressable>
-        </View>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-export default function KycReviewQueueRoute() {
-  const { color, type, space, radius } = useTheme();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { show } = useToast();
-
-  const [rejectTarget, setRejectTarget] = useState<KYCRecord | null>(null);
-  const [reason, setReason] = useState('');
-  const [otherCounts, setOtherCounts] = useState<{ tests?: number; content?: number }>({});
-
+/**
+ * One inbox for everything waiting on an admin. Each segment mounts on first visit and stays,
+ * and carries a count so nothing needs opening to know what's waiting.
+ */
+export default function AdminReviewRoute() {
+  const { color, type, space } = useTheme();
+  const params = useLocalSearchParams<{ segment?: string }>();
+  const first: RSegment = isSegment(params.segment) ? params.segment : 'content';
+  const [segment, setSegment] = useState<RSegment>(first);
+  const [visited, setVisited] = useState<Set<RSegment>>(() => new Set([first]));
+  const go = (k: RSegment) => {
+    setSegment(k);
+    setVisited((v) => (v.has(k) ? v : new Set(v).add(k)));
+  };
   useEffect(() => {
-    getAdminDashboardSummary()
-      .then(res => setOtherCounts({ tests: res.pending_test_reviews, content: res.pending_content_reviews }))
-      .catch(() => {});
-  }, []);
+    if (isSegment(params.segment)) go(params.segment);
+  }, [params.segment]);
 
-  const queryClient = useQueryClient();
-  const loadQuery = useQuery({ queryKey: ['app-admin-tabs-review-tsx'], queryFn: () =>
-      adminListKYC('pending').then((res) => {
-        return res.records || [];
-      }) });
-  const entries = loadQuery.data ?? [];
-  const loading = loadQuery.isPending;
-  const loadError = loadQuery.isError;
-  const fetchRecords = () => void loadQuery.refetch();
-  const setEntries = (u: typeof entries | ((p: typeof entries) => typeof entries)) =>
-    queryClient.setQueryData(['app-admin-tabs-review-tsx'], (old: typeof entries | undefined) => (typeof u === 'function' ? u(old ?? []) : u));
+  const inbox = useAdminInbox();
+  useRefetchOnFocus(() => inbox.refetch());
+  const d = inbox.data;
 
-  const approve = async (id: string) => {
-    try {
-      await adminApproveKYC(id);
-      setEntries((prev) => prev.filter((e) => e.id !== id));
-      show('Approved', 'success');
-    } catch (e) {
-      show('Failed to approve', 'error');
-    }
-  };
-
-  const confirmReject = async () => {
-    if (!rejectTarget || reason.trim().length === 0) return;
-    try {
-      await adminRejectKYC(rejectTarget.id, reason.trim());
-      setEntries((prev) => prev.filter((e) => e.id !== rejectTarget.id));
-      show('Rejected', 'success');
-    } catch (e) {
-      show('Failed to reject', 'error');
-    } finally {
-      setRejectTarget(null);
-      setReason('');
-    }
-  };
+  const options: { key: RSegment; label: string; badge?: number }[] = [
+    { key: 'content', label: 'Content', badge: d?.items.length },
+    { key: 'kyc', label: 'KYC', badge: d?.kyc },
+    { key: 'reports', label: 'Reports', badge: d?.reports },
+    { key: 'edits', label: 'Edits', badge: d?.edits },
+  ];
+  const show = (k: RSegment) => ({ flex: 1, display: segment === k ? ('flex' as const) : ('none' as const) });
 
   return (
     <Screen edges={TAB_EDGES}>
       <View style={{ paddingHorizontal: space.md, marginTop: space.lg }}>
-        <Text style={[type['type/h1'], { color: color('text/primary') }]}>Approvals</Text>
-        <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
-          Everything waiting on your review, in one place.
+        <Text style={[type['type/h1'], { color: color('text/primary') }]}>Review</Text>
+        <Text numberOfLines={1} style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'], minHeight: 22 }]}>
+          {HELP[segment]}
         </Text>
       </View>
-
-      <View style={[styles.navCardRow, { paddingHorizontal: space.md, marginTop: space.md, gap: space.sm }]}>
-        <ApprovalNavCard
-          icon={<Shield size={22} color={color('accent/default')} weight="duotone" />}
-          label="KYC Review"
-          count={entries.length > 0 ? entries.length : undefined}
-          current
-        />
-        <ApprovalNavCard
-          icon={<ClipboardText size={22} color={color('accent/default')} weight="duotone" />}
-          label="Test Approvals"
-          count={otherCounts.tests}
-          onPress={() => router.push(ROUTES.admin.moderationTests)}
-        />
-        <ApprovalNavCard
-          icon={<PlayCircle size={22} color={color('accent/default')} weight="duotone" />}
-          label="Content Approvals"
-          count={otherCounts.content}
-          onPress={() => router.push(ROUTES.admin.moderationVideosDocs)}
-        />
+      <View style={{ paddingHorizontal: space.md, marginTop: space.md }}>
+        <SegmentedControl options={options} value={segment} onChange={go} />
       </View>
-      <View style={[styles.navCardRow, { paddingHorizontal: space.md, marginTop: space.sm, gap: space.sm }]}>
-        <ApprovalNavCard
-          icon={<FlagBanner size={22} color={color('accent/default')} weight="duotone" />}
-          label="Question Reports"
-          onPress={() => router.push(ROUTES.admin.reportsQueue)}
-        />
-        <ApprovalNavCard
-          icon={<PencilSimpleLine size={22} color={color('accent/default')} weight="duotone" />}
-          label="Corrections"
-          onPress={() => router.push(ROUTES.admin.correctionsQueue)}
-        />
-        <ApprovalNavCard
-          icon={<Lightbulb size={22} color={color('accent/default')} weight="duotone" />}
-          label="Hacks & Flashcards"
-          onPress={() => router.push(ROUTES.admin.contentQueue)}
-        />
-      </View>
-
-      <Text
-        style={[
-          type['type/overline'],
-          { color: color('text/tertiary'), paddingHorizontal: space.md, marginTop: space.xl },
-        ]}
-      >
-        KYC REVIEW — {entries.length} PENDING
-      </Text>
-
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space['3xl'] + insets.bottom, gap: space.sm }}
-        showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonBlock key={i} height={92} radius={radius.md} />)
-        ) : loadError ? (
-          <EmptyState
-            icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
-            title="Couldn't load KYC queue"
-            description="Something went wrong fetching pending reviews."
-            action={<TextButton label="Retry" onPress={fetchRecords} />}
-          />
-        ) : entries.length === 0 ? (
-          <EmptyState
-            icon={<CheckCircle size={32} color={color('semantic/success')} weight="fill" />}
-            title="All caught up"
-            description="No pending KYC reviews."
-          />
-        ) : (
-          entries.map((e) => (
-            <QueueRow
-              key={e.id}
-              entry={e}
-              onOpen={() => router.push({ pathname: ROUTES.admin.kycReviewDetail, params: { id: e.id, from: 'queue' } })}
-              onApprove={() => approve(e.id)}
-              onReject={() => setRejectTarget(e)}
-            />
-          ))
-        )}
-      </ScrollView>
-
-      <Modal visible={!!rejectTarget} transparent animationType="slide" onRequestClose={() => setRejectTarget(null)}>
-        <View style={styles.sheetScrim}>
-          <View
-            style={[
-              styles.sheet,
-              { backgroundColor: color('bg/surface'), borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: space.lg, paddingBottom: space.lg + insets.bottom },
-            ]}
-          >
-            <Text style={[type['type/h3'], { color: color('text/primary') }]}>Why is this being rejected?</Text>
-            <InputField
-              multiline
-              value={reason}
-              onChangeText={setReason}
-              placeholder="e.g. Document photo is blurry, or ID number doesn't match."
-              containerStyle={{ marginTop: space.md }}
-            />
-            <PrimaryButton
-              label="Confirm Rejection"
-              onPress={confirmReject}
-              disabled={reason.trim().length === 0}
-              style={{ marginTop: space.lg }}
-            />
+      <View style={{ flex: 1, marginTop: space.xs }}>
+        {visited.has('content') ? (
+          <View style={show('content')}>
+            <ContentReviewView items={d?.items ?? []} loading={inbox.isPending} error={inbox.isError} onRetry={() => void inbox.refetch()} />
           </View>
-        </View>
-      </Modal>
+        ) : null}
+        {visited.has('kyc') ? <View style={show('kyc')}><KycQueueView /></View> : null}
+        {visited.has('reports') ? <View style={show('reports')}><ReportsInbox role="admin" embedded /></View> : null}
+        {visited.has('edits') ? <View style={show('edits')}><CorrectionsQueueView embedded /></View> : null}
+      </View>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  navCardRow: { flexDirection: 'row' },
-  navCard: { flex: 1 },
-  navCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  idBadge: { paddingVertical: 2 },
-  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  sheetScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: {},
-});
