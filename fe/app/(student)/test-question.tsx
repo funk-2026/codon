@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { AccessibilityInfo, AppState, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { X, GridFour, WarningCircle, FlagPennant, FlagBanner, Lock, Timer } from 'phosphor-react-native';
@@ -17,6 +17,8 @@ import { useAttemptSession } from '@/src/attempt/useAttemptSession';
 import { useAttemptTimer } from '@/src/attempt/useAttemptTimer';
 import { useStopwatch } from '@/src/attempt/useStopwatch';
 import { formatClock, nextUnanswered, paletteCounts, paletteStatus, timerLevel } from '@/src/attempt/logic';
+import { paletteState, sectionsOf, type PaletteState } from '@/src/exam/logic';
+import { reportLeftApp } from '@/src/api/exams';
 import { track } from '@/src/analytics/track';
 import { useScreenProtection } from '@/src/security/useScreenProtection';
 import { ChipGroup } from '@/src/custom/ui';
@@ -55,6 +57,9 @@ export default function TestQuestionRoute() {
   const [tookOver, setTookOver] = useState(false);
   const [busyTakeover, setBusyTakeover] = useState(false);
   const scrollRef = useRef<ScrollViewInstance>(null);
+  // Exam tests (Test Series module) get the exam-hall extras: sections, five palette states, leave-app tracking.
+  const isExam = attempt?.test?.module_type === 'test_series';
+  const [visited, setVisited] = useState<Set<string>>(() => new Set());
 
   const q = questions[current];
   const total = questions.length;
@@ -71,10 +76,33 @@ export default function TestQuestionRoute() {
     (idx: number) => {
       if (idx < 0 || idx >= total) return;
       setCurrent(idx);
+      setVisited((v) => (questions[idx] && !v.has(questions[idx].id) ? new Set(v).add(questions[idx].id) : v));
       scrollRef.current?.scrollTo({ y: 0, animated: false });
     },
-    [total],
+    [total, questions],
   );
+
+  // Leaving the app during an exam is counted (never penalised here); the clock keeps running.
+  useEffect(() => {
+    if (!isExam || !attempt?.id) return;
+    const attemptId = attempt.id;
+    let leftAt: number | null = null;
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'background' || st === 'inactive') {
+        if (leftAt == null) leftAt = Date.now();
+      } else if (st === 'active' && leftAt != null) {
+        const secs = Math.round((Date.now() - leftAt) / 1000);
+        leftAt = null;
+        if (secs >= 2) void reportLeftApp(attemptId, secs).catch(() => undefined);
+      }
+    });
+    return () => sub.remove();
+  }, [isExam, attempt?.id]);
+
+  const sections = useMemo(() => (isExam ? sectionsOf(questions.map((x) => x.section)) : []), [isExam, questions]);
+  const currentSection = sections.find((sec) => current >= sec.from && current <= sec.to);
+  const stateOf = (qid: string, i: number): PaletteState =>
+    paletteState({ answered: !!answers[qid]?.selected, marked: !!answers[qid]?.marked, visited: visited.has(qid) || i === current });
 
   // bank time spent on the question we just left
   useEffect(() => {
@@ -280,6 +308,25 @@ export default function TestQuestionRoute() {
         />
       ) : (
         <>
+          {sections.length > 1 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+              {sections.map((sec) => {
+                const on = sec === currentSection;
+                const done = ids.slice(sec.from, sec.to + 1).filter((qid) => answers[qid]?.selected).length;
+                return (
+                  <Pressable
+                    key={sec.name + sec.from}
+                    onPress={() => go(sec.from)}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: on }}
+                    style={{ minHeight: 40, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}
+                  >
+                    <Text style={[type['type/caption'], { color: on ? color('accent/default') : color('text/secondary') }]}>{sec.name} · {done}/{sec.to - sec.from + 1}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
           <ScrollView
             ref={scrollRef}
             style={{ flex: 1 }}
@@ -364,7 +411,7 @@ export default function TestQuestionRoute() {
               </Text>
             ) : null}
 
-            {a?.selected && !checked && !locked ? (
+            {a?.selected && !checked && !locked && !isExam ? (
               <View style={{ marginTop: space.md, gap: space.xs }}>
                 <Text style={[type['type/caption'], { color: color('text/secondary') }]}>How sure are you? (optional)</Text>
                 <ChipGroup
@@ -429,7 +476,7 @@ export default function TestQuestionRoute() {
               <GridFour size={26} color={color('text/primary')} />
             </Pressable>
             <PrimaryButton
-              label={isLast ? 'Review & Submit' : 'Next'}
+              label={isLast ? 'Review & Submit' : isExam ? 'Save & Next' : 'Next'}
               onPress={() => (isLast ? setSubmitOpen(true) : go(current + 1))}
             />
           </View>
@@ -437,9 +484,11 @@ export default function TestQuestionRoute() {
           {/* Palette */}
           <BottomSheet visible={paletteOpen} onClose={() => setPaletteOpen(false)} title="Question Palette">
             <View style={[styles.legendRow, { gap: space.md, flexWrap: 'wrap' }]}>
+              {isExam ? <LegendDot label="Not visited" bg={color('bg/sunken')} border={color('border/strong')} /> : null}
               <LegendDot label="Answered" bg={color('accent/default')} border={color('accent/default')} />
-              <LegendDot label="Not answered" bg={color('bg/sunken')} border={color('border/strong')} />
+              <LegendDot label="Not answered" bg={isExam ? color('semantic/danger-tint') : color('bg/sunken')} border={isExam ? color('semantic/danger') : color('border/strong')} />
               <LegendDot label="Marked" bg="transparent" border={color('semantic/warning')} />
+              {isExam ? <LegendDot label="Answered and marked" bg={color('accent/default')} border={color('semantic/warning')} /> : null}
             </View>
             <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: space.xs }]}>
               {counts.answered} answered · {counts.unanswered} not answered · {counts.marked} marked
@@ -450,6 +499,8 @@ export default function TestQuestionRoute() {
                 const answered = st === 'answered' || st === 'answered_marked';
                 const marked = st === 'marked' || st === 'answered_marked';
                 const isCurrent = i === current;
+                const ps = stateOf(qid, i);
+                const redNo = isExam && ps === 'not_answered';
                 return (
                   <Pressable
                     key={qid}
@@ -458,9 +509,9 @@ export default function TestQuestionRoute() {
                     accessibilityLabel={`Question ${i + 1}, ${answered ? 'answered' : 'not answered'}${marked ? ', marked for review' : ''}${isCurrent ? ', current' : ''}`}
                     style={{
                       width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: answered ? color('accent/default') : color('bg/sunken'),
+                      backgroundColor: answered ? color('accent/default') : redNo ? color('semantic/danger-tint') : color('bg/sunken'),
                       borderWidth: isCurrent || marked ? 2 : 1,
-                      borderColor: marked ? color('semantic/warning') : isCurrent ? color('text/primary') : color('border/strong'),
+                      borderColor: marked ? color('semantic/warning') : isCurrent ? color('text/primary') : redNo ? color('semantic/danger') : color('border/strong'),
                     }}
                   >
                     <Text style={[type['type/body-m-medium'], { color: answered ? color('accent/on-accent') : color('text/secondary') }]}>{i + 1}</Text>

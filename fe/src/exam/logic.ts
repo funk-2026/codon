@@ -109,3 +109,34 @@ export function patternHint(style: ExamStyle, kind: ExamKind, questions: number,
   if (minutes != null && minutes !== 180) issues.push(`${minutes} minutes (NEET is 180)`);
   return issues.length ? `Differs from the NEET pattern: ${issues.join(', ')}. That is fine if it is on purpose.` : null;
 }
+
+// ── Starting a test ─────────────────────────────────────────────────────────
+type TimedTest = { delivery?: string; opens_at?: string; late_entry_minutes?: number; extra_minutes?: number; duration_minutes?: number };
+
+export type Window = { opens: number; lastStart: number; ends: number };
+
+/** The live window of a test in epoch milliseconds, or null for an anytime test. Mirrors the server's rule. */
+export function examWindow(t: TimedTest): Window | null {
+  if (t.delivery !== 'live' || !t.opens_at || !t.duration_minutes || t.duration_minutes <= 0) return null;
+  const opens = new Date(t.opens_at).getTime();
+  if (Number.isNaN(opens)) return null;
+  const extra = (t.extra_minutes ?? 0) * 60_000;
+  return { opens, lastStart: opens + (t.late_entry_minutes ?? 0) * 60_000 + extra, ends: opens + t.duration_minutes * 60_000 + extra };
+}
+
+export type StartGate =
+  | { state: 'open'; official: boolean }
+  | { state: 'wait'; ms: number }
+  | { state: 'late' };
+
+/**
+ * Can the student press Start now? 'wait' before a live test opens, 'late' once late entry closed (until the exam ends,
+ * after which it can be taken as practice), 'open' otherwise. `official` is true for a live start inside the window.
+ */
+export function startGate(t: TimedTest, now: number): StartGate {
+  const w = examWindow(t);
+  if (!w) return { state: 'open', official: false };
+  if (now < w.opens) return { state: 'wait', ms: w.opens - now };
+  if (now < w.ends) return now > w.lastStart ? { state: 'late' } : { state: 'open', official: true };
+  return { state: 'open', official: false };
+}

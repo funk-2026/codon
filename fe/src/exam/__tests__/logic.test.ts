@@ -88,3 +88,23 @@ describe('rankText and patternHint', () => {
     expect(patternHint('school', 'full', 10, 10)).toBeNull();
   });
 });
+
+import { examWindow, startGate } from '../logic';
+
+describe('startGate', () => {
+  const opens = new Date('2027-05-02T14:00:00Z').getTime();
+  const t = { delivery: 'live', opens_at: '2027-05-02T14:00:00Z', late_entry_minutes: 15, duration_minutes: 180 };
+  it('waits, opens, closes late entry, then becomes practice', () => {
+    expect(startGate(t, opens - 60_000)).toEqual({ state: 'wait', ms: 60_000 });
+    expect(startGate(t, opens + 60_000)).toEqual({ state: 'open', official: true });
+    expect(startGate(t, opens + 16 * 60_000)).toEqual({ state: 'late' });
+    expect(startGate(t, opens + 4 * 3600_000)).toEqual({ state: 'open', official: false });
+  });
+  it('moves with an admin extension', () => {
+    expect(startGate({ ...t, extra_minutes: 10 }, opens + 20 * 60_000)).toEqual({ state: 'open', official: true });
+    expect(examWindow({ ...t, extra_minutes: 10 })?.ends).toBe(opens + 190 * 60_000);
+  });
+  it('anytime tests are always open and never official by themselves', () => {
+    expect(startGate({ delivery: 'anytime' }, 0)).toEqual({ state: 'open', official: false });
+  });
+});

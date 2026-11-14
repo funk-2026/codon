@@ -155,7 +155,7 @@ func (h *TestHandler) GetTest(c *gin.Context) {
 		v := r.Value
 		view.MyRating = &v
 	}
-	resp := gin.H{"test": view}
+	resp := gin.H{"test": view, "server_now": time.Now()}
 	var att models.StudentAttempt
 	if h.DB.WithContext(c.Request.Context()).
 		Where("user_id = ? AND test_id = ? AND status = ?", user.ID, test.ID, models.AttemptInProgress).

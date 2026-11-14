@@ -148,7 +148,7 @@ export default function TestHistoryRoute() {
                         <View
                           style={[
                             styles.badge,
-                            { backgroundColor: color(scoreTone(a.scorePct ?? 0)), borderRadius: radius.pill },
+                            { backgroundColor: a.scorePct == null ? color('semantic/warning') : color(scoreTone(a.scorePct)), borderRadius: radius.pill },
                           ]}
                         >
                           <Text style={[type['type/caption'], { color: color('text/inverse') }]}>{a.score}</Text>

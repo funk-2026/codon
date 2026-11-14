@@ -141,7 +141,22 @@ export type AttemptResultResponse = {
   /** Any list may be empty (questions without metadata) — hide the section, don't fabricate. */
   breakdown?: AttemptBreakdown;
   /** Test Series only, once enough students have finished: where this score sits among them. */
-  cohort?: { rank: number; total: number; top_percent: number; avg_score: number | null };
+  cohort?: {
+    rank?: number;
+    total: number;
+    /** Only once enough students have a score; hidden for a small group. */
+    top_percent?: number;
+    percentile?: number;
+    avg_score?: number | null;
+    top_score?: number;
+    /** A practice attempt is placed against the official cohort, so the rank is an estimate. */
+    estimated?: boolean;
+    /** The test shows rank to subscribers only. */
+    locked?: boolean;
+  };
+  /** A live test keeps the score back until results open. */
+  pending?: boolean;
+  results_at?: string;
 };
 
 /** GET /api/v1/attempts/:id/result */

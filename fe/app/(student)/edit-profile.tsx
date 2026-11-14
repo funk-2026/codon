@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Switch, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Lock, CaretRight } from 'phosphor-react-native';
@@ -30,12 +30,14 @@ export default function EditProfileRoute() {
   const [name, setName] = useState(initialName);
   // Edited text is kept apart from the saved value, so a late-arriving profile doesn't overwrite typing.
   const [examEdit, setExamEdit] = useState<string | null>(null);
+  const [optOutEdit, setOptOutEdit] = useState<boolean | null>(null);
+  const optOut = optOutEdit ?? !!meQuery.data?.user?.leaderboard_opt_out;
   const examText = examEdit ?? initialExam;
   const examIso = examText.trim() === '' ? '' : parseExamDate(examText);
   const examError = examIso === null ? 'Use the format DD/MM/YYYY, for example 03/05/2027.' : undefined;
   const [error, setError] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
-  const dirty = name.trim() !== initialName || (examEdit !== null && examEdit.trim() !== initialExam);
+  const dirty = name.trim() !== initialName || (examEdit !== null && examEdit.trim() !== initialExam) || (optOutEdit !== null && optOutEdit !== !!meQuery.data?.user?.leaderboard_opt_out);
 
   const handleSave = async () => {
     if (!dirty || saving) return;
@@ -47,7 +49,7 @@ export default function EditProfileRoute() {
     setError(undefined);
     setSaving(true);
     try {
-      await updateMe({ name: name.trim(), ...(examEdit !== null ? { exam_date: examIso ?? '' } : {}) });
+      await updateMe({ name: name.trim(), ...(examEdit !== null ? { exam_date: examIso ?? '' } : {}), ...(optOutEdit !== null ? { leaderboard_opt_out: optOutEdit } : {}) });
       await refreshUser();
       await queryClient.invalidateQueries({ queryKey: keys.me });
       show('Profile updated', 'success');
@@ -104,6 +106,14 @@ export default function EditProfileRoute() {
             error={examEdit !== null ? examError : undefined}
             helperText="Shows a countdown on Home. Leave it blank to clear it."
           />
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>Hide my name on leaderboards</Text>
+              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>You still see your own rank. Others see you as nobody.</Text>
+            </View>
+            <Switch value={optOut} onValueChange={setOptOutEdit} />
+          </View>
 
           <View>
             <Text

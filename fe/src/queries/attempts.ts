@@ -47,7 +47,7 @@ export const useAttemptHistory = () =>
             module,
             group,
             status: a.status,
-            score: a.status === 'submitted' ? (a.total_marks ? `${a.score ?? 0}/${a.total_marks}` : `${a.score ?? 0}`) : undefined,
+            score: a.status === 'submitted' ? (a.score == null ? 'Results soon' : a.total_marks ? `${a.score}/${a.total_marks}` : `${a.score}`) : undefined,
             scorePct: a.status === 'submitted' && (a.total_marks || 0) > 0 ? ((a.score || 0) / (a.total_marks || 1)) * 100 : undefined,
           };
         });
