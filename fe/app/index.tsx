@@ -4,6 +4,7 @@ import { useRouter, type Href } from 'expo-router';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth, type Role } from '@/src/auth/AuthContext';
 import { ROUTES } from '@/src/navigation/routes';
+import { kvGet } from '@/src/storage/kv';
 
 const ROLE_HOME: Record<Role, Href> = {
   student: ROUTES.student.home,
@@ -36,7 +37,10 @@ export default function IndexRoute() {
           router.replace(ROLE_HOME[auth.user.role]);
         }
       } else {
-        router.replace(ROUTES.auth.phoneEntry);
+        // First launch: a short intro, once.
+        const seen = await kvGet<boolean>('intro-seen', false);
+        if (!isMounted) return;
+        router.replace(seen ? ROUTES.auth.phoneEntry : (ROUTES.auth.onboarding as any));
       }
     };
 

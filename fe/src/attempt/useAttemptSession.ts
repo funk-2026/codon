@@ -1,3 +1,4 @@
+import { track } from '@/src/analytics/track';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '@/src/api/client';
 import {
@@ -64,6 +65,7 @@ export function useAttemptSession(testId: string | undefined) {
       const qs = await getTestQuestions(testId);
       const ordered = [...qs.questions].sort((a, b) => (a.position ?? a.order_index) - (b.position ?? b.order_index));
       setAttempt(start.attempt);
+      track('test.started', { module: start.attempt.test?.module_type ?? null });
       setQuestions(ordered);
       setMedia(qs.media ?? {});
       const map: Record<string, LocalAnswer> = {};

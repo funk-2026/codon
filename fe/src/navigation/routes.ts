@@ -5,6 +5,7 @@
  */
 export const ROUTES = {
   auth: {
+    onboarding: '/onboarding',
     courseSelection: '/course-selection',
     otpVerify: '/otp-verify',
     phoneEntry: '/phone-entry',
@@ -25,6 +26,7 @@ export const ROUTES = {
     flashcardStudy: '/(student)/flashcard-study',
     flashcards: '/(student)/flashcards',
     giveFeedback: '/(student)/give-feedback',
+    help: '/(student)/help',
     home: '/(student)/(tabs)/home',
     kycStatus: '/(student)/kyc-status',
     kycSubmission: '/(student)/kyc-submission',
@@ -37,8 +39,10 @@ export const ROUTES = {
     paymentSuccess: '/(student)/payment-success',
     practice: '/(student)/(tabs)/practice',
     practiceHierarchy: '/(student)/practice-hierarchy',
+    payments: '/(student)/payments',
     profile: '/(student)/(tabs)/profile',
     progressDetail: '/(student)/progress-detail',
+    search: '/(student)/search',
     settings: '/(student)/settings',
     subscriptionPlans: '/(student)/subscription-plans',
     support: '/(student)/(tabs)/support',

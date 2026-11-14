@@ -22,7 +22,21 @@ export type EventName =
   | 'import.preflight'
   | 'import.committed'
   | 'flashcards.reviewed'
-  | 'notes.saved';
+  | 'notes.saved'
+  | 'app.opened'
+  | 'app.crash'
+  | 'screen.viewed'
+  | 'auth.otp_requested'
+  | 'auth.signed_in'
+  | 'test.started'
+  | 'test.submitted'
+  | 'subscription.plans_viewed'
+  | 'subscription.checkout_started'
+  | 'subscription.paid'
+  | 'subscription.failed'
+  | 'search.used'
+  | 'video.started'
+  | 'help.opened';
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 type Sink = (event: EventName, props: Props) => void;

@@ -1,4 +1,7 @@
 import { takeSuspendedNotice } from '@/src/auth/suspendedNotice';
+import { track } from '@/src/analytics/track';
+import * as WebBrowser from 'expo-web-browser';
+import { usePublicConfig } from '@/src/config/PublicConfig';
 import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
@@ -87,6 +90,7 @@ function Staggered({
 export default function PhoneEntryRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const legal = usePublicConfig()?.legal;
 
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -141,6 +145,7 @@ export default function PhoneEntryRoute() {
     setApiError('');
     try {
       await sendOTP(clean);
+      track('auth.otp_requested');
       router.push({ pathname: ROUTES.auth.otpVerify, params: { phone: clean } });
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
@@ -285,8 +290,8 @@ export default function PhoneEntryRoute() {
             ]}
           >
             By continuing, you agree to Codon&apos;s{' '}
-            <Text style={{ color: color('accent/default') }}>Terms of Service</Text> and{' '}
-            <Text style={{ color: color('accent/default') }}>Privacy Policy</Text>.
+            <Text style={legal?.terms_url ? { color: color('accent/default') } : undefined} onPress={legal?.terms_url ? () => void WebBrowser.openBrowserAsync(legal.terms_url) : undefined} accessibilityRole={legal?.terms_url ? 'link' : undefined}>Terms of Service</Text> and{' '}
+            <Text style={legal?.privacy_url ? { color: color('accent/default') } : undefined} onPress={legal?.privacy_url ? () => void WebBrowser.openBrowserAsync(legal.privacy_url) : undefined} accessibilityRole={legal?.privacy_url ? 'link' : undefined}>Privacy Policy</Text>.
           </Text>
         </Staggered>
 

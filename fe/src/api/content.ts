@@ -48,6 +48,8 @@ export type LecturePDFs = {
 };
 
 export type GetContentResponse = LecturePDFs & {
+  /** Where this student left off (seconds). Absent when never watched or already finished. */
+  progress_seconds?: number;
   content: ContentItem;
   url?: string; // Pre-signed URL for document, or HLS URL for video
 };

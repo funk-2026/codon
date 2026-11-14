@@ -1,3 +1,5 @@
+import { track } from '@/src/analytics/track';
+import { kvGet, kvSet } from '@/src/storage/kv';
 import { useEffect, useRef, useState } from 'react';
 import {
   Platform,
@@ -83,12 +85,19 @@ export default function OtpVerifyRoute() {
     );
 
     const cleanPhone = typeof phone === 'string' ? phone : '';
-    const deviceId = `${Platform.OS}-${Date.now()}`;
+    // One id per install, kept across sign-ins, so signing in again on the same phone replaces its session
+    // instead of adding a new "device" every time.
+    let deviceId = await kvGet<string>('device-id', '');
+    if (!deviceId) {
+      deviceId = `${Platform.OS}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      await kvSet('device-id', deviceId);
+    }
     const deviceInfo = `${Platform.OS} ${Platform.Version}`;
 
     try {
       const res = await verifyOTP(cleanPhone, code, deviceId, deviceInfo);
       await signIn(res.access_token, res.user);
+      track('auth.signed_in', { role: res.user.role });
       const role = res.user.role;
 
       const isProfileComplete = res.user.name && res.user.selected_course_id;

@@ -107,6 +107,7 @@ export default function TestQuestionRoute() {
         await submitAttempt(attempt.id);
         void queryClient.invalidateQueries({ queryKey: keys.attempts });
         void queryClient.invalidateQueries({ queryKey: keys.progress });
+        track('test.submitted', { module: attempt.test?.module_type ?? null, answered: counts.answered, total: counts.total, expired: !!opts.expired });
         track('custom.submitted', { mode: attempt.mode ?? 'exam', answered: counts.answered, total: counts.total, expired: !!opts.expired });
         setSubmitOpen(false);
         toResult(attempt.id, opts.expired);

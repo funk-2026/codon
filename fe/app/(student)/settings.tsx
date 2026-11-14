@@ -12,6 +12,11 @@ import { usePush } from '@/src/notifications/PushProvider';
 import { PracticeReminderRow } from '@/src/notifications/PracticeReminderRow';
 import { pushStatusCopy } from '@/src/notifications/logic';
 import { ROUTES } from '@/src/navigation/routes';
+import * as WebBrowser from 'expo-web-browser';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { apiFetch } from '@/src/api/client';
+import { usePublicConfig } from '@/src/config/PublicConfig';
 
 const SOUND_EFFECTS_KEY = 'codon_pref_sound_effects';
 
@@ -73,6 +78,24 @@ export default function SettingsRoute() {
 
   const auth = useAuth();
   const { show } = useToast();
+  const legal = usePublicConfig()?.legal;
+  const [exporting, setExporting] = useState(false);
+  // A copy of the student's own data (profile, plans, payments, tests) as a JSON file to save or share.
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      const data = await apiFetch<unknown>('/me/export');
+      const uri = `${FileSystem.cacheDirectory}my-codon-data.json`;
+      await FileSystem.writeAsStringAsync(uri, JSON.stringify(data, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'My Codon data' });
+      else show('Sharing isn’t available on this device.', 'error');
+    } catch {
+      show('Couldn’t prepare your data. Try again.', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const [soundEffects, setSoundEffectsState] = useState(true);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -196,8 +219,10 @@ export default function SettingsRoute() {
         <View style={{ marginTop: space.lg }}>
           <GroupLabel label="Support & Legal" />
           <View style={{ gap: space.xs }}>
-            <Row label="Terms of Service" onPress={() => { }} />
-            <Row label="Privacy Policy" onPress={() => { }} />
+            <Row label="Help and support" onPress={() => router.push(ROUTES.student.help)} />
+            {legal?.terms_url ? <Row label="Terms of Service" onPress={() => void WebBrowser.openBrowserAsync(legal.terms_url)} /> : null}
+            {legal?.privacy_url ? <Row label="Privacy Policy" onPress={() => void WebBrowser.openBrowserAsync(legal.privacy_url)} /> : null}
+            <Row label={exporting ? 'Preparing your data…' : 'Download my data'} onPress={() => { if (!exporting) void exportData(); }} />
           </View>
         </View>
 

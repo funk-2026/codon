@@ -5,6 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import Constants from 'expo-constants';
 import { ErrorBanner, useToast, ScreenHeader, Screen, ConfirmDialog, SegmentedControl } from '@/src/components';
 import { CustomTestAdminView } from '@/src/admin/CustomTestAdminView';
+import { AppSupportSettings } from '@/src/admin/AppSupportSettings';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { setKYCRequired } from '@/src/api/admin';
 import { shadow } from '@/src/theme/elevation';
@@ -94,6 +95,8 @@ export default function PlatformSettingsRoute() {
             </Text>
           </View>
         </View>
+
+        <AppSupportSettings />
 
         <View style={{ marginTop: space.xl }}>
           <View

@@ -140,6 +140,8 @@ export type AttemptResultResponse = {
   attempt: StudentAttempt;
   /** Any list may be empty (questions without metadata) — hide the section, don't fabricate. */
   breakdown?: AttemptBreakdown;
+  /** Test Series only, once enough students have finished: where this score sits among them. */
+  cohort?: { rank: number; total: number; top_percent: number; avg_score: number | null };
 };
 
 /** GET /api/v1/attempts/:id/result */
