@@ -186,6 +186,10 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	}
 	if req.BodyText != nil {
 		t := strings.TrimSpace(*req.BodyText)
+		if item.Status != models.StatusDraft && item.Status != models.StatusRejected {
+			respondErr(c, http.StatusConflict, "conflict", "the text of a lesson can only be edited while it is a draft or needs changes")
+			return
+		}
 		if item.ContentType != models.ContentDocument || item.FileKey != textLessonKey {
 			respondErr(c, http.StatusBadRequest, "not_a_text_lesson", "only lessons written in the app have editable text")
 			return

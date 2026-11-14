@@ -66,5 +66,5 @@ export const deleteCard = (id: string) => apiFetch<{ message: string }>(`/teache
 export const reorderCards = (deckId: string, ids: string[]) =>
   apiFetch<{ message: string }>(`/teacher/flashcard-decks/${deckId}/reorder`, { method: 'POST', body: JSON.stringify({ ids }) });
 
-export const submitDeck = (id: string) => apiFetch<{ message: string }>(`/teacher/flashcard-decks/${id}/submit-for-review`, { method: 'POST' });
+export const submitDeck = (id: string, note?: string) => apiFetch<{ message: string }>(`/teacher/flashcard-decks/${id}/submit-for-review`, { method: 'POST', body: JSON.stringify({ note: note ?? '' }) });
 export const publishDeck = (id: string) => apiFetch<{ message: string }>(`/teacher/flashcard-decks/${id}/publish`, { method: 'POST' });

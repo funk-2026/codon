@@ -66,6 +66,7 @@ export const ROUTES = {
     createTest: '/(teacher)/create-test',
     csvImportReport: '/(teacher)/csv-import-report',
     csvUpload: '/(teacher)/csv-upload',
+    editDetails: '/(teacher)/edit-details',
     flashcardDeck: '/(teacher)/flashcard-deck',
     flashcardDecks: '/(teacher)/flashcard-decks',
     giveFeedback: '/(teacher)/give-feedback',

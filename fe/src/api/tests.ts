@@ -31,6 +31,12 @@ export type Test = {
   expires_at?: string;
   rating_avg?: number;
   rating_count?: number;
+  instructions?: string;
+  author_name?: string;
+  /** Set while an approved test waits to go live. */
+  publish_at?: string;
+  submitted_at?: string;
+  submit_note?: string;
 };
 
 export type ListTestsResponse = {

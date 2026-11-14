@@ -23,6 +23,12 @@ export type ContentItem = {
   reviewed_at?: string;
   uploader?: UserProfile;
   created_at?: string;
+  /** Document lessons written in the app. */
+  body_text?: string;
+  author_name?: string;
+  publish_at?: string;
+  submitted_at?: string;
+  submit_note?: string;
 };
 
 export type ListContentResponse = {

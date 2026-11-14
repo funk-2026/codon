@@ -9,6 +9,8 @@ import { RichContent, type MediaMap } from '@/src/rich';
 import { ApiError } from '@/src/api/client';
 import { deleteBrainHack, getTeacherBrainHack, publishBrainHack, submitBrainHack, type TeacherBrainHack } from '@/src/api/discover';
 import { ROUTES } from '@/src/navigation/routes';
+import { PublishSheet, SubmitForReviewSheet } from '@/src/teacher/AuthorSheets';
+import { scheduleItem } from '@/src/api/teacher';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 
 const BADGE: Record<TeacherBrainHack['status'], { status: BadgeStatus; label: string }> = {
@@ -54,17 +56,36 @@ export function BrainHackDetail() {
     }, [load]),
   );
 
-  const act = async (what: 'submit' | 'publish' | 'delete') => {
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const scheduledAt = (hack as { publish_at?: string } | null)?.publish_at ?? null;
+  const schedule = async (iso: string | null) => {
+    if (!hack) return;
+    setBusy('publish');
+    try {
+      await scheduleItem('brain-hacks', hack.id, iso);
+      setPublishOpen(false);
+      load();
+      show(iso ? 'Scheduled' : 'Schedule cancelled', 'success');
+    } catch (e) {
+      show(e instanceof ApiError ? e.message : 'Couldn’t schedule', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+  const act = async (what: 'submit' | 'publish' | 'delete', note?: string) => {
     if (!hack) return;
     setBusy(what);
     try {
       if (what === 'submit') {
-        await submitBrainHack(hack.id);
+        await submitBrainHack(hack.id, note);
+        setSubmitOpen(false);
         setHack({ ...hack, status: 'pending_review', rejection_reason: undefined });
         show('Submitted for review', 'success');
       } else if (what === 'publish') {
         await publishBrainHack(hack.id);
         setHack({ ...hack, status: 'published' });
+        setPublishOpen(false);
         show('Published — students can read it now', 'success');
       } else {
         await deleteBrainHack(hack.id);
@@ -124,14 +145,14 @@ export function BrainHackDetail() {
               <>
                 <View style={{ flexDirection: 'row', gap: space.sm }}>
                   <SecondaryButton label="Edit" onPress={() => router.push({ pathname: ROUTES.teacher.createBrainHack, params: { id: hack.id } })} style={{ flex: 1 }} />
-                  <PrimaryButton label={hack.status === 'rejected' ? 'Resubmit' : 'Submit for review'} onPress={() => act('submit')} loading={busy === 'submit'} style={{ flex: 1 }} />
+                  <PrimaryButton label={hack.status === 'rejected' ? 'Resubmit' : 'Submit for review'} onPress={() => setSubmitOpen(true)} loading={busy === 'submit'} style={{ flex: 1 }} />
                 </View>
                 <View style={{ alignItems: 'center' }}>
                   <TextButton label="Delete" onPress={() => setConfirmDelete(true)} />
                 </View>
               </>
             ) : hack.status === 'approved' ? (
-              <PrimaryButton label="Publish" onPress={() => act('publish')} loading={busy === 'publish'} />
+              <PrimaryButton label={scheduledAt ? 'Change or cancel the schedule' : 'Publish'} onPress={() => setPublishOpen(true)} loading={busy === 'publish'} />
             ) : (
               <Text style={[type['type/caption'], { color: color('text/secondary'), textAlign: 'center' }]}>
                 {hack.status === 'pending_review' ? 'With a reviewer — you’ll be notified when they respond.' : 'Live for students.'}
@@ -141,6 +162,8 @@ export function BrainHackDetail() {
         </>
       )}
 
+      <SubmitForReviewSheet visible={submitOpen} onClose={() => setSubmitOpen(false)} onSubmit={(n) => act('submit', n)} resubmit={hack?.status === 'rejected'} loading={busy === 'submit'} />
+      <PublishSheet visible={publishOpen} onClose={() => setPublishOpen(false)} onPublishNow={() => act('publish')} onSchedule={schedule} scheduledAt={scheduledAt} loading={busy === 'publish'} />
       <BottomSheet visible={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete this Brain Hack?" dismissable={busy !== 'delete'}>
         <View style={{ flexDirection: 'row', gap: space.sm }}>
           <SecondaryButton label="Cancel" onPress={() => setConfirmDelete(false)} style={{ flex: 1 }} />

@@ -2,11 +2,12 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretDown, CaretUp, CheckCircle, Clock, Exam, WarningCircle } from 'phosphor-react-native';
+import { CaretDown, CaretUp, CheckCircle, Clock, DotsThree, Exam, WarningCircle } from 'phosphor-react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast, ScreenHeader, Screen } from '@/src/components';
+import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest, updateContent } from '@/src/api/teacher';
+import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest, deleteContent, updateContent, cloneTest, transferItem, scheduleItem, getReviewStats } from '@/src/api/teacher';
 import { LecturePdfEditor, type PdfKind, type PdfSlot } from '@/src/content/LecturePdfEditor';
 import { Test, AuthoredQuestion } from '@/src/api/tests';
 import { QuestionPreviewCard, type MediaMap } from '@/src/rich';
@@ -15,6 +16,9 @@ import { ApiError } from '@/src/api/client';
 import { ROUTES } from '@/src/navigation/routes';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 import { BrainHackDetail } from '@/src/teacher/BrainHackDetail';
+import { PublishSheet, SubmitForReviewSheet, TransferSheet } from '@/src/teacher/AuthorSheets';
+import { ItemStatsCard } from '@/src/teacher/ItemStatsCard';
+import { describeWait, formatScheduled } from '@/src/teacher/schedule';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 type Status = 'draft' | 'pending' | 'approved' | 'published' | 'rejected';
@@ -107,6 +111,13 @@ function ContentPreview() {
 
   const [questions, setQuestions] = useState<AuthoredQuestion[] | null>(null);
   const [questionMedia, setQuestionMedia] = useState<MediaMap>({});
+  const qc = useQueryClient();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const reviewStats = useQuery({ queryKey: ['teacher', 'review-stats'], queryFn: getReviewStats, staleTime: 5 * 60_000 });
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -162,19 +173,68 @@ function ContentPreview() {
 
   const badge = taxonomyBadge(status);
 
-  const handleSubmitForReview = async () => {
+  const handleSubmitForReview = async (note: string) => {
     if (!id) return;
     setSubmitting(true);
     try {
       if (contentType === 'Test') {
-        await submitTestForReview(id);
+        await submitTestForReview(id, note);
       } else {
-        await submitContentForReview(id);
+        await submitContentForReview(id, note);
       }
       setStatus('pending');
+      setSubmitOpen(false);
+      void qc.invalidateQueries({ queryKey: ['teacher'] });
+      loadItem();
       show('Sent for review', 'success');
     } catch (err) {
-      show('Failed to submit', 'error');
+      show(err instanceof ApiError ? err.message : 'Failed to submit', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSchedule = async (iso: string | null) => {
+    if (!id) return;
+    setSubmitting(true);
+    try {
+      await scheduleItem(contentType === 'Test' ? 'tests' : 'content', id, iso);
+      setPublishOpen(false);
+      loadItem();
+      void qc.invalidateQueries({ queryKey: ['teacher'] });
+      show(iso ? 'Scheduled' : 'Schedule cancelled', 'success');
+    } catch (err) {
+      show(err instanceof ApiError ? err.message : 'Couldn’t schedule', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!id) return;
+    setMenuOpen(false);
+    try {
+      const copy = await cloneTest(id);
+      void qc.invalidateQueries({ queryKey: ['teacher'] });
+      show('Duplicated as a new draft', 'success');
+      router.replace({ pathname: ROUTES.teacher.contentPreview, params: { type: 'Test', id: copy.id, status: 'draft' } });
+    } catch (err) {
+      show(err instanceof ApiError ? err.message : 'Couldn’t duplicate', 'error');
+    }
+  };
+
+  const handleTransfer = async (phone: string) => {
+    if (!id) return;
+    setTransferError(null);
+    setSubmitting(true);
+    try {
+      await transferItem(contentType === 'Test' ? 'tests' : 'content', id, phone);
+      setTransferOpen(false);
+      void qc.invalidateQueries({ queryKey: ['teacher'] });
+      show('Handed over', 'success');
+      goBack();
+    } catch (err) {
+      setTransferError(err instanceof ApiError ? err.message : 'Couldn’t hand it over');
     } finally {
       setSubmitting(false);
     }
@@ -190,6 +250,8 @@ function ContentPreview() {
         await publishContent(id);
       }
       setStatus('published');
+      setPublishOpen(false);
+      void qc.invalidateQueries({ queryKey: ['teacher'] });
       show('Now live for students', 'success');
     } catch (err) {
       show(err instanceof ApiError ? err.message : 'Failed to publish', 'error');
@@ -202,8 +264,10 @@ function ContentPreview() {
     if (!id) return;
     setDeleting(true);
     try {
-      await deleteTest(id);
-      show('Test deleted', 'success');
+      if (contentType === 'Test') await deleteTest(id);
+      else await deleteContent(id);
+      void qc.invalidateQueries({ queryKey: ['teacher'] });
+      show(contentType === 'Test' ? 'Test deleted' : 'Lesson deleted', 'success');
       goBack();
     } catch (err) {
       show('Failed to delete', 'error');
@@ -212,7 +276,11 @@ function ContentPreview() {
     }
   };
 
-  const canDelete = contentType === 'Test' && !!id && (status === 'draft' || status === 'pending' || status === 'rejected');
+  const isLesson = contentType === 'Video' || contentType === 'Document';
+  const canDelete = !!id && ((contentType === 'Test' && (status === 'draft' || status === 'pending' || status === 'rejected')) || (isLesson && (status === 'draft' || status === 'rejected')));
+  const canEditDetails = !!id && (contentType === 'Test' || isLesson) && (status === 'draft' || status === 'rejected');
+  const scheduledAt = (contentType === 'Test' ? testData?.publish_at : contentData?.publish_at) ?? null;
+  const submitNote = (contentType === 'Test' ? testData?.submit_note : contentData?.submit_note) ?? null;
   const rejectionReason = contentType === 'Test' ? testData?.rejection_reason : contentData?.rejection_reason;
 
   const questionCountNum = id ? testData?.total_questions ?? 0 : Number(draftQuestionCount || 0);
@@ -238,6 +306,11 @@ function ContentPreview() {
     <Screen>
       <ScreenHeader title="Preview" right={<>
 <StatusBadge status={badge.badgeStatus} label={badge.label} />
+{id && (contentType === 'Test' || isLesson) ? (
+  <Pressable onPress={() => setMenuOpen(true)} hitSlop={8} accessibilityLabel="More actions" style={{ marginLeft: space.xs }}>
+    <DotsThree size={26} weight="bold" color={color('text/primary')} />
+  </Pressable>
+) : null}
 </>} />
 
       <ScrollView
@@ -390,9 +463,13 @@ function ContentPreview() {
               <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: 4 }]}>
                 {contentData?.title ?? 'Untitled Document'}
               </Text>
-              <Text style={[type['type/body-m'], { color: color('text/tertiary'), marginTop: space.md }]}>
-                Document text preview isn&apos;t available yet.
-              </Text>
+              {contentData?.body_text ? (
+                <Text style={[type['type/body-m'], { color: color('text/primary'), marginTop: space.md }]}>{contentData.body_text}</Text>
+              ) : (
+                <Text style={[type['type/body-m'], { color: color('text/tertiary'), marginTop: space.md }]}>
+                  This lesson is an uploaded file; students open it in the reader.
+                </Text>
+              )}
             </View>
           ) : id ? (
             <View style={{ padding: space.sm }}>
@@ -428,7 +505,8 @@ function ContentPreview() {
         <View style={{ marginTop: space.xl, alignItems: 'center' }}>
           {status === 'pending' ? (
             <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>
-              Waiting on admin review. We&apos;ll notify you here once it&apos;s reviewed.
+              Waiting on admin review{describeWait(reviewStats.data?.median_hours) ? ` — usually ${describeWait(reviewStats.data?.median_hours)}` : ''}. You&apos;ll get a notification when it&apos;s decided.
+              {submitNote ? `\n\nYour note: ${submitNote}` : ''}
             </Text>
           ) : status === 'published' ? (
             <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>
@@ -436,12 +514,15 @@ function ContentPreview() {
             </Text>
           ) : null}
         </View>
+        {status === 'published' && id && (contentType === 'Test' || isLesson) ? <ItemStatsCard kind={contentType === 'Test' ? 'test' : 'lesson'} id={String(id)} /> : null}
+        <View>
+        </View>
 
         {status === 'approved' ? (
           <View style={[styles.approvedCallout, { borderRadius: radius.md, marginTop: space.lg }]}>
             <View style={[StyleSheet.absoluteFill, { backgroundColor: color('semantic/success'), opacity: 0.12, borderRadius: radius.md }]} />
             <Text style={[type['type/body-m-medium'], { color: color('semantic/success'), padding: space.sm }]}>
-              Approved — publish when you&apos;re ready.
+              {scheduledAt ? `Approved — goes live ${formatScheduled(scheduledAt)}.` : 'Approved — publish now or pick a time.'}
             </Text>
           </View>
         ) : null}
@@ -457,16 +538,12 @@ function ContentPreview() {
             ]}
           >
             <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
-              Delete this test permanently?
+              Delete this permanently?
             </Text>
             <TextButton label={deleting ? 'Deleting…' : 'Yes, delete'} onPress={handleDelete} disabled={deleting} style={{ marginRight: space.sm }} />
             <TextButton label="Cancel" onPress={() => setDeleteConfirmOpen(false)} disabled={deleting} />
           </View>
-        ) : (
-          <View style={{ alignItems: 'center', marginBottom: space.sm }}>
-            <TextButton label="Delete draft" onPress={() => setDeleteConfirmOpen(true)} />
-          </View>
-        )
+        ) : null
       ) : null}
 
       {testId && (sortedQuestions?.length ?? 0) > 0 ? (
@@ -483,13 +560,26 @@ function ContentPreview() {
 
       {status === 'draft' || status === 'rejected' ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-          <PrimaryButton label={status === 'rejected' ? 'Resubmit for Review' : 'Submit for Review'} onPress={handleSubmitForReview} loading={submitting} />
+          <PrimaryButton label={status === 'rejected' ? 'Resubmit for Review' : 'Submit for Review'} onPress={() => setSubmitOpen(true)} loading={submitting} />
         </View>
       ) : status === 'approved' ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-          <PrimaryButton label="Publish" onPress={handlePublish} loading={submitting} />
+          <PrimaryButton label={scheduledAt ? 'Change or cancel the schedule' : 'Publish'} onPress={() => setPublishOpen(true)} loading={submitting} />
         </View>
       ) : null}
+      <SubmitForReviewSheet visible={submitOpen} onClose={() => setSubmitOpen(false)} onSubmit={handleSubmitForReview} resubmit={status === 'rejected'} loading={submitting} />
+      <PublishSheet visible={publishOpen} onClose={() => setPublishOpen(false)} onPublishNow={handlePublish} onSchedule={handleSchedule} scheduledAt={scheduledAt} loading={submitting} />
+      <TransferSheet visible={transferOpen} onClose={() => setTransferOpen(false)} onTransfer={handleTransfer} loading={submitting} error={transferError} />
+      <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} title="More">
+        <View style={{ paddingHorizontal: space.lg, paddingBottom: space.lg, gap: space.xs }}>
+          {canEditDetails ? (
+            <TextButton label="Edit details" onPress={() => { setMenuOpen(false); router.push({ pathname: ROUTES.teacher.editDetails, params: { id: String(id), type: contentType } }); }} style={{ alignSelf: 'flex-start' }} />
+          ) : null}
+          {contentType === 'Test' ? <TextButton label="Duplicate as a new draft" onPress={handleDuplicate} style={{ alignSelf: 'flex-start' }} /> : null}
+          <TextButton label="Hand over to another teacher" onPress={() => { setMenuOpen(false); setTransferError(null); setTransferOpen(true); }} style={{ alignSelf: 'flex-start' }} />
+          {canDelete ? <TextButton label="Delete" onPress={() => { setMenuOpen(false); setDeleteConfirmOpen(true); }} style={{ alignSelf: 'flex-start' }} /> : null}
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }

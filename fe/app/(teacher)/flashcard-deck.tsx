@@ -15,6 +15,8 @@ import {
 } from '@/src/api/flashcardsTeacher';
 import { DECK_BADGE } from '@/src/flashcards/deckBadge';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
+import { PublishSheet, SubmitForReviewSheet } from '@/src/teacher/AuthorSheets';
+import { scheduleItem } from '@/src/api/teacher';
 
 const MAX_SIDE = 1000;
 type Opt = { value: string; label: string };
@@ -183,17 +185,36 @@ export default function FlashcardDeckRoute() {
     }
   };
 
-  const lifecycle = async (action: 'submit' | 'publish') => {
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const scheduledAt = (deck as { publish_at?: string } | null)?.publish_at ?? null;
+  const schedule = async (iso: string | null) => {
+    if (!deck) return;
+    setBusy('publish');
+    try {
+      await scheduleItem('flashcard-decks', deck.id, iso);
+      setPublishOpen(false);
+      show(iso ? 'Scheduled' : 'Schedule cancelled', 'success');
+      setDeck({ ...deck, publish_at: iso ?? undefined } as typeof deck);
+    } catch (e) {
+      show(e instanceof ApiError ? e.message : 'Couldn’t schedule', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+  const lifecycle = async (action: 'submit' | 'publish', note?: string) => {
     if (!deck) return;
     setBusy(action);
     try {
       if (action === 'submit') {
-        await submitDeck(deck.id);
+        await submitDeck(deck.id, note);
+        setSubmitOpen(false);
         setDeck({ ...deck, status: 'pending_review', rejection_reason: undefined });
         show('Submitted for review', 'success');
       } else {
         await publishDeck(deck.id);
         setDeck({ ...deck, status: 'published' });
+        setPublishOpen(false);
         show('Published — students can study it now', 'success');
       }
     } catch (e) {
@@ -327,13 +348,13 @@ export default function FlashcardDeckRoute() {
             {editable ? (
               <PrimaryButton
                 label={deck.status === 'rejected' ? 'Resubmit for review' : 'Submit for review'}
-                onPress={() => lifecycle('submit')}
+                onPress={() => setSubmitOpen(true)}
                 loading={busy === 'submit'}
                 disabled={cards.length === 0 || detailsDirty}
               />
             ) : null}
             {editable && detailsDirty ? <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Save the details first.</Text> : null}
-            {deck.status === 'approved' ? <PrimaryButton label="Publish" onPress={() => lifecycle('publish')} loading={busy === 'publish'} /> : null}
+            {deck.status === 'approved' ? <PrimaryButton label={scheduledAt ? 'Change or cancel the schedule' : 'Publish'} onPress={() => setPublishOpen(true)} loading={busy === 'publish'} /> : null}
             {editable ? (
               <View style={{ alignItems: 'center' }}>
                 <TextButton label="Delete deck" onPress={() => setConfirmDeleteDeck(true)} />
@@ -367,6 +388,8 @@ export default function FlashcardDeckRoute() {
           <PrimaryButton label="Delete" onPress={removeDeck} loading={busy === 'deldeck'} style={{ flex: 1 }} />
         </View>
       </BottomSheet>
+      <SubmitForReviewSheet visible={submitOpen} onClose={() => setSubmitOpen(false)} onSubmit={(n) => lifecycle('submit', n)} resubmit={deck?.status === 'rejected'} loading={busy === 'submit'} />
+      <PublishSheet visible={publishOpen} onClose={() => setPublishOpen(false)} onPublishNow={() => lifecycle('publish')} onSchedule={schedule} scheduledAt={scheduledAt} loading={busy === 'publish'} />
     </SafeAreaView>
   );
 }
