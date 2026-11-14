@@ -65,6 +65,12 @@ func main() {
 			log.Printf("[Worker] auto-submitted %d expired attempts", n)
 		}
 	})
+	reviewSvc := services.NewReviewService(db.DB)
+	worker.RegisterTicker("scheduled_publish", time.Minute, func(ctx context.Context) {
+		if n := reviewSvc.PublishDue(ctx, time.Now()); n > 0 {
+			log.Printf("[Worker] published %d scheduled items", n)
+		}
+	})
 	pushSvc := services.NewPushService(db.DB, services.NewExpoSender())
 	worker.RegisterTicker("push_dispatch", 30*time.Second, func(ctx context.Context) {
 		if n, err := pushSvc.Dispatch(ctx, 200); err != nil {

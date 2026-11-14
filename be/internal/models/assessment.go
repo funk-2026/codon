@@ -63,6 +63,11 @@ type Test struct {
 	Reviewer             *User         `gorm:"foreignKey:ReviewedBy" json:"-"`
 	ReviewedAt           *time.Time    `json:"reviewed_at,omitempty"`
 	RejectionReason      *string       `gorm:"type:text" json:"rejection_reason,omitempty"`
+	ReviewMeta
+	// Shown to students before they start (rules, marking notes, syllabus).
+	Instructions *string `gorm:"type:text" json:"instructions,omitempty"`
+	// AuthorName is filled in for students ("by …"); never stored.
+	AuthorName *string `gorm:"-" json:"author_name,omitempty"`
 
 	// Custom-test module: authored tests are public; generated tests are private
 	// to their owner and never appear in shared lists.
@@ -93,6 +98,8 @@ type Question struct {
 	CorrectOption CorrectOption `gorm:"type:text;not null" json:"correct_option"`
 	Explanation   *string       `gorm:"type:text" json:"explanation,omitempty"`
 	OrderIndex    int           `gorm:"not null" json:"order_index"`
+	// Section is an optional heading inside a test ("Physics", "Section B").
+	Section *string `gorm:"type:text" json:"section,omitempty"`
 
 	// Rich-content + metadata (custom test module). All optional/defaulted so
 	// legacy rows keep working exactly as before.

@@ -36,6 +36,7 @@ type Deps struct {
 	Hacks     *handlers.BrainHackHandler
 	Cards     *handlers.FlashcardHandler
 	Extras    *handlers.ExtrasHandler
+	TE        *handlers.TeacherExtrasHandler
 	Extra     []func(api *gin.RouterGroup, d *Deps) // later milestones plug in here
 }
 
@@ -45,6 +46,7 @@ func NewDeps(db *gorm.DB, auth gin.HandlerFunc, sub *services.SubscriptionServic
 	an := handlers.NewAnalyticsHandler(db, eng)
 	return &Deps{
 		Extras: handlers.NewExtrasHandler(db, sub, eng, an),
+		TE:     handlers.NewTeacherExtrasHandler(db, services.NewReviewService(db)),
 		DB:     db, Auth: auth, SubSvc: sub, Scoring: scoring,
 		Tests: handlers.NewTestHandler(db), Attempts: handlers.NewAttemptHandler(db, scoring, sub),
 		Media: handlers.NewMediaHandler(db), TQ: handlers.NewTeacherQuestionHandler(db),
@@ -215,6 +217,19 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		teacher.POST("/questions/:id/corrections", d.Corrs.Submit)
 		teacher.GET("/questions/:id/stats", d.Analytics.QuestionStats)
 		teacher.GET("/inventory", d.Analytics.Inventory)
+		// Author tools: scheduling, review turnaround, clone, hand-over, deleting lessons, impact.
+		teacher.POST("/tests/:id/schedule", d.TE.ScheduleTest)
+		teacher.POST("/content/:id/schedule", d.TE.ScheduleContent)
+		teacher.POST("/brain-hacks/:id/schedule", d.TE.ScheduleHack)
+		teacher.POST("/flashcard-decks/:id/schedule", d.TE.ScheduleDeck)
+		teacher.GET("/review-stats", d.TE.ReviewStats)
+		teacher.DELETE("/content/:id", d.TE.DeleteContent)
+		teacher.POST("/tests/:id/clone", d.TE.CloneTest)
+		teacher.POST("/tests/:id/transfer", d.TE.TransferTest)
+		teacher.POST("/content/:id/transfer", d.TE.TransferContent)
+		teacher.GET("/tests/:id/stats", d.TE.TestStats)
+		teacher.GET("/content/:id/stats", d.TE.ContentStats)
+		teacher.GET("/impact", d.TE.Impact)
 		teacher.GET("/corrections", d.Corrs.Mine)
 		teacher.GET("/reports", d.Reports.TeacherInbox)
 		teacher.POST("/reports/:id/resolve", d.Reports.Resolve)

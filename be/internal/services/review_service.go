@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -59,16 +60,113 @@ func ownerScope(q *gorm.DB, r Reviewable, actor *models.User) *gorm.DB {
 
 // Submit: draft|rejected → pending_review (owner).
 func (s *ReviewService) Submit(ctx context.Context, actor *models.User, r Reviewable, id uuid.UUID, gate Gate) error {
-	return s.ownerTransition(ctx, actor, r, id, fromEditable, models.StatusPendingReview, "in draft/rejected state", gate)
+	return s.SubmitWithNote(ctx, actor, r, id, gate, "")
+}
+
+// SubmitWithNote is Submit plus a message for the reviewer ("fixed the answer key in Q4").
+func (s *ReviewService) SubmitWithNote(ctx context.Context, actor *models.User, r Reviewable, id uuid.UUID, gate Gate, note string) error {
+	note = strings.TrimSpace(note)
+	if len([]rune(note)) > 500 {
+		return Coded(400, "note_too_long", "the note to the reviewer can be at most 500 characters")
+	}
+	return s.ownerTransition(ctx, actor, r, id, fromEditable, models.StatusPendingReview, "in draft/rejected state", gate, note)
 }
 
 // Publish: approved → published (owner).
 func (s *ReviewService) Publish(ctx context.Context, actor *models.User, r Reviewable, id uuid.UUID, gate Gate) error {
-	return s.ownerTransition(ctx, actor, r, id, fromApproved, models.StatusPublished, "approved", gate)
+	return s.ownerTransition(ctx, actor, r, id, fromApproved, models.StatusPublished, "approved", gate, "")
+}
+
+// Schedule: an approved item goes live at `at` instead of now. A nil `at` cancels the schedule.
+// The worker's PublishDue does the actual publishing.
+func (s *ReviewService) Schedule(ctx context.Context, actor *models.User, r Reviewable, id uuid.UUID, gate Gate, at *time.Time) error {
+	if at != nil && !at.After(time.Now().Add(time.Minute)) {
+		return Coded(400, "invalid_publish_at", "choose a time in the future")
+	}
+	db := s.DB.WithContext(ctx)
+	q := ownerScope(db.Table(r.Table).Where("id = ? AND status IN ?", id, fromApproved), r, actor)
+	var n int64
+	if err := q.Count(&n).Error; err != nil {
+		return err
+	}
+	if n == 0 {
+		return r.notFound("approved")
+	}
+	if at != nil && gate != nil {
+		if err := gate(ctx, id); err != nil {
+			return err
+		}
+	}
+	return ownerScope(db.Table(r.Table).Where("id = ? AND status IN ?", id, fromApproved), r, actor).
+		Updates(map[string]interface{}{"publish_at": at, "updated_at": time.Now()}).Error
+}
+
+// PublishDue publishes every approved item whose scheduled time has come and tells its author.
+// Content videos still transcoding wait for the next run.
+func (s *ReviewService) PublishDue(ctx context.Context, now time.Time) int {
+	total := 0
+	for _, r := range []Reviewable{ReviewTest, ReviewContent, ReviewHack, ReviewDeck} {
+		cond := "status = ? AND publish_at IS NOT NULL AND publish_at <= ?"
+		if r.Table == "content_items" {
+			cond += " AND (content_type <> 'video' OR video_status = 'ready')"
+		}
+		var rows []struct {
+			ID    uuid.UUID
+			Owner uuid.UUID
+			Title string
+		}
+		if err := s.DB.WithContext(ctx).Table(r.Table).Select("id, "+r.OwnerCol+" AS owner, title").
+			Where(cond, models.StatusApproved, now).Limit(200).Scan(&rows).Error; err != nil {
+			continue
+		}
+		for _, row := range rows {
+			res := s.DB.WithContext(ctx).Table(r.Table).Where("id = ? AND status = ?", row.ID, models.StatusApproved).
+				Updates(map[string]interface{}{"status": models.StatusPublished, "publish_at": nil, "updated_at": now})
+			if res.Error != nil || res.RowsAffected == 0 {
+				continue
+			}
+			total++
+			Notify(s.DB.WithContext(ctx), row.Owner, r.NotifyKey+"_published", "Your "+r.Label+" is live", row.Title, map[string]interface{}{"id": row.ID})
+		}
+	}
+	return total
+}
+
+// ReviewStats tells an author how long review currently takes: the median wait over the last 30 days
+// (submitted → decided) and how many items are queued now.
+type ReviewStats struct {
+	Queued       int64    `json:"queued"`
+	MedianHours  *float64 `json:"median_hours,omitempty"`
+	SampleSize   int64    `json:"sample_size"`
+}
+
+func (s *ReviewService) Stats(ctx context.Context, now time.Time) ReviewStats {
+	var out ReviewStats
+	since := now.AddDate(0, 0, -30)
+	for _, r := range []Reviewable{ReviewTest, ReviewContent, ReviewHack, ReviewDeck} {
+		var n int64
+		s.DB.WithContext(ctx).Table(r.Table).Where("status = ?", models.StatusPendingReview).Count(&n)
+		out.Queued += n
+	}
+	var hours []float64
+	for _, r := range []Reviewable{ReviewTest, ReviewContent, ReviewHack, ReviewDeck} {
+		var part []float64
+		s.DB.WithContext(ctx).Table(r.Table).
+			Where("submitted_at IS NOT NULL AND reviewed_at IS NOT NULL AND reviewed_at >= ? AND reviewed_at > submitted_at", since).
+			Pluck("EXTRACT(EPOCH FROM (reviewed_at - submitted_at)) / 3600.0", &part)
+		hours = append(hours, part...)
+	}
+	out.SampleSize = int64(len(hours))
+	if len(hours) >= 3 {
+		sort.Float64s(hours)
+		m := hours[len(hours)/2]
+		out.MedianHours = &m
+	}
+	return out
 }
 
 func (s *ReviewService) ownerTransition(ctx context.Context, actor *models.User, r Reviewable, id uuid.UUID,
-	from []models.ContentStatus, to models.ContentStatus, state string, gate Gate) error {
+	from []models.ContentStatus, to models.ContentStatus, state string, gate Gate, note string) error {
 	db := s.DB.WithContext(ctx)
 	var n int64
 	if err := ownerScope(db.Table(r.Table).Where("id = ? AND status IN ?", id, from), r, actor).Count(&n).Error; err != nil {
@@ -84,7 +182,7 @@ func (s *ReviewService) ownerTransition(ctx context.Context, actor *models.User,
 	}
 	// The guarded UPDATE re-checks the state, so two concurrent requests cannot both win.
 	res := ownerScope(db.Table(r.Table).Where("id = ? AND status IN ?", id, from), r, actor).
-		Updates(map[string]interface{}{"status": to, "updated_at": time.Now()})
+		Updates(transitionFields(to, note))
 	if res.Error != nil {
 		return res.Error
 	}
@@ -95,6 +193,24 @@ func (s *ReviewService) ownerTransition(ctx context.Context, actor *models.User,
 		s.notifyAdmins(db, r, id)
 	}
 	return nil
+}
+
+func transitionFields(to models.ContentStatus, note string) map[string]interface{} {
+	now := time.Now()
+	f := map[string]interface{}{"status": to, "updated_at": now}
+	switch to {
+	case models.StatusPendingReview:
+		f["submitted_at"] = now
+		f["publish_at"] = nil
+		if note == "" {
+			f["submit_note"] = nil
+		} else {
+			f["submit_note"] = note
+		}
+	case models.StatusPublished:
+		f["publish_at"] = nil
+	}
+	return f
 }
 
 // notifyAdmins tells every active admin that something is waiting for review. Best effort: a failure
