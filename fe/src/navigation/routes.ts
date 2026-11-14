@@ -79,7 +79,9 @@ export const ROUTES = {
   },
   admin: {
     analyticsOverview: '/(admin)/analytics-overview',
+    announcements: '/(admin)/announcements',
     auditLog: '/(admin)/audit-log',
+    liveContent: '/(admin)/live-content',
     feedback: '/(admin)/feedback',
     homeUpdates: '/(admin)/home-updates',
     contentPreviewDetail: '/(admin)/content-preview-detail',

@@ -4,14 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CaretDown, CaretRight, ClipboardText, FileText, Plus, PlayCircle, WarningCircle } from 'phosphor-react-native';
 import {
-  BottomSheet, CourseSelector, EmptyState, InputField, PrimaryButton, Screen, ScreenHeader, SkeletonBlock, StatusBadge, TextButton, useToast, type BadgeStatus,
+  BottomSheet, ConfirmDialog, CourseSelector, EmptyState, InputField, PrimaryButton, Screen, ScreenHeader, SkeletonBlock, StatusBadge, TextButton, useToast, type BadgeStatus,
 } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { shadow } from '@/src/theme/elevation';
 import { listCourses, getCurriculum } from '@/src/api/courses';
 import { defaultCourse } from '@/src/api/courseSelection';
 import { adminListAllContent, adminListAllTests, createChapter, createSubject, updateChapter, updateSubject } from '@/src/api/admin';
-import { takedown } from '@/src/api/adminOps';
+import { createCourse, deleteChapter, deleteSubject, takedown } from '@/src/api/adminOps';
 import { ReasonSheet } from '@/src/admin/ReasonSheet';
 import { allPages } from '@/src/api/paginate';
 
@@ -58,6 +58,8 @@ export default function CourseStructureRoute() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
+  const [courseSheet, setCourseSheet] = useState(false);
+  const [removing, setRemoving] = useState<{ kind: 'subject' | 'chapter'; id: string; name: string } | null>(null);
   const [rename, setRename] = useState<{ kind: 'subject' | 'chapter'; id: string } | null>(null);
   const [down, setDown] = useState<{ id: string; title: string; type: ItemType } | null>(null);
   const close = () => { setSubjectSheet(false); setChapterFor(null); setName(''); setDescription(''); };
@@ -86,6 +88,39 @@ export default function CourseStructureRoute() {
       close();
     } catch {
       show('Failed to add chapter', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addCourse = async () => {
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    try {
+      const c = await createCourse(name.trim());
+      await queryClient.invalidateQueries({ queryKey: ['courses'] });
+      setCourseId(c.id);
+      show('Course added', 'success');
+      setCourseSheet(false);
+      setName('');
+    } catch (e) {
+      show(e instanceof Error && e.message ? e.message : 'Couldn’t add the course.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const doRemove = async () => {
+    if (!removing) return;
+    setBusy(true);
+    try {
+      await (removing.kind === 'subject' ? deleteSubject(removing.id) : deleteChapter(removing.id));
+      await queryClient.invalidateQueries({ queryKey: curriculumKey });
+      show(`${removing.kind === 'subject' ? 'Subject' : 'Chapter'} deleted`, 'success');
+      setRemoving(null);
+    } catch (e) {
+      // The server explains why when something still uses it ("move or remove them first").
+      show(e instanceof Error && e.message ? e.message : 'Couldn’t delete. Try again.', 'error');
+      setRemoving(null);
     } finally {
       setBusy(false);
     }
@@ -141,6 +176,7 @@ export default function CourseStructureRoute() {
         }
       />
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space['3xl'] + insets.bottom, gap: space.xs }} showsVerticalScrollIndicator={false}>
+        <TextButton label="New course" onPress={() => { setName(''); setCourseSheet(true); }} style={{ alignSelf: 'flex-start' }} />
         {courses.data && courses.data.length > 1 ? (
           <CourseSelector courses={courses.data} value={courseId} onChange={(id) => { setCourseId(id); setOpenSubject(null); setOpenChapters({}); }} />
         ) : null}
@@ -186,7 +222,10 @@ export default function CourseStructureRoute() {
                           </Pressable>
                           {open ? (
                             <View style={{ paddingHorizontal: space.md, paddingBottom: space.sm, gap: space['2xs'] }}>
-                              <TextButton label="Rename chapter" onPress={() => { setName(c.name); setRename({ kind: 'chapter', id: c.id }); }} style={{ alignSelf: 'flex-start' }} />
+                              <View style={{ flexDirection: 'row', gap: space.sm }}>
+                                <TextButton label="Rename chapter" onPress={() => { setName(c.name); setRename({ kind: 'chapter', id: c.id }); }} />
+                                <TextButton label="Delete chapter" onPress={() => setRemoving({ kind: 'chapter', id: c.id, name: c.name })} />
+                              </View>
                               {content.isPending || tests.isPending ? (
                                 <SkeletonBlock height={44} radius={radius.sm} />
                               ) : items.length === 0 ? (
@@ -210,7 +249,10 @@ export default function CourseStructureRoute() {
                         </View>
                       );
                     })}
-                    <TextButton label="Rename subject" onPress={() => { setName(s.name); setRename({ kind: 'subject', id: s.id }); }} style={{ alignSelf: 'flex-start', marginLeft: space.xs }} />
+                    <View style={{ flexDirection: 'row', gap: space.sm, marginLeft: space.xs }}>
+                      <TextButton label="Rename subject" onPress={() => { setName(s.name); setRename({ kind: 'subject', id: s.id }); }} />
+                      <TextButton label="Delete subject" onPress={() => setRemoving({ kind: 'subject', id: s.id, name: s.name })} />
+                    </View>
                     <Pressable onPress={() => { setName(''); setChapterFor({ id: s.id, name: s.name }); }} accessibilityRole="button" style={{ padding: space.sm, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
                       <Plus size={18} color={color('accent/default')} weight="bold" />
                       <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>Add a chapter</Text>
@@ -230,6 +272,22 @@ export default function CourseStructureRoute() {
           <PrimaryButton label="Add subject" onPress={addSubject} loading={busy} disabled={!name.trim()} />
         </View>
       </BottomSheet>
+      <BottomSheet visible={courseSheet} onClose={() => { setCourseSheet(false); setName(''); }} title="New course" dismissable={!busy}>
+        <View style={{ gap: space.md, paddingHorizontal: space.lg, paddingTop: space.sm }}>
+          <InputField label="Course name" value={name} onChangeText={setName} maxLength={80} />
+          <PrimaryButton label="Add course" onPress={addCourse} loading={busy} disabled={name.trim().length < 2} />
+        </View>
+      </BottomSheet>
+      <ConfirmDialog
+        visible={!!removing}
+        title={`Delete ${removing?.kind ?? ''} “${removing?.name ?? ''}”?`}
+        message="Only an empty one can be deleted. If anything still uses it, you’ll be told what to move first."
+        confirmLabel="Delete"
+        tone="danger"
+        loading={busy}
+        onConfirm={doRemove}
+        onCancel={() => setRemoving(null)}
+      />
       <BottomSheet visible={!!rename} onClose={() => { setRename(null); setName(''); }} title={rename?.kind === 'subject' ? 'Rename subject' : 'Rename chapter'} dismissable={!busy}>
         <View style={{ gap: space.md, paddingHorizontal: space.lg, paddingTop: space.sm }}>
           <InputField label="Name" value={name} onChangeText={setName} maxLength={120} />

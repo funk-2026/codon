@@ -77,9 +77,21 @@ A product review of the admin role after the UX rework, from the frontend code a
 - Read the audit log; read and triage feedback (new status columns).
 - `status=all` plus `creator_id`, `uploader_id` and `chapter_id` filters; payments `search` and `/admin/payments/summary`.
 
+**Added in the second round** (backend written but not compiled, like the first):
+- Audit rows for review approvals and rejections (tests, lessons, Brain Hacks, decks), KYC decisions, plan create, update and deactivate, and subject and chapter create, update and delete.
+- **Take-down for every kind of content:** a new **Live content** screen lists what students can see (tests, lessons, hacks, decks) with a Take down action and reason; the author is notified.
+- **Create a course** and **delete an empty subject or chapter** (refused, with an explanation, while anything uses it), in Course structure.
+- **Add a teacher by phone number** (Users tab): the account exists before their first sign-in, so they land in the teacher app. An existing number opens that user instead.
+- **CSV exports** of users and payments (shared from the app; formula-safe cells; audited).
+- **Announcements** to students, teachers or everyone, with an audience count and a confirm step.
+- **Admins are notified** (in-app row and push) when something is submitted for review; tapping the push opens the Review tab (the only admin screen a notification may open).
+- **A suspended user who is signed in** is signed out on their next request and sees "Your account has been suspended" on the sign-in screen.
+
+**Deliberately not built**
+- **Refunds.** They move real money through the payment gateway and can't be tested here; building one blind is the wrong call. Needs a gateway-side design (full or partial, who approves, reconciliation).
+- **A notifications inbox inside the admin app.** Admins get push and the Review badge; a separate inbox would repeat both.
+
 **Still open**
-- **Audit coverage:** KYC decisions, content approvals and rejections, plan and subject edits are not yet written to the audit log.
-- **Take-down screens for Brain Hacks and decks:** the endpoint supports them; the app only offers it for tests and lessons.
-- **Admin notifications** when something is waiting, **announcements**, **refunds and reconciliation**, **exports**, **create a course**, **invite a teacher by phone**.
-- **Deleting a subject or chapter** (there is no backend delete).
-- **A signed-in user who gets suspended** sees the generic error until their next request; there is no dedicated "your account was suspended" screen.
+- Audit writes for the actions that already had none outside this round (for example wellness articles and home banners).
+- A scheduled digest instead of one push per submission, if the volume is high.
+- A dedicated suspended-account screen with a support contact (the message is shown on the sign-in screen today).

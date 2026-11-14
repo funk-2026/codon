@@ -87,3 +87,18 @@ export const adminDeleteHomeUpdate = (id: string) => apiFetch<{ message: string 
 /** Hand an open question report to a teacher (or admin). Existing endpoint. */
 export const reassignReport = (id: string, assigneeId: string) =>
   apiFetch<unknown>(`/admin/reports/${id}/reassign`, { method: 'POST', body: JSON.stringify({ assignee_id: assigneeId }) });
+
+// ── Courses, teachers, announcements, exports ───────────────────────────────
+
+export const createCourse = (name: string) => apiFetch<{ id: string; name: string }>('/admin/courses', { method: 'POST', body: JSON.stringify({ name }) });
+export const deleteSubject = (id: string) => apiFetch<{ message: string }>(`/admin/subjects/${id}`, { method: 'DELETE' });
+export const deleteChapter = (id: string) => apiFetch<{ message: string }>(`/admin/chapters/${id}`, { method: 'DELETE' });
+
+/** Create a teacher before they have signed in. A 409 `user_exists` carries the existing user's id in `details.user_id`. */
+export const inviteTeacher = (p: { phone_number: string; name?: string }) =>
+  apiFetch<{ id: string; phone_number: string }>('/admin/users/invite', { method: 'POST', body: JSON.stringify(p) });
+
+export type Audience = 'students' | 'teachers' | 'all';
+export const announcementAudience = (audience: Audience) => apiFetch<{ count: number }>(`/admin/announcements/audience${qs({ audience })}`);
+export const sendAnnouncement = (p: { audience: Audience; title: string; body?: string; route?: string }) =>
+  apiFetch<{ sent: number }>('/admin/announcements', { method: 'POST', body: JSON.stringify(p) });

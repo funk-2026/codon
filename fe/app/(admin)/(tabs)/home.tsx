@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { CaretRight, ChartBar, ChatCircleText, ClockCounterClockwise, FolderOpen, GearSix, HandHeart, Megaphone, Tag } from 'phosphor-react-native';
+import { Broadcast, CaretRight, ChartBar, ChatCircleText, ClockCounterClockwise, FolderOpen, GearSix, HandHeart, Megaphone, ShieldCheck, Tag } from 'phosphor-react-native';
 import { ErrorBanner, Screen, SkeletonBlock, TAB_EDGES } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAdminSummary } from '@/src/queries/admin';
@@ -22,7 +22,9 @@ const GROUPS: { title: string; tools: Tool[] }[] = [
     tools: [
       { label: 'Tags and topics', text: 'Create, merge and browse', Icon: Tag, href: ROUTES.admin.taxonomy },
       { label: 'Wellness articles', text: 'Write what students read in Support', Icon: HandHeart, href: ROUTES.admin.wellness },
+      { label: 'Live content', text: 'Pull something back with a reason', Icon: ShieldCheck, href: ROUTES.admin.liveContent },
       { label: 'Home banners', text: 'What students see at the top of Home', Icon: Megaphone, href: ROUTES.admin.homeUpdates },
+      { label: 'Announcement', text: 'Message every student or teacher', Icon: Broadcast, href: ROUTES.admin.announcements },
     ],
   },
   {

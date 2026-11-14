@@ -19,7 +19,9 @@ describe('push rules', () => {
   it('only opens in-app student routes from a notification', () => {
     expect(routeFromNotification({ route: '/(student)/test-result' })).toBe('/(student)/test-result');
     expect(routeFromNotification({ route: 'https://evil.example' })).toBeNull();
-    expect(routeFromNotification({ route: '/(admin)/(tabs)/review' })).toBeNull();
+    expect(routeFromNotification({ route: '/(admin)/(tabs)/review' })).toBe('/(admin)/(tabs)/review');
+    expect(routeFromNotification({ route: '/(admin)/user-detail' })).toBeNull();
+    expect(routeFromNotification({ route: '/(admin)/(tabs)/review/../../x' })).toBeNull();
     expect(routeFromNotification({ route: '/(student)/../(admin)' })).toBeNull();
     expect(routeFromNotification({})).toBeNull();
     expect(routeFromNotification(null)).toBeNull();

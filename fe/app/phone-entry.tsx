@@ -1,3 +1,4 @@
+import { takeSuspendedNotice } from '@/src/auth/suspendedNotice';
 import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
@@ -90,7 +91,8 @@ export default function PhoneEntryRoute() {
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [apiError, setApiError] = useState('');
+  // Shown once when the server signed a suspended user out.
+  const [apiError, setApiError] = useState(() => (takeSuspendedNotice() ? 'Your account has been suspended. Contact support if you think this is a mistake.' : ''));
   const inputRef = useRef<TextInputInstance>(null);
 
   const shakeX = useSharedValue(0);
