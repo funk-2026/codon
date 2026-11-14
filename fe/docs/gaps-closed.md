@@ -1,6 +1,6 @@
 # Gaps closed so far: one reference (2026-11-14)
 
-Everything we reviewed and fixed across the student, teacher and admin apps, plus what is still open. Detail for each lives in the per-role docs named at the top of each section. "Backend, uncompiled" means it was written without a Go toolchain: it needs `go build ./...`, `go vet ./...`, `go test ./internal/router/...` and migrations 0006, 0007 and 0008 before release.
+Everything we reviewed and fixed across the student, teacher and admin apps, plus what is still open. "Backend, uncompiled" means it was written without a Go toolchain: it needs `go build ./...`, `go vet ./...`, `go test ./internal/router/...` and migrations 0006, 0007 and 0008 before release.
 
 ## 1. Navigation and UX rework (all three roles)
 
