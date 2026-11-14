@@ -222,6 +222,16 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 		updates["video_status"] = vs
 		updates["hls_playlist_url"] = nil
 	}
+	// A new video on a lesson students can already reach must be looked at again before they see it.
+	backToReview := fileKeyChanged && item.ContentType == models.ContentVideo &&
+		(item.Status == models.StatusApproved || item.Status == models.StatusPublished)
+	if backToReview {
+		now := time.Now()
+		updates["status"] = models.StatusPendingReview
+		updates["submitted_at"] = now
+		updates["submit_note"] = "Video replaced"
+		updates["publish_at"] = nil
+	}
 
 	if err := h.DB.WithContext(c.Request.Context()).Model(&item).Updates(updates).Error; err != nil {
 		httpx.Fail(c, err)
@@ -229,6 +239,9 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	}
 	h.DB.WithContext(c.Request.Context()).First(&item, item.ID)
 
+	if backToReview {
+		h.Review.AskReview(c.Request.Context(), services.ReviewContent, item.ID)
+	}
 	if fileKeyChanged && item.ContentType == models.ContentVideo {
 		if guid := bunny.GUIDFromKey(item.FileKey); guid != "" {
 			jobs.EnqueueJob(h.DB, jobs.JobTypeVideoStatusCheck, jobs.VideoStatusCheckPayload{

@@ -193,3 +193,24 @@ func TestNotificationsAreScopedByView(t *testing.T) {
 		t.Fatalf("marking the admin view read must not touch the student view: %v", out["unread_count"])
 	}
 }
+
+// Replacing the video of a lesson students can see sends it back to review; a draft stays a draft.
+func TestReplaceVideoSendsLiveLessonBackToReview(t *testing.T) {
+	e := newEnv(t)
+	tch := &e.w.Teacher
+	vs := models.VideoReady
+	live := models.ContentItem{Title: "V", CourseID: e.w.Course.ID, ContentType: models.ContentVideo, ChapterID: e.w.Chapter.ID,
+		UploadedBy: tch.ID, FileKey: "bunny:aaaa", Status: models.StatusPublished, VideoStatus: &vs}
+	e.db.Create(&live)
+	out := e.mustDo(200, "PATCH", "/teacher/content/"+live.ID.String(), tch, map[string]interface{}{"file_key": "bunny:bbbb"})
+	if str(out, "status") != "pending_review" {
+		t.Fatalf("a live lesson with a new video must go back to review: %v", out["status"])
+	}
+	draft := models.ContentItem{Title: "D", CourseID: e.w.Course.ID, ContentType: models.ContentVideo, ChapterID: e.w.Chapter.ID,
+		UploadedBy: tch.ID, FileKey: "bunny:cccc", Status: models.StatusDraft, VideoStatus: &vs}
+	e.db.Create(&draft)
+	out = e.mustDo(200, "PATCH", "/teacher/content/"+draft.ID.String(), tch, map[string]interface{}{"file_key": "bunny:dddd"})
+	if str(out, "status") != "draft" {
+		t.Fatalf("a draft stays a draft: %v", out["status"])
+	}
+}

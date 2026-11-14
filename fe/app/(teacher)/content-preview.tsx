@@ -17,6 +17,7 @@ import { ROUTES } from '@/src/navigation/routes';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 import { BrainHackDetail } from '@/src/teacher/BrainHackDetail';
 import { PublishSheet, SubmitForReviewSheet, TransferSheet } from '@/src/teacher/AuthorSheets';
+import { ReplaceVideo } from '@/src/teacher/ReplaceVideo';
 import { ItemStatsCard } from '@/src/teacher/ItemStatsCard';
 import { describeWait, formatScheduled } from '@/src/teacher/schedule';
 
@@ -278,6 +279,7 @@ function ContentPreview() {
 
   const isLesson = contentType === 'Video' || contentType === 'Document';
   const canDelete = !!id && ((contentType === 'Test' && (status === 'draft' || status === 'pending' || status === 'rejected')) || (isLesson && (status === 'draft' || status === 'rejected')));
+  const live = status === 'approved' || status === 'published';
   const canEditDetails = !!id && (contentType === 'Test' || isLesson) && (status === 'draft' || status === 'rejected');
   const scheduledAt = (contentType === 'Test' ? testData?.publish_at : contentData?.publish_at) ?? null;
   const submitNote = (contentType === 'Test' ? testData?.submit_note : contentData?.submit_note) ?? null;
@@ -438,6 +440,7 @@ function ContentPreview() {
               </Text>
               {id ? (
                 <View style={{ paddingHorizontal: space.sm, gap: space.xs }}>
+                  <ReplaceVideo contentId={String(id)} status={status} onReplaced={() => { loadItem(); void qc.invalidateQueries({ queryKey: ['teacher'] }); show(live ? 'New video uploaded. It is back in review.' : 'Video replaced', 'success'); }} />
                   <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>LECTURE PDFS</Text>
                   <LecturePdfEditor
                     slots={pdfSlots}
