@@ -8,5 +8,5 @@ export function useServerNow(offset: number, active = true): number {
     const t = setInterval(() => setNow(Date.now() + offset), 1000);
     return () => clearInterval(t);
   }, [offset, active]);
-  return active ? now : Date.now() + offset;
+  return now;
 }

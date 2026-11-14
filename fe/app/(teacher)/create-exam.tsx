@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -52,8 +52,9 @@ export default function CreateExamRoute() {
   const series = useQuery({ queryKey: ['teacher', 'series', effectiveCourse], queryFn: () => listSeries(effectiveCourse ?? undefined).then((r) => r.series), enabled: !!effectiveCourse });
 
   // A style sets sensible defaults; the teacher can change every one.
-  useEffect(() => {
-    if (style === 'school') {
+  const chooseStyle = (next: ExamStyle) => {
+    setStyle(next);
+    if (next === 'school') {
       setLive(false);
       setKind((k) => (k === 'full' || k === 'pyq' ? 'chapter' : k));
       setDuration((d) => (d === '180' ? '30' : d));
@@ -65,7 +66,7 @@ export default function CreateExamRoute() {
       setMarksCorrect('4');
       setMarksWrong('-1');
     }
-  }, [style]);
+  };
 
   const kinds = style === 'school' ? KINDS.filter((k) => k !== 'full' && k !== 'pyq') : KINDS;
   const dur = Number(duration);
@@ -130,7 +131,7 @@ export default function CreateExamRoute() {
       <ScrollView contentContainerStyle={[{ padding: space.md, paddingBottom: space['3xl'] + insets.bottom }, section]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View>
           {label('EXAM STYLE')}
-          <SegmentedControl options={[{ key: 'neet' as const, label: 'NEET style' }, { key: 'school' as const, label: 'School' }]} value={style} onChange={setStyle} />
+          <SegmentedControl options={[{ key: 'neet' as const, label: 'NEET style' }, { key: 'school' as const, label: 'School' }]} value={style} onChange={chooseStyle} />
           <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
             {style === 'neet' ? 'The exam-hall look: a question palette, section tabs and a server timer. Can be a live event.' : 'Plain and simple: a list of questions and a timer. Always available, no live event.'}
           </Text>

@@ -109,3 +109,9 @@ Redirects for old links: `moderation-tests`, `moderation-videos-docs`, `content-
 ## Backend redundancy: Practice
 
 See the Practice cleanup proposal in [future-gaps.md](future-gaps.md).
+
+## Tests (exam simulation)
+
+- **Student:** a **Tests** tab (Live and upcoming, Library, My results), then Test pre-start (instructions, lobby), the exam hall, Result (or "results not out yet"), Analysis, Leaderboard, Review (opens with results). Reminders and "results out" arrive as notifications.
+- **Teacher:** Home or Content → **New exam** (style, kind, live schedule, series). Questions are added in the question builder as before. Edit settings from the test's ⋯ menu.
+- **Admin:** Home → **Exams** (monitor, extend, results time, recompute scores).

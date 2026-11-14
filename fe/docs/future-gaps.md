@@ -71,11 +71,13 @@ Not built: streak freeze or recovery, weekly summary, leaderboards, badges. Need
 ### 13. More push notifications
 Done: a reminder three days before a plan ends, and a reminder to admins when something is submitted for review. Not done: "a new test in your chapter", inactivity nudges, exam countdown milestones. Needs frequency rules, quiet hours and per-type opt-outs so students aren't over-messaged.
 
-## Parked: the Tests vs Q Bank restructure (a big change, decided to do later)
-Today both are lists of tests under a chapter. Direction agreed in principle, not built:
-- **Q Bank** = learning by question (subject → chapter → topic, untimed, answers shown), with progress per question and a **reset** that clears practice progress but keeps attempt history.
-- **Tests** = measuring, with a `kind` (chapter, subject, mini, grand). Subject and grand tests have no chapter (the backend already allows it). Grand and mini tests get a start and end window, rank, percentile and a **leaderboard** (first name plus initial, opt-out; never on Q Bank).
-- Needs decisions: live scheduled events or always available; keep or wipe history on reset; leaderboard names.
+## Tests: what is left
+Tests are built as exam simulations (see `tests-product-spec.md`, section 17). Left:
+- **Verify first:** the backend for this work was written without a Go toolchain: `go build ./...`, `go vet ./...`, `go test ./internal/router/...`, then apply migration `0009` and run the worker (reminders and results announcements are worker jobs).
+- **Before the first live test:** a dry run with about 50 people and a load test at about 10,000 simulated students.
+- **Next release:** answer-key challenges by students; a paper builder with a proof stage; difficulty calibration for teachers.
+- **Later:** shuffling, languages, series pricing, parent report, rank predictor, share card.
+- **Q Bank** is still a list of tests under a chapter. Its own progress per question and a reset (keeping history) are still to do.
 
 ## Still to confirm
 - **Large video upload:** the code was hardened (retries, no backwards percent, size check, retry with the same file) but the real cause was not found. If it still fails, send the error text the app shows ("Upload failed: …") and the file size. Background upload (keeping an upload alive when the app is closed) needs a device build.

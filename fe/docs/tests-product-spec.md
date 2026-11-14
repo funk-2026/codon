@@ -1,6 +1,6 @@
 # Tests: product spec (exam simulation)
 
-Status: **decisions complete, nothing built.** Next step: a Phase 1 build plan. Written 2026-11-14 as a product review of what a "Test" must be in Codon, across the student, teacher and admin apps, and whether the course structure still makes sense.
+Status: **Phase 1 and live exams are built** on branch `feature/tests-exam-simulation` (section 17). The backend is uncompiled and untested; see the checklist in `future-gaps.md`. Written 2026-11-14 as a product review of what a "Test" must be in Codon, across the student, teacher and admin apps, and whether the course structure still makes sense.
 
 This replaces the idea that a Test is "a Q Bank set with a timer". The goal: a student who takes a Codon test should feel they sat the real exam, and trust the score, the rank and the analysis.
 
@@ -323,3 +323,27 @@ None blocking. One to revisit later: the 18-and-over assumption. Before school t
 ## 16. What is explicitly out of scope for now
 
 JEE (a future exam style), camera or microphone proctoring, adaptive tests, multi-answer and numeric question types (NEET does not use them), written-answer school papers, friends and group boards, video solutions, other languages than English, key challenges in the first release, paid mentor evaluation, and a web exam client.
+
+## 17. What was built, and what is left
+
+**Built (branch `feature/tests-exam-simulation`)**
+
+| Area | What exists |
+|---|---|
+| Data | Migration `0009_exams.sql`: exam style, kind, delivery, live schedule, late entry, admin extension, results time, rank visibility, series, exam year; official and source on attempts; leave-app counters; series and registrations tables; leaderboard opt-out |
+| Rules | `services/exam.go` (phases, window, start decision, result release) with unit tests; first attempt inside the window is official; late starters get less time; after the event a start is practice |
+| Hidden results | A live test keeps the score, the answers, the leaderboard and the analysis back until results open (minimum gap setting `exams.min_result_gap_minutes`, default 15) |
+| Ranks | Rank is always "rank X of N" among official live attempts; practice attempts get an estimated rank; percentile hidden under `results.percentile_min` (default 30); rank can be limited to subscribers per test |
+| Leaderboard | Top 10 with first name and initial, own position, opt-out in Edit profile; school-style tests show only your own position |
+| Analysis | Per section: correct, wrong, skipped, marks, marks lost to negative marking, time, class average and best; wrong answers under 20 seconds; leave-app count |
+| Student app | Own **Tests** tab (Live and upcoming, Library by series, My results), remind-me, lobby with countdown on the server clock, instructions page with a read-and-agree step, exam hall with section tabs, five palette states, "Save and next", leave-app tracking, pending-results screen |
+| Teacher app | **New exam** form (style, kind, live schedule, series, rank visibility, instructions), edit settings, series created inline, pattern hint (warning only) |
+| Admin app | **Exams** screen: live monitor numbers, extend after an outage, results time, preview and apply recompute after a key correction (students are told) |
+| Worker | Reminders (a day, an hour, ten minutes before) and a "results are out" notice |
+
+**Not built (still in the plan)**
+- Key challenges by students (decided: next release). Admins can already correct a key and recompute.
+- A paper builder that fills sections from the question bank, a proof stage, difficulty calibration.
+- Shuffling, other languages, an OMR view, pricing and bundles for a series, parent report, rank predictor, share card.
+- Per-section timers and per-section question counts as enforced rules (the style only warns).
+- Load testing and a dry run before the first live test. Do not run a live exam without them.
