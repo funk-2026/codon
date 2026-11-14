@@ -18,7 +18,7 @@ import { DailyGoalCard } from '@/src/home/DailyGoalCard';
 import { BrainHackOfTheDay, HomeUpdatesCarousel } from '@/src/home/HomeShelves';
 import { WeekStrip } from '@/src/home/WeekStrip';
 import { daysUntil, formatExamDate } from '@/src/profile/examDate';
-import { useExplore } from '@/src/queries/discover';
+import { useExplore, useNotifications } from '@/src/queries/discover';
 import { useFlag } from '@/src/config/AppConfigContext';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
@@ -57,7 +57,9 @@ export default function HomeDashboardRoute() {
   const attempts = useAttempts();
   const loadError = me.isError || progress.isError || breakdown.isError || recent.isError;
   const loadData = () => void Promise.all([me.refetch(), progress.refetch(), breakdown.refetch(), recent.refetch(), attempts.refetch()]);
-  useRefetchOnFocus(loadData);
+  const notifications = useNotifications();
+  const unread = notifications.data?.pages[0]?.unread_count ?? 0;
+  useRefetchOnFocus(() => { loadData(); void notifications.refetch(); });
 
   // One Continue card: an unfinished test wins over the last video/notes item.
   const inProgress = attempts.data?.attempts.find((a) => a.status === 'in_progress') ?? null;
@@ -116,10 +118,11 @@ export default function HomeDashboardRoute() {
           onPress={() => router.push(ROUTES.student.notifications)}
           hitSlop={space.xs}
           accessibilityRole="button"
-          accessibilityLabel="Notifications"
+          accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
           style={[styles.avatar, { width: d, height: d, borderRadius: d / 2, backgroundColor: color('header/chip') }]}
         >
-          <Bell size={size === 'large' ? 22 : 18} color={color('header/text')} weight="regular" />
+          <Bell size={size === 'large' ? 22 : 18} color={color('header/text')} weight={unread > 0 ? 'fill' : 'regular'} />
+          {unread > 0 ? <View style={{ position: 'absolute', top: 6, right: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: color('semantic/danger') }} /> : null}
         </Pressable>
         <Pressable
           onPress={() => router.push(ROUTES.student.profile)}
