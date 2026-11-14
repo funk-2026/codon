@@ -71,6 +71,17 @@ Not built: streak freeze or recovery, weekly summary, leaderboards, badges. Need
 ### 13. More push notifications
 Done: a reminder three days before a plan ends, and a reminder to admins when something is submitted for review. Not done: "a new test in your chapter", inactivity nudges, exam countdown milestones. Needs frequency rules, quiet hours and per-type opt-outs so students aren't over-messaged.
 
+## Parked: the Tests vs Q Bank restructure (a big change, decided to do later)
+Today both are lists of tests under a chapter. Direction agreed in principle, not built:
+- **Q Bank** = learning by question (subject → chapter → topic, untimed, answers shown), with progress per question and a **reset** that clears practice progress but keeps attempt history.
+- **Tests** = measuring, with a `kind` (chapter, subject, mini, grand). Subject and grand tests have no chapter (the backend already allows it). Grand and mini tests get a start and end window, rank, percentile and a **leaderboard** (first name plus initial, opt-out; never on Q Bank).
+- Needs decisions: live scheduled events or always available; keep or wipe history on reset; leaderboard names.
+
+## Still to confirm
+- **Large video upload:** the code was hardened (retries, no backwards percent, size check, retry with the same file) but the real cause was not found. If it still fails, send the error text the app shows ("Upload failed: …") and the file size. Background upload (keeping an upload alive when the app is closed) needs a device build.
+- **Landscape video player:** the video is now capped to about half the screen when the phone is sideways; check on a device.
+- **Pulse / fast revision** (images, subject and chapter-wise, bookmarks), **Brain Hacks review with a videos section**, and a richer **Progress** section: not defined yet.
+
 ## Teacher: needs a decision
 - **Earnings and recognition:** are teachers paid per content or per student, and do you want badges or a leaderboard? Nothing is built.
 - **Question types:** single-answer only today. Multiple-correct, numeric, assertion-reason, matching and passage questions need a decision on which exams need them, then backend and student-app work.

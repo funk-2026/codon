@@ -5,7 +5,6 @@ import { EmptyState, SecondaryButton, SkeletonBlock, TextButton } from '@/src/co
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { shadow } from '@/src/theme/elevation';
 import { listCustomTests, type CustomTestRow, type CustomTestState } from '@/src/api/customTests';
-import { getModule } from '@/src/modules/registry';
 import { ROUTES } from '@/src/navigation/routes';
 import { useCursorList } from '@/src/queries/useCursorList';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
@@ -53,7 +52,7 @@ export function CustomTestsPanel({ query, state }: { query: string; state: Custo
         </View>
         <View style={{ flex: 1, marginLeft: space.sm }}>
           <Text style={[type['type/h3'], { color: color('text/primary') }]}>Build a custom test</Text>
-          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]} numberOfLines={1}>{getModule('custom').descriptor}</Text>
+          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]} numberOfLines={2}>Pick subjects, chapters and difficulty, choose how many questions, and we make a test just for you. Mix in your bookmarks or the questions you got wrong.</Text>
         </View>
         <CaretRight size={20} color={color('text/tertiary')} />
       </Pressable>
