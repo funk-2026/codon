@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"strings"
@@ -392,6 +394,65 @@ func (h *FlashcardHandler) AddCard(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"card": card, "media": h.mediaOfCards(c, []models.Flashcard{card})})
+}
+
+type bulkCardsRequest struct {
+	Cards []cardRequest `json:"cards"`
+}
+
+// BulkAddCards godoc
+//
+//	@Summary		Add many cards to a deck at once (Teacher)
+//	@Description	All or nothing: if any card is invalid nothing is added and the error names the row. Up to 500 cards per call.
+//	@Tags			Teacher
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string				true	"Deck UUID"
+//	@Param			body	body		bulkCardsRequest	true	"Cards"
+//	@Success		201		{object}	map[string]interface{}
+//	@Router			/api/v1/teacher/flashcard-decks/{id}/cards/bulk [post]
+func (h *FlashcardHandler) BulkAddCards(c *gin.Context) {
+	user := middleware.GetUser(c)
+	d, ok := h.myDeck(c)
+	if !ok {
+		return
+	}
+	if !deckEditable(d) {
+		respondErr(c, http.StatusConflict, "locked", "cards can only be added to draft or rejected decks")
+		return
+	}
+	var req bulkCardsRequest
+	if c.ShouldBindJSON(&req) != nil || len(req.Cards) == 0 || len(req.Cards) > 500 {
+		respondErr(c, http.StatusBadRequest, "bad_request", "send between 1 and 500 cards")
+		return
+	}
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var pos struct{ Max int }
+		tx.Model(&models.Flashcard{}).Select("COALESCE(MAX(position), 0) AS max").Where("deck_id = ?", d.ID).Scan(&pos)
+		for i, r := range req.Cards {
+			if r.Front == nil || r.Back == nil {
+				return services.Coded(http.StatusUnprocessableEntity, "invalid_card", fmt.Sprintf("row %d: front and back are required", i+1))
+			}
+			card := models.Flashcard{ID: uuid.New(), DeckID: d.ID, ContentFormat: models.ContentFormatRichV1, Position: pos.Max + i + 1}
+			if err := h.saveCard(c, tx, user, &card, r); err != nil {
+				var ce *services.CodedError
+				if errors.As(err, &ce) {
+					return services.Coded(ce.Status, ce.Code, fmt.Sprintf("row %d: %s", i+1, ce.Msg))
+				}
+				return err
+			}
+			if err := tx.Create(&card).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(d).UpdateColumn("card_count", gorm.Expr("card_count + ?", len(req.Cards))).Error
+	})
+	if err != nil {
+		respondService(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"added": len(req.Cards)})
 }
 
 func (h *FlashcardHandler) cardAndDeck(c *gin.Context) (*models.Flashcard, *models.FlashcardDeck, bool) {

@@ -214,3 +214,29 @@ func TestReplaceVideoSendsLiveLessonBackToReview(t *testing.T) {
 		t.Fatalf("a draft stays a draft: %v", out["status"])
 	}
 }
+
+// A bulk import adds every card or none, and says which row is wrong.
+func TestBulkAddCards(t *testing.T) {
+	e := newEnv(t)
+	tch := &e.w.Teacher
+	deck := e.mustDo(201, "POST", "/teacher/flashcard-decks", tch, map[string]interface{}{"title": "Bulk", "course_id": e.w.Course.ID.String()})
+	id := str(deck, "id")
+	if id == "" {
+		id = str(deck, "deck", "id")
+	}
+	good := []map[string]string{{"front": "Q1", "back": "A1"}, {"front": "Q2", "back": "A2"}}
+	out := e.mustDo(201, "POST", "/teacher/flashcard-decks/"+id+"/cards/bulk", tch, map[string]interface{}{"cards": good})
+	if out["added"].(float64) != 2 {
+		t.Fatalf("added %v", out["added"])
+	}
+	bad := []map[string]string{{"front": "Q3", "back": "A3"}, {"front": " ", "back": "A4"}}
+	code, body := e.do("POST", "/teacher/flashcard-decks/"+id+"/cards/bulk", tch, map[string]interface{}{"cards": bad})
+	if code != 400 && code != 422 {
+		t.Fatalf("a bad row must refuse the whole import: %d %v", code, body)
+	}
+	var n int64
+	e.db.Model(&models.Flashcard{}).Where("deck_id = ?", id).Count(&n)
+	if n != 2 {
+		t.Fatalf("nothing from the failed import may be saved, deck has %d cards", n)
+	}
+}

@@ -68,3 +68,7 @@ export const reorderCards = (deckId: string, ids: string[]) =>
 
 export const submitDeck = (id: string, note?: string) => apiFetch<{ message: string }>(`/teacher/flashcard-decks/${id}/submit-for-review`, { method: 'POST', body: JSON.stringify({ note: note ?? '' }) });
 export const publishDeck = (id: string) => apiFetch<{ message: string }>(`/teacher/flashcard-decks/${id}/publish`, { method: 'POST' });
+
+/** POST /teacher/flashcard-decks/:id/cards/bulk — all or nothing, up to 500 cards. */
+export const addCardsBulk = (deckId: string, cards: { front: string; back: string }[]) =>
+  apiFetch<{ added: number }>(`/teacher/flashcard-decks/${deckId}/cards/bulk`, { method: 'POST', body: JSON.stringify({ cards }) });

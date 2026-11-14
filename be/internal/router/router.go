@@ -202,6 +202,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		teacher.PATCH("/flashcard-decks/:id", d.Cards.UpdateDeck)
 		teacher.DELETE("/flashcard-decks/:id", d.Cards.DeleteDeck)
 		teacher.POST("/flashcard-decks/:id/cards", d.Cards.AddCard)
+		teacher.POST("/flashcard-decks/:id/cards/bulk", d.Cards.BulkAddCards)
 		teacher.POST("/flashcard-decks/:id/reorder", d.Cards.ReorderCards)
 		teacher.POST("/flashcard-decks/:id/submit-for-review", d.Cards.SubmitDeck)
 		teacher.POST("/flashcard-decks/:id/publish", d.Cards.PublishDeck)
