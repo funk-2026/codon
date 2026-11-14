@@ -4,7 +4,7 @@ import { flushNow } from './collector';
 /**
  * Reports uncaught JS errors as `app.crash` events through the same collector (so it is also off unless
  * analytics is switched on), then lets React Native's own handler run. A real crash reporter (Sentry,
- * Crashlytics) can replace this; see docs/open-decisions.md.
+ * Crashlytics) can replace this; see docs/future-gaps.md.
  */
 let installed = false;
 

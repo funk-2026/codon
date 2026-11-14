@@ -1,6 +1,6 @@
-# Open decisions, switches and release checklist
+# Future gaps, decisions and release checklist
 
-The one place for what is **not** built and what you need to decide or set. What *is* built is in `gaps-closed.md`; the map of screens is `screen-inventory.md`. Older audits and gap analyses were removed on 2026-11-14 (they are in git history).
+The one place for what is **not** built yet, what you need to decide or set, and the release checklist. The map of screens is `screen-inventory.md`. Built work is not listed here (see git history).
 
 ## Before any release (backend was written without a Go toolchain)
 

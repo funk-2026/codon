@@ -108,4 +108,4 @@ Redirects for old links: `moderation-tests`, `moderation-videos-docs`, `content-
 
 ## Backend redundancy: Practice
 
-See the Practice cleanup proposal in [open-decisions.md](open-decisions.md).
+See the Practice cleanup proposal in [future-gaps.md](future-gaps.md).

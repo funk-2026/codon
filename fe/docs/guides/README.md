@@ -10,4 +10,3 @@ Short, practical guides to everything in the app (as of 2026-10-25).
 | [upload-manual.md](upload-manual.md) | Teachers/admins — CSV columns & rules, image ZIP, videos & documents |
 
 Features marked **[flag]** appear only after an admin switches them on (Admin → Custom Tests & Pool).
-For the detailed spec see `../custom-test-module.md`; for testing, `../custom-test-module-qa.md`.

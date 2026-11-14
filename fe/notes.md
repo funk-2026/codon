@@ -90,7 +90,6 @@ Grouped by theme so it scans as a roadmap, not a list of unrelated bullets. Each
 
 **Action item:** Do a structured competitive walkthrough of Marrow's custom-test flow specifically before scoping — it's the explicit reference point.
 
-**Full feature spec:** [docs/custom-test-module.md](docs/custom-test-module.md) — complete feature inventory (~220 items), current-state audit, decisions needed, and backend handoff. Note its finding that a client-side-generation approach isn't viable with today's API (questions are only readable per-test, during an attempt).
 
 ---
 
