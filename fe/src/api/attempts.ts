@@ -188,6 +188,8 @@ export type ReviewItem = {
   reported_by_me: boolean;
   my_rating?: number;
   cohort_correct_pct?: number;
+  /** Percent of students who chose each option (A to D); absent until enough students answered. */
+  option_shares?: Record<string, number>;
   my_note?: string;
 };
 

@@ -393,6 +393,7 @@ type reviewItem struct {
 	ReportedByMe     bool                  `json:"reported_by_me"`
 	MyRating         *int                  `json:"my_rating,omitempty"`
 	CohortCorrectPct *float64              `json:"cohort_correct_pct,omitempty"`
+	OptionShares     map[string]int        `json:"option_shares,omitempty"` // percent of students who chose each option
 	MyNote           *string               `json:"my_note,omitempty"`
 }
 
@@ -528,6 +529,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 	reported := idSet(h.DB, ctx, "SELECT item_id FROM content_reports WHERE reporter_id = ? AND item_type = 'question' AND item_id IN ?", user.ID, ids)
 	myRatings := items.MyRatings(ctx, h.DB, user.ID, items.Question, ids)
 	cohort := cohortCorrectPct(h.DB, ctx, ids)
+	shares := optionShares(h.DB, ctx, ids)
 	notes := map[uuid.UUID]string{}
 	if len(ids) > 0 {
 		var ns []models.QuestionNote
@@ -564,6 +566,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 			pp := p
 			it.CohortCorrectPct = &pp
 		}
+		it.OptionShares = shares[r.QuestionID]
 		reviewItems[i] = it
 		mc.Add(r.ContentFormat, &reviewItems[i].QuestionText, &reviewItems[i].OptionA, &reviewItems[i].OptionB, &reviewItems[i].OptionC, &reviewItems[i].OptionD, reviewItems[i].Explanation)
 	}

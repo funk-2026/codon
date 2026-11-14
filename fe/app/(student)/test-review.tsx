@@ -382,7 +382,14 @@ function ReviewCard({
 
       <View style={{ gap: space.sm, marginTop: space.md }}>
         {opts.map(([letter, val]) => (
-          <OptionCard key={letter} letter={letter} value={val} format={q.content_format} media={media} state={stateOf(letter)} />
+          <View key={letter}>
+            <OptionCard letter={letter} value={val} format={q.content_format} media={media} state={stateOf(letter)} />
+            {q.option_shares ? (
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'right', marginTop: 2 }]} accessibilityLabel={`${q.option_shares[letter] ?? 0} percent of students chose option ${letter}`}>
+                {q.option_shares[letter] ?? 0}% chose this
+              </Text>
+            ) : null}
+          </View>
         ))}
       </View>
 
