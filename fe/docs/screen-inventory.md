@@ -75,7 +75,7 @@ Tabs: **Home, Practice, Learn, Support, Profile.** Status: reworked 2026-11-14 s
 
 ## Teacher (reworked 2026-11-14)
 
-Tabs: **Home, Content, Questions, Profile.** See [teacher-audit.md](teacher-audit.md) for the reasoning.
+Tabs: **Home, Content, Questions, Profile.**
 
 | Tab | What it does |
 |---|---|
@@ -89,7 +89,7 @@ Redirects for old links: `brain-hack-detail`, `rejected-content-detail`, `questi
 
 ## Admin (reworked 2026-11-14)
 
-Tabs: **Home, Users, Review, Payments, Profile.** See [admin-audit.md](admin-audit.md).
+Tabs: **Home, Users, Review, Payments, Profile.**
 
 | Tab | What it does |
 |---|---|
@@ -108,4 +108,4 @@ Redirects for old links: `moderation-tests`, `moderation-videos-docs`, `content-
 
 ## Backend redundancy: Practice
 
-See [backend-practice-cleanup.md](backend-practice-cleanup.md).
+See the Practice cleanup proposal in [open-decisions.md](open-decisions.md).

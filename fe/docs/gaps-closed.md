@@ -4,7 +4,7 @@ Everything we reviewed and fixed across the student, teacher and admin apps, plu
 
 ## 1. Navigation and UX rework (all three roles)
 
-Docs: `screen-inventory.md`, `teacher-audit.md`, `admin-audit.md`, `backend-practice-cleanup.md`.
+What is still open and the release checklist: `open-decisions.md`. The screen map: `screen-inventory.md`.
 
 | Problem | Fixed by |
 |---|---|
@@ -19,13 +19,13 @@ Docs: `screen-inventory.md`, `teacher-audit.md`, `admin-audit.md`, `backend-prac
 | Admin had scattered queues | Tabs reorganised (Home, Review, Users, Payments) with one inbox for everything waiting |
 | Gesture handler crash in Quick tag | App wrapped in the gesture root |
 
-## 2. Student (doc: `student-product-gaps.md`, `student-open-decisions.md`)
+## 2. Student
 
 **Closed:** analytics (own backend, double-gated, off by default); crash events and a minimum-version screen; Terms and Privacy links; help and contact; payment history and receipts; "NEET UG Pro" hardcoding; video resume; rank and percentile (Test Series only, once enough students finished); exam date and countdown; global search; first-run intro; "Up next" without custom tests; renewal reminder; data export; profile fake initials and dead camera button removed; a stable device id (signing in twice on one phone no longer signs the other phone out); the failure screen no longer says "not charged" after the gateway took the money.
 
-**Not closed (needs your decision):** doubts, real crash tool vendor, analytics vendor, GST invoices, refunds/auto-renew/coupons/trial/referrals, payment recovery after the app is closed, languages, dark theme, changing phone or adding email, profile photo, offline videos and notes, retention features, more push types.
+**Not closed (details in `open-decisions.md`):** doubts, real crash tool vendor, analytics vendor, GST invoices, refunds/auto-renew/coupons/trial/referrals, payment recovery after the app is closed, languages, dark theme, changing phone or adding email, profile photo, offline videos and notes, retention features, more push types.
 
-## 3. Admin (doc: `admin-product-gaps.md`, `admin-users-backend-gaps.md`)
+## 3. Admin
 
 **Closed (frontend):** every list reads all pages (Users and Payments use server search and filters; correct totals); status bug that hid everything except pending items; user detail (activity, sign-out of devices, give or extend access, suspend, history, erase personal data); Audit log, User feedback and Home banners screens; rename subjects and chapters; reassign reports; plan edit confirmations and price rounding; Live content screen with take-down; create a course; delete empty subjects and chapters; add a teacher by phone; CSV exports; announcements.
 
@@ -33,7 +33,7 @@ Docs: `screen-inventory.md`, `teacher-audit.md`, `admin-audit.md`, `backend-prac
 
 **Not closed:** refunds (real money; needs a gateway design), an in-app admin notifications inbox (would repeat push and the Review badge), audit writes for wellness and home banners, a scheduled digest, a dedicated suspended-account screen.
 
-## 4. Teacher (doc: `teacher-product-gaps.md`)
+## 4. Teacher
 
 **Closed:** edit a test's details after creation; delete lessons and edit their details; stats on live tests and lessons and "Your impact" on Home; document lessons store real text (fake toolbar and fake "Saved" removed); teacher notification inbox with push taps; a note to the reviewer when sending or resending; review turnaround shown; duplicate a test; scheduled publishing for tests, lessons, Brain Hacks and decks; bulk "send all drafts for review"; instructions and per-question sections on tests; "By <name>" shown to students; hand over a test or lesson to another teacher; Teacher guide screen; the duplicate "My Content" row removed from Profile; the reviewer sees the teacher's note.
 
@@ -50,8 +50,4 @@ Docs: `screen-inventory.md`, `teacher-audit.md`, `admin-audit.md`, `backend-prac
 
 ## 6. Before any release
 
-1. Backend: build, vet, run tests, apply migrations 0006, 0007, 0008.
-2. Worker must be running (scheduled publishing, push dispatch, reminders).
-3. Set the admin settings that are blank by default (support links, legal links, analytics switch, version gate).
-4. Device checks still owed: video background upload, push taps, the new teacher flows on a real phone.
-5. Local-only edits (Razorpay disabled, dev host) must not be shipped.
+See the checklist at the top of `open-decisions.md`.

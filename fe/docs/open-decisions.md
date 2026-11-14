@@ -1,8 +1,14 @@
-# Student: what is not built yet, and what I need to know first
+# Open decisions, switches and release checklist
 
-Written 2026-11-14 alongside the student gap fixes (see `student-product-gaps.md`). Everything below was **not** built, either because it needs a business decision, an account or credentials, content I don't have, or work I can't test here. Each item says what was missing so you can answer once and we can build it.
+The one place for what is **not** built and what you need to decide or set. What *is* built is in `gaps-closed.md`; the map of screens is `screen-inventory.md`. Older audits and gap analyses were removed on 2026-11-14 (they are in git history).
 
-> **Backend warning.** The backend changes from this round (migrations `0006` and `0007`, new endpoints, router tests) were written without a Go toolchain and have **never been compiled or run**. Before deploying: `go build ./...`, `go vet ./...`, `go test ./internal/router/...`.
+## Before any release (backend was written without a Go toolchain)
+
+1. `go build ./...`, `go vet ./...`, `go test ./internal/router/...`, and run gofmt.
+2. Apply migrations `0006`, `0007`, `0008`.
+3. Run the worker (scheduled publishing, push, reminders).
+4. Set the blank settings below; remove the local-only edits (Razorpay disabled, dev host).
+5. Device checks: push taps, video upload in the background, the new teacher and admin flows.
 
 ## Switches and settings (all off or blank by default)
 
@@ -15,7 +21,7 @@ Written 2026-11-14 alongside the student gap fixes (see `student-product-gaps.md
 | same | Support email and WhatsApp | Shown on Help and support. |
 | same | Students needed before rank shows (default 10) | Test Series results show rank and top percent once this many students have finished the test. |
 
-## Needs a decision, or an account
+## Student: needs a decision, or an account
 
 ### 1. Doubts (a student asks a question, a teacher answers)
 Not built. What I need:
@@ -65,10 +71,18 @@ Not built: streak freeze or recovery, weekly summary, leaderboards, badges. Need
 ### 13. More push notifications
 Done: a reminder three days before a plan ends, and a reminder to admins when something is submitted for review. Not done: "a new test in your chapter", inactivity nudges, exam countdown milestones. Needs frequency rules, quiet hours and per-type opt-outs so students aren't over-messaged.
 
-## Small things I noticed and left alone
-- **Sign-in asks only for name and course.** The exam date is optional and lives in Edit profile; I did not add it to first-time setup.
-- **Subscribe screen:** the plan list shows what each plan includes only as free-text benefits; there is no comparison table or "what you get" breakdown.
-- **Notifications screen** only lives under the bell on Home and has no filters or "mark all as read"; fine at today's volume.
+## Teacher: needs a decision
+- **Earnings and recognition:** are teachers paid per content or per student, and do you want badges or a leaderboard? Nothing is built.
+- **Question types:** single-answer only today. Multiple-correct, numeric, assertion-reason, matching and passage questions need a decision on which exams need them, then backend and student-app work.
+- **Shuffling** questions or options: needs per-attempt remapping of answers; build with tests.
+- **Version history and co-authoring:** hand-over exists; shared editing and undo do not.
+- **Reviewer thread:** only a one-way note on submit exists; a two-way thread is a bigger feature.
+- **Expiry windows** for time-bound test series, and stats for Brain Hacks and decks.
+- **Background video upload:** needs a device test before deciding.
 
-## What was built this round (for reference)
-Analytics collector (off by default), crash events, minimum-version gate, Terms and Privacy links, Help and support, payment history and receipts, correct plan naming, video resume, rank and percentile for Test Series, exam date and countdown, global search, one-time intro, Home fallback suggestion, data export, subscription-ending reminders, correct "not charged" wording, retry returns to the same plan, a stable device id with a fixed two-device limit, and an admin section to set all the links.
+## Admin: needs a decision
+- **Refunds:** move real money through Razorpay; needs policy (when, who approves, partial or full) and a gateway-side design.
+- **Audit writes** for wellness and Home banner changes; a scheduled digest for review pushes; a dedicated suspended-account screen with a support contact.
+
+## Backend cleanup (proposal, nothing changed)
+Fold **Practice into Q Bank**: they behave identically in `be/`. Order if approved: migrate `module_type='practice'` to `qbank`; keep accepting `practice` from old app builds for a release or two; then remove the constant, validation and swagger entries; teacher create-test already dropped the option. Decide whether to fold question `source_type` "practice" into "qbank" too (it describes where a question came from, so you may want to keep it).
