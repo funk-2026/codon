@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Cards, ClipboardText, FileText, Lightbulb, Plus, PlayCircle, WarningCircle } from 'phosphor-react-native';
-import { ConfirmDialog, EmptyState, SegmentedControl, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, Screen, TAB_EDGES } from '@/src/components';
+import { BottomSheet, ConfirmDialog, EmptyState, SegmentedControl, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, Screen, TAB_EDGES } from '@/src/components';
 import { TreeToolbar } from '@/src/screens/CurriculumTree';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ManageAllBanner } from '@/src/teacher/ManageAllBanner';
@@ -26,8 +26,14 @@ const SEGMENTS: { key: Segment; label: string }[] = [
   { key: 'decks', label: 'Decks' },
 ];
 
+/** Tests hold two different things, so "+" asks which one. */
+const TEST_CHOICES: { label: string; text: string; href: Href }[] = [
+  { label: 'New exam', text: 'A timed test in NEET or school style, live or anytime', href: ROUTES.teacher.createExam },
+  { label: 'New Q Bank set', text: 'Practice questions for a chapter, from questions or a CSV', href: ROUTES.teacher.createTest },
+];
+
 const CREATE: Record<Segment, { label: string; href: Href }> = {
-  tests: { label: 'New exam', href: ROUTES.teacher.createExam },
+  tests: { label: 'New test', href: ROUTES.teacher.createExam },
   lessons: { label: 'New lesson', href: ROUTES.teacher.createContent },
   hacks: { label: 'New Brain Hack', href: ROUTES.teacher.createBrainHack },
   decks: { label: 'New deck', href: ROUTES.teacher.flashcardDeck },
@@ -107,6 +113,8 @@ export default function TeacherContentRoute() {
     show(bulkSummary(r), r.failed.length ? 'error' : 'success');
   };
   const create = CREATE[segment];
+  const [chooseOpen, setChooseOpen] = useState(false);
+  const startCreate = () => (segment === 'tests' ? setChooseOpen(true) : router.push(create.href));
   const hasAny = (items ?? []).some((i) => filterItems([i], { segment, status: 'all', query: '' }).length > 0);
 
   return (
@@ -114,7 +122,7 @@ export default function TeacherContentRoute() {
       <View style={{ paddingHorizontal: space.md, marginTop: space.lg, flexDirection: 'row', alignItems: 'center' }}>
         <Text style={[type['type/h1'], { color: color('text/primary'), flex: 1 }]}>Content</Text>
         <Pressable
-          onPress={() => router.push(create.href)}
+          onPress={startCreate}
           accessibilityRole="button"
           accessibilityLabel={create.label}
           style={({ pressed }) => [
@@ -175,7 +183,7 @@ export default function TeacherContentRoute() {
             action={<TextButton label="Retry" onPress={() => void itemsQuery.refetch()} />}
           />
         ) : !hasAny ? (
-          <EmptyState title={EMPTY[segment].title} description={EMPTY[segment].text} action={<TextButton label={create.label} onPress={() => router.push(create.href)} />} />
+          <EmptyState title={EMPTY[segment].title} description={EMPTY[segment].text} action={<TextButton label={create.label} onPress={startCreate} />} />
         ) : shown.length === 0 ? (
           <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center', marginTop: space.xl }]}>Nothing matches these filters.</Text>
         ) : (
@@ -207,6 +215,24 @@ export default function TeacherContentRoute() {
           })
         )}
       </ScrollView>
+      <BottomSheet visible={chooseOpen} onClose={() => setChooseOpen(false)} title="New test">
+        <View style={{ gap: space.xs }}>
+          {TEST_CHOICES.map((o) => (
+            <Pressable
+              key={o.label}
+              onPress={() => {
+                setChooseOpen(false);
+                router.push(o.href);
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [{ backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.sm, opacity: pressed ? 0.9 : 1 }]}
+            >
+              <Text style={[type['type/h3'], { color: color('text/primary') }]}>{o.label}</Text>
+              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{o.text}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }
