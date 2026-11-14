@@ -7,6 +7,7 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { listAuditLog, type AuditEntry } from '@/src/api/adminOps';
 import { useCursorList } from '@/src/queries/useCursorList';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
+import { auditDetail } from '@/src/admin/auditDetail';
 import { shadow } from '@/src/theme/elevation';
 
 const LABEL: Record<string, string> = {
@@ -29,15 +30,7 @@ const LABEL: Record<string, string> = {
   'question.metadata_update': 'Edited question tags',
 };
 
-/** A short, readable summary of what changed, from the before and after the server recorded. */
-function detail(e: AuditEntry): string | null {
-  const a = (e.after ?? null) as Record<string, unknown> | null;
-  const b = (e.before ?? null) as Record<string, unknown> | null;
-  if (a && b && 'role' in a && 'role' in b) return `${String(b.role)} → ${String(a.role)}`;
-  if (a && typeof a.reason === 'string') return `“${a.reason}”`;
-  if (a && 'can_manage_all_content' in a) return a.can_manage_all_content ? 'can manage all content' : 'no longer manages all content';
-  return null;
-}
+const detail = auditDetail;
 
 const when = (iso: string) => new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
