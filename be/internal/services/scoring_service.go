@@ -170,10 +170,15 @@ func (s *ScoringService) StartAttempt(ctx context.Context, userID uuid.UUID, tes
 	if sid, ok := sessionFrom(ctx); ok {
 		attempt.ActiveSessionID = &sid
 	}
-	if test.DurationMinutes != nil && *test.DurationMinutes > 0 {
-		exp := now.Add(time.Duration(*test.DurationMinutes) * time.Minute)
-		attempt.ExpiresAt = &exp
+	// Live rules: no early start, late entry closes, everyone's exam ends together, and only the first
+	// attempt inside the window (or the first on an anytime test) is official.
+	decision, derr := DecideStart(test, now, prior == 0)
+	if derr != nil {
+		return nil, derr
 	}
+	attempt.ExpiresAt = decision.ExpiresAt
+	attempt.Source = decision.Source
+	attempt.Official = decision.Official && test.ModuleType == models.ModuleTestSeries
 	if err := s.DB.WithContext(ctx).Create(&attempt).Error; err != nil {
 		// Lost a race against a concurrent start (uq_attempt_in_progress): resume theirs.
 		var again models.StudentAttempt

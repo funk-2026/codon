@@ -23,7 +23,7 @@ func submitAs(e *env, test models.Test, u *models.User, option string) string {
 // A Test Series result shows rank and top percent once enough students finished; a Q Bank test never does.
 func TestRankOnlyForTestSeries(t *testing.T) {
 	e := newEnv(t)
-	e.set("results.rank_min_attempts", "3")
+	e.set("results.percentile_min", "3")
 	series := e.w.Test(t, models.ModuleTestSeries, 1, true) // the right answer is B
 	s1, s2, s3 := e.w.Student, e.w.User(t, models.RoleStudent), e.w.User(t, models.RoleStudent)
 
@@ -51,9 +51,13 @@ func TestRankOnlyForTestSeries(t *testing.T) {
 		t.Fatal("a Q Bank result must not show a cohort")
 	}
 
-	e.set("results.rank_min_attempts", "50")
-	if _, has := e.mustDo(200, "GET", "/attempts/"+a2+"/result", &s2, nil)["cohort"]; has {
-		t.Fatal("too few students: no cohort")
+	e.set("results.percentile_min", "50")
+	small := e.mustDo(200, "GET", "/attempts/"+a2+"/result", &s2, nil)["cohort"].(map[string]interface{})
+	if small["rank"].(float64) != 3 {
+		t.Fatalf("a rank is always shown, as rank X of N: %v", small)
+	}
+	if _, has := small["top_percent"]; has {
+		t.Fatal("a small cohort must not show a percentile")
 	}
 }
 

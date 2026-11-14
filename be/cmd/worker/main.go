@@ -71,6 +71,16 @@ func main() {
 			log.Printf("[Worker] published %d scheduled items", n)
 		}
 	})
+	worker.RegisterTicker("exam_reminders", time.Minute, func(ctx context.Context) {
+		if n := services.ExamReminders(ctx, db.DB, time.Now()); n > 0 {
+			log.Printf("[Worker] sent %d exam reminders", n)
+		}
+	})
+	worker.RegisterTicker("exam_results_ready", time.Minute, func(ctx context.Context) {
+		if n := services.ExamResultsReady(ctx, db.DB, time.Now()); n > 0 {
+			log.Printf("[Worker] announced results to %d students", n)
+		}
+	})
 	pushSvc := services.NewPushService(db.DB, services.NewExpoSender())
 	worker.RegisterTicker("push_dispatch", 30*time.Second, func(ctx context.Context) {
 		if n, err := pushSvc.Dispatch(ctx, 200); err != nil {

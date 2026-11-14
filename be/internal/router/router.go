@@ -37,6 +37,7 @@ type Deps struct {
 	Cards     *handlers.FlashcardHandler
 	Extras    *handlers.ExtrasHandler
 	TE        *handlers.TeacherExtrasHandler
+	Exams     *handlers.ExamHandler
 	Extra     []func(api *gin.RouterGroup, d *Deps) // later milestones plug in here
 }
 
@@ -47,6 +48,7 @@ func NewDeps(db *gorm.DB, auth gin.HandlerFunc, sub *services.SubscriptionServic
 	return &Deps{
 		Extras: handlers.NewExtrasHandler(db, sub, eng, an),
 		TE:     handlers.NewTeacherExtrasHandler(db, services.NewReviewService(db)),
+		Exams:  handlers.NewExamHandler(db, sub),
 		DB:     db, Auth: auth, SubSvc: sub, Scoring: scoring,
 		Tests: handlers.NewTestHandler(db), Attempts: handlers.NewAttemptHandler(db, scoring, sub),
 		Media: handlers.NewMediaHandler(db), TQ: handlers.NewTeacherQuestionHandler(db),
@@ -153,9 +155,24 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		tests.GET("/:id", d.Tests.GetTest)
 		tests.POST("/:id/attempts", d.Attempts.StartAttempt)
 		tests.GET("/:id/questions", d.Tests.GetQuestions)
+		tests.POST("/:id/register", d.Exams.Register)
+		tests.DELETE("/:id/register", d.Exams.Unregister)
+		tests.GET("/:id/leaderboard", d.Exams.Leaderboard)
 	}
 
 	// ── Attempts (student) ──
+	exams := api.Group("/exams").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	{
+		exams.GET("", d.Exams.Exams)
+	}
+	adminExams := api.Group("/admin/exams").Use(auth).Use(middleware.RequireRole(models.RoleAdmin))
+	{
+		adminExams.GET("", d.Exams.AdminExams)
+		adminExams.POST("/:id/extend", d.Exams.ExtendExam)
+		adminExams.POST("/:id/results-at", d.Exams.SetResultsAt)
+		adminExams.POST("/:id/rescore", d.Exams.RescoreExam)
+	}
+
 	attempts := api.Group("/attempts").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
 	{
 		attempts.PUT("/:id/answers", d.Attempts.BatchUpsertAnswers)
@@ -165,6 +182,8 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		attempts.POST("/:id/submit", d.Attempts.SubmitAttempt)
 		attempts.GET("/:id/result", d.Attempts.GetResult)
 		attempts.GET("/:id/review", d.Attempts.GetReview)
+		attempts.GET("/:id/analysis", d.Exams.Analysis)
+		attempts.POST("/:id/leave", d.Exams.Leave)
 	}
 
 	// ── Teacher: tests, questions, imports, media, taxonomy ──
@@ -224,6 +243,8 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		teacher.POST("/brain-hacks/:id/schedule", d.TE.ScheduleHack)
 		teacher.POST("/flashcard-decks/:id/schedule", d.TE.ScheduleDeck)
 		teacher.GET("/review-stats", d.TE.ReviewStats)
+		teacher.GET("/series", d.Exams.ListSeries)
+		teacher.POST("/series", d.Exams.CreateSeries)
 		teacher.DELETE("/content/:id", d.TE.DeleteContent)
 		teacher.POST("/tests/:id/clone", d.TE.CloneTest)
 		teacher.POST("/tests/:id/transfer", d.TE.TransferTest)

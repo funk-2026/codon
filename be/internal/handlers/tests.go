@@ -335,6 +335,10 @@ func (h *TestHandler) CreateTest(c *gin.Context) {
 			test.Instructions = &t
 		}
 	}
+	if err := applyExamFields(h.DB, &test, req.examFieldsRequest, time.Now()); err != nil {
+		respondService(c, err)
+		return
+	}
 	if err := h.DB.WithContext(c.Request.Context()).Create(&test).Error; err != nil {
 		respondErr(c, http.StatusInternalServerError, "internal", "failed to create test")
 		return
@@ -451,6 +455,20 @@ func (h *TestHandler) UpdateTest(c *gin.Context) {
 			updates["instructions"] = t
 		}
 	}
+	// Exam settings are validated on the merged test, then written as one set of columns.
+	merged := test
+	if durNew, ok := updates["duration_minutes"]; ok {
+		if d, ok := durNew.(int); ok {
+			merged.DurationMinutes = &d
+		}
+	}
+	if err := applyExamFields(h.DB, &merged, req.examFieldsRequest, time.Now()); err != nil {
+		respondService(c, err)
+		return
+	}
+	updates["exam_style"], updates["kind"], updates["delivery"] = merged.ExamStyle, merged.Kind, merged.Delivery
+	updates["opens_at"], updates["results_at"], updates["late_entry_minutes"] = merged.OpensAt, merged.ResultsAt, merged.LateEntryMinutes
+	updates["rank_visibility"], updates["series_id"], updates["exam_year"] = merged.RankVisibility, merged.SeriesID, merged.ExamYear
 	if len(updates) == 0 {
 		respondErr(c, http.StatusBadRequest, "bad_request", "no fields to update")
 		return
@@ -837,7 +855,17 @@ func (h *TestHandler) PublishTest(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.Review.Publish(c.Request.Context(), teacher, services.ReviewTest, id, nil); err != nil {
+	gate := func(ctx context.Context, id uuid.UUID) error {
+		var t models.Test
+		if err := h.DB.WithContext(ctx).First(&t, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if t.Delivery == models.DeliveryLive && (t.OpensAt == nil || !t.OpensAt.After(time.Now())) {
+			return services.Conflict("exam_already_started", "this live test's start time has passed; change the start time and send it for review again")
+		}
+		return nil
+	}
+	if err := h.Review.Publish(c.Request.Context(), teacher, services.ReviewTest, id, gate); err != nil {
 		respondService(c, err)
 		return
 	}
@@ -1111,6 +1139,7 @@ type createTestRequest struct {
 	MarksPerWrong        *float64 `json:"marks_per_wrong"   example:"-1"`
 	RequiresSubscription *bool    `json:"requires_subscription" example:"true"`
 	Instructions         *string  `json:"instructions"`
+	examFieldsRequest
 }
 
 type updateTestRequest struct {
@@ -1123,6 +1152,7 @@ type updateTestRequest struct {
 	MarksPerWrong        *float64 `json:"marks_per_wrong"`
 	RequiresSubscription *bool    `json:"requires_subscription"`
 	Instructions         *string  `json:"instructions"`
+	examFieldsRequest
 }
 
 // questionRequest is the create/patch body for a question. Every field is

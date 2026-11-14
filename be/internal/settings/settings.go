@@ -56,8 +56,10 @@ var Defaults = map[string]string{
 	"support.email":         "",
 	"support.whatsapp":      "",
 
-	// Test-series results: show rank and percentile only once this many students have finished the test
-	"results.rank_min_attempts": "10",
+	// Exams: percentile is hidden until this many students have a score (a rank is always shown as "rank X of N")
+	"results.percentile_min": "30",
+	// Exams: the earliest a live test's results may open after its window closes, so staff can check the key
+	"exams.min_result_gap_minutes": "15",
 
 	// Attempts
 	"attempt.answer_grace_seconds": "10",

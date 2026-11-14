@@ -305,6 +305,11 @@ func (h *AttemptHandler) SubmitAttempt(c *gin.Context) {
 		respondService(c, err)
 		return
 	}
+	// A live test keeps the score back until results open.
+	var t models.Test
+	if h.DB.WithContext(c.Request.Context()).First(&t, "id = ?", attempt.TestID).Error == nil && !services.ResultsReleased(&t, time.Now()) {
+		hideScores(attempt)
+	}
 	c.JSON(http.StatusOK, attempt)
 }
 
@@ -331,44 +336,59 @@ func (h *AttemptHandler) GetResult(c *gin.Context) {
 		respondErr(c, http.StatusNotFound, "result_not_found", "result not found")
 		return
 	}
+	if !services.ResultsReleased(&attempt.Test, time.Now()) {
+		// A live test keeps scores, ranks and answers back until the release time.
+		at, _ := services.EarliestResults(&attempt.Test)
+		if attempt.Test.ResultsAt != nil && attempt.Test.ResultsAt.After(at) {
+			at = *attempt.Test.ResultsAt
+		}
+		hideScores(&attempt)
+		c.JSON(http.StatusOK, gin.H{"pending": true, "results_at": at, "attempt": attempt})
+		return
+	}
 	bd, err := h.ScoringKSvc.Breakdown(c.Request.Context(), attempt.ID)
 	if err != nil {
 		respondErr(c, http.StatusInternalServerError, "internal", "failed to compute breakdown")
 		return
 	}
 	out := gin.H{"attempt": attempt, "breakdown": bd}
-	if cohort := h.cohortFor(c.Request.Context(), &attempt); cohort != nil {
+	if cohort := h.cohortFor(c.Request.Context(), user, &attempt); cohort != nil {
 		out["cohort"] = cohort
 	}
 	c.JSON(http.StatusOK, out)
 }
 
-// cohortFor places a Test Series result among everyone who took that test: rank, how many, top percent
-// and the average score. Each student counts once (their first submitted attempt), and nothing is shown
-// until enough students have finished the test for the numbers to mean something.
-func (h *AttemptHandler) cohortFor(ctx context.Context, a *models.StudentAttempt) gin.H {
+// cohortFor places a Test Series result among the students whose official attempt counts: rank among N, the
+// share of students you are ahead of once N is large enough for a percentile, and the average and best score.
+// A practice attempt (a retake, or one taken after a live window closed) gets an estimated rank against that cohort.
+func (h *AttemptHandler) cohortFor(ctx context.Context, user *models.User, a *models.StudentAttempt) gin.H {
 	if a.Test.ModuleType != models.ModuleTestSeries || a.Score == nil {
 		return nil
 	}
-	var r struct {
-		Total  int64
-		Better int64
-		Avg    *float64
-	}
-	err := h.DB.WithContext(ctx).Raw(`
-		WITH firsts AS (
-			SELECT DISTINCT ON (a.user_id) a.user_id, a.score
-			FROM student_attempts a JOIN users u ON u.id = a.user_id
-			WHERE a.test_id = ? AND a.status = 'submitted' AND a.score IS NOT NULL AND u.role = 'student'
-			ORDER BY a.user_id, a.submitted_at ASC)
-		SELECT count(*) AS total, count(*) FILTER (WHERE score > ?) AS better, avg(score)::float8 AS avg FROM firsts`,
-		a.TestID, *a.Score).Scan(&r).Error
-	if err != nil || r.Total < int64(settings.Default.Int("results.rank_min_attempts")) {
+	rows := examCohort(ctx, h.DB, &a.Test)
+	if len(rows) == 0 {
 		return nil
 	}
-	rank := r.Better + 1
-	top := (rank*100 + r.Total - 1) / r.Total
-	return gin.H{"rank": rank, "total": r.Total, "top_percent": top, "avg_score": r.Avg}
+	if a.Test.RankVisibility == models.RankSubscribers && h.Sub.Allow(ctx, user, true, a.Test.CourseID) != nil {
+		return gin.H{"locked": true, "total": len(rows)}
+	}
+	total := int64(len(rows))
+	rank := int64(rankIn(rows, *a.Score))
+	var sum float64
+	for _, r := range rows {
+		sum += r.Score
+	}
+	out := gin.H{"rank": rank, "total": total, "estimated": !a.Official, "avg_score": sum / float64(total), "top_score": rows[0].Score}
+	if total >= int64(settings.Default.Int("results.percentile_min")) {
+		out["top_percent"] = (rank*100 + total - 1) / total
+		out["percentile"] = float64(total-rank) * 100 / float64(total)
+	}
+	return out
+}
+
+// hideScores removes the numbers of a result that is not released yet.
+func hideScores(a *models.StudentAttempt) {
+	a.Score, a.TotalMarks, a.CorrectCount, a.WrongCount, a.UnattemptedCount = nil, nil, nil, nil, nil
 }
 
 type reviewItem struct {
@@ -431,10 +451,14 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	var attempt models.StudentAttempt
-	if err := h.DB.WithContext(ctx).
+	if err := h.DB.WithContext(ctx).Preload("Test").
 		Where("id = ? AND user_id = ? AND status = ?", attemptID, user.ID, models.AttemptSubmitted).
 		First(&attempt).Error; err != nil {
 		respondErr(c, http.StatusNotFound, "attempt_not_found", "attempt not found or not submitted")
+		return
+	}
+	if !services.ResultsReleased(&attempt.Test, time.Now()) {
+		respondErr(c, http.StatusForbidden, "results_pending", "answers open when results are released")
 		return
 	}
 
