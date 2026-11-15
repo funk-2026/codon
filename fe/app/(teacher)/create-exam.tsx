@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
+import { todayDMY } from '@/src/components/calendar';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CaretRight } from 'phosphor-react-native';
-import { Chip, CourseSelector, InputField, PrimaryButton, Screen, ScreenHeader, SegmentedControl, TextButton, useToast } from '@/src/components';
+import { Chip, CourseSelector, InputField, PrimaryButton, Screen, ScreenHeader, SegmentedControl, TextButton, useToast, DateField } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { createTest } from '@/src/api/teacher';
 import { createSeries, listSeries, type ExamKind, type ExamStyle } from '@/src/api/exams';
@@ -34,7 +35,7 @@ export default function CreateExamRoute() {
   const [duration, setDuration] = useState('180');
   const [marksCorrect, setMarksCorrect] = useState('4');
   const [marksWrong, setMarksWrong] = useState('-1');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(() => todayDMY());
   const [time, setTime] = useState('14:00');
   const [late, setLate] = useState('15');
   const [rank, setRank] = useState<'everyone' | 'subscribers'>('everyone');
@@ -175,7 +176,7 @@ export default function CreateExamRoute() {
                   Everyone starts together. Late starters get less time, never more. Results open at least 15 minutes after the exam ends; an admin can set a later time.
                 </Text>
                 <View style={{ flexDirection: 'row', gap: space.sm }}>
-                  <View style={{ flex: 1.4 }}><InputField label="Date" value={date} onChangeText={setDate} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" /></View>
+                  <View style={{ flex: 1.4 }}><DateField label="Date" value={date} onChange={setDate} /></View>
                   <View style={{ flex: 1 }}><InputField label="Time (24h)" value={time} onChangeText={setTime} placeholder="HH:MM" keyboardType="numbers-and-punctuation" /></View>
                 </View>
                 <InputField label="Late entry allowed for (minutes)" value={late} onChangeText={(t: string) => setLate(t.replace(/\D/g, ''))} keyboardType="number-pad" />

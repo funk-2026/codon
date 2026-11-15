@@ -38,6 +38,7 @@ export { StatusBadge } from './StatusBadge';
 export type { StatusBadgeProps, BadgeStatus } from './StatusBadge';
 
 export { InputField } from './InputField';
+export { DateField } from './DateField';
 export type { InputFieldProps } from './InputField';
 
 export { EmptyState } from './EmptyState';

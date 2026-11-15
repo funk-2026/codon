@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { todayDMY } from '@/src/components/calendar';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Timer, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, InputField, PrimaryButton, Screen, ScreenHeader, SecondaryButton, SkeletonBlock, TextButton, useToast } from '@/src/components';
+import { BottomSheet, EmptyState, InputField, PrimaryButton, Screen, ScreenHeader, SecondaryButton, SkeletonBlock, TextButton, useToast, DateField } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ApiError } from '@/src/api/client';
 import { adminExtendExam, adminListExams, adminRescoreExam, adminSetResultsAt, type AdminExam, type RescoreResult } from '@/src/api/exams';
@@ -92,7 +93,7 @@ export default function AdminExamsRoute() {
               </View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>
                 {e.phase !== 'ended' ? <SecondaryButton label="Extend" onPress={() => { setError(null); setMinutes('10'); setExtend(e); }} /> : null}
-                <SecondaryButton label="Results time" onPress={() => { setError(null); const i = toScheduleInputs(e.results_at); setDate(i.date); setTime(i.time); setResults(e); }} />
+                <SecondaryButton label="Results time" onPress={() => { setError(null); const i = toScheduleInputs(e.results_at); setDate(i.date || todayDMY()); setTime(i.time); setResults(e); }} />
                 {e.submitted > 0 ? <SecondaryButton label="Recompute scores" onPress={() => { setError(null); preview.mutate(e); }} loading={preview.isPending && preview.variables?.id === e.id} /> : null}
               </View>
             </View>
@@ -114,7 +115,7 @@ export default function AdminExamsRoute() {
         <View style={{ paddingHorizontal: space.lg, paddingBottom: space.lg, gap: space.sm }}>
           <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>It cannot be earlier than 15 minutes after the exam ends. Students are told when results open.</Text>
           <View style={{ flexDirection: 'row', gap: space.sm }}>
-            <View style={{ flex: 1.4 }}><InputField label="Date" value={date} onChangeText={setDate} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" /></View>
+            <View style={{ flex: 1.4 }}><DateField label="Date" value={date} onChange={setDate} /></View>
             <View style={{ flex: 1 }}><InputField label="Time (24h)" value={time} onChangeText={setTime} placeholder="HH:MM" keyboardType="numbers-and-punctuation" /></View>
           </View>
           {schedErr ? <Text style={[type['type/caption'], { color: color('semantic/danger') }]}>{schedErr}</Text> : null}

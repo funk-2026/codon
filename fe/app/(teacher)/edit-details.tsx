@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { todayDMY } from '@/src/components/calendar';
 import { ScrollView, Switch, Text, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CaretRight, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, InputField, PrimaryButton, Screen, ScreenHeader, SkeletonBlock, TextButton, useToast } from '@/src/components';
+import { EmptyState, InputField, PrimaryButton, Screen, ScreenHeader, SkeletonBlock, TextButton, useToast, DateField } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import type { Test } from '@/src/api/tests';
 import type { ContentItem } from '@/src/api/content';
@@ -86,7 +87,7 @@ function EditForm({ id, test, lesson }: { id: string; test: Test | null; lesson:
   const isExam = test?.module_type === 'test_series';
   const live = isExam && test?.delivery === 'live';
   const initial = toScheduleInputs(test?.opens_at);
-  const [date, setDate] = useState(initial.date);
+  const [date, setDate] = useState(initial.date || todayDMY());
   const [time, setTime] = useState(initial.time);
   const [late, setLate] = useState(String(test?.late_entry_minutes ?? 15));
   const [rank, setRank] = useState<'everyone' | 'subscribers'>(test?.rank_visibility ?? 'everyone');
@@ -178,7 +179,7 @@ function EditForm({ id, test, lesson }: { id: string; test: Test | null; lesson:
               <View style={{ gap: space.sm }}>
                 <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>LIVE SCHEDULE</Text>
                 <View style={{ flexDirection: 'row', gap: space.sm }}>
-                  <View style={{ flex: 1.4 }}><InputField label="Date" value={date} onChangeText={setDate} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" /></View>
+                  <View style={{ flex: 1.4 }}><DateField label="Date" value={date} onChange={setDate} /></View>
                   <View style={{ flex: 1 }}><InputField label="Time (24h)" value={time} onChangeText={setTime} placeholder="HH:MM" keyboardType="numbers-and-punctuation" /></View>
                 </View>
                 <InputField label="Late entry allowed for (minutes)" value={late} onChangeText={(t: string) => setLate(t.replace(/\D/g, ''))} keyboardType="number-pad" />
