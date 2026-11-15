@@ -10,6 +10,7 @@ import Animated, {
 import { CaretLeft, WarningCircle, LockSimple } from 'phosphor-react-native';
 import { WebView } from 'react-native-webview';
 import { EmptyState, PrimaryButton, SkeletonBlock, TextButton, Screen, ScreenHeader } from '@/src/components';
+import { BookmarkToggle } from '@/src/bookmarks/BookmarkToggle';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import type { ContentItem } from '@/src/api/content';
 import { ApiError } from '@/src/api/client';
@@ -109,9 +110,12 @@ export default function ContentReaderRoute() {
             <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>
               {content?.item?.content_type === 'video' ? 'Video Class' : 'Document'}
             </Text>
-            <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space['2xs'] }]}>
-              {content?.item?.title || 'Unable to load'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+              <Text style={[type['type/h1'], { color: color('text/primary'), marginTop: space['2xs'], flex: 1 }]}>
+                {content?.item?.title || 'Unable to load'}
+              </Text>
+              <BookmarkToggle type="content" id={content?.item?.id} />
+            </View>
             {content?.item?.author_name ? (
               <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space['2xs'] }]}>By {content.item.author_name}</Text>
             ) : null}

@@ -127,9 +127,10 @@ export const getExplore = (courseId: string) =>
 
 // ── Notifications & push ────────────────────────────────────────────────────
 export type NotificationItem = { id: string; type: string; title: string; body: string; data?: Record<string, unknown>; read_at?: string | null; pushed_at?: string | null; created_at: string };
-export const listNotifications = (p: { unread?: boolean; cursor?: string | null; limit?: number } = {}) =>
+export type NotificationAudience = 'student' | 'teacher' | 'admin';
+export const listNotifications = (p: { unread?: boolean; cursor?: string | null; limit?: number; audience?: NotificationAudience } = {}) =>
   apiFetch<Paginated<NotificationItem> & { unread_count: number }>(`/me/notifications${qs({ ...p, cursor: p.cursor ?? undefined })}`);
-export const markNotificationsRead = (ids?: string[]) => apiFetch<{ message: string }>('/me/notifications/read', { method: 'POST', body: JSON.stringify(ids ? { ids } : { all: true }) });
+export const markNotificationsRead = (ids?: string[], audience?: NotificationAudience) => apiFetch<{ message: string }>('/me/notifications/read', { method: 'POST', body: JSON.stringify(ids ? { ids } : { all: true, audience }) });
 
 export const registerPushToken = (token: string, platform: 'ios' | 'android', deviceId?: string) => apiFetch<unknown>('/me/push-tokens', { method: 'POST', body: JSON.stringify({ token, platform, device_id: deviceId }) });
 export const removePushToken = (token: string) => apiFetch<unknown>(`/me/push-tokens/${encodeURIComponent(token)}`, { method: 'DELETE' });

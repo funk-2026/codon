@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
+import { Pressable, StyleSheet, Text, View, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
@@ -12,6 +12,7 @@ import { useVideoPlayer, VideoView, VideoTrack } from 'expo-video';
 import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
 import { track } from '@/src/analytics/track';
 import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, PictureInPicture } from 'phosphor-react-native';
+import { BookmarkToggle } from '@/src/bookmarks/BookmarkToggle';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat, type LecturePDFs } from '@/src/api/content';
 import { LecturePdfDownloads } from '@/src/content/LecturePdfDownloads';
@@ -230,6 +231,14 @@ export default function VideoPlayerRoute() {
     opacity: floatScale.value,
   }));
 
+  // Turned sideways, a full-width 16:9 video is taller than the screen and pushes everything below it out of
+  // reach. Cap its height to about half the screen so the title, notes and next lessons stay scrollable.
+  const { width: winW, height: winH } = useWindowDimensions();
+  const landscape = winW > winH;
+  const videoBox = landscape
+    ? ({ height: Math.round(winH * 0.55), width: '100%' } as const)
+    : ({ width: '100%', aspectRatio: 16 / 9 } as const);
+
   const videoNotReady = !loading && !loadError && !accessDenied && !videoUrl;
 
   return (
@@ -241,7 +250,7 @@ export default function VideoPlayerRoute() {
           {videoUrl && !floating ? (
             <VideoView
               player={player}
-              style={{ width: '100%', aspectRatio: 16 / 9 }}
+              style={videoBox}
               contentFit="contain"
               nativeControls
               fullscreenOptions={{ enable: true, orientation: 'landscape' }}
@@ -334,9 +343,12 @@ export default function VideoPlayerRoute() {
             />
           ) : (
             <>
-              <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.md }]}>
-                {content?.title || 'Loading...'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: space.md }}>
+                <Text style={[type['type/h2'], { color: color('text/primary'), flex: 1 }]}>
+                  {content?.title || 'Loading...'}
+                </Text>
+                <BookmarkToggle type="content" id={content?.id} />
+              </View>
               <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
                 Video Lesson{content?.author_name ? ` · By ${content.author_name}` : ''}
               </Text>

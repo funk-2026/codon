@@ -21,6 +21,7 @@ import { track } from '@/src/analytics/track';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 import { useAttemptResult } from '@/src/queries/attempts';
+import { rankText } from '@/src/exam/logic';
 
 function band(p: number): { color: 'semantic/success' | 'semantic/warning' | 'semantic/danger'; headline: string } {
   if (p >= 85) return { color: 'semantic/success', headline: 'Excellent work.' };
@@ -118,6 +119,21 @@ export default function TestResultRoute() {
     );
   }
 
+  if (resultQuery.data?.pending && attempt) {
+    const at = resultQuery.data.results_at ? new Date(resultQuery.data.results_at) : null;
+    return (
+      <Screen>
+        <EmptyState
+          icon={<Timer size={36} color={color('accent/default')} />}
+          title="Submitted. Results are not out yet"
+          description={`${attempt.test?.title ?? 'Your test'} is a live event. Scores, ranks and answers open${at ? ` on ${at.toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ' later'}. We will notify you.`}
+          action={<PrimaryButton label="Back to Tests" onPress={() => router.replace(ROUTES.student.tests)} />}
+          style={{ flex: 1, justifyContent: 'center' }}
+        />
+      </Screen>
+    );
+  }
+
   if (loadError || !attempt) {
     return (
       <Screen>
@@ -196,13 +212,27 @@ export default function TestResultRoute() {
         </View>
 
         {cohort ? (
-          <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.md }, shadow()]} accessible accessibilityLabel={`Rank ${cohort.rank} of ${cohort.total}, top ${cohort.top_percent} percent`}>
+          <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginTop: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.md }, shadow()]} accessible>
             <View style={{ flex: 1 }}>
               <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>HOW YOU DID AMONG STUDENTS</Text>
-              <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: 2 }]}>Top {cohort.top_percent}%</Text>
-              <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
-                Rank {cohort.rank} of {cohort.total}{cohort.avg_score != null ? ` · average score ${fmtScore(cohort.avg_score)}` : ''}
-              </Text>
+              {cohort.locked ? (
+                <>
+                  <Text style={[type['type/h3'], { color: color('text/primary'), marginTop: 2 }]}>Rank is for subscribers</Text>
+                  <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>{cohort.total} students took this test.</Text>
+                </>
+              ) : cohort.rank != null ? (
+                <>
+                  <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: 2 }]}>{rankText({ rank: cohort.rank, total: cohort.total, estimated: cohort.estimated, top_percent: cohort.top_percent }).line}</Text>
+                  <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
+                    {cohort.top_percent != null ? `Top ${cohort.top_percent}%` : 'Percentile shows once more students have taken it'}
+                    {cohort.avg_score != null ? ` · average ${fmtScore(cohort.avg_score)}` : ''}
+                    {cohort.top_score != null ? ` · best ${fmtScore(cohort.top_score)}` : ''}
+                  </Text>
+                  {cohort.estimated ? (
+                    <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>Estimated against the students who took it in the live window. It does not change the real ranking.</Text>
+                  ) : null}
+                </>
+              ) : null}
             </View>
           </View>
         ) : null}
@@ -241,18 +271,24 @@ export default function TestResultRoute() {
               router.push({ pathname: ROUTES.student.testReview, params: { id } });
             }}
           />
+          {module.key === 'test_series' ? (
+            <>
+              <SecondaryButton label="Detailed analysis" onPress={() => router.push({ pathname: ROUTES.student.testAnalysis, params: { id } })} />
+              <SecondaryButton label="Leaderboard" onPress={() => router.push({ pathname: ROUTES.student.testLeaderboard, params: { id: attempt.test_id } })} />
+            </>
+          ) : null}
           {canPractiseMistakes ? (
             <SecondaryButton label="Practise my mistakes" onPress={() => setMistakesOpen(true)} />
           ) : null}
           {module.canRetake ? (
             <SecondaryButton
-              label={isCustom ? 'Retake these questions' : 'Retake Test'}
+              label={isCustom ? 'Retake these questions' : module.key === 'test_series' ? 'Practise this test again' : 'Retake Test'}
               onPress={() => router.push({ pathname: ROUTES.student.testPreStart, params: { id: attempt.test_id } })}
             />
           ) : null}
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: space.lg }}>
             <TextButton label="Share result" onPress={() => setShareOpen(true)} />
-            <TextButton label="Back to Practice" onPress={() => router.replace(ROUTES.student.practice)} />
+            <TextButton label={module.key === 'test_series' ? 'Back to Tests' : 'Back to Practice'} onPress={() => router.replace(module.key === 'test_series' ? ROUTES.student.tests : ROUTES.student.practice)} />
           </View>
         </View>
         </View>

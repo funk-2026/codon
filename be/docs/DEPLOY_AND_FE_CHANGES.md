@@ -1,6 +1,6 @@
 # Backend refactor — what to do to ship it, and what the frontend must change
 
-Branch: `feature/be-refactor`. Companion to [REFACTOR_AUDIT.md](REFACTOR_AUDIT.md) (the "why") and [../CONTRIBUTING.md](../CONTRIBUTING.md) (the rules going forward).
+Branch: `feature/be-refactor`. Companion to [../CONTRIBUTING.md](../CONTRIBUTING.md) (the rules going forward).
 
 Contents
 1. [Deploy runbook (backend / ops)](#1-deploy-runbook)

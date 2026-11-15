@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"crypto/rand"
 	"encoding/json"
 	"net/http"
@@ -313,7 +314,8 @@ func (h *ExtrasHandler) PutPrefs(c *gin.Context) {
 func (h *ExtrasHandler) ListNotifications(c *gin.Context) {
 	user := middleware.GetUser(c)
 	limit := pagination.Limit(c.Query("limit"))
-	q := h.DB.Model(&models.Notification{}).Where("notifications.user_id = ?", user.ID)
+	audience := c.Query("audience")
+	q := notificationAudience(h.DB.Model(&models.Notification{}).Where("notifications.user_id = ?", user.ID), "notifications.type", audience)
 	if c.Query("unread") == "true" {
 		q = q.Where("notifications.read_at IS NULL")
 	}
@@ -322,11 +324,31 @@ func (h *ExtrasHandler) ListNotifications(c *gin.Context) {
 	q.Find(&ns)
 	ns, next := pagination.Page(ns, limit, func(n models.Notification) (time.Time, uuid.UUID) { return n.CreatedAt, n.ID })
 	var unread int64
-	h.DB.Model(&models.Notification{}).Where("user_id = ? AND read_at IS NULL", user.ID).Count(&unread)
+	notificationAudience(h.DB.Model(&models.Notification{}).Where("user_id = ? AND read_at IS NULL", user.ID), "type", audience).Count(&unread)
 	c.JSON(http.StatusOK, gin.H{"items": ns, "next_cursor": nilIfEmpty(next), "unread_count": unread})
 }
 
+// notificationAudience limits notifications to the view the app is showing. One account can be an admin
+// who also opens the Teacher and Student views, so without this every view shows the same list.
+// Unknown or empty audience leaves the list unfiltered (older app builds).
+func notificationAudience(q *gorm.DB, col, audience string) *gorm.DB {
+	const teacher = `(%[1]s IN ('report_assigned','question_reported','correction_approved','correction_rejected') ` +
+		`OR %[1]s LIKE 'test\_%%' OR %[1]s LIKE 'content\_%%' OR %[1]s LIKE 'brain\_hack\_%%' OR %[1]s LIKE 'deck\_%%')`
+	t := fmt.Sprintf(teacher, col)
+	switch audience {
+	case "admin":
+		return q.Where(col + " = 'review_waiting'")
+	case "teacher":
+		return q.Where("(" + t + " OR " + col + " = 'announcement')")
+	case "student":
+		return q.Where(col + " <> 'review_waiting' AND NOT " + t)
+	}
+	return q
+}
+
 type readRequest struct {
+	// Audience scopes "all" to what the current view shows: student, teacher or admin.
+	Audience string `json:"audience"`
 	IDs []string `json:"ids"`
 	All bool     `json:"all"`
 }
@@ -347,7 +369,7 @@ func (h *ExtrasHandler) MarkRead(c *gin.Context) {
 		respondErr(c, http.StatusBadRequest, "bad_request", "invalid body")
 		return
 	}
-	q := h.DB.Model(&models.Notification{}).Where("user_id = ? AND read_at IS NULL", user.ID)
+	q := notificationAudience(h.DB.Model(&models.Notification{}).Where("user_id = ? AND read_at IS NULL", user.ID), "type", req.Audience)
 	if !req.All {
 		if len(req.IDs) == 0 || len(req.IDs) > 200 {
 			respondErr(c, http.StatusBadRequest, "bad_request", "ids (1-200) or all=true required")

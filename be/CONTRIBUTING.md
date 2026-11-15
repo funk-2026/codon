@@ -1,6 +1,6 @@
 # Backend contribution checklist
 
-Layers: **handler** (bind → one service call → respond via `httpx`) → **service** (rules, transactions, `*CodedError`) → DB. See `docs/REFACTOR_AUDIT.md` for the reasoning.
+Layers: **handler** (bind → one service call → respond via `httpx`) → **service** (rules, transactions, `*CodedError`) → DB.
 
 **Handlers**
 - [ ] No `tx`, no raw SQL, no business rules in handlers. Errors go through `httpx.Fail` / `respondErr` (`{error, code, details}`); never return `err.Error()` of an internal error.

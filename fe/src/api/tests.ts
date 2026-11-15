@@ -33,6 +33,16 @@ export type Test = {
   rating_count?: number;
   instructions?: string;
   author_name?: string;
+  exam_style?: 'neet' | 'school';
+  kind?: 'chapter' | 'subject' | 'part' | 'full' | 'pyq';
+  delivery?: 'anytime' | 'live';
+  opens_at?: string;
+  late_entry_minutes?: number;
+  extra_minutes?: number;
+  results_at?: string;
+  rank_visibility?: 'everyone' | 'subscribers';
+  series_id?: string;
+  exam_year?: number;
   /** Set while an approved test waits to go live. */
   publish_at?: string;
   submitted_at?: string;
@@ -66,6 +76,8 @@ export type GetTestResponse = {
   test: Test & { my_rating?: number };
   /** Present when the student has an in-progress attempt → offer Resume. */
   active_attempt?: ActiveAttempt;
+  /** The server clock, so countdowns follow it and not the phone. */
+  server_now?: string;
 };
 
 /** GET /api/v1/tests/:id */

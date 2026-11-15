@@ -1,6 +1,6 @@
 # Codon FE: screen inventory and tap counts
 
-Built from the current code in `fe/app` and `fe/src` (after the navigation refactor). It replaces the old paths in `screen-flows.md`.
+Built from the current code in `fe/app` and `fe/src` (after the navigation refactor).
 Taps are counted from the Home tab of each role, one tap per button or row, and don't include typing or answering questions.
 
 **Totals:** 8 entry/auth screens, 37 student files, teacher reworked (see its section), 26 admin (5 tabs). Plus 3 layout-only files.
@@ -75,7 +75,7 @@ Tabs: **Home, Practice, Learn, Support, Profile.** Status: reworked 2026-11-14 s
 
 ## Teacher (reworked 2026-11-14)
 
-Tabs: **Home, Content, Questions, Profile.** See [teacher-audit.md](teacher-audit.md) for the reasoning.
+Tabs: **Home, Content, Questions, Profile.**
 
 | Tab | What it does |
 |---|---|
@@ -89,7 +89,7 @@ Redirects for old links: `brain-hack-detail`, `rejected-content-detail`, `questi
 
 ## Admin (reworked 2026-11-14)
 
-Tabs: **Home, Users, Review, Payments, Profile.** See [admin-audit.md](admin-audit.md).
+Tabs: **Home, Users, Review, Payments, Profile.**
 
 | Tab | What it does |
 |---|---|
@@ -108,4 +108,10 @@ Redirects for old links: `moderation-tests`, `moderation-videos-docs`, `content-
 
 ## Backend redundancy: Practice
 
-See [backend-practice-cleanup.md](backend-practice-cleanup.md).
+See the Practice cleanup proposal in [future-gaps.md](future-gaps.md).
+
+## Tests (exam simulation)
+
+- **Student:** a **Tests** tab (Live and upcoming, Library, My results), then Test pre-start (instructions, lobby), the exam hall, Result (or "results not out yet"), Analysis, Leaderboard, Review (opens with results). Reminders and "results out" arrive as notifications.
+- **Teacher:** Home or Content → **New exam** (style, kind, live schedule, series). Questions are added in the question builder as before. Edit settings from the test's ⋯ menu.
+- **Admin:** Home → **Exams** (monitor, extend, results time, recompute scores).

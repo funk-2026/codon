@@ -64,6 +64,7 @@ type Test struct {
 	ReviewedAt           *time.Time    `json:"reviewed_at,omitempty"`
 	RejectionReason      *string       `gorm:"type:text" json:"rejection_reason,omitempty"`
 	ReviewMeta
+	ExamFields
 	// Shown to students before they start (rules, marking notes, syllabus).
 	Instructions *string `gorm:"type:text" json:"instructions,omitempty"`
 	// AuthorName is filled in for students ("by …"); never stored.
@@ -147,6 +148,14 @@ type StudentAttempt struct {
 	AttemptNo       int        `gorm:"not null;default:1" json:"attempt_no"`
 	AutoSubmitted   bool       `gorm:"not null;default:false" json:"auto_submitted"`
 	ActiveSessionID *uuid.UUID `gorm:"type:uuid" json:"-"`
+
+	// Official is the attempt that counts for rank: the first one, started inside a live window (or the first on an anytime test).
+	Official bool `gorm:"not null;default:false;index" json:"official"`
+	// Source is "live" when the attempt started inside the live window, otherwise "anytime".
+	Source string `gorm:"type:text;not null;default:'anytime'" json:"source"`
+	// LeaveCount and LeaveSeconds record how often and for how long the app was left during the exam.
+	LeaveCount   int `gorm:"not null;default:0" json:"leave_count"`
+	LeaveSeconds int `gorm:"not null;default:0" json:"leave_seconds"`
 
 	CreatedAt time.Time `json:"created_at"`
 }

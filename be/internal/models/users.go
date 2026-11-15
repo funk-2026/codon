@@ -62,6 +62,8 @@ type User struct {
 	ExamDate        *time.Time `gorm:"type:date" json:"exam_date,omitempty"`
 	SuspendedAt     *time.Time `json:"suspended_at,omitempty"`
 	SuspendedReason *string    `gorm:"type:text" json:"suspended_reason,omitempty"`
+	// LeaderboardOptOut hides the student's name from public leaderboards. Their own rank is still shown to them.
+	LeaderboardOptOut bool `gorm:"not null;default:false" json:"leaderboard_opt_out"`
 }
 
 type OTPRequest struct {

@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, {
@@ -18,6 +18,8 @@ import { getCustomTest } from '@/src/api/customTests';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 import { useQuery } from '@tanstack/react-query';
+import { clockOffset, formatCountdown, startGate } from '@/src/exam/logic';
+import { useServerNow } from '@/src/exam/useServerNow';
 
 const INSTRUCTIONS_TIMED = [
   'Once started, a timed test’s clock cannot be paused — it keeps running even if you leave.',
@@ -30,6 +32,14 @@ const INSTRUCTIONS_UNTIMED = [
   'You can move between questions freely and change your answers anytime before submitting.',
   'Unanswered questions score zero — they’re not counted as wrong.',
   'You can end the test early from the question palette.',
+];
+const INSTRUCTIONS_EXAM = [
+  'The timer is the server’s and cannot be paused. Leaving the app does not stop it, and each time you leave is recorded.',
+  'The question palette shows five states: not visited, not answered, answered, marked for review, and answered and marked.',
+  'Move freely between questions and sections. Save your answer and go to the next one, or clear a response.',
+  'Answers and the score stay hidden until results are released. Nothing is shown while you are answering.',
+  'Unanswered questions score zero. A wrong answer loses marks as shown under Marking.',
+  'When time is up your answers are submitted automatically.',
 ];
 const INSTRUCTIONS_TUTOR = [
   'Tutor mode: after choosing an answer you can check it straight away and read the explanation.',
@@ -83,7 +93,17 @@ export default function TestPreStartRoute() {
   const moduleLabel = studentModule(test?.module_type).label;
   const tutor = test?.mode === 'tutor';
 
-  const instructions = [...(timed ? INSTRUCTIONS_TIMED : INSTRUCTIONS_UNTIMED), ...(tutor ? INSTRUCTIONS_TUTOR : [])];
+  const isExam = test?.module_type === 'test_series';
+  const instructions = isExam ? INSTRUCTIONS_EXAM : [...(timed ? INSTRUCTIONS_TIMED : INSTRUCTIONS_UNTIMED), ...(tutor ? INSTRUCTIONS_TUTOR : [])];
+
+  // Live tests: wait for the start, close late entry. The countdown follows the server's clock.
+  const [receivedAt] = useState(() => Date.now());
+  const offset = useMemo(() => (testQuery.data?.server_now ? clockOffset(testQuery.data.server_now, receivedAt) : 0), [testQuery.data, receivedAt]);
+  const now = useServerNow(offset, isExam && test?.delivery === 'live');
+  const gate = test && isExam && !isResume ? startGate(test, now) : ({ state: 'open', official: false } as const);
+  const [read, setRead] = useState(false);
+  const mustAgree = isExam && !isResume;
+  const live = test?.delivery === 'live';
 
   return (
     <Screen>
@@ -201,6 +221,28 @@ export default function TestPreStartRoute() {
           </Stagger>
         ) : null}
 
+        {isExam && test ? (
+          <Stagger delayMs={100}>
+            <View style={{ marginTop: space.md, backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.md, gap: 2 }}>
+              <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
+                {live ? 'Live event' : 'Take it anytime'}
+                {gate.state === 'open' && gate.official ? ': your attempt counts for rank' : ''}
+              </Text>
+              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
+                {gate.state === 'wait'
+                  ? `Starts in ${formatCountdown(gate.ms)}. Everyone begins together; you can enter up to ${test.late_entry_minutes ?? 0} minutes late, with less time.`
+                  : gate.state === 'late'
+                    ? 'Late entry is closed. You can take it as practice after the event ends.'
+                    : live && gate.state === 'open' && !gate.official
+                      ? 'The live event is over. This attempt is practice and does not change anyone’s rank.'
+                      : isResume
+                        ? 'Your attempt is in progress.'
+                        : 'Your first attempt counts for rank. Later attempts are practice.'}
+              </Text>
+            </View>
+          </Stagger>
+        ) : null}
+
         <Stagger delayMs={160}>
           <View style={{ marginTop: space.xl }}>
             <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.sm }]}>
@@ -229,6 +271,19 @@ export default function TestPreStartRoute() {
             </View>
           </View>
         </Stagger>
+        {mustAgree && gate.state !== 'late' ? (
+          <Pressable
+            onPress={() => setRead((v) => !v)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: read }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.lg, minHeight: 44 }}
+          >
+            <View style={{ width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: color('accent/default'), backgroundColor: read ? color('accent/default') : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+              {read ? <Check size={14} color={color('accent/on-accent')} weight="bold" /> : null}
+            </View>
+            <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>I have read and understood the instructions</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       <View
@@ -246,8 +301,8 @@ export default function TestPreStartRoute() {
         ]}
       >
         <PrimaryButton
-          label={isResume ? 'Resume Test' : 'Start Test'}
-          disabled={loading || !test}
+          label={isResume ? 'Resume Test' : gate.state === 'wait' ? `Starts in ${formatCountdown(gate.ms)}` : gate.state === 'late' ? 'Late entry closed' : isExam && live && gate.state === 'open' && !gate.official ? 'Take it as practice' : 'Start Test'}
+          disabled={loading || !test || gate.state !== 'open' || (mustAgree && !read)}
           onPress={() => {
             // FE-4.22: count fresh starts of custom tests (resumes are not new starts)
             if (test?.module_type === 'custom' && !isResume) track('custom.started', { questions: test.total_questions, mode: test.mode ?? 'exam' });

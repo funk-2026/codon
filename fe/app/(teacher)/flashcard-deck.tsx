@@ -15,6 +15,7 @@ import {
 } from '@/src/api/flashcardsTeacher';
 import { DECK_BADGE } from '@/src/flashcards/deckBadge';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
+import { ImportCardsSheet } from '@/src/teacher/ImportCardsSheet';
 import { PublishSheet, SubmitForReviewSheet } from '@/src/teacher/AuthorSheets';
 import { scheduleItem } from '@/src/api/teacher';
 
@@ -185,6 +186,7 @@ export default function FlashcardDeckRoute() {
     }
   };
 
+  const [importOpen, setImportOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const scheduledAt = (deck as { publish_at?: string } | null)?.publish_at ?? null;
@@ -317,6 +319,7 @@ export default function FlashcardDeckRoute() {
           <View style={{ gap: space.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={[type['type/h3'], { color: color('text/primary'), flex: 1 }]}>Cards ({cards.length})</Text>
+              {editable ? <TextButton label="Import CSV" onPress={() => setImportOpen(true)} /> : null}
               {editable ? <TextButton label="+ Add card" onPress={() => setCard({ front: '', back: '' })} /> : null}
             </View>
             {cards.length === 0 ? (
@@ -388,6 +391,7 @@ export default function FlashcardDeckRoute() {
           <PrimaryButton label="Delete" onPress={removeDeck} loading={busy === 'deldeck'} style={{ flex: 1 }} />
         </View>
       </BottomSheet>
+      {deck ? <ImportCardsSheet visible={importOpen} deckId={deck.id} onClose={() => setImportOpen(false)} onDone={(n) => { setImportOpen(false); show(`Added ${n} cards`, 'success'); void load(); }} /> : null}
       <SubmitForReviewSheet visible={submitOpen} onClose={() => setSubmitOpen(false)} onSubmit={(n) => lifecycle('submit', n)} resubmit={deck?.status === 'rejected'} loading={busy === 'submit'} />
       <PublishSheet visible={publishOpen} onClose={() => setPublishOpen(false)} onPublishNow={() => lifecycle('publish')} onSchedule={schedule} scheduledAt={scheduledAt} loading={busy === 'publish'} />
     </SafeAreaView>

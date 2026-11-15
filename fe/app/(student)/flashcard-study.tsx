@@ -15,6 +15,7 @@ import { RatingBar } from '@/src/flashcards/RatingBar';
 import { StudyComplete } from '@/src/flashcards/StudyComplete';
 import { tap } from '@/src/flashcards/haptics';
 import { track } from '@/src/analytics/track';
+import { BookmarkToggle } from '@/src/bookmarks/BookmarkToggle';
 import { ROUTES } from '@/src/navigation/routes';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 
@@ -105,7 +106,12 @@ export default function FlashcardStudyRoute() {
       <ScreenHeader
         size="small"
         title={title}
-        right={state === 'ready' && !done ? <Text style={[type['type/body-m-medium'], { color: color('text/secondary') }]}>{i + 1} / {cards.length}</Text> : null}
+        right={state === 'ready' && !done ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
+            <Text style={[type['type/body-m-medium'], { color: color('text/secondary') }]}>{i + 1} / {cards.length}</Text>
+            <BookmarkToggle type="flashcard" id={cards[i]?.id} />
+          </View>
+        ) : null}
       />
       {state === 'ready' && cards.length > 0 ? (
         <View style={{ flexDirection: 'row', gap: 3, marginHorizontal: space.md, marginTop: space.xs }}>

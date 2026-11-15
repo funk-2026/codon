@@ -216,6 +216,11 @@ func transitionFields(to models.ContentStatus, note string) map[string]interface
 	return f
 }
 
+// AskReview tells the admins an item changed in a way that needs a fresh look (used when a live item is edited).
+func (s *ReviewService) AskReview(ctx context.Context, r Reviewable, id uuid.UUID) {
+	s.notifyAdmins(s.DB.WithContext(ctx), r, id)
+}
+
 // notifyAdmins tells every active admin that something is waiting for review. Best effort: a failure
 // to notify never blocks the author's submission. Push delivery picks the rows up like any other.
 func (s *ReviewService) notifyAdmins(db *gorm.DB, r Reviewable, id uuid.UUID) {

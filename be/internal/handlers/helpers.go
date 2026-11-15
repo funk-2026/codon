@@ -44,6 +44,39 @@ func cohortCorrectPct(db *gorm.DB, ctx context.Context, ids []uuid.UUID) map[uui
 	return out
 }
 
+// optionShares tells, per question, what percent of students who answered chose each option (A to D).
+// Questions with fewer answers than the cohort minimum are left out, so early numbers don't mislead.
+func optionShares(db *gorm.DB, ctx context.Context, ids []uuid.UUID) map[uuid.UUID]map[string]int {
+	out := map[uuid.UUID]map[string]int{}
+	if len(ids) == 0 || settings.Default == nil {
+		return out
+	}
+	var rows []struct {
+		QuestionID uuid.UUID
+		Opt        string
+		N          int
+	}
+	db.WithContext(ctx).Raw(`SELECT aa.question_id, aa.selected_option AS opt, COUNT(*) AS n
+		FROM attempt_answers aa JOIN student_attempts a ON a.id = aa.attempt_id
+		WHERE a.status = 'submitted' AND aa.question_id IN ? AND aa.selected_option IS NOT NULL
+		GROUP BY aa.question_id, aa.selected_option`, ids).Scan(&rows)
+	total := map[uuid.UUID]int{}
+	for _, r := range rows {
+		total[r.QuestionID] += r.N
+	}
+	floor := settings.Int("analytics.cohort_min_attempts")
+	for _, r := range rows {
+		if total[r.QuestionID] < floor || total[r.QuestionID] == 0 {
+			continue
+		}
+		if out[r.QuestionID] == nil {
+			out[r.QuestionID] = map[string]int{"A": 0, "B": 0, "C": 0, "D": 0}
+		}
+		out[r.QuestionID][r.Opt] = int(float64(r.N)*100/float64(total[r.QuestionID]) + 0.5)
+	}
+	return out
+}
+
 // testDuration returns a test's duration in minutes (nil if untimed/unknown).
 func testDuration(db *gorm.DB, ctx context.Context, testID uuid.UUID) *int {
 	var t models.Test

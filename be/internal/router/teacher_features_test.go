@@ -163,3 +163,80 @@ func TestTeacherImpactAndTestStats(t *testing.T) {
 		t.Fatalf("another teacher must not see these stats: %d", code)
 	}
 }
+
+// One account that can open the Admin, Teacher and Student views sees only that view's notifications.
+func TestNotificationsAreScopedByView(t *testing.T) {
+	e := newEnv(t)
+	u := &e.w.Admin
+	for _, typ := range []string{"review_waiting", "test_approved", "content_taken_down", "report_resolved", "streak_nudge", "announcement"} {
+		services.Notify(e.db, u.ID, typ, typ, "x", nil)
+	}
+	count := func(aud string) int {
+		out := e.mustDo(200, "GET", "/me/notifications?audience="+aud, u, nil)
+		return len(out["items"].([]interface{}))
+	}
+	if n := count("admin"); n != 1 {
+		t.Fatalf("admin view should see only review_waiting, saw %d", n)
+	}
+	if n := count("teacher"); n != 3 { // test_approved, content_taken_down, announcement
+		t.Fatalf("teacher view saw %d, want 3", n)
+	}
+	if n := count("student"); n != 3 { // report_resolved, streak_nudge, announcement
+		t.Fatalf("student view saw %d, want 3", n)
+	}
+	if n := count(""); n != 6 {
+		t.Fatalf("no audience keeps the old behaviour, saw %d", n)
+	}
+	e.mustDo(200, "POST", "/me/notifications/read", u, map[string]interface{}{"all": true, "audience": "admin"})
+	out := e.mustDo(200, "GET", "/me/notifications?audience=student", u, nil)
+	if out["unread_count"].(float64) != 3 {
+		t.Fatalf("marking the admin view read must not touch the student view: %v", out["unread_count"])
+	}
+}
+
+// Replacing the video of a lesson students can see sends it back to review; a draft stays a draft.
+func TestReplaceVideoSendsLiveLessonBackToReview(t *testing.T) {
+	e := newEnv(t)
+	tch := &e.w.Teacher
+	vs := models.VideoReady
+	live := models.ContentItem{Title: "V", CourseID: e.w.Course.ID, ContentType: models.ContentVideo, ChapterID: e.w.Chapter.ID,
+		UploadedBy: tch.ID, FileKey: "bunny:aaaa", Status: models.StatusPublished, VideoStatus: &vs}
+	e.db.Create(&live)
+	out := e.mustDo(200, "PATCH", "/teacher/content/"+live.ID.String(), tch, map[string]interface{}{"file_key": "bunny:bbbb"})
+	if str(out, "status") != "pending_review" {
+		t.Fatalf("a live lesson with a new video must go back to review: %v", out["status"])
+	}
+	draft := models.ContentItem{Title: "D", CourseID: e.w.Course.ID, ContentType: models.ContentVideo, ChapterID: e.w.Chapter.ID,
+		UploadedBy: tch.ID, FileKey: "bunny:cccc", Status: models.StatusDraft, VideoStatus: &vs}
+	e.db.Create(&draft)
+	out = e.mustDo(200, "PATCH", "/teacher/content/"+draft.ID.String(), tch, map[string]interface{}{"file_key": "bunny:dddd"})
+	if str(out, "status") != "draft" {
+		t.Fatalf("a draft stays a draft: %v", out["status"])
+	}
+}
+
+// A bulk import adds every card or none, and says which row is wrong.
+func TestBulkAddCards(t *testing.T) {
+	e := newEnv(t)
+	tch := &e.w.Teacher
+	deck := e.mustDo(201, "POST", "/teacher/flashcard-decks", tch, map[string]interface{}{"title": "Bulk", "course_id": e.w.Course.ID.String()})
+	id := str(deck, "id")
+	if id == "" {
+		id = str(deck, "deck", "id")
+	}
+	good := []map[string]string{{"front": "Q1", "back": "A1"}, {"front": "Q2", "back": "A2"}}
+	out := e.mustDo(201, "POST", "/teacher/flashcard-decks/"+id+"/cards/bulk", tch, map[string]interface{}{"cards": good})
+	if out["added"].(float64) != 2 {
+		t.Fatalf("added %v", out["added"])
+	}
+	bad := []map[string]string{{"front": "Q3", "back": "A3"}, {"front": " ", "back": "A4"}}
+	code, body := e.do("POST", "/teacher/flashcard-decks/"+id+"/cards/bulk", tch, map[string]interface{}{"cards": bad})
+	if code != 400 && code != 422 {
+		t.Fatalf("a bad row must refuse the whole import: %d %v", code, body)
+	}
+	var n int64
+	e.db.Model(&models.Flashcard{}).Where("deck_id = ?", id).Count(&n)
+	if n != 2 {
+		t.Fatalf("nothing from the failed import may be saved, deck has %d cards", n)
+	}
+}

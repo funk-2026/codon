@@ -62,6 +62,7 @@ export default function TestReviewRoute() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [pendingResults, setPendingResults] = useState(false);
   const [current, setCurrent] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -93,6 +94,7 @@ export default function TestReviewRoute() {
       } catch (e) {
         if (seq !== reqSeq.current) return;
         console.error('Failed to load review', e);
+        setPendingResults((e as { code?: string })?.code === 'results_pending');
         setLoadError(true);
       } finally {
         if (seq === reqSeq.current) setLoading(false);
@@ -238,6 +240,13 @@ export default function TestReviewRoute() {
             <SkeletonBlock height={52} radius={radius.md} />
           </View>
         </View>
+      ) : loadError && pendingResults ? (
+        <EmptyState
+          icon={<WarningCircle size={32} color={color('text/tertiary')} />}
+          title="Answers open with the results"
+          description="This was a live test. You will be notified when results are released, and then you can review every answer."
+          style={{ flex: 1, justifyContent: 'center' }}
+        />
       ) : loadError ? (
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
@@ -382,7 +391,14 @@ function ReviewCard({
 
       <View style={{ gap: space.sm, marginTop: space.md }}>
         {opts.map(([letter, val]) => (
-          <OptionCard key={letter} letter={letter} value={val} format={q.content_format} media={media} state={stateOf(letter)} />
+          <View key={letter}>
+            <OptionCard letter={letter} value={val} format={q.content_format} media={media} state={stateOf(letter)} />
+            {q.option_shares ? (
+              <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'right', marginTop: 2 }]} accessibilityLabel={`${q.option_shares[letter] ?? 0} percent of students chose option ${letter}`}>
+                {q.option_shares[letter] ?? 0}% chose this
+              </Text>
+            ) : null}
+          </View>
         ))}
       </View>
 

@@ -13,6 +13,8 @@ export type UserProfile = {
   created_at: string;
   last_login_at?: string;
   exam_date?: string | null;
+  /** Hide my name on public leaderboards. */
+  leaderboard_opt_out?: boolean;
   suspended_at?: string | null;
   suspended_reason?: string | null;
 };
@@ -66,6 +68,7 @@ export type UpdateMeRequest = {
   selected_course_id?: string;
   /** YYYY-MM-DD; an empty string clears it. */
   exam_date?: string;
+  leaderboard_opt_out?: boolean;
 };
 
 /** PATCH /api/v1/me */

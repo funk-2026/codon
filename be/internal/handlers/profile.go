@@ -95,6 +95,10 @@ func (h *ProfileHandler) UpdateMe(c *gin.Context) {
 		updates["selected_course_id"] = *req.SelectedCourseID
 	}
 
+	if req.LeaderboardOptOut != nil {
+		updates["leaderboard_opt_out"] = *req.LeaderboardOptOut
+	}
+
 	if req.ExamDate != nil {
 		if *req.ExamDate == "" {
 			updates["exam_date"] = nil
@@ -164,6 +168,12 @@ func (h *ProfileHandler) GetAttempts(c *gin.Context) {
 		httpx.Fail(c, err)
 		return
 	}
+	now := time.Now()
+	for i := range attempts {
+		if attempts[i].Status == models.AttemptSubmitted && !services.ResultsReleased(&attempts[i].Test, now) {
+			hideScores(&attempts[i]) // a live test keeps the score back until results open
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"attempts": attempts, "next_cursor": nilIfEmpty(next)})
 }
 
@@ -202,6 +212,8 @@ type updateMeRequest struct {
 	SelectedCourseID *string `json:"selected_course_id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	// ExamDate is YYYY-MM-DD; an empty string clears it.
 	ExamDate *string `json:"exam_date" example:"2027-05-03"`
+	// LeaderboardOptOut hides the student's name from public leaderboards.
+	LeaderboardOptOut *bool `json:"leaderboard_opt_out"`
 }
 
 type progressResponse struct {

@@ -8,16 +8,16 @@ import { CourseSelector, ErrorBanner, InputField, PrimaryButton, SecondaryButton
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { LecturePdfEditor, type PdfKind } from '@/src/content/LecturePdfEditor';
 import { createContent } from '@/src/api/teacher';
-import { getPresignedUrl } from '@/src/api/uploads';
+import { formatBytes, MAX_VIDEO_BYTES, uploadVideo as uploadVideoFile, type VideoUploadHandle } from '@/src/upload/videoUpload';
 import { listCourses, getCurriculum, type Course } from '@/src/api/courses';
 import { defaultCourse } from '@/src/api/courseSelection';
 import { ApiError } from '@/src/api/client';
-import * as tus from 'tus-js-client';
 import { ChapterPickerSheet } from '@/src/teacher/ChapterPickerSheet';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
 type ContentType = 'Video' | 'Document';
+
 type VideoState = 'idle' | 'uploading' | 'ready' | 'failed';
 
 export default function CreateContentRoute() {
@@ -34,6 +34,9 @@ export default function CreateContentRoute() {
   const [notes, setNotes] = useState('');
   const [videoState, setVideoState] = useState<VideoState>('idle');
   const [videoProgress, setVideoProgress] = useState(0);
+  const [videoTotal, setVideoTotal] = useState(0);
+  // The file the teacher picked, so "Try again" resumes from the same file without opening the picker.
+  const [picked, setPicked] = useState<{ uri: string; name: string; mimeType: string; size: number } | null>(null);
   const [videoFileName, setVideoFileName] = useState('');
   const [videoFileKey, setVideoFileKey] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -45,7 +48,7 @@ export default function CreateContentRoute() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const uploadTus = useRef<tus.Upload | null>(null);
+  const uploadTus = useRef<VideoUploadHandle | null>(null);
 
   const loadCourseInfo = useCallback(async () => {
     try {
@@ -75,71 +78,39 @@ export default function CreateContentRoute() {
       const result = await DocumentPicker.getDocumentAsync({ type: 'video/*', copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
-      uploadVideo(asset.uri, asset.name, asset.mimeType || 'video/mp4');
+      if (asset.size != null && asset.size > MAX_VIDEO_BYTES) {
+        setVideoFileName(asset.name);
+        setVideoError(`This video is ${formatBytes(asset.size)}. The limit is ${formatBytes(MAX_VIDEO_BYTES)}; compress it or split it into parts.`);
+        setVideoState('failed');
+        setPicked(null);
+        return;
+      }
+      setPicked({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType || 'video/mp4', size: asset.size ?? 0 });
+      uploadVideo(asset.uri, asset.name, asset.mimeType || 'video/mp4', asset.size ?? 0);
     } catch (err) {
       setVideoError('Failed to select file.');
     }
   };
 
-  const uploadVideo = async (uri: string, name: string, mimeType: string) => {
+  const uploadVideo = async (uri: string, name: string, mimeType: string, size = 0) => {
     setVideoFileName(name);
     setVideoFileKey(null);
     setVideoError(null);
     setVideoState('uploading');
     setVideoProgress(0);
-
+    setVideoTotal(size);
     try {
-      const presign = await getPresignedUrl({ file_name: name, content_type: mimeType, purpose: 'video' });
-
-      // Dev stub bypass if Bunny is unconfigured in development
-      if (presign.tus_auth?.signature === 'stub') {
-        setVideoFileKey(presign.file_key);
-        setVideoProgress(100);
-        setVideoState('ready');
-        return;
-      }
-
-      if (!presign.tus_auth) {
-        throw new Error('Server did not provide TUS upload credentials');
-      }
-
-      const fileBlob = await (await fetch(uri)).blob();
-
-      await new Promise<void>((resolve, reject) => {
-        const upload = new tus.Upload(fileBlob, {
-          endpoint: presign.upload_url,
-          retryDelays: [0, 3000, 5000, 10000, 20000],
-          chunkSize: 5 * 1024 * 1024,
-          headers: {
-            AuthorizationSignature: presign.tus_auth!.signature,
-            AuthorizationExpire: String(presign.tus_auth!.expires),
-            LibraryId: String(presign.tus_auth!.library_id),
-            VideoId: presign.tus_auth!.video_id,
+      const key = await uploadVideoFile(
+        { uri, name, mimeType },
+        {
+          onProgress: (pct, total) => {
+            setVideoProgress((cur) => Math.max(cur, pct));
+            if (total > 0) setVideoTotal(total);
           },
-          metadata: {
-            filetype: mimeType,
-            title: name,
-          },
-          onProgress: (bytesSent, bytesTotal) => {
-            if (bytesTotal > 0) {
-              setVideoProgress(Math.round((bytesSent / bytesTotal) * 100));
-            }
-          },
-          onSuccess: () => {
-            uploadTus.current = null;
-            resolve();
-          },
-          onError: (err) => {
-            uploadTus.current = null;
-            reject(err);
-          },
-        });
-
-        uploadTus.current = upload;
-        upload.start();
-      });
-
-      setVideoFileKey(presign.file_key);
+          onHandle: (h) => { uploadTus.current = h; },
+        },
+      );
+      setVideoFileKey(key);
       setVideoProgress(100);
       setVideoState('ready');
     } catch (err: any) {
@@ -303,7 +274,7 @@ export default function CreateContentRoute() {
               >
                 <UploadSimple size={28} color={color('text/tertiary')} />
                 <Text style={[type['type/body-m'], { color: color('text/tertiary'), marginTop: space.xs, textAlign: 'center' }]}>
-                  Select a video file (MP4, max 2GB)
+                  Select a video file (MP4, up to 2 GB)
                 </Text>
               </Pressable>
             ) : (
@@ -324,7 +295,7 @@ export default function CreateContentRoute() {
                       <View style={{ width: `${videoProgress}%`, height: 4, backgroundColor: color('accent/default'), borderRadius: 2 }} />
                     </View>
                     <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>
-                      Uploading… {videoProgress}%
+                      Uploading… {videoProgress}%{videoTotal > 0 ? ` of ${formatBytes(videoTotal)}` : ''}. Keep the app open and stay on Wi-Fi.
                     </Text>
                   </>
                 ) : videoState === 'ready' ? (
@@ -336,7 +307,10 @@ export default function CreateContentRoute() {
                     <Text style={[type['type/caption'], { color: color('semantic/danger'), marginTop: space.xs }]}>
                       {videoError || 'Upload failed.'}
                     </Text>
-                    <TextButton label="Try Again" onPress={handleSelectVideo} style={{ alignSelf: 'flex-start', marginTop: space.xs }} />
+                    {picked ? (
+                      <TextButton label="Try again with the same file" onPress={() => uploadVideo(picked.uri, picked.name, picked.mimeType, picked.size)} style={{ alignSelf: 'flex-start', marginTop: space.xs }} />
+                    ) : null}
+                    <TextButton label="Choose another file" onPress={handleSelectVideo} style={{ alignSelf: 'flex-start' }} />
                   </>
                 ) : null}
               </View>
