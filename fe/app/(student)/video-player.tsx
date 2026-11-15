@@ -2,16 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { useEvent } from 'expo';
-import { useVideoPlayer, VideoView, VideoTrack } from 'expo-video';
+import { isPictureInPictureSupported, VideoView, VideoTrack } from 'expo-video';
+import { useVideoSession } from '@/src/video/VideoSession';
 import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
 import { track } from '@/src/analytics/track';
-import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple } from 'phosphor-react-native';
+import { CaretLeft, PictureInPicture, ArrowsInSimple, WarningCircle, LockSimple } from 'phosphor-react-native';
 import { BookmarkToggle } from '@/src/bookmarks/BookmarkToggle';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat, type LecturePDFs } from '@/src/api/content';
@@ -39,6 +35,7 @@ export default function VideoPlayerRoute() {
   const goBack = useSafeBack();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
+  const { player, start, dock, close, currentId } = useVideoSession();
 
   // Where to pick up, taken from the server when the lecture opens and used once the player is ready.
   const resumeAt = useRef(0);
@@ -62,7 +59,10 @@ export default function VideoPlayerRoute() {
       .then((res) => {
         setContent(res.content);
         setVideoUrl(res.url);
-        resumeAt.current = res.progress_seconds && res.progress_seconds > 5 ? res.progress_seconds : 0;
+        // Coming back from the small player: the player is already at the right spot, so don't jump.
+        const alreadyLoaded = currentId() === id;
+        resumeAt.current = !alreadyLoaded && res.progress_seconds && res.progress_seconds > 5 ? res.progress_seconds : 0;
+        if (res.url) start({ id: String(id), title: res.content.title, url: res.url });
         track('video.started', { resumed: resumeAt.current > 0 });
         setPdfs(pdfsOf(res));
         return getChapterContent(res.content.chapter_id);
@@ -78,15 +78,12 @@ export default function VideoPlayerRoute() {
         }
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, start, currentId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const player = useVideoPlayer(videoUrl || null, (p) => {
-    p.timeUpdateEventInterval = 0.5;
-  });
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
   const { currentTime } = useEvent(player, 'timeUpdate', {
     currentTime: 0,
@@ -106,26 +103,33 @@ export default function VideoPlayerRoute() {
   }, [playerStatus, player]);
 
   const videoViewRef = useRef<VideoView>(null);
+  // Leaving by Back stops the lesson; leaving through the small-player button keeps it going.
+  const dockingRef = useRef(false);
+  useEffect(() => {
+    dockingRef.current = false;
+    return () => {
+      if (!dockingRef.current && id) close(String(id));
+    };
+  }, [id, close]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [qualityTracks, setQualityTracks] = useState<VideoTrack[]>([]);
   const [selectedQuality, setSelectedQuality] = useState<string | null>(null);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
 
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [floating, setFloating] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(2);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!isPlaying || !controlsVisible || floating) return;
+    if (!isPlaying || !controlsVisible) return;
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [isPlaying, controlsVisible, floating]);
+  }, [isPlaying, controlsVisible]);
 
   // Watch-progress heartbeat. currentTime updates every 0.5 s, so it's read from a
   // ref — depending on it directly restarted the 10 s interval before it ever fired,
@@ -157,11 +161,6 @@ export default function VideoPlayerRoute() {
       .then((res) => setPdfs(pdfsOf(res)))
       .catch(() => {});
   }, [currentTime, duration, id]);
-
-  const floatScale = useSharedValue(0);
-  useEffect(() => {
-    floatScale.value = withTiming(floating ? 1 : 0, { duration: 280 });
-  }, [floating, floatScale]);
 
   const mm = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const togglePlay = () => {
@@ -223,14 +222,6 @@ export default function VideoPlayerRoute() {
     }
   };
 
-  const fullStyle = useAnimatedStyle(() => ({
-    opacity: 1 - floatScale.value,
-    transform: [{ scale: 1 - floatScale.value * 0.04 }],
-  }));
-  const floatStyle = useAnimatedStyle(() => ({
-    opacity: floatScale.value,
-  }));
-
   // Turned sideways, a full-width 16:9 video is taller than the screen and pushes everything below it out of
   // reach. Cap its height to about half the screen so the title, notes and next lessons stay scrollable.
   const { width: winW, height: winH } = useWindowDimensions();
@@ -244,11 +235,12 @@ export default function VideoPlayerRoute() {
   return (
     <Screen>
       {/* Full-screen mode */}
-      <Animated.View style={[styles.fullWrap, fullStyle]}>
+      <View style={styles.fullWrap}>
         {/* Video canvas */}
         <View style={{ backgroundColor: '#000' }}>
-          {videoUrl && !floating ? (
+          {videoUrl ? (
             <VideoView
+              ref={videoViewRef}
               player={player}
               style={videoBox}
               contentFit="contain"
@@ -288,6 +280,34 @@ export default function VideoPlayerRoute() {
             >
               <CaretLeft size={24} color="#fff" />
             </Pressable>
+            <View style={{ flexDirection: 'row', gap: space.xs }}>
+              {videoUrl ? (
+                <Pressable
+                  onPress={() => {
+                    dockingRef.current = true;
+                    dock();
+                    goBack();
+                  }}
+                  hitSlop={space.xs}
+                  accessibilityRole="button"
+                  accessibilityLabel="Keep watching in a small player while you browse"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' })}
+                >
+                  <ArrowsInSimple size={22} color="#fff" />
+                </Pressable>
+              ) : null}
+              {videoUrl && isPictureInPictureSupported() ? (
+                <Pressable
+                  onPress={() => void videoViewRef.current?.startPictureInPicture().catch(() => {})}
+                  hitSlop={space.xs}
+                  accessibilityRole="button"
+                  accessibilityLabel="Picture in picture, float the video over other apps"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' })}
+                >
+                  <PictureInPicture size={22} color="#fff" />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -345,7 +365,6 @@ export default function VideoPlayerRoute() {
                   onPause={() => player.pause()}
                   onSeek={(t) => {
                     player.currentTime = t;
-                    setFloating(false);
                   }}
                 />
               ) : null}
@@ -358,7 +377,7 @@ export default function VideoPlayerRoute() {
                 {siblings.map((s) => (
                   <Pressable
                     key={s.id}
-                    onPress={() => router.push({ pathname: ROUTES.student.videoPlayer, params: { id: s.id } })}
+                    onPress={() => router.replace({ pathname: ROUTES.student.videoPlayer, params: { id: s.id } })}
                     style={({ pressed }) => [
                       styles.siblingRow,
                       {
@@ -388,74 +407,7 @@ export default function VideoPlayerRoute() {
             </>
           )}
         </ScrollView>
-      </Animated.View>
-
-      {/* Floating mini-player */}
-      <Animated.View
-        style={[
-          {
-            position: 'absolute',
-            bottom: 80 + insets.bottom,
-            right: space.md,
-            width: 160,
-            height: 90,
-            backgroundColor: '#000',
-            borderRadius: radius.md,
-            overflow: 'hidden',
-            elevation: 8,
-            shadowColor: '#000',
-            shadowOpacity: 0.3,
-            shadowRadius: 16,
-            shadowOffset: { width: 0, height: 6 },
-          },
-          floatStyle,
-        ]}
-        pointerEvents={floating ? 'auto' : 'none'}
-      >
-        <Pressable
-          onPress={() => setFloating(false)}
-          style={{ flex: 1, backgroundColor: '#000' }}
-        >
-          {videoUrl && floating ? (
-            <VideoView
-              player={player}
-              style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
-              contentFit="contain"
-              nativeControls={false}
-              pointerEvents="none"
-            />
-          ) : null}
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' }]}>
-            <Pressable onPress={togglePlay} hitSlop={space.xs}>
-              {isPlaying ? (
-                <Pause size={24} color="#fff" weight="fill" />
-              ) : (
-                <Play size={24} color="#fff" weight="fill" />
-              )}
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                setFloating(false);
-                player.pause();
-                goBack();
-              }}
-              hitSlop={space.lg}
-              style={{ position: 'absolute', top: 6, right: 6 }}
-            >
-              <X size={16} color="#fff" weight="bold" />
-            </Pressable>
-          </View>
-          <View style={styles.floatProgress}>
-            <View
-              style={{
-                width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                height: 2,
-                backgroundColor: color('accent/default'),
-              }}
-            />
-          </View>
-        </Pressable>
-      </Animated.View>
+      </View>
     </Screen>
   );
 }
@@ -489,6 +441,5 @@ const styles = StyleSheet.create({
   controlsRow: { flexDirection: 'row', alignItems: 'center' },
   speedMenu: { alignItems: 'flex-end' },
   siblingRow: { flexDirection: 'row', alignItems: 'center' },
-  floatProgress: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.2)' },
   floatControls: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });
