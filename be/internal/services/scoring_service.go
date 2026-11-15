@@ -153,6 +153,11 @@ func (s *ScoringService) StartAttempt(ctx context.Context, userID uuid.UUID, tes
 
 	var prior int64
 	s.DB.WithContext(ctx).Model(&models.StudentAttempt{}).Where("user_id = ? AND test_id = ?", userID, test.ID).Count(&prior)
+	// An exam is sat once. While its results are still hidden, a second go would let a student see the paper
+	// again and improve on it, so a submitted attempt blocks a new start until results are out.
+	if prior > 0 && test.ModuleType == models.ModuleTestSeries && !ResultsReleased(test, now) {
+		return nil, Coded(http.StatusConflict, "already_submitted", "you have already submitted this test. Results are not out yet.")
+	}
 	qcount, _ := TestQuestionCount(ctx, s.DB, test.ID)
 
 	mode := test.Mode

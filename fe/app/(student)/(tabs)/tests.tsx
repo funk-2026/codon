@@ -59,7 +59,8 @@ export default function TestsTab() {
 
   const hasSub = useHasSubscription();
   const open = (c: ExamCard) => {
-    if (c.my_attempt?.status === 'submitted' && c.results_released) {
+    // A taken test opens its result (or "result pending"), never the Start screen. Practising again is a button there.
+    if (c.my_attempt?.status === 'submitted') {
       return router.push({ pathname: ROUTES.student.testResult, params: { id: c.my_attempt.id, fromHistory: '1' } });
     }
     if (c.requires_subscription && !hasSub && !c.my_attempt) return router.push(ROUTES.student.subscriptionPlans);
