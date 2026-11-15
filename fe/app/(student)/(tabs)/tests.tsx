@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,7 +9,7 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { listExams, registerForExam, unregisterFromExam, type ExamCard } from '@/src/api/exams';
 import { CompactTestCard, NextUpCard, SeriesCard } from '@/src/exam/TestsHomeParts';
-import { buildTestsHome, clockOffset, formatCountdown, type SeriesProgress } from '@/src/exam/logic';
+import { buildTestsHome, clockOffset, formatCountdown, withPhaseAt, type SeriesProgress } from '@/src/exam/logic';
 import { useServerNow } from '@/src/exam/useServerNow';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { useHasSubscription } from '@/src/queries/curriculum';
@@ -39,7 +39,14 @@ export default function TestsTab() {
   const [receivedAt] = useState(() => Date.now());
   const offset = useMemo(() => (q.data ? clockOffset(q.data.server_now, receivedAt) : 0), [q.data, receivedAt]);
   const now = useServerNow(offset, true);
-  const home = useMemo(() => buildTestsHome(q.data?.tests ?? [], filter, now), [q.data, filter, now]);
+  const tests = useMemo(() => withPhaseAt(q.data?.tests ?? [], now), [q.data, now]);
+  const home = useMemo(() => buildTestsHome(tests, filter, now), [tests, filter, now]);
+  // A test crossed its start or end: fetch again so my attempt, late entry and results are current.
+  const crossed = tests.some((c, i) => c.phase !== q.data?.tests[i]?.phase);
+  const { refetch } = q;
+  useEffect(() => {
+    if (crossed) void refetch();
+  }, [crossed, refetch]);
 
   const remind = useMutation({
     mutationFn: (c: ExamCard) => (c.registered ? unregisterFromExam(c.id) : registerForExam(c.id)),

@@ -39,6 +39,23 @@ export function clockOffset(serverNowIso: string, receivedAt: number = Date.now(
   return Number.isNaN(t) ? 0 : t - receivedAt;
 }
 
+/**
+ * Where a test stands at `now`. The server's `phase` is only true at the moment it answered, so a countdown that
+ * reaches zero would sit on "Starts in 0 s" forever. Live tests are re-derived from their own times.
+ */
+export function phaseAt(c: ExamCard, now: number): ExamCard['phase'] {
+  if (c.delivery !== 'live' || !c.opens_at || !c.ends_at) return c.phase;
+  const opens = new Date(c.opens_at).getTime();
+  const ends = new Date(c.ends_at).getTime();
+  if (Number.isNaN(opens) || Number.isNaN(ends)) return c.phase;
+  return now < opens ? 'upcoming' : now < ends ? 'live' : 'ended';
+}
+export const withPhaseAt = (cards: ExamCard[], now: number): ExamCard[] =>
+  cards.map((c) => {
+    const phase = phaseAt(c, now);
+    return phase === c.phase ? c : { ...c, phase };
+  });
+
 export type ExamGroups = {
   liveNow: ExamCard[];
   upcoming: ExamCard[];
