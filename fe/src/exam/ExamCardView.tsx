@@ -3,6 +3,7 @@ import { Clock, Lock } from 'phosphor-react-native';
 import { PrimaryButton, SecondaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { shadow } from '@/src/theme/elevation';
+import { useHasSubscription } from '@/src/queries/curriculum';
 import type { ExamCard } from '@/src/api/exams';
 import { cardAction, formatCountdown, KIND_LABEL, STYLE_LABEL } from './logic';
 
@@ -18,6 +19,7 @@ export function ExamCardView({ card, now, onOpen, onRemind, onResult }: {
   onResult: () => void;
 }) {
   const { color, type, space, radius } = useTheme();
+  const hasSub = useHasSubscription();
   const action = cardAction(card);
   const opens = card.opens_at ? new Date(card.opens_at).getTime() : null;
   const ends = card.ends_at ? new Date(card.ends_at).getTime() : null;
@@ -59,7 +61,7 @@ export function ExamCardView({ card, now, onOpen, onRemind, onResult }: {
             <Text style={[type['type/caption'], { color: color('semantic/warning') }]}>Live event</Text>
           </View>
         ) : null}
-        {card.requires_subscription ? <Lock size={14} color={color('text/tertiary')} /> : null}
+        {card.requires_subscription && !hasSub ? <Lock size={14} color={color('text/tertiary')} /> : null}
       </View>
       <Text style={[type['type/h3'], { color: color('text/primary') }]}>{card.title}</Text>
       {card.series ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{card.series.title}</Text> : null}

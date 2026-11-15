@@ -11,7 +11,7 @@ import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView, VideoTrack } from 'expo-video';
 import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
 import { track } from '@/src/analytics/track';
-import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, PictureInPicture } from 'phosphor-react-native';
+import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple } from 'phosphor-react-native';
 import { BookmarkToggle } from '@/src/bookmarks/BookmarkToggle';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, getChapterContent, ContentItem, sendHeartbeat, type LecturePDFs } from '@/src/api/content';
@@ -286,25 +286,6 @@ export default function VideoPlayerRoute() {
             >
               <CaretLeft size={24} color="#fff" />
             </Pressable>
-            {videoUrl && !floating ? (
-              <Pressable
-                onPress={() => setFloating(true)}
-                hitSlop={space.xs}
-                accessibilityRole="button"
-                accessibilityLabel="Mini player — keep watching while you read notes"
-                style={({ pressed }) => ({
-                  opacity: pressed ? 0.6 : 1,
-                  backgroundColor: 'rgba(0,0,0,0.4)',
-                  borderRadius: 20,
-                  width: 40,
-                  height: 40,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                })}
-              >
-                <PictureInPicture size={22} color="#fff" />
-              </Pressable>
-            ) : null}
           </View>
         </View>
 

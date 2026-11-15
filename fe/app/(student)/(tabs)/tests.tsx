@@ -11,6 +11,7 @@ import { ExamCardView } from '@/src/exam/ExamCardView';
 import { clockOffset, groupExams } from '@/src/exam/logic';
 import { useServerNow } from '@/src/exam/useServerNow';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
+import { useHasSubscription } from '@/src/queries/curriculum';
 import { ROUTES } from '@/src/navigation/routes';
 
 type Segment = 'now' | 'library' | 'mine';
@@ -41,8 +42,12 @@ export default function TestsTab() {
     onError: () => show('Couldn’t update the reminder. Try again.', 'error'),
   });
 
-  const open = (c: ExamCard) => router.push({ pathname: ROUTES.student.testPreStart, params: { id: c.id } });
-  const result = (c: ExamCard) => c.my_attempt && router.push({ pathname: ROUTES.student.testResult, params: { id: c.my_attempt.id } });
+  const hasSub = useHasSubscription();
+  const open = (c: ExamCard) =>
+    c.requires_subscription && !hasSub && !c.my_attempt
+      ? router.push(ROUTES.student.subscriptionPlans)
+      : router.push({ pathname: ROUTES.student.testPreStart, params: { id: c.id } });
+  const result = (c: ExamCard) => c.my_attempt && router.push({ pathname: ROUTES.student.testResult, params: { id: c.my_attempt.id, fromHistory: '1' } });
   const view = (c: ExamCard) => (
     <ExamCardView key={c.id} card={c} now={now} onOpen={() => open(c)} onRemind={() => remind.mutate(c)} onResult={() => result(c)} />
   );

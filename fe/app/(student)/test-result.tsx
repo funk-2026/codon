@@ -38,9 +38,12 @@ export default function TestResultRoute() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const customEnabled = useFlag('custom_test.enabled');
-  const { id, expired } = useLocalSearchParams<{ id: string; fromHistory?: string; expired?: string }>();
+  const { id, expired, fromHistory } = useLocalSearchParams<{ id: string; fromHistory?: string; expired?: string }>();
 
   const resultQuery = useAttemptResult(id, expired === '1');
+  // Opened from a list: a plain back. Just finished: pop to the hub instead of pushing a copy of it.
+  const leave = (tab: typeof ROUTES.student.tests | typeof ROUTES.student.practice) =>
+    fromHistory === '1' && router.canGoBack() ? router.back() : router.dismissTo(tab);
   const loading = resultQuery.isPending;
   const loadError = resultQuery.isError;
   // Still retrying a not-yet-finalised result after a deadline.
@@ -127,7 +130,7 @@ export default function TestResultRoute() {
           icon={<Timer size={36} color={color('accent/default')} />}
           title="Submitted. Results are not out yet"
           description={`${attempt.test?.title ?? 'Your test'} is a live event. Scores, ranks and answers open${at ? ` on ${at.toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ' later'}. We will notify you.`}
-          action={<PrimaryButton label="Back to Tests" onPress={() => router.replace(ROUTES.student.tests)} />}
+          action={<PrimaryButton label="Back to Tests" onPress={() => leave(ROUTES.student.tests)} />}
           style={{ flex: 1, justifyContent: 'center' }}
         />
       </Screen>
@@ -156,10 +159,10 @@ export default function TestResultRoute() {
       <ScrollView contentContainerStyle={{ paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
         <HeaderBand>
           <Pressable
-            onPress={() => router.replace(ROUTES.student.practice)}
+            onPress={() => leave(module.key === 'test_series' ? ROUTES.student.tests : ROUTES.student.practice)}
             hitSlop={space.xs}
             accessibilityRole="button"
-            accessibilityLabel="Back to Practice"
+            accessibilityLabel="Back"
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, justifyContent: 'center' })}
           >
             <CaretLeft size={24} color={color('header/text')} />
@@ -288,7 +291,7 @@ export default function TestResultRoute() {
           ) : null}
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: space.lg }}>
             <TextButton label="Share result" onPress={() => setShareOpen(true)} />
-            <TextButton label={module.key === 'test_series' ? 'Back to Tests' : 'Back to Practice'} onPress={() => router.replace(module.key === 'test_series' ? ROUTES.student.tests : ROUTES.student.practice)} />
+            <TextButton label={module.key === 'test_series' ? 'Back to Tests' : 'Back to Practice'} onPress={() => leave(module.key === 'test_series' ? ROUTES.student.tests : ROUTES.student.practice)} />
           </View>
         </View>
         </View>
