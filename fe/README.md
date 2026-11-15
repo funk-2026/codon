@@ -40,8 +40,4 @@ Replace the assets/icon-1.png with new icon and then run
 npx expo prebuild --no-install
 ```
 
-Post updating the version of ios in .env
-
-```
-npm run set-version:ios
-```
+iOS Archive reads `IOS_VERSION_NAME` and `IOS_BUILD_NUMBER` from `fe/.env` while the archive is built. Change those two values, then archive in Xcode. `npm run set-version:ios` only refreshes the numbers shown on the target's General tab.
