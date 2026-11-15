@@ -3,7 +3,8 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClockCounterClockwise, Timer, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, Screen, SkeletonBlock, TAB_EDGES, TextButton, useToast } from '@/src/components';
+import Animated from 'react-native-reanimated';
+import { BottomSheet, CollapsingHeader, EmptyState, SkeletonBlock, TextButton, useCollapsingHeader, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { listExams, registerForExam, unregisterFromExam, type ExamCard } from '@/src/api/exams';
@@ -25,6 +26,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 export default function TestsTab() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
+  const header = useCollapsingHeader(64);
   const { show } = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -58,27 +60,47 @@ export default function TestsTab() {
   };
 
   const total = q.data?.tests.length ?? 0;
+  const resultsLink = (
+    <Pressable
+      onPress={() => router.push(ROUTES.student.testHistory)}
+      accessibilityRole="button"
+      accessibilityLabel={`My results${home.resultsCount ? `, ${home.resultsCount}` : ''}`}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space['2xs'], minHeight: 44, paddingHorizontal: space.sm, opacity: pressed ? 0.6 : 1 })}
+    >
+      <ClockCounterClockwise size={20} color={color('header/text')} />
+      <Text style={[type['type/body-m-medium'], { color: color('header/text') }]}>Results{home.resultsCount ? ` (${home.resultsCount})` : ''}</Text>
+    </Pressable>
+  );
   const label = (t: string) => <Text style={[type['type/overline'], { color: color('text/tertiary'), paddingHorizontal: space.md }]}>{t}</Text>;
 
   return (
-    <Screen edges={TAB_EDGES}>
-      <View style={{ paddingHorizontal: space.md, marginTop: space.lg, flexDirection: 'row', alignItems: 'center' }}>
-        <View style={{ flex: 1 }}>
-          <Text style={[type['type/h1'], { color: color('text/primary') }]}>Tests</Text>
-          <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>Timed like the real exam.</Text>
-        </View>
-        <Pressable
-          onPress={() => router.push(ROUTES.student.testHistory)}
-          accessibilityRole="button"
-          accessibilityLabel={`My results${home.resultsCount ? `, ${home.resultsCount}` : ''}`}
-          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space['2xs'], minHeight: 44, paddingHorizontal: space.sm, opacity: pressed ? 0.6 : 1 })}
-        >
-          <ClockCounterClockwise size={20} color={color('accent/default')} />
-          <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>My results{home.resultsCount ? ` (${home.resultsCount})` : ''}</Text>
-        </Pressable>
-      </View>
-
-      <ScrollView contentContainerStyle={{ paddingTop: space.md, gap: space.lg, paddingBottom: space['3xl'] }} showsVerticalScrollIndicator={false}>
+    <View style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
+      <CollapsingHeader
+        state={header}
+        expanded={
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[type['type/h1'], { color: color('header/text') }]}>Tests</Text>
+              <Text style={[type['type/body-m'], { color: color('header/text-secondary'), marginTop: space['2xs'] }]}>Timed like the real exam</Text>
+            </View>
+            {resultsLink}
+          </View>
+        }
+        compact={
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[type['type/h3'], { color: color('header/text'), flex: 1 }]}>Tests</Text>
+            {resultsLink}
+          </View>
+        }
+      />
+      <Animated.ScrollView
+        style={{ flex: 1 }}
+        onScroll={header.onScroll}
+        scrollEventThrottle={16}
+        scrollIndicatorInsets={{ top: header.minHeight }}
+        contentContainerStyle={{ paddingTop: header.maxHeight + space.md, gap: space.lg, paddingBottom: space['3xl'] }}
+        showsVerticalScrollIndicator={false}
+      >
         {q.isPending ? (
           <View style={{ paddingHorizontal: space.md, gap: space.md }}>
             <SkeletonBlock height={170} radius={radius.lg} />
@@ -156,7 +178,7 @@ export default function TestsTab() {
             )}
           </>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
 
       <BottomSheet visible={!!openSeries} onClose={() => setOpenSeries(null)} title={openSeries?.title ?? ''}>
         <View style={{ gap: space.xs }}>
@@ -175,6 +197,6 @@ export default function TestsTab() {
           ))}
         </View>
       </BottomSheet>
-    </Screen>
+    </View>
   );
 }

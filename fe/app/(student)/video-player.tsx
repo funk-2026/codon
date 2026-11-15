@@ -253,6 +253,8 @@ export default function VideoPlayerRoute() {
               style={videoBox}
               contentFit="contain"
               nativeControls
+              allowsPictureInPicture
+              startsPictureInPictureAutomatically
               fullscreenOptions={{ enable: true, orientation: 'landscape' }}
             />
           ) : videoNotReady ? (
