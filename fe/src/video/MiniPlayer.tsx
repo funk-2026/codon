@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname, useRouter } from 'expo-router';
 import { useEvent } from 'expo';
@@ -11,7 +11,7 @@ import { useVideoSession } from './VideoSession';
 
 /** A lesson that keeps playing over any screen. Tap it to go back to the lesson; X stops it. */
 export function MiniPlayer() {
-  const { color, type, space, radius } = useTheme();
+  const { space, radius } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
@@ -22,37 +22,34 @@ export function MiniPlayer() {
   return (
     <View
       pointerEvents="box-none"
-      style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end', paddingBottom: insets.bottom + 72, paddingHorizontal: space.md }]}
+      style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end', alignItems: 'flex-end', paddingBottom: insets.bottom + 72, paddingHorizontal: space.md }]}
     >
       <Pressable
         onPress={() => router.push({ pathname: ROUTES.student.videoPlayer, params: { id: session.id } })}
         accessibilityRole="button"
         accessibilityLabel={`${session.title}. Tap to return to the lesson`}
-        style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: color('bg/surface'), borderRadius: radius.lg, overflow: 'hidden' }, shadow()]}
+        style={[{ width: 180, height: 101, backgroundColor: '#000', borderRadius: radius.md, overflow: 'hidden' }, shadow()]}
       >
-        <View style={{ width: 128, height: 72, backgroundColor: '#000' }}>
-          <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} pointerEvents="none" />
+        <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} pointerEvents="none" />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center' }]}>
+          <Pressable
+            onPress={() => (isPlaying ? player.pause() : player.play())}
+            hitSlop={space.sm}
+            accessibilityRole="button"
+            accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+            style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}
+          >
+            {isPlaying ? <Pause size={28} color="#fff" weight="fill" /> : <Play size={28} color="#fff" weight="fill" />}
+          </Pressable>
         </View>
-        <Text numberOfLines={2} style={[type['type/body-m-medium'], { color: color('text/primary'), flex: 1, paddingHorizontal: space.sm }]}>
-          {session.title}
-        </Text>
-        <Pressable
-          onPress={() => (isPlaying ? player.pause() : player.play())}
-          hitSlop={space.xs}
-          accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-          style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
-        >
-          {isPlaying ? <Pause size={24} color={color('text/primary')} weight="fill" /> : <Play size={24} color={color('text/primary')} weight="fill" />}
-        </Pressable>
         <Pressable
           onPress={() => { player.pause(); close(); }}
-          hitSlop={space.xs}
+          hitSlop={space.sm}
           accessibilityRole="button"
           accessibilityLabel="Close the lesson"
-          style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'absolute', top: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}
         >
-          <X size={20} color={color('text/tertiary')} weight="bold" />
+          <X size={14} color="#fff" weight="bold" />
         </Pressable>
       </Pressable>
     </View>
