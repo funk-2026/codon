@@ -140,3 +140,77 @@ export function startGate(t: TimedTest, now: number): StartGate {
   if (now < w.ends) return now > w.lastStart ? { state: 'late' } : { state: 'open', official: true };
   return { state: 'open', official: false };
 }
+
+// ── Tests home ──────────────────────────────────────────────────────────────
+export type NextUp =
+  | { kind: 'resume' | 'live' | 'upcoming'; card: ExamCard }
+  | { kind: 'first'; card: ExamCard }
+  | { kind: 'none' };
+
+export type TestRow = { key: string; title: string; cards: ExamCard[] };
+export type SeriesProgress = { id: string; title: string; total: number; done: number; next?: ExamCard; cards: ExamCard[] };
+export type TestsHome = {
+  next: NextUp;
+  waiting: ExamCard[];
+  rows: TestRow[];
+  series: SeriesProgress[];
+  resultsCount: number;
+  unseenResults: number;
+};
+
+const taken = (c: ExamCard) => c.my_attempt?.status === 'submitted';
+const opensAt = (c: ExamCard) => (c.opens_at ? new Date(c.opens_at).getTime() : 0);
+const ROW_OF: Record<ExamKind, string> = { full: 'full', subject: 'subject', part: 'chapter', chapter: 'chapter', pyq: 'pyq' };
+const ROW_TITLE: Record<string, string> = { full: 'Full-length mocks', subject: 'Subject tests', chapter: 'Chapter and mini tests', pyq: 'Previous-year papers' };
+
+/**
+ * One page for the Tests tab. "Next up" is the single thing to do now: resume, a live test still open for entry,
+ * the soonest upcoming one, or for a student with no attempts a first full mock to set a baseline.
+ */
+export function buildTestsHome(cards: ExamCard[], filter: 'all' | 'new' | 'taken', now: number): TestsHome {
+  const lastStartOpen = (c: ExamCard) => c.phase === 'live' && (!c.last_start_at || now <= new Date(c.last_start_at).getTime());
+  const resume = cards.find((c) => c.my_attempt?.status === 'in_progress');
+  const live = cards.filter((c) => c.phase === 'live' && !c.my_attempt).sort((a, b) => opensAt(a) - opensAt(b));
+  const upcoming = cards.filter((c) => c.phase === 'upcoming').sort((a, b) => opensAt(a) - opensAt(b));
+  const anyTaken = cards.some(taken);
+  const firstMock = cards.find((c) => c.kind === 'full' && (c.phase === 'anytime' || c.phase === 'ended') && !c.requires_subscription)
+    ?? cards.find((c) => c.kind === 'full' && (c.phase === 'anytime' || c.phase === 'ended'));
+
+  let next: NextUp = { kind: 'none' };
+  if (resume) next = { kind: 'resume', card: resume };
+  else if (live[0] && lastStartOpen(live[0])) next = { kind: 'live', card: live[0] };
+  else if (upcoming[0]) next = { kind: 'upcoming', card: upcoming[0] };
+  else if (!anyTaken && firstMock) next = { kind: 'first', card: firstMock };
+
+  const waiting = cards.filter((c) => taken(c) && !c.results_released);
+  const shownInNext = next.kind === 'none' ? undefined : next.card.id;
+
+  const pass = (c: ExamCard) => (filter === 'new' ? !c.my_attempt : filter === 'taken' ? taken(c) : true);
+  const rows: TestRow[] = [];
+  const soon = [...live, ...upcoming].filter((c) => c.id !== shownInNext && pass(c));
+  if (soon.length) rows.push({ key: 'soon', title: 'Live and upcoming', cards: soon });
+  const browse = cards.filter((c) => (c.phase === 'anytime' || c.phase === 'ended') && c.id !== shownInNext && pass(c));
+  for (const key of ['full', 'subject', 'chapter', 'pyq']) {
+    const list = browse.filter((c) => ROW_OF[c.kind] === key).sort((a, b) => (b.exam_year ?? 0) - (a.exam_year ?? 0) || a.title.localeCompare(b.title));
+    if (list.length) rows.push({ key, title: ROW_TITLE[key], cards: list });
+  }
+
+  const bySeries = new Map<string, SeriesProgress>();
+  for (const c of cards) {
+    if (!c.series) continue;
+    const s = bySeries.get(c.series.id) ?? { id: c.series.id, title: c.series.title, total: 0, done: 0, cards: [] };
+    s.total += 1;
+    s.cards.push(c);
+    if (taken(c)) s.done += 1;
+    bySeries.set(c.series.id, s);
+  }
+  const series = [...bySeries.values()].map((s) => ({
+    ...s,
+    cards: s.cards.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true })),
+    next: undefined as ExamCard | undefined,
+  }));
+  for (const s of series) s.next = s.cards.find((c) => !taken(c) && c.phase !== 'upcoming');
+
+  const mine = cards.filter(taken);
+  return { next, waiting, rows, series, resultsCount: mine.length, unseenResults: mine.filter((c) => c.results_released).length };
+}
