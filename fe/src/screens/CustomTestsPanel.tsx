@@ -1,21 +1,15 @@
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CaretRight, Sliders, WarningCircle } from 'phosphor-react-native';
 import { EmptyState, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { shadow } from '@/src/theme/elevation';
-import { listCustomTests, type CustomTestRow, type CustomTestState } from '@/src/api/customTests';
+import { listCustomTests, type CustomTestRow } from '@/src/api/customTests';
+import { TreeToolbar } from './CurriculumTree';
 import { ROUTES } from '@/src/navigation/routes';
 import { useCursorList } from '@/src/queries/useCursorList';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
-
-export type CustomStateFilter = CustomTestState | 'all';
-export const CUSTOM_STATE_CHIPS: { key: CustomStateFilter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'in_progress', label: 'In progress' },
-  { key: 'not_started', label: 'Not started' },
-  { key: 'completed', label: 'Completed' },
-];
 
 const badgeFor = (r: CustomTestRow) => {
   const la = r.last_attempt;
@@ -26,19 +20,23 @@ const badgeFor = (r: CustomTestRow) => {
  * The Custom segment of Practice: build a test, then your saved tests in the same list layout
  * as Q Bank. Renaming, deleting and templates stay on the full "My custom tests" screen.
  */
-export function CustomTestsPanel({ query, state }: { query: string; state: CustomStateFilter }) {
+export function CustomTestsPanel() {
+  const [query, setQuery] = useState('');
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const list = useCursorList<CustomTestRow, Awaited<ReturnType<typeof listCustomTests>>>(
-    ['custom-tests', state],
-    (cursor) => listCustomTests({ state: state === 'all' ? undefined : state, limit: 20, cursor }),
+    ['custom-tests'],
+    (cursor) => listCustomTests({ limit: 20, cursor }),
     (r) => r.items,
   );
   // Coming back from a test changes its state (New → In progress → score).
   useRefetchOnFocus(list.load);
 
   const q = query.trim().toLowerCase();
-  const rows = q ? list.rows.filter((r) => r.test.title.toLowerCase().includes(q) || r.summary.toLowerCase().includes(q)) : list.rows;
+  // In-progress first, so what to continue is on top. Search appears only once the list is long enough to need it.
+  const ordered = [...list.rows].sort((a, b) => Number(b.state === 'in_progress') - Number(a.state === 'in_progress'));
+  const rows = q ? ordered.filter((r) => r.test.title.toLowerCase().includes(q) || r.summary.toLowerCase().includes(q)) : ordered;
+  const searchable = list.rows.length > 8;
 
   return (
     <View style={{ gap: space.sm }}>
@@ -57,6 +55,8 @@ export function CustomTestsPanel({ query, state }: { query: string; state: Custo
         <CaretRight size={20} color={color('text/tertiary')} />
       </Pressable>
 
+      {searchable ? <TreeToolbar query={query} onQuery={setQuery} placeholder="Search my custom tests" /> : null}
+
       {list.loading ? (
         <>
           <SkeletonBlock height={64} radius={radius.md} />
@@ -73,9 +73,9 @@ export function CustomTestsPanel({ query, state }: { query: string; state: Custo
         <View style={{ alignItems: 'center', paddingVertical: space['2xl'], gap: space.xs }}>
           <Sliders size={28} color={color('text/tertiary')} weight="duotone" />
           <Text style={[type['type/h3'], { color: color('text/primary'), textAlign: 'center' }]}>
-            {q ? `No matches for ‘${query}’` : state === 'all' ? 'No custom tests yet' : 'Nothing here'}
+            {q ? `No matches for ‘${query}’` : 'No custom tests yet'}
           </Text>
-          {!q && state === 'all' ? (
+          {!q ? (
             <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>
               Build one from exactly the topics and difficulty you want.
             </Text>

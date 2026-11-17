@@ -14,7 +14,7 @@ import {
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { CollapsingHeader, ErrorBanner, SegmentedControl, SkeletonBlock, useCollapsingHeader } from '@/src/components';
 import { CurriculumTree, TreeToolbar } from '@/src/screens/CurriculumTree';
-import { CUSTOM_STATE_CHIPS, CustomTestsPanel, type CustomStateFilter } from '@/src/screens/CustomTestsPanel';
+import { CustomTestsPanel } from '@/src/screens/CustomTestsPanel';
 import { useAttempts } from '@/src/queries/attempts';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import type { StudentAttempt } from '@/src/api/attempts';
@@ -92,7 +92,6 @@ export default function PracticeHubRoute() {
   };
   const [query, setQuery] = useState('');
   const [topRated, setTopRated] = useState(false);
-  const [customState, setCustomState] = useState<CustomStateFilter>('all');
   const isTree = segment !== 'custom';
 
   return (
@@ -143,9 +142,8 @@ export default function PracticeHubRoute() {
 
         <View style={{ marginTop: space.lg }}>
           <SegmentedControl options={segments} value={segment} onChange={setSegment} />
-          {/* One toolbar for every segment, so the container looks the same when switching */}
-          <View style={{ marginTop: space.md }}>
-            {isTree ? (
+          {isTree ? (
+            <View style={{ marginTop: space.md }}>
               <TreeToolbar
                 query={query}
                 onQuery={setQuery}
@@ -155,15 +153,8 @@ export default function PracticeHubRoute() {
                   onChange: (k) => setTopRated(k === 'top'),
                 }}
               />
-            ) : (
-              <TreeToolbar
-                query={query}
-                onQuery={setQuery}
-                placeholder="Search my custom tests"
-                chips={{ options: CUSTOM_STATE_CHIPS, value: customState, onChange: (k) => setCustomState(k as CustomStateFilter) }}
-              />
-            )}
-          </View>
+            </View>
+          ) : null}
           <View style={{ marginTop: space.md }}>
             {/* Each tree mounts on first visit and stays mounted, so open subjects survive switching segments */}
             {TREE_SEGMENTS.filter((k) => visited.has(k)).map((k) => (
@@ -171,7 +162,7 @@ export default function PracticeHubRoute() {
                 <CurriculumTree kind={k} query={query} topRated={topRated} />
               </View>
             ))}
-            {segment === 'custom' ? <CustomTestsPanel query={query} state={customState} /> : null}
+            {segment === 'custom' ? <CustomTestsPanel /> : null}
           </View>
         </View>
 
