@@ -69,8 +69,17 @@ export type Flashcard = { id: string; deck_id: string; front: string; back: stri
 export type StudyCard = Flashcard & { state: 'due' | 'new' };
 export type ReviewResult = 'again' | 'hard' | 'good' | 'easy';
 
+/** The server sends a student's progress flat (new_cards, due_cards, learned_cards); the app reads it as `progress`. */
+type RawDeck = Deck & { new_cards?: number; due_cards?: number; learned_cards?: number };
+export const withProgress = (d: RawDeck): Deck => ({
+  ...d,
+  progress: d.progress ?? (d.new_cards != null ? { new: d.new_cards, due: d.due_cards ?? 0, learned: d.learned_cards ?? 0 } : undefined),
+});
 export const listDecks = (p: { course_id?: string; subject_id?: string; chapter_id?: string; q?: string; sort?: 'rating'; cursor?: string | null } = {}) =>
-  apiFetch<{ decks: Deck[]; next_cursor: string | null }>(`/flashcards/decks${qs({ ...p, cursor: p.cursor ?? undefined })}`);
+  apiFetch<{ decks: RawDeck[]; next_cursor: string | null }>(`/flashcards/decks${qs({ ...p, cursor: p.cursor ?? undefined })}`).then((r) => ({
+    ...r,
+    decks: (r.decks ?? []).map(withProgress),
+  }));
 /** The deck's spaced-repetition queue: due cards first, then new. */
 export const studyDeck = (id: string, limit = 20) => apiFetch<{ deck: Deck; cards: StudyCard[]; media: MediaMap }>(`/flashcards/decks/${id}/study${qs({ limit })}`);
 /** Every card of a deck in order (no spaced-repetition filtering), for plain revision. Follows the cursor to the end. */

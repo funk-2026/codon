@@ -275,6 +275,14 @@ export default function FlashcardDeckRoute() {
 </>} />
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg, paddingBottom: space['3xl'] + insets.bottom }} keyboardShouldPersistTaps="handled">
+        {deck?.status === 'published' ? (
+          <View style={{ backgroundColor: color('semantic/success-tint'), borderRadius: radius.md, padding: space.md }}>
+            <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>Live for students</Text>
+            <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
+              Students who chose {courses.find((o) => o.value === courseId)?.label ?? 'this course'} see it in Learn, under Flashcards. {deck.requires_subscription ? 'Subscribers only.' : 'Free for everyone.'}
+            </Text>
+          </View>
+        ) : null}
         {deck?.status === 'rejected' && deck.rejection_reason ? (
           <View style={{ backgroundColor: color('semantic/danger-tint'), borderRadius: radius.md, padding: space.md }}>
             <Text style={[type['type/overline'], { color: color('semantic/danger') }]}>REVIEWER FEEDBACK</Text>
@@ -319,11 +327,15 @@ export default function FlashcardDeckRoute() {
           <View style={{ gap: space.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={[type['type/h3'], { color: color('text/primary'), flex: 1 }]}>Cards ({cards.length})</Text>
-              {editable ? <TextButton label="Import CSV" onPress={() => setImportOpen(true)} /> : null}
-              {editable ? <TextButton label="+ Add card" onPress={() => setCard({ front: '', back: '' })} /> : null}
             </View>
+            {editable ? (
+              <View style={{ flexDirection: 'row', gap: space.sm }}>
+                <PrimaryButton label="Add a card" onPress={() => setCard({ front: '', back: '' })} style={{ flex: 1 }} />
+                <SecondaryButton label="Import CSV" onPress={() => setImportOpen(true)} style={{ flex: 1 }} />
+              </View>
+            ) : null}
             {cards.length === 0 ? (
-              <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>No cards yet. Each card has a prompt on the front and the answer on the back.</Text>
+              <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>No cards yet. Add them one at a time, or import many from a CSV file. Each card has a prompt on the front and the answer on the back.</Text>
             ) : (
               cards.map((c, i) => (
                 <View key={c.id} style={{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, gap: space['2xs'] }}>
