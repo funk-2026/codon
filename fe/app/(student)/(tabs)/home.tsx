@@ -15,8 +15,9 @@ import { useProgress, useProgressBreakdown } from '@/src/queries/progress';
 import { useAttempts, useRecentContent } from '@/src/queries/attempts';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { DailyGoalCard } from '@/src/home/DailyGoalCard';
+import { LiveSoonCard } from '@/src/home/LiveSoonCard';
+import { QuickReviewCard } from '@/src/home/QuickReviewCard';
 import { BrainHackOfTheDay, HomeUpdatesCarousel } from '@/src/home/HomeShelves';
-import { WeekStrip } from '@/src/home/WeekStrip';
 import { daysUntil, formatExamDate } from '@/src/profile/examDate';
 import { useExplore, useNotifications } from '@/src/queries/discover';
 import { useFlag } from '@/src/config/AppConfigContext';
@@ -184,6 +185,46 @@ export default function HomeDashboardRoute() {
             {/* Updates carousel — admin-curated; renders nothing when empty */}
             <HomeUpdatesCarousel />
 
+            {/* A live test open now or starting within a day */}
+            <LiveSoonCard />
+
+            {/* Today: exam countdown and the daily question goal, side by side */}
+            <Stagger delayMs={320}>
+              <View style={{ marginTop: space.xl }}>
+                <View style={[styles.sectionRow, { marginBottom: space.sm }]}>
+                  <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>TODAY</Text>
+                  <Pressable onPress={() => router.push(ROUTES.student.progressDetail)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
+                    <Text style={[type['type/caption'], { color: color('accent/default') }]}>Your progress →</Text>
+                  </Pressable>
+                </View>
+                <View style={{ flexDirection: 'row', gap: space.sm }}>
+                  {examDays != null && examDays >= 0 ? (
+                    <Pressable
+                      onPress={() => router.push(ROUTES.student.editProfile)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${examDays} days to your exam. Change the date`}
+                      style={[{ flex: 1, minHeight: 84, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, justifyContent: 'center' }, shadow()]}
+                    >
+                      <Text style={[type['type/numeral-display'], { color: color('accent/default'), fontSize: 30 }]}>{examDays}</Text>
+                      <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]} numberOfLines={1}>{examDays === 0 ? 'Exam day' : examDays === 1 ? 'day to exam' : 'days to exam'}</Text>
+                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]} numberOfLines={1}>{formatExamDate(me.data?.user?.exam_date)}</Text>
+                    </Pressable>
+                  ) : examDays == null ? (
+                    <Pressable
+                      onPress={() => router.push(ROUTES.student.editProfile)}
+                      accessibilityRole="button"
+                      style={[{ flex: 1, minHeight: 84, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, justifyContent: 'center' }, shadow()]}
+                    >
+                      <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>Set your exam date</Text>
+                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>for a countdown</Text>
+                    </Pressable>
+                  ) : null}
+                  <DailyGoalCard compact />
+                </View>
+                <QuickReviewCard />
+              </View>
+            </Stagger>
+
             {/* Continue: one card, whichever was touched last */}
             {cont ? (
               <Stagger delayMs={160}>
@@ -277,46 +318,6 @@ export default function HomeDashboardRoute() {
                     />
                   </View>
                 ) : null}
-              </View>
-            </Stagger>
-
-            {/* Today: goal ring and the last seven days */}
-            <Stagger delayMs={320}>
-              <View style={{ marginTop: space.xl }}>
-                <View style={[styles.sectionRow, { marginBottom: space.sm }]}>
-                  <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>TODAY</Text>
-                  <Pressable onPress={() => router.push(ROUTES.student.progressDetail)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
-                    <Text style={[type['type/caption'], { color: color('accent/default') }]}>Your progress →</Text>
-                  </Pressable>
-                </View>
-                {examDays != null && examDays >= 0 ? (
-                  <Pressable
-                    onPress={() => router.push(ROUTES.student.editProfile)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${examDays} days to your exam. Change the date`}
-                    style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, marginBottom: space.xs, flexDirection: 'row', alignItems: 'center', gap: space.md }, shadow()]}
-                  >
-                    <Text style={[type['type/numeral-display'], { color: color('accent/default'), fontSize: 34 }]}>{examDays}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[type['type/h3'], { color: color('text/primary') }]}>{examDays === 0 ? 'Exam day. Good luck!' : examDays === 1 ? 'day to your exam' : 'days to your exam'}</Text>
-                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{formatExamDate(me.data?.user?.exam_date)}</Text>
-                    </View>
-                  </Pressable>
-                ) : examDays == null ? (
-                  <Pressable onPress={() => router.push(ROUTES.student.editProfile)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center', marginBottom: space.xs }}>
-                    <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>Set your exam date for a countdown →</Text>
-                  </Pressable>
-                ) : null}
-                <DailyGoalCard />
-                <View style={{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
-                    <Flame size={18} color={color('highlight/default')} weight="fill" />
-                    <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
-                      {streak > 0 ? `${streak} day streak` : 'Start a streak today'}
-                    </Text>
-                  </View>
-                  <WeekStrip attempts={attempts.data?.attempts ?? []} />
-                </View>
               </View>
             </Stagger>
 

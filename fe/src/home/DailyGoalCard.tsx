@@ -16,7 +16,7 @@ const STROKE = 7;
  * device-local preference; progress counts questions answered in tests
  * submitted today (custom tests included). Refreshes whenever Home regains focus.
  */
-export function DailyGoalCard() {
+export function DailyGoalCard({ compact = false }: { compact?: boolean }) {
   const { color, type, space, radius } = useTheme();
   const [done, setDone] = useState<number | null>(null);
   const [goal, setGoal] = useState<number | null>(null);
@@ -57,7 +57,8 @@ export function DailyGoalCard() {
         accessibilityLabel={`Daily goal: ${count} of ${goal} questions answered today${reached ? ', goal reached' : ''}.`}
         accessibilityHint="Change your daily goal"
         style={({ pressed }) => ({
-          flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, marginBottom: space.xs,
+          flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.md, marginBottom: compact ? 0 : space.xs,
+          flex: compact ? 1 : undefined, minHeight: compact ? 84 : undefined,
           backgroundColor: color('bg/surface'), borderRadius: radius.md, opacity: pressed ? 0.92 : 1,
         })}
       >
@@ -74,10 +75,10 @@ export function DailyGoalCard() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
-            {reached ? 'Daily goal reached 🎉' : `${goal - count} to go today`}
+            {reached ? (compact ? 'Goal reached 🎉' : 'Daily goal reached 🎉') : `${goal - count} to go today`}
           </Text>
           <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
-            {count} of {goal} questions · tap to change goal
+            {compact ? `${count} of ${goal} questions` : `${count} of ${goal} questions · tap to change goal`}
           </Text>
         </View>
       </Pressable>
