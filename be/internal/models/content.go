@@ -71,7 +71,7 @@ type ContentItem struct {
 	RatingAvg   float64   `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
 	RatingCount int       `gorm:"not null;default:0" json:"rating_count"`
 	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type WellnessContent struct {
@@ -154,10 +154,10 @@ type BrainHack struct {
 	ReviewedAt      *time.Time    `json:"reviewed_at,omitempty"`
 	RejectionReason *string       `gorm:"type:text" json:"rejection_reason,omitempty"`
 	ReviewMeta
-	RatingAvg       float64       `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
-	RatingCount     int           `gorm:"not null;default:0" json:"rating_count"`
-	CreatedAt       time.Time     `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
+	RatingAvg   float64   `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
+	RatingCount int       `gorm:"not null;default:0" json:"rating_count"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type FlashcardDeck struct {
@@ -174,11 +174,11 @@ type FlashcardDeck struct {
 	ReviewedBy           *uuid.UUID    `gorm:"type:uuid" json:"reviewed_by,omitempty"`
 	ReviewedAt           *time.Time    `json:"reviewed_at,omitempty"`
 	ReviewMeta
-	CardCount            int           `gorm:"not null;default:0" json:"card_count"`
-	RatingAvg            float64       `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
-	RatingCount          int           `gorm:"not null;default:0" json:"rating_count"`
-	CreatedAt            time.Time     `json:"created_at"`
-	UpdatedAt            time.Time     `json:"updated_at"`
+	CardCount   int       `gorm:"not null;default:0" json:"card_count"`
+	RatingAvg   float64   `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
+	RatingCount int       `gorm:"not null;default:0" json:"rating_count"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type Flashcard struct {

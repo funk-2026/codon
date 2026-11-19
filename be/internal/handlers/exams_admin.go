@@ -16,20 +16,20 @@ import (
 )
 
 type adminExamRow struct {
-	ID               string     `json:"id"`
-	Title            string     `json:"title"`
-	Kind             string     `json:"kind"`
-	ExamStyle        string     `json:"exam_style"`
-	Phase            string     `json:"phase"`
-	OpensAt          *time.Time `json:"opens_at,omitempty"`
-	EndsAt           *time.Time `json:"ends_at,omitempty"`
-	ResultsAt        *time.Time `json:"results_at,omitempty"`
-	ExtraMinutes     int        `json:"extra_minutes"`
-	Registered       int        `json:"registered"`
-	Started          int        `json:"started"`
-	InProgress       int        `json:"in_progress"`
-	Submitted        int        `json:"submitted"`
-	ResultsReleased  bool       `json:"results_released"`
+	ID              string     `json:"id"`
+	Title           string     `json:"title"`
+	Kind            string     `json:"kind"`
+	ExamStyle       string     `json:"exam_style"`
+	Phase           string     `json:"phase"`
+	OpensAt         *time.Time `json:"opens_at,omitempty"`
+	EndsAt          *time.Time `json:"ends_at,omitempty"`
+	ResultsAt       *time.Time `json:"results_at,omitempty"`
+	ExtraMinutes    int        `json:"extra_minutes"`
+	Registered      int        `json:"registered"`
+	Started         int        `json:"started"`
+	InProgress      int        `json:"in_progress"`
+	Submitted       int        `json:"submitted"`
+	ResultsReleased bool       `json:"results_released"`
 }
 
 // AdminExams lists live tests (newest first) with the numbers an operator watches on exam day.

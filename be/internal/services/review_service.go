@@ -138,9 +138,9 @@ func (s *ReviewService) PublishDue(ctx context.Context, now time.Time) int {
 // ReviewStats tells an author how long review currently takes: the median wait over the last 30 days
 // (submitted → decided) and how many items are queued now.
 type ReviewStats struct {
-	Queued       int64    `json:"queued"`
-	MedianHours  *float64 `json:"median_hours,omitempty"`
-	SampleSize   int64    `json:"sample_size"`
+	Queued      int64    `json:"queued"`
+	MedianHours *float64 `json:"median_hours,omitempty"`
+	SampleSize  int64    `json:"sample_size"`
 }
 
 func (s *ReviewService) Stats(ctx context.Context, now time.Time) ReviewStats {

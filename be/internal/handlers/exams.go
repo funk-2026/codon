@@ -312,14 +312,14 @@ func (h *ExamHandler) Leaderboard(c *gin.Context) {
 }
 
 type sectionStat struct {
-	Name     string  `json:"name"`
-	Total    int     `json:"total"`
-	Correct  int     `json:"correct"`
-	Wrong    int     `json:"wrong"`
-	Skipped  int     `json:"skipped"`
-	Marks    float64 `json:"marks"`
-	Negative float64 `json:"negative"`
-	Seconds  int     `json:"seconds"`
+	Name     string   `json:"name"`
+	Total    int      `json:"total"`
+	Correct  int      `json:"correct"`
+	Wrong    int      `json:"wrong"`
+	Skipped  int      `json:"skipped"`
+	Marks    float64  `json:"marks"`
+	Negative float64  `json:"negative"`
+	Seconds  int      `json:"seconds"`
 	Avg      *float64 `json:"cohort_avg,omitempty"`
 	Top      *float64 `json:"cohort_top,omitempty"`
 }
