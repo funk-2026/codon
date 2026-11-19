@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"codon-backend/internal/httpx"
+	"codon-backend/internal/media"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 	"codon-backend/internal/services"
@@ -54,6 +55,9 @@ func (h *ProfileHandler) GetMe(c *gin.Context) {
 		return
 	}
 	resp["active_subscriptions"] = all // one per course
+	mc := media.NewCollector()
+	mc.AddID(user.PhotoMediaID)
+	resp["media"] = media.NewService(h.DB).ResolveCollector(c.Request.Context(), mc, media.URLTTL(nil))
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -109,6 +113,34 @@ func (h *ProfileHandler) UpdateMe(c *gin.Context) {
 				return
 			}
 			updates["exam_date"] = d
+		}
+	}
+
+	if req.PhotoMediaID != nil {
+		if *req.PhotoMediaID == "" {
+			updates["photo_media_id"] = nil
+		} else {
+			id, err := uuid.Parse(*req.PhotoMediaID)
+			if err != nil {
+				respondErr(c, http.StatusBadRequest, "invalid_id", "invalid photo_media_id")
+				return
+			}
+			if err := media.CheckOwned(c.Request.Context(), h.DB, user, id, "profile_photo"); err != nil {
+				respondService(c, err)
+				return
+			}
+			updates["photo_media_id"] = id
+		}
+	}
+
+	if req.State != nil {
+		if *req.State == "" {
+			updates["state"] = nil
+		} else if !validState(*req.State) {
+			respondErr(c, http.StatusBadRequest, "invalid_state", "state must be one of the listed states or union territories")
+			return
+		} else {
+			updates["state"] = *req.State
 		}
 	}
 
@@ -212,6 +244,10 @@ type updateMeRequest struct {
 	SelectedCourseID *string `json:"selected_course_id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	// ExamDate is YYYY-MM-DD; an empty string clears it.
 	ExamDate *string `json:"exam_date" example:"2027-05-03"`
+	// State is one of the Indian states or union territories; an empty string clears it.
+	State *string `json:"state" example:"Maharashtra"`
+	// PhotoMediaID is a ready `profile_photo` asset of mine; an empty string removes the photo.
+	PhotoMediaID *string `json:"photo_media_id"`
 	// LeaderboardOptOut hides the student's name from public leaderboards.
 	LeaderboardOptOut *bool `json:"leaderboard_opt_out"`
 }

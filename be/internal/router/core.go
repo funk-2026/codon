@@ -69,6 +69,8 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 	{
 		me.GET("", d.ProfileH.GetMe)
 		me.PATCH("", d.ProfileH.UpdateMe)
+		me.GET("/resets", d.ProfileH.ResetStatus)
+		me.POST("/resets/:scope", d.ProfileH.ResetContent)
 		me.GET("/progress", d.ProfileH.GetProgress)
 		me.GET("/progress/breakdown", d.ProfileH.GetProgressBreakdown)
 		me.GET("/recent-content", d.ProfileH.GetRecentContent)

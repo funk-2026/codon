@@ -38,6 +38,7 @@ type Deps struct {
 	Extras    *handlers.ExtrasHandler
 	TE        *handlers.TeacherExtrasHandler
 	Exams     *handlers.ExamHandler
+	Reference *handlers.ReferenceHandler
 	Extra     []func(api *gin.RouterGroup, d *Deps) // later milestones plug in here
 }
 
@@ -46,10 +47,11 @@ func NewDeps(db *gorm.DB, auth gin.HandlerFunc, sub *services.SubscriptionServic
 	eng := generation.NewEngine(db, sub)
 	an := handlers.NewAnalyticsHandler(db, eng)
 	return &Deps{
-		Extras: handlers.NewExtrasHandler(db, sub, eng, an),
-		TE:     handlers.NewTeacherExtrasHandler(db, services.NewReviewService(db)),
-		Exams:  handlers.NewExamHandler(db, sub),
-		DB:     db, Auth: auth, SubSvc: sub, Scoring: scoring,
+		Extras:    handlers.NewExtrasHandler(db, sub, eng, an),
+		TE:        handlers.NewTeacherExtrasHandler(db, services.NewReviewService(db)),
+		Exams:     handlers.NewExamHandler(db, sub),
+		Reference: handlers.NewReferenceHandler(db),
+		DB:        db, Auth: auth, SubSvc: sub, Scoring: scoring,
 		Tests: handlers.NewTestHandler(db), Attempts: handlers.NewAttemptHandler(db, scoring, sub),
 		Media: handlers.NewMediaHandler(db), TQ: handlers.NewTeacherQuestionHandler(db),
 		Taxonomy: handlers.NewTaxonomyHandler(db), AppConfig: handlers.NewAppConfigHandler(db),
@@ -109,6 +111,9 @@ func Register(api *gin.RouterGroup, d *Deps) {
 
 	api.GET("/home/updates", auth, d.Extras.HomeUpdates)
 	api.GET("/home/message", auth, d.Extras.HomeMessage)
+	api.GET("/reference-docs", auth, d.Reference.List)
+	api.GET("/reference-docs/:id", auth, d.Reference.Get)
+	api.GET("/faculty", auth, d.Reference.Faculty)
 	api.GET("/explore", auth, d.Extras.Explore)
 
 	// ── Custom tests (student; behind the custom_test.enabled flag) ──
@@ -265,6 +270,14 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		admin.GET("/tests/:id", d.Tests.AdminGetTest)
 		admin.POST("/tests/:id/approve", d.Tests.AdminApproveTest)
 		admin.POST("/tests/:id/reject", d.Tests.AdminRejectTest)
+		admin.GET("/reference-docs", d.Reference.AdminList)
+		admin.POST("/reference-docs", d.Reference.AdminCreate)
+		admin.PATCH("/reference-docs/:id", d.Reference.AdminUpdate)
+		admin.DELETE("/reference-docs/:id", d.Reference.AdminDelete)
+		admin.GET("/faculty", d.Reference.AdminFaculty)
+		admin.POST("/faculty", d.Reference.AdminAddFaculty)
+		admin.PATCH("/faculty/:id", d.Reference.AdminUpdateFaculty)
+		admin.DELETE("/faculty/:id", d.Reference.AdminDeleteFaculty)
 		admin.GET("/home-message", d.Extras.AdminHomeMessage)
 		admin.PUT("/home-message", d.Extras.AdminSetHomeMessage)
 		admin.GET("/home-updates", d.Extras.AdminListHome)

@@ -64,6 +64,26 @@ type User struct {
 	SuspendedReason *string    `gorm:"type:text" json:"suspended_reason,omitempty"`
 	// LeaderboardOptOut hides the student's name from public leaderboards. Their own rank is still shown to them.
 	LeaderboardOptOut bool `gorm:"not null;default:false" json:"leaderboard_opt_out"`
+	// State is the Indian state or union territory the student lives in (optional, from a fixed list).
+	State *string `gorm:"type:text" json:"state,omitempty"`
+	// PhotoMediaID is the profile picture (a ready `profile_photo` media asset).
+	PhotoMediaID *uuid.UUID `gorm:"type:uuid" json:"photo_media_id,omitempty"`
+}
+
+// UserReset records when a student last cleared one kind of their own study data. Their old rows are kept in
+// ResetArchive; the app simply no longer shows them.
+type UserReset struct {
+	UserID  uuid.UUID `gorm:"type:uuid;primaryKey" json:"user_id"`
+	Scope   string    `gorm:"type:text;primaryKey" json:"scope"`
+	ResetAt time.Time `gorm:"not null" json:"reset_at"`
+}
+
+type ResetArchive struct {
+	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null;index"`
+	Scope     string    `gorm:"type:text;not null"`
+	Rows      string    `gorm:"type:jsonb;not null"`
+	CreatedAt time.Time
 }
 
 type OTPRequest struct {

@@ -48,18 +48,30 @@ var Defaults = map[string]string{
 	"analytics.events": "false",
 
 	// App version gate, store links, legal pages and support contact (all blank until an admin sets them)
-	"app.min_version":       "",
-	"app.store_url_android": "",
-	"app.store_url_ios":     "",
-	"legal.terms_url":       "",
-	"legal.privacy_url":     "",
-	"support.email":         "",
-	"support.whatsapp":      "",
+	"app.min_version":             "",
+	"app.store_url_android":       "",
+	"app.store_url_ios":           "",
+	"legal.terms_url":             "",
+	"legal.privacy_url":           "",
+	"support.email":               "",
+	"support.whatsapp":            "",
+	"support.phone":               "",
+	"support.contact_name":        "",
+	"legal.cancellation_url":      "",
+	"app.share_url":               "",
+	"social.instagram_url":        "",
+	"social.youtube_url":          "",
+	"social.telegram_url":         "",
+	"social.whatsapp_channel_url": "",
+	"social.facebook_url":         "",
 
 	// Exams: percentile is hidden until this many students have a score (a rank is always shown as "rank X of N")
 	"results.percentile_min": "30",
 	// Exams: the earliest a live test's results may open after its window closes, so staff can check the key
 	"exams.min_result_gap_minutes": "15",
+
+	// A student may clear each kind of their own study data (bookmarks, QBank, flashcards, Pulse) once per this many days
+	"resets.cooldown_days": "90",
 
 	// Attempts
 	"attempt.answer_grace_seconds": "10",

@@ -130,6 +130,10 @@ func AllModels() []interface{} {
 		&models.Notification{},
 		&models.HomeUpdate{},
 		&models.HomeMessage{},
+		&models.ReferenceDoc{},
+		&models.FacultyMember{},
+		&models.UserReset{},
+		&models.ResetArchive{},
 		&models.NotificationPref{},
 		&models.RateEvent{},
 	}
