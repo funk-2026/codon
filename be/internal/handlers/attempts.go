@@ -425,6 +425,11 @@ type reviewMeta struct {
 	Difficulty *string    `json:"difficulty,omitempty"`
 	NCERTClass *int       `json:"ncert_class,omitempty"`
 	NCERTPage  *int       `json:"ncert_page,omitempty"`
+	// Tags and References for the tag chip and the References block under the explanation.
+	Tags       []string `json:"tags,omitempty"`
+	RefBook    *string  `json:"ref_book,omitempty"`
+	RefEdition *string  `json:"ref_edition,omitempty"`
+	RefPages   *string  `json:"ref_pages,omitempty"`
 }
 
 // GetReview godoc
@@ -466,7 +471,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 		Select(`aa.question_id, aa.position, aa.selected_option, aa.is_correct, aa.marks_awarded,
 			aa.marked_for_review, aa.time_spent_seconds, aa.confidence,
 			q.content_format, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d,
-			q.correct_option, q.explanation, q.subject_id, q.chapter_id, q.difficulty, q.ncert_class, q.ncert_page,
+			q.correct_option, q.explanation, q.subject_id, q.chapter_id, q.difficulty, q.ncert_class, q.ncert_page, q.ref_book, q.ref_edition, q.ref_pages,
 			s.name AS subject_name, ch.name AS chapter_name`).
 		Joins("JOIN questions q ON q.id = aa.question_id").
 		Joins("LEFT JOIN subjects s ON s.id = q.subject_id").
@@ -532,6 +537,9 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 		Difficulty       *string
 		NCERTClass       *int
 		NCERTPage        *int
+		RefBook          *string
+		RefEdition       *string
+		RefPages         *string
 		SubjectName      *string
 		ChapterName      *string
 	}
@@ -554,6 +562,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 	myRatings := items.MyRatings(ctx, h.DB, user.ID, items.Question, ids)
 	cohort := cohortCorrectPct(h.DB, ctx, ids)
 	shares := optionShares(h.DB, ctx, ids)
+	tagsBy := tagNames(h.DB, ctx, ids)
 	notes := map[uuid.UUID]string{}
 	if len(ids) > 0 {
 		var ns []models.QuestionNote
@@ -573,7 +582,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 			IsCorrect: r.IsCorrect, MarksAwarded: r.MarksAwarded, MarkedForReview: r.MarkedForReview,
 			TimeSpentSeconds: r.TimeSpentSeconds, Confidence: r.Confidence,
 			Bookmarked: bookmarked[r.QuestionID], ReportedByMe: reported[r.QuestionID],
-			QuestionMeta: reviewMeta{SubjectID: r.SubjectID, ChapterID: r.ChapterID, Difficulty: r.Difficulty, NCERTClass: r.NCERTClass, NCERTPage: r.NCERTPage},
+			QuestionMeta: reviewMeta{SubjectID: r.SubjectID, ChapterID: r.ChapterID, Difficulty: r.Difficulty, NCERTClass: r.NCERTClass, NCERTPage: r.NCERTPage, Tags: tagsBy[r.QuestionID], RefBook: r.RefBook, RefEdition: r.RefEdition, RefPages: r.RefPages},
 		}
 		if r.SubjectName != nil {
 			it.QuestionMeta.Subject = *r.SubjectName

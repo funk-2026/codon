@@ -104,23 +104,27 @@ type Question struct {
 
 	// Rich-content + metadata (custom test module). All optional/defaulted so
 	// legacy rows keep working exactly as before.
-	ContentFormat  string     `gorm:"type:text;not null;default:'plain'" json:"content_format"`
-	SubjectID      *uuid.UUID `gorm:"type:uuid;index" json:"subject_id,omitempty"`
-	ChapterID      *uuid.UUID `gorm:"type:uuid;index" json:"chapter_id,omitempty"`
-	TopicID        *uuid.UUID `gorm:"type:uuid" json:"topic_id,omitempty"`
-	Difficulty     *string    `gorm:"type:text" json:"difficulty,omitempty"`
-	NCERTClass     *int       `json:"ncert_class,omitempty"`
-	NCERTPage      *int       `json:"ncert_page,omitempty"`
-	SourceType     string     `gorm:"type:text;not null;default:'qbank'" json:"source_type"`
-	SourceYear     *int       `json:"source_year,omitempty"`
-	SourceLabel    *string    `gorm:"type:text" json:"source_label,omitempty"`
-	CustomEligible bool       `gorm:"not null" json:"custom_eligible"`
-	ContentHash    string     `gorm:"type:text;index" json:"-"`
-	QuestionType   string     `gorm:"type:text;not null;default:'mcq_single'" json:"question_type"`
-	Version        int        `gorm:"not null;default:1" json:"version"`
-	Lang           string     `gorm:"type:text;not null;default:'en'" json:"lang"`
-	FlagStatus     string     `gorm:"type:text;not null;default:'active'" json:"flag_status"`
-	Tags           []Tag      `gorm:"-" json:"tags,omitempty"`
+	ContentFormat string     `gorm:"type:text;not null;default:'plain'" json:"content_format"`
+	SubjectID     *uuid.UUID `gorm:"type:uuid;index" json:"subject_id,omitempty"`
+	ChapterID     *uuid.UUID `gorm:"type:uuid;index" json:"chapter_id,omitempty"`
+	TopicID       *uuid.UUID `gorm:"type:uuid" json:"topic_id,omitempty"`
+	Difficulty    *string    `gorm:"type:text" json:"difficulty,omitempty"`
+	NCERTClass    *int       `json:"ncert_class,omitempty"`
+	NCERTPage     *int       `json:"ncert_page,omitempty"`
+	// Where the answer is written up: shown as a "References" block under the explanation, hidden when empty.
+	RefBook        *string `gorm:"type:text" json:"ref_book,omitempty"`
+	RefEdition     *string `gorm:"type:text" json:"ref_edition,omitempty"`
+	RefPages       *string `gorm:"type:text" json:"ref_pages,omitempty"`
+	SourceType     string  `gorm:"type:text;not null;default:'qbank'" json:"source_type"`
+	SourceYear     *int    `json:"source_year,omitempty"`
+	SourceLabel    *string `gorm:"type:text" json:"source_label,omitempty"`
+	CustomEligible bool    `gorm:"not null" json:"custom_eligible"`
+	ContentHash    string  `gorm:"type:text;index" json:"-"`
+	QuestionType   string  `gorm:"type:text;not null;default:'mcq_single'" json:"question_type"`
+	Version        int     `gorm:"not null;default:1" json:"version"`
+	Lang           string  `gorm:"type:text;not null;default:'en'" json:"lang"`
+	FlagStatus     string  `gorm:"type:text;not null;default:'active'" json:"flag_status"`
+	Tags           []Tag   `gorm:"-" json:"tags,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

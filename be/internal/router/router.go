@@ -84,6 +84,8 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		me.PUT("/bookmarks", d.Bookmarks.Put)
 		me.GET("/bookmarks", d.Bookmarks.List)
 		me.GET("/bookmarks/ids", d.Bookmarks.IDs)
+		me.GET("/bookmarks/summary", d.Bookmarks.Summary)
+		me.POST("/bookmarks/questions/:id/check", d.Bookmarks.CheckQuestion)
 		me.DELETE("/bookmarks/:item_type/:item_id", d.Bookmarks.Delete)
 		me.GET("/reports", d.Reports.Mine)
 		me.GET("/video-notes", d.Extras.ListVideoNotes)

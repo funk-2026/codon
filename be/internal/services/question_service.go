@@ -57,6 +57,9 @@ type QuestionInput struct {
 	Difficulty     *string // "" clears
 	NCERTClass     *int
 	NCERTPage      *int
+	RefBook        *string // "" clears
+	RefEdition     *string
+	RefPages       *string
 	SourceType     *string
 	SourceYear     *int
 	SourceLabel    *string
@@ -320,6 +323,20 @@ func applyScalars(q *models.Question, in QuestionInput) error {
 			return Coded(http.StatusBadRequest, "invalid_ncert", "ncert_page out of range")
 		}
 		q.NCERTPage = in.NCERTPage
+	}
+	for dst, src := range map[**string]*string{&q.RefBook: in.RefBook, &q.RefEdition: in.RefEdition, &q.RefPages: in.RefPages} {
+		if src == nil {
+			continue
+		}
+		v := strings.TrimSpace(*src)
+		if len([]rune(v)) > 120 {
+			return Coded(http.StatusBadRequest, "invalid_reference", "a reference field must be at most 120 characters")
+		}
+		if v == "" {
+			*dst = nil
+		} else {
+			*dst = &v
+		}
 	}
 	if in.SourceType != nil {
 		if err := validate.EnumErr("source_type", *in.SourceType, validate.SourceTypes); err != nil {

@@ -96,3 +96,20 @@ func statusParam(c *gin.Context) (models.ContentStatus, bool) {
 	}
 	return st, true
 }
+
+// tagNames returns the tag names of each question (for the tag chip under a question), by question id.
+func tagNames(db *gorm.DB, ctx context.Context, ids []uuid.UUID) map[uuid.UUID][]string {
+	out := map[uuid.UUID][]string{}
+	if len(ids) == 0 {
+		return out
+	}
+	var rows []struct {
+		QuestionID uuid.UUID
+		Name       string
+	}
+	db.WithContext(ctx).Raw(`SELECT qt.question_id, t.label AS name FROM question_tags qt JOIN tags t ON t.id = qt.tag_id WHERE qt.question_id IN ? ORDER BY t.label`, ids).Scan(&rows)
+	for _, r := range rows {
+		out[r.QuestionID] = append(out[r.QuestionID], r.Name)
+	}
+	return out
+}
