@@ -33,14 +33,15 @@ type Purpose struct {
 }
 
 var Purposes = map[string]Purpose{
-	"question_image":    {Name: "question_image", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}},
-	"explanation_image": {Name: "explanation_image", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}},
-	"brain_hack_image":  {Name: "brain_hack_image", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}},
-	"wellness_image":    {Name: "wellness_image", Roles: []models.UserRole{models.RoleAdmin}},
-	"flashcard_image":   {Name: "flashcard_image", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}},
-	"home_update_image": {Name: "home_update_image", Roles: []models.UserRole{models.RoleAdmin}},
-	"note_image":        {Name: "note_image"},
-	"import_bundle":     {Name: "import_bundle", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}, Zip: true},
+	"question_image":     {Name: "question_image", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}},
+	"explanation_image":  {Name: "explanation_image", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}},
+	"brain_hack_image":   {Name: "brain_hack_image", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}},
+	"wellness_image":     {Name: "wellness_image", Roles: []models.UserRole{models.RoleAdmin}},
+	"flashcard_image":    {Name: "flashcard_image", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}},
+	"home_update_image":  {Name: "home_update_image", Roles: []models.UserRole{models.RoleAdmin}},
+	"home_message_photo": {Name: "home_message_photo", Roles: []models.UserRole{models.RoleAdmin}},
+	"note_image":         {Name: "note_image"},
+	"import_bundle":      {Name: "import_bundle", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}, Zip: true},
 }
 
 // ownerPurposes: which purposes each kind of content may reference.

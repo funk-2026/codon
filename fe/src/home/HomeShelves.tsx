@@ -44,10 +44,11 @@ export function HomeUpdatesCarousel() {
     return () => clearInterval(t);
   }, [slide, updates.length]);
 
-  const onViewable = useRef((info: { viewableItems: ViewToken[] }) => {
+  // FlatList wants one stable callback for its whole life, so it is created once.
+  const [onViewable] = useState(() => (info: { viewableItems: ViewToken[] }) => {
     const first = info.viewableItems[0];
     if (first?.index != null) setSlide(first.index);
-  }).current;
+  });
 
   if (updates.length === 0) return null;
 
@@ -113,7 +114,7 @@ export function BrainHackOfTheDay() {
     <View style={{ marginTop: space.xl }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm }}>
         <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>BRAIN HACK OF THE DAY</Text>
-        <Pressable onPress={() => router.push(ROUTES.student.brainHacks)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
+        <Pressable onPress={() => router.push(ROUTES.student.support)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
           <Text style={[type['type/caption'], { color: color('accent/default') }]}>See all →</Text>
         </Pressable>
       </View>

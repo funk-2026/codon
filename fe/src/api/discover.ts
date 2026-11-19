@@ -14,6 +14,10 @@ export type HomeUpdate = {
 /** GET /home/updates — empty means HIDE the carousel (no placeholder content). */
 export const getHomeUpdates = () => apiFetch<{ updates: HomeUpdate[]; media: MediaMap }>('/home/updates');
 
+export type HomeMessage = { name: string; quote: string; media_id?: string; is_active: boolean; updated_at: string };
+/** GET /home/message — `message` is null when none is set, and the card is then hidden. */
+export const getHomeMessage = () => apiFetch<{ message: HomeMessage | null; media: MediaMap }>('/home/message');
+
 // ── Brain hacks ─────────────────────────────────────────────────────────────
 export type BrainHack = {
   id: string;

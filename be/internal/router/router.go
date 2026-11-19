@@ -108,6 +108,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	api.DELETE("/ratings/:item_type/:item_id", auth, d.Ratings.Delete)
 
 	api.GET("/home/updates", auth, d.Extras.HomeUpdates)
+	api.GET("/home/message", auth, d.Extras.HomeMessage)
 	api.GET("/explore", auth, d.Extras.Explore)
 
 	// ── Custom tests (student; behind the custom_test.enabled flag) ──
@@ -264,6 +265,8 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		admin.GET("/tests/:id", d.Tests.AdminGetTest)
 		admin.POST("/tests/:id/approve", d.Tests.AdminApproveTest)
 		admin.POST("/tests/:id/reject", d.Tests.AdminRejectTest)
+		admin.GET("/home-message", d.Extras.AdminHomeMessage)
+		admin.PUT("/home-message", d.Extras.AdminSetHomeMessage)
 		admin.GET("/home-updates", d.Extras.AdminListHome)
 		admin.POST("/home-updates", d.Extras.AdminCreateHome)
 		admin.PATCH("/home-updates/:id", d.Extras.AdminUpdateHome)

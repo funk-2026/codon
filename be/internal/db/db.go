@@ -129,6 +129,7 @@ func AllModels() []interface{} {
 		&models.PushToken{},
 		&models.Notification{},
 		&models.HomeUpdate{},
+		&models.HomeMessage{},
 		&models.NotificationPref{},
 		&models.RateEvent{},
 	}

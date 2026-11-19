@@ -226,3 +226,14 @@ type HomeUpdate struct {
 	CreatedAt  time.Time  `json:"created_at"`
 	UpdatedAt  time.Time  `json:"updated_at"`
 }
+
+// HomeMessage is the single "A message from ..." card on the student Home: a name, a short quote and an optional photo.
+// There is one row (slot "main"); admins edit it, students only read it.
+type HomeMessage struct {
+	Slot      string     `gorm:"type:text;primaryKey" json:"-"`
+	Name      string     `gorm:"type:text;not null" json:"name"`
+	Quote     string     `gorm:"type:text;not null" json:"quote"`
+	MediaID   *uuid.UUID `gorm:"type:uuid" json:"media_id,omitempty"`
+	IsActive  bool       `gorm:"not null" json:"is_active"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}

@@ -25,6 +25,7 @@ const GROUPS: { title: string; tools: Tool[] }[] = [
       { label: 'Exams', text: 'Live tests: extend, results time, recompute scores', Icon: Timer, href: ROUTES.admin.exams },
       { label: 'Live content', text: 'Pull something back with a reason', Icon: ShieldCheck, href: ROUTES.admin.liveContent },
       { label: 'Home banners', text: 'What students see at the top of Home', Icon: Megaphone, href: ROUTES.admin.homeUpdates },
+      { label: 'Home message', text: 'The note with a photo on Home', Icon: HandHeart, href: ROUTES.admin.homeMessage },
       { label: 'Announcement', text: 'Message every student or teacher', Icon: Broadcast, href: ROUTES.admin.announcements },
     ],
   },

@@ -1,12 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { Flame, Exam, BookOpen, Bell, MagnifyingGlass, Target, CaretRight } from 'phosphor-react-native';
+import Animated from 'react-native-reanimated';
+import { Flame, Exam, BookOpen, Bell, MagnifyingGlass, CaretRight } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { CollapsingHeader, ErrorBanner, useCollapsingHeader } from '@/src/components';
@@ -16,7 +12,10 @@ import { useAttempts, useRecentContent } from '@/src/queries/attempts';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { DailyGoalCard } from '@/src/home/DailyGoalCard';
 import { LiveSoonCard } from '@/src/home/LiveSoonCard';
-import { QuickReviewCard } from '@/src/home/QuickReviewCard';
+import { HomeTiles } from '@/src/home/HomeTiles';
+import { StreakCard } from '@/src/home/StreakCard';
+import { DetailedAnalysisCard } from '@/src/home/DetailedAnalysisCard';
+import { MessageCard } from '@/src/home/MessageCard';
 import { BrainHackOfTheDay, HomeUpdatesCarousel } from '@/src/home/HomeShelves';
 import { daysUntil, formatExamDate } from '@/src/profile/examDate';
 import { useExplore, useNotifications } from '@/src/queries/discover';
@@ -25,21 +24,6 @@ import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
 type SubState = 'active' | 'expiring' | 'none';
-
-function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
-  const shown = useSharedValue(0);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      shown.value = withTiming(1, { duration: 300 });
-    }, delayMs);
-    return () => clearTimeout(t);
-  }, [delayMs, shown]);
-  const style = useAnimatedStyle(() => ({
-    opacity: shown.value,
-    transform: [{ translateY: (1 - shown.value) * 10 }],
-  }));
-  return <Animated.View style={style}>{children}</Animated.View>;
-}
 
 export default function HomeDashboardRoute() {
   const { color, type, space, radius } = useTheme();
@@ -62,42 +46,23 @@ export default function HomeDashboardRoute() {
   const unread = notifications.data?.pages[0]?.unread_count ?? 0;
   useRefetchOnFocus(() => { loadData(); void notifications.refetch(); });
 
-  // One Continue card: an unfinished test wins over the last video/notes item.
   const inProgress = attempts.data?.attempts.find((a) => a.status === 'in_progress') ?? null;
-  const recentItem = recent.data?.recent?.[0] ?? null;
-  const cont: { title: string; pct: number | null; isTest: boolean; go: () => void } | null = inProgress
-    ? {
-        title: inProgress.test?.title ?? 'Your test',
-        pct: null,
-        isTest: true,
-        go: () => router.push({ pathname: ROUTES.student.testPreStart, params: { id: inProgress.test_id } }),
-      }
-    : recentItem?.id
-      ? {
-          title: recentItem.title || 'Content',
-          pct: recentItem.pct ?? 0,
-          isTest: false,
-          go: () =>
-            router.push({
-              pathname: recentItem.kind === 'document' ? ROUTES.student.contentReader : ROUTES.student.videoPlayer,
-              params: { id: recentItem.id },
-            }),
-        }
-      : null;
+  const recentItems = recent.data?.recent ?? [];
+  const watching = recentItems.find((r) => r.kind === 'video') ?? recentItems[0] ?? null;
   const streak = breakdown.data?.day_streak ?? 0;
   const examDays = daysUntil(me.data?.user?.exam_date);
-  const isNewUser = !((progress.data?.attempted_count ?? 0) > 0);
 
+  const [loadedAt] = useState(() => Date.now());
   const { subState, subText } = useMemo((): { subState: SubState; subText: string } => {
     const sub = me.data?.active_subscription;
     if (!sub) return { subState: 'none', subText: '' };
     const end = new Date(sub.end_date);
-    const diffDays = Math.ceil((end.getTime() - Date.now()) / (1000 * 3600 * 24));
+    const diffDays = Math.ceil((end.getTime() - loadedAt) / (1000 * 3600 * 24));
     const planName = sub.plan?.name || 'Pro';
     return diffDays <= 7
       ? { subState: 'expiring', subText: `Your ${planName} plan expires in ${diffDays} days — renew to keep access.` }
       : { subState: 'active', subText: `${planName} — active until ${end.toLocaleDateString()}` };
-  }, [me.data]);
+  }, [me.data, loadedAt]);
 
   const firstName = user?.name?.split(' ')[0] || 'Student';
 
@@ -184,158 +149,94 @@ export default function HomeDashboardRoute() {
               </View>
             ) : null}
 
-            {/* Updates carousel — admin-curated; renders nothing when empty */}
+            {/* 2 · Exam countdown, first thing under the header */}
+            <View style={{ marginTop: space.lg }}>
+              {examDays != null && examDays >= 0 ? (
+                <Pressable
+                  onPress={() => router.push(ROUTES.student.editProfile)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${examDays} days to your exam. Change the date`}
+                  style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md }, shadow()]}
+                >
+                  <Text style={[type['type/numeral-display'], { color: color('accent/default'), fontSize: 40 }]}>{examDays}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type['type/h3'], { color: color('text/primary') }]}>{examDays === 0 ? 'Exam day. Good luck!' : examDays === 1 ? 'day to your exam' : 'days to your exam'}</Text>
+                    <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{formatExamDate(me.data?.user?.exam_date)}</Text>
+                  </View>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => router.push(ROUTES.student.editProfile)}
+                  accessibilityRole="button"
+                  style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, minHeight: 72, justifyContent: 'center' }, shadow()]}
+                >
+                  <Text style={[type['type/h3'], { color: color('accent/default') }]}>Set your exam date</Text>
+                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>to see the days left</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {/* 3 · Four tiles */}
+            <View style={{ marginTop: space.md }}>
+              <HomeTiles />
+            </View>
+
+            {/* 4 · Upcoming / live: a live test, then what the admin has put up */}
+            <LiveSoonCard />
             <HomeUpdatesCarousel />
 
-            {/* A live test open now or starting within a day */}
-            <LiveSoonCard />
+            {/* 5 · Daily target */}
+            <View style={{ marginTop: space.lg }}>
+              <DailyGoalCard />
+            </View>
 
-            {/* Today: exam countdown and the daily question goal, side by side */}
-            <Stagger delayMs={320}>
-              <View style={{ marginTop: space.xl }}>
-                <View style={[styles.sectionRow, { marginBottom: space.sm }]}>
-                  <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>TODAY</Text>
-                  <Pressable onPress={() => router.push(ROUTES.student.progressDetail)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
-                    <Text style={[type['type/caption'], { color: color('accent/default') }]}>Your progress →</Text>
-                  </Pressable>
-                </View>
-                <View style={{ flexDirection: 'row', gap: space.sm }}>
-                  {examDays != null && examDays >= 0 ? (
-                    <Pressable
-                      onPress={() => router.push(ROUTES.student.editProfile)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${examDays} days to your exam. Change the date`}
-                      style={[{ flex: 1, minHeight: 84, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, justifyContent: 'center' }, shadow()]}
-                    >
-                      <Text style={[type['type/numeral-display'], { color: color('accent/default'), fontSize: 30 }]}>{examDays}</Text>
-                      <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]} numberOfLines={1}>{examDays === 0 ? 'Exam day' : examDays === 1 ? 'day to exam' : 'days to exam'}</Text>
-                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]} numberOfLines={1}>{formatExamDate(me.data?.user?.exam_date)}</Text>
-                    </Pressable>
-                  ) : examDays == null ? (
-                    <Pressable
-                      onPress={() => router.push(ROUTES.student.editProfile)}
-                      accessibilityRole="button"
-                      style={[{ flex: 1, minHeight: 84, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, justifyContent: 'center' }, shadow()]}
-                    >
-                      <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>Set your exam date</Text>
-                      <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>for a countdown</Text>
-                    </Pressable>
-                  ) : null}
-                  <DailyGoalCard compact />
-                </View>
-                <QuickReviewCard />
-              </View>
-            </Stagger>
+            {/* 6 · Streak */}
+            <StreakCard streak={streak} attempts={attempts.data?.attempts ?? []} />
 
-            {/* Continue: one card, whichever was touched last */}
-            {cont ? (
-              <Stagger delayMs={160}>
-                <View style={{ marginTop: space.xl }}>
-                  <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>
-                    CONTINUE
-                  </Text>
-                  <View style={[styles.continueCard, { backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md }, shadow()]}>
-                    <View style={styles.cardRow}>
-                      <View style={[styles.continueIcon, { backgroundColor: color('accent/tint'), borderRadius: radius.md }]}>
-                        {cont.isTest ? (
-                          <Exam size={28} color={color('accent/default')} weight="duotone" />
-                        ) : (
-                          <BookOpen size={28} color={color('accent/default')} weight="duotone" />
-                        )}
-                      </View>
-                      <View style={{ flex: 1, marginLeft: space.md }}>
-                        <Text style={[type['type/h3'], { color: color('text/primary') }]} numberOfLines={1}>
-                          {cont.title}
-                        </Text>
-                        <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>
-                          {cont.isTest ? 'Test in progress' : cont.pct === 100 ? 'Completed' : `${cont.pct}% completed`}
-                        </Text>
-                      </View>
-                    </View>
-                    {cont.pct != null ? (
-                      <View style={{ height: 4, backgroundColor: color('bg/sunken'), borderRadius: 2, marginTop: space.sm }}>
-                        <View style={{ width: `${cont.pct}%`, height: 4, backgroundColor: color('accent/default'), borderRadius: 2 }} />
-                      </View>
-                    ) : null}
-                    <Pressable
-                      onPress={cont.go}
-                      accessibilityRole="button"
-                      style={({ pressed }) => [
-                        styles.resumeBtn,
-                        {
-                          backgroundColor: pressed ? color('action/primary-pressed') : color('action/primary'),
-                          borderRadius: radius.pill,
-                          marginTop: space.md,
-                        },
-                      ]}
-                    >
-                      <Text style={[type['type/body-m-medium'], { color: color('accent/on-accent') }]}>
-                        {cont.isTest ? 'Resume test' : 'Continue now'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </Stagger>
-            ) : null}
+            {/* 7 · Detailed analysis */}
+            <View style={{ marginTop: space.md }}>
+              <DetailedAnalysisCard />
+            </View>
 
-            {/* Next step: one suggestion, or a first-steps card for brand-new students */}
-            <Stagger delayMs={240}>
-              <View style={{ marginTop: space.xl }}>
-                {isNewUser ? (
-                  <View style={{ gap: space.sm }}>
-                    <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>START HERE</Text>
-                    <ActionCard
-                      icon={<Exam size={26} color={color('accent/default')} weight="duotone" />}
-                      title="Take your first test"
-                      caption="Pick a chapter in Q Bank and try a few questions"
-                      onPress={() => router.push(ROUTES.student.practice)}
-                    />
-                    <ActionCard
-                      icon={<BookOpen size={26} color={color('accent/default')} weight="duotone" />}
-                      title="Watch a lesson"
-                      caption="Video classes, chapter by chapter"
-                      onPress={() => router.push(ROUTES.student.learn)}
-                    />
-                  </View>
-                ) : !next ? (
-                  <View>
-                    <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>KEEP GOING</Text>
-                    <ActionCard
-                      icon={<Target size={26} color={color('accent/default')} weight="duotone" />}
-                      title="Practise a chapter"
-                      caption="A few questions today keeps your streak and your accuracy going"
-                      onPress={() => router.push(ROUTES.student.practice)}
-                    />
-                  </View>
-                ) : next ? (
-                  <View>
-                    <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>UP NEXT</Text>
-                    <ActionCard
-                      icon={<Target size={26} color={color('accent/default')} weight="duotone" />}
-                      title={next.title}
-                      caption={next.reason}
-                      onPress={() =>
-                        router.push({ pathname: ROUTES.student.customBuilder, params: { patch: JSON.stringify(next.patch) } })
-                      }
-                    />
-                  </View>
-                ) : null}
-              </View>
-            </Stagger>
+            {/* 8 · Continue watching */}
+            <View style={{ marginTop: space.xl }}>
+              <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>CONTINUE WATCHING</Text>
+              <ActionCard
+                icon={<BookOpen size={26} color={color('accent/default')} weight="duotone" />}
+                title={watching ? watching.title || 'Your last lesson' : 'Start a lesson'}
+                caption={watching ? (watching.pct === 100 ? 'Completed' : `${watching.pct ?? 0}% watched`) : 'Video classes, chapter by chapter'}
+                onPress={() => (watching?.id
+                  ? router.push({ pathname: watching.kind === 'document' ? ROUTES.student.contentReader : ROUTES.student.videoPlayer, params: { id: watching.id } })
+                  : router.push(ROUTES.student.learn))}
+              />
+            </View>
+
+            {/* 9 · Continue solving */}
+            <View style={{ marginTop: space.xl }}>
+              <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>CONTINUE SOLVING</Text>
+              <ActionCard
+                icon={<Exam size={26} color={color('accent/default')} weight="duotone" />}
+                title={inProgress ? inProgress.test?.title ?? 'Your test' : next ? next.title : 'Practise a chapter'}
+                caption={inProgress ? 'Test in progress. Tap to resume' : next ? next.reason : 'A few questions every day keeps your streak going'}
+                onPress={() => (inProgress
+                  ? router.push({ pathname: ROUTES.student.testPreStart, params: { id: inProgress.test_id } })
+                  : next
+                    ? router.push({ pathname: ROUTES.student.customBuilder, params: { patch: JSON.stringify(next.patch) } })
+                    : router.push(ROUTES.student.practice))}
+              />
+            </View>
+
+            {/* 10 · A message from the admin's chosen voice */}
+            <MessageCard />
 
             {/* Plan banner: only when there is something to act on */}
             {subState !== 'active' ? (
-              <Stagger delayMs={400}>
-                <View style={{ marginTop: space.xl }}>
-                  <SubscriptionStrip
-                    state={subState}
-                    text={subText}
-                    onViewPlans={() => router.push(ROUTES.student.subscriptionPlans)}
-                  />
-                </View>
-              </Stagger>
+              <View style={{ marginTop: space.xl }}>
+                <SubscriptionStrip state={subState} text={subText} onViewPlans={() => router.push(ROUTES.student.subscriptionPlans)} />
+              </View>
             ) : null}
 
+            {/* 11 · Brain hack of the day */}
             <BrainHackOfTheDay />
           </View>
         )}
