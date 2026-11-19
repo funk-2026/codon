@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated from 'react-native-reanimated';
-import { Flame, Exam, BookOpen, Bell, MagnifyingGlass, CaretRight } from 'phosphor-react-native';
+import { Flame, Exam, BookOpen, Bell, FileText, MagnifyingGlass, CaretRight } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { CollapsingHeader, ErrorBanner, useCollapsingHeader } from '@/src/components';
@@ -192,6 +192,25 @@ export default function HomeDashboardRoute() {
 
             {/* 6 · Streak */}
             <StreakCard streak={streak} attempts={attempts.data?.attempts ?? []} />
+
+            {/* Sample Board Exam Paper: the Class 10 channel, straight to its four tiles */}
+            <View style={{ marginTop: space.md }}>
+              <Pressable
+                onPress={() => router.push(ROUTES.student.boardPapers)}
+                accessibilityRole="button"
+                accessibilityLabel="Sample Board Exam Paper, Class 10"
+                style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
+              >
+                <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
+                  <FileText size={24} color={color('accent/default')} weight="duotone" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[type['type/h3'], { color: color('text/primary') }]}>Sample Board Exam Paper</Text>
+                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Class 10 channel</Text>
+                </View>
+                <CaretRight size={18} color={color('text/tertiary')} />
+              </Pressable>
+            </View>
 
             {/* 7 · Detailed analysis */}
             <View style={{ marginTop: space.md }}>
