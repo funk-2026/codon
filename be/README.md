@@ -176,6 +176,7 @@ Copy `.env.example` to `.env` and fill in the values:
 | `JWT_SECRET` | **Yes** | — | HMAC secret for JWT signing (`openssl rand -hex 32`) |
 | `JWT_EXPIRY_DAYS` | No | `90` | Session duration in days |
 | `TWO_FACTOR_API_KEY` | No | — | 2Factor.in API key. Leave blank for console-stub OTPs |
+| `TWO_FACTOR_TEMPLATE_NAME` | No | — | Approved 2Factor.in SMS template name (blank = default template) |
 | `RAZORPAY_KEY_ID` | No | — | Razorpay Key ID |
 | `RAZORPAY_KEY_SECRET` | No | — | Razorpay Key Secret |
 | `RAZORPAY_WEBHOOK_SECRET` | No | — | Razorpay webhook signing secret |
