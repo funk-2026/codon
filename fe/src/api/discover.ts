@@ -27,17 +27,21 @@ export type BrainHack = {
   content_format: string;
   cover_media_id?: string;
   read_minutes: number;
+  /** 'article' (a text body) or 'video' (played from video_url). */
+  kind?: 'article' | 'video';
+  video_url?: string;
+  duration_seconds?: number;
   rating_avg: number;
   rating_count: number;
   my_rating?: number;
 };
-export const listBrainHacks = (p: { category?: string; sort?: 'rating'; cursor?: string | null; limit?: number } = {}) =>
+export const listBrainHacks = (p: { category?: string; kind?: 'article' | 'video'; sort?: 'rating'; cursor?: string | null; limit?: number } = {}) =>
   apiFetch<{ brain_hacks: BrainHack[]; next_cursor: string | null; media: MediaMap }>(`/brain-hacks${qs({ ...p, cursor: p.cursor ?? undefined })}`);
 export const getBrainHackCategories = () => apiFetch<{ categories: string[] | { key: string; label: string }[] }>('/brain-hacks/categories');
 export const getBrainHack = (id: string) => apiFetch<{ brain_hack: BrainHack; media: MediaMap }>(`/brain-hacks/${id}`);
 
 // Teacher authoring
-export type BrainHackInput = { title: string; category: string; body: string; content_format?: 'rich_v1'; cover_media_id?: string; read_minutes?: number };
+export type BrainHackInput = { title: string; category: string; body?: string; kind?: 'article' | 'video'; video_url?: string; duration_seconds?: number; content_format?: 'rich_v1'; cover_media_id?: string; read_minutes?: number };
 // Teacher Brain Hacks. The server wraps one hack as `{ brain_hack, media }` — unwrap it here
 // (reading `.id` off the envelope was undefined, which broke "Submit for review" on new hacks).
 export type TeacherBrainHack = BrainHack & { status: 'draft' | 'pending_review' | 'approved' | 'published' | 'rejected'; rejection_reason?: string; created_at?: string };

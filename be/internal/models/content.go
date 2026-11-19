@@ -141,13 +141,17 @@ type MediaRef struct {
 }
 
 type BrainHack struct {
-	ID              uuid.UUID     `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	Title           string        `gorm:"type:text;not null" json:"title"`
-	Category        string        `gorm:"type:text;not null" json:"category"`
-	Body            string        `gorm:"type:text;not null" json:"body"`
-	ContentFormat   string        `gorm:"type:text;not null;default:'rich_v1'" json:"content_format"`
-	CoverMediaID    *uuid.UUID    `gorm:"type:uuid" json:"cover_media_id,omitempty"`
-	ReadMinutes     int           `gorm:"not null;default:2" json:"read_minutes"`
+	ID            uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	Title         string     `gorm:"type:text;not null" json:"title"`
+	Category      string     `gorm:"type:text;not null" json:"category"`
+	Body          string     `gorm:"type:text;not null" json:"body"`
+	ContentFormat string     `gorm:"type:text;not null;default:'rich_v1'" json:"content_format"`
+	CoverMediaID  *uuid.UUID `gorm:"type:uuid" json:"cover_media_id,omitempty"`
+	ReadMinutes   int        `gorm:"not null;default:2" json:"read_minutes"`
+	// Kind is "article" (a text body) or "video" (a short video played from VideoURL).
+	Kind            string        `gorm:"type:text;not null;default:'article';index" json:"kind"`
+	VideoURL        string        `gorm:"type:text;not null;default:''" json:"video_url,omitempty"`
+	DurationSeconds int           `gorm:"not null;default:0" json:"duration_seconds,omitempty"`
 	AuthorID        uuid.UUID     `gorm:"type:uuid;not null;index" json:"author_id"`
 	Status          ContentStatus `gorm:"type:text;not null;default:'draft';index" json:"status"`
 	ReviewedBy      *uuid.UUID    `gorm:"type:uuid" json:"reviewed_by,omitempty"`

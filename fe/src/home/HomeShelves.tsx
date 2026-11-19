@@ -104,7 +104,7 @@ export function BrainHackOfTheDay() {
   const [dayIndex] = useState(() => Math.floor(Date.now() / 86_400_000));
 
   const load = useCallback(() => {
-    listBrainHacks({ limit: 12 }).then((r) => setRows(r.brain_hacks)).catch(() => setRows([]));
+    listBrainHacks({ limit: 12, kind: 'article' }).then((r) => setRows(r.brain_hacks)).catch(() => setRows([]));
   }, []);
   useEffect(load, [load]);
 

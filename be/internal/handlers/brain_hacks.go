@@ -31,13 +31,17 @@ func NewBrainHackHandler(db *gorm.DB) *BrainHackHandler {
 	return &BrainHackHandler{DB: db, Review: services.NewReviewService(db)}
 }
 
-var defaultHackCategories = []string{"Focus", "Memory", "Exam Day"}
+var defaultHackCategories = []string{"Speed Reading", "Fourth Book", "Sleep", "Breathing"}
 
 type hackRequest struct {
 	Title        *string `json:"title"`
 	Category     *string `json:"category"`
 	Body         *string `json:"body"`
 	CoverMediaID *string `json:"cover_media_id"`
+	// Kind is "article" or "video"; a video needs a video_url (https) and has no body.
+	Kind            *string `json:"kind"`
+	VideoURL        *string `json:"video_url"`
+	DurationSeconds *int    `json:"duration_seconds"`
 }
 
 func readMinutes(body string) int {
@@ -77,8 +81,27 @@ func (h *BrainHackHandler) apply(c *gin.Context, tx *gorm.DB, actor *models.User
 		}
 		b.Category = cat
 	}
+	if req.Kind != nil {
+		if *req.Kind != "article" && *req.Kind != "video" {
+			return services.Coded(http.StatusBadRequest, "invalid_kind", "kind must be article or video")
+		}
+		b.Kind = *req.Kind
+	}
+	if req.VideoURL != nil {
+		u := strings.TrimSpace(*req.VideoURL)
+		if u != "" && (!strings.HasPrefix(u, "https://") || len(u) > 500) {
+			return services.Coded(http.StatusBadRequest, "invalid_video_url", "the video link must start with https://")
+		}
+		b.VideoURL = u
+	}
+	if req.DurationSeconds != nil {
+		if *req.DurationSeconds < 0 || *req.DurationSeconds > 6*3600 {
+			return services.Coded(http.StatusBadRequest, "invalid_duration", "duration must be between 0 seconds and 6 hours")
+		}
+		b.DurationSeconds = *req.DurationSeconds
+	}
 	if req.Body != nil {
-		if strings.TrimSpace(*req.Body) == "" {
+		if strings.TrimSpace(*req.Body) == "" && b.Kind != "video" && (req.Kind == nil || *req.Kind != "video") {
 			return services.Coded(http.StatusBadRequest, "invalid_body", "body is required")
 		}
 		b.Body = *req.Body
@@ -98,8 +121,11 @@ func (h *BrainHackHandler) apply(c *gin.Context, tx *gorm.DB, actor *models.User
 			b.CoverMediaID = &id
 		}
 	}
-	if b.Title == "" || b.Category == "" || b.Body == "" {
+	if b.Title == "" || b.Category == "" || (b.Body == "" && b.Kind != "video") {
 		return nil // incomplete draft is fine; completeness is enforced on submit
+	}
+	if b.Kind == "video" && b.Body == "" {
+		return nil // a video has no body to check for images
 	}
 	return media.SaveRefs(c.Request.Context(), tx, actor, "brain_hack", b.ID, b.ContentFormat,
 		[]media.Field{{Name: "body", Text: b.Body, Kind: "explanation"}})
@@ -133,11 +159,13 @@ func (h *BrainHackHandler) mine(c *gin.Context) (*models.BrainHack, bool) {
 func (h *BrainHackHandler) Create(c *gin.Context) {
 	user := middleware.GetUser(c)
 	var req hackRequest
-	if c.ShouldBindJSON(&req) != nil || req.Title == nil || req.Category == nil || req.Body == nil {
+	bound := c.ShouldBindJSON(&req) == nil
+	isVideo := req.Kind != nil && *req.Kind == "video"
+	if !bound || req.Title == nil || req.Category == nil || (req.Body == nil && !isVideo) {
 		respondErr(c, http.StatusBadRequest, "bad_request", "title, category and body are required")
 		return
 	}
-	b := models.BrainHack{ID: uuid.New(), AuthorID: user.ID, Status: models.StatusDraft, ContentFormat: models.ContentFormatRichV1}
+	b := models.BrainHack{ID: uuid.New(), AuthorID: user.ID, Status: models.StatusDraft, ContentFormat: models.ContentFormatRichV1, Kind: "article"}
 	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := h.apply(c, tx, user, &b, req); err != nil {
 			return err
@@ -208,6 +236,12 @@ func (h *BrainHackHandler) Submit(c *gin.Context) {
 		var b models.BrainHack
 		if err := h.DB.WithContext(ctx).First(&b, "id = ?", id).Error; err != nil {
 			return err
+		}
+		if b.Kind == "video" {
+			if b.Title == "" || b.Category == "" || b.VideoURL == "" {
+				return services.Invalid("incomplete", "title, category and the video link are required")
+			}
+			return nil
 		}
 		if b.Title == "" || b.Body == "" || b.Category == "" {
 			return services.Invalid("incomplete", "title, category and body are required")
@@ -409,6 +443,9 @@ func (h *BrainHackHandler) StudentList(c *gin.Context) {
 	q := h.DB.Model(&models.BrainHack{}).Where("brain_hacks.status = ?", models.StatusPublished)
 	if v := c.Query("category"); v != "" {
 		q = q.Where("brain_hacks.category = ?", v)
+	}
+	if v := c.Query("kind"); v == "article" || v == "video" {
+		q = q.Where("brain_hacks.kind = ?", v)
 	}
 	if c.Query("sort") == "rating" {
 		q = q.Order("rating_avg DESC, rating_count DESC").Limit(limit)
