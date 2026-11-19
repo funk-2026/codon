@@ -100,13 +100,13 @@ export default function PracticeHubRoute() {
         state={header}
         expanded={
           <View>
-            <Text style={[type['type/h1'], { color: color('header/text') }]}>Practice</Text>
+            <Text style={[type['type/h1'], { color: color('header/text') }]}>NEET UG QBank</Text>
             <Text style={[type['type/body-m'], { color: color('header/text-secondary'), marginTop: space['2xs'] }]}>
               Q Bank, test series and custom tests
             </Text>
           </View>
         }
-        compact={<Text style={[type['type/h3'], { color: color('header/text') }]}>Practice</Text>}
+        compact={<Text style={[type['type/h3'], { color: color('header/text') }]}>NEET UG QBank</Text>}
       />
       <Animated.ScrollView
         style={{ flex: 1 }}

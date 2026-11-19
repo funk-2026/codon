@@ -90,13 +90,13 @@ export default function SupportHomeRoute() {
         background={color('wellness/header')}
         expanded={
           <View>
-            <Text style={[type['type/h1'], { color: color('wellness/text-primary') }]}>Support</Text>
+            <Text style={[type['type/h1'], { color: color('wellness/text-primary') }]}>Brain Hack</Text>
             <Text style={[type['type/body-m'], { color: color('text/secondary'), marginTop: space['2xs'] }]}>
               A steady space, built into your everyday routine.
             </Text>
           </View>
         }
-        compact={<Text style={[type['type/h3'], { color: color('wellness/text-primary') }]}>Support</Text>}
+        compact={<Text style={[type['type/h3'], { color: color('wellness/text-primary') }]}>Brain Hack</Text>}
       />
       <Animated.ScrollView
         onScroll={header.onScroll}

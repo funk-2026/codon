@@ -6,7 +6,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { Flame, Exam, BookOpen, Bell, BookmarkSimple, MagnifyingGlass, Target, CaretRight } from 'phosphor-react-native';
+import { Flame, Exam, BookOpen, Bell, MagnifyingGlass, Target, CaretRight } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { CollapsingHeader, ErrorBanner, useCollapsingHeader } from '@/src/components';
@@ -126,13 +126,15 @@ export default function HomeDashboardRoute() {
           {unread > 0 ? <View style={{ position: 'absolute', top: 6, right: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: color('semantic/danger') }} /> : null}
         </Pressable>
         <Pressable
-          onPress={() => router.push(ROUTES.student.bookmarks)}
+          onPress={() => router.push(ROUTES.student.profile)}
           hitSlop={space.xs}
           accessibilityRole="button"
-          accessibilityLabel="Saved"
-          style={[styles.avatar, { width: d, height: d, borderRadius: d / 2, backgroundColor: color('header/chip') }]}
+          accessibilityLabel="Open profile"
+          style={[styles.avatar, { width: d, height: d, borderRadius: d / 2, backgroundColor: color('bg/surface') }]}
         >
-          <BookmarkSimple size={size === 'large' ? 22 : 18} color={color('header/text')} weight="regular" />
+          <Text style={[size === 'large' ? type['type/body-l'] : type['type/body-m-medium'], { color: color('accent/default'), fontWeight: '600' }]}>
+            {(user?.name || 'A').charAt(0).toUpperCase()}
+          </Text>
         </Pressable>
       </View>
     );

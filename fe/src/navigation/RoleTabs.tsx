@@ -9,6 +9,8 @@ export type TabSpec = {
   Icon: Icon;
   /** A count shown on the tab icon when above zero. */
   badge?: number;
+  /** Stays a route of the tab group (so it keeps working) but has no place in the bar. */
+  hidden?: boolean;
 };
 
 /**
@@ -32,11 +34,12 @@ export function RoleTabs({ tabs }: { tabs: TabSpec[] }) {
         tabBarLabelStyle: type['type/caption'],
       }}
     >
-      {tabs.map(({ name, title, Icon, badge }) => (
+      {tabs.map(({ name, title, Icon, badge, hidden }) => (
         <Tabs.Screen
           key={name}
           name={name}
           options={{
+            ...(hidden ? { href: null } : {}),
             title,
             tabBarBadge: badge && badge > 0 ? (badge > 99 ? '99+' : badge) : undefined,
             tabBarIcon: ({ color: c, size, focused }) => (

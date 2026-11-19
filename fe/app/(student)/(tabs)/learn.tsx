@@ -60,13 +60,13 @@ export default function LearnHubRoute() {
         state={header}
         expanded={
           <View>
-            <Text style={[type['type/h1'], { color: color('header/text') }]}>Learn</Text>
+            <Text style={[type['type/h1'], { color: color('header/text') }]}>Video</Text>
             <Text style={[type['type/body-m'], { color: color('header/text-secondary'), marginTop: space['2xs'] }]}>
               Video classes, notes and flashcards
             </Text>
           </View>
         }
-        compact={<Text style={[type['type/h3'], { color: color('header/text') }]}>Learn</Text>}
+        compact={<Text style={[type['type/h3'], { color: color('header/text') }]}>Video</Text>}
       />
       <Animated.ScrollView
         style={{ flex: 1 }}
