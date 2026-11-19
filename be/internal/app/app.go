@@ -28,8 +28,8 @@ func NewOTPProvider(cfg config.Config) otp.OTPProvider {
 		log.Println("OTP provider: Msg91")
 		return &otp.Msg91Provider{AuthKey: cfg.Msg91AuthKey, TemplateID: cfg.Msg91TemplateID}
 	case cfg.TwoFactorAPIKey != "":
-		log.Println("OTP provider: 2Factor.in")
-		return &otp.TwoFactorProvider{APIKey: cfg.TwoFactorAPIKey}
+		log.Printf("OTP provider: 2Factor.in (template: %q)", cfg.TwoFactorTemplateName)
+		return &otp.TwoFactorProvider{APIKey: cfg.TwoFactorAPIKey, TemplateName: cfg.TwoFactorTemplateName}
 	default:
 		log.Println("OTP provider: console stub (set MSG91_AUTH_KEY and MSG91_TEMPLATE_ID for real OTPs)")
 		return &otp.ConsoleProvider{}

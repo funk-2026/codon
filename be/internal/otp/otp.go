@@ -33,16 +33,22 @@ func (c *ConsoleProvider) SendOTP(_ context.Context, phone, otp string) error {
 
 type TwoFactorProvider struct {
 	APIKey string
+	// TemplateName is the approved SMS template name from your 2Factor.in
+	// dashboard. Optional: empty falls back to 2Factor's default OTP template.
+	TemplateName string
 }
 
 func (t *TwoFactorProvider) SendOTP(ctx context.Context, phoneNumber, otp string) error {
-	// API: GET https://2factor.in/API/V1/{api_key}/SMS/{phone}/{otp}
+	// API: GET https://2factor.in/API/V1/{api_key}/SMS/{phone}/{otp}[/{template_name}]
 	apiURL := fmt.Sprintf(
 		"https://2factor.in/API/V1/%s/SMS/%s/%s",
 		url.PathEscape(t.APIKey),
 		url.PathEscape(phoneNumber),
 		url.PathEscape(otp),
 	)
+	if t.TemplateName != "" {
+		apiURL += "/" + url.PathEscape(t.TemplateName)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {

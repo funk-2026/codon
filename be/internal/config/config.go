@@ -28,7 +28,8 @@ type Config struct {
 	JWTExpiryDays int
 
 	// 2Factor.in OTP
-	TwoFactorAPIKey string
+	TwoFactorAPIKey       string
+	TwoFactorTemplateName string
 
 	// Msg91 OTP
 	Msg91AuthKey    string
@@ -79,6 +80,7 @@ func Load() {
 		JWTSecret:             getEnv("JWT_SECRET", "change-me-in-production"),
 		JWTExpiryDays:         getEnvInt("JWT_EXPIRY_DAYS", 90),
 		TwoFactorAPIKey:       getEnv("TWO_FACTOR_API_KEY", ""),
+		TwoFactorTemplateName: getEnv("TWO_FACTOR_TEMPLATE_NAME", ""),
 		Msg91AuthKey:          getEnv("MSG91_AUTH_KEY", ""),
 		Msg91TemplateID:       getEnv("MSG91_TEMPLATE_ID", ""),
 		RazorpayKeyID:         getEnv("RAZORPAY_KEY_ID", ""),
