@@ -4,19 +4,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CaretRight } from 'phosphor-react-native';
 import * as SecureStore from 'expo-secure-store';
-import { SecondaryButton, useToast, ScreenHeader, Screen, ConfirmDialog } from '@/src/components';
+import { SecondaryButton, SegmentedControl, useToast, ScreenHeader, Screen, ConfirmDialog } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { deleteAccount } from '@/src/api/profile';
 import { usePush } from '@/src/notifications/PushProvider';
-import { PracticeReminderRow } from '@/src/notifications/PracticeReminderRow';
+import { ReminderRow } from '@/src/notifications/PracticeReminderRow';
+import { getVibrateOnWrong, setVibrateOnWrong } from '@/src/settings/feedbackPrefs';
 import { pushStatusCopy } from '@/src/notifications/logic';
 import { ROUTES } from '@/src/navigation/routes';
-import * as WebBrowser from 'expo-web-browser';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { apiFetch } from '@/src/api/client';
-import { usePublicConfig } from '@/src/config/PublicConfig';
+import { useOpenRolePicker } from '@/src/navigation/useOpenRolePicker';
 
 const SOUND_EFFECTS_KEY = 'codon_pref_sound_effects';
 
@@ -72,13 +72,26 @@ function Row({
 }
 
 export default function SettingsRoute() {
-  const { color, type, space, radius } = useTheme();
+  const { color, type, space, radius, preference, setPreference } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const openRolePicker = useOpenRolePicker();
 
   const auth = useAuth();
   const { show } = useToast();
-  const legal = usePublicConfig()?.legal;
+  const [vibrate, setVibrate] = useState(true);
+  useEffect(() => {
+    void getVibrateOnWrong().then(setVibrate);
+  }, []);
+  const changeVibrate = (v: boolean) => {
+    setVibrate(v);
+    void setVibrateOnWrong(v);
+  };
+  const switchRole = async () => {
+    const { clearAdminActiveRole } = await import('@/src/auth/tokenStore');
+    await clearAdminActiveRole();
+    openRolePicker();
+  };
   const [exporting, setExporting] = useState(false);
   // A copy of the student's own data (profile, plans, payments, tests) as a JSON file to save or share.
   const exportData = async () => {
@@ -160,33 +173,36 @@ export default function SettingsRoute() {
         showsVerticalScrollIndicator={false}
       >
         <View style={{ marginTop: space.xl }}>
-          <GroupLabel label="Preferences" />
+          <GroupLabel label="Appearance and feedback" />
           <View style={{ gap: space.xs }}>
+            <View style={{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, gap: space.xs }}>
+              <Text style={[type['type/body-l'], { color: color('text/primary') }]}>Theme</Text>
+              <SegmentedControl
+                options={[{ key: 'light' as const, label: 'Light' }, { key: 'dark' as const, label: 'Dark' }, { key: 'system' as const, label: 'System' }]}
+                value={preference}
+                onChange={setPreference}
+              />
+            </View>
             <Row
-              label="Sound Effects"
+              label="Sound effects"
               caption="Coming soon"
-              trailing={
-                <Switch
-                  value={soundEffects}
-                  onValueChange={setSoundEffects}
-                  trackColor={{ false: color('border/strong'), true: color('accent/default') }}
-                  thumbColor={color('bg/surface')}
-                />
-              }
+              trailing={<Switch value={soundEffects} onValueChange={setSoundEffects} trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />}
             />
+            <Row
+              label="Wrong-answer vibration"
+              caption="A short buzz in QBank and Custom Module Regular mode. Never during an exam."
+              trailing={<Switch value={vibrate} onValueChange={changeVibrate} accessibilityLabel="Wrong-answer vibration" trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />}
+            />
+          </View>
+        </View>
+
+        <View style={{ marginTop: space.lg }}>
+          <GroupLabel label="Notifications and reminders" />
+          <View style={{ gap: space.xs }}>
             <Row
               label="Push notifications"
               caption={pushCopy.caption}
-              trailing={
-                <Switch
-                  value={pushOn}
-                  disabled={!pushCopy.canToggle}
-                  onValueChange={onPushToggle}
-                  accessibilityLabel="Push notifications"
-                  trackColor={{ false: color('border/strong'), true: color('accent/default') }}
-                  thumbColor={color('bg/surface')}
-                />
-              }
+              trailing={<Switch value={pushOn} disabled={!pushCopy.canToggle} onValueChange={onPushToggle} accessibilityLabel="Push notifications" trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />}
             />
             {pushOn ? (
               <>
@@ -196,40 +212,32 @@ export default function SettingsRoute() {
                   trailing={<Switch value={push.prefs?.streak_nudges !== false} onValueChange={(v) => push.setPref({ streak_nudges: v }).catch(() => show('Couldn’t save.', 'error'))} accessibilityLabel="Streak reminders" trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />}
                 />
                 <Row
-                  label="Updates on my reports"
+                  label="Question report updates"
                   caption="When a question you reported is reviewed"
-                  trailing={<Switch value={push.prefs?.report_updates !== false} onValueChange={(v) => push.setPref({ report_updates: v }).catch(() => show('Couldn’t save.', 'error'))} accessibilityLabel="Updates on my reports" trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />}
+                  trailing={<Switch value={push.prefs?.report_updates !== false} onValueChange={(v) => push.setPref({ report_updates: v }).catch(() => show('Couldn’t save.', 'error'))} accessibilityLabel="Question report updates" trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />}
                 />
               </>
             ) : null}
-            <PracticeReminderRow />
+            <ReminderRow kind="practice" />
+            <ReminderRow kind="water" />
+            <ReminderRow kind="breathing" />
           </View>
         </View>
 
         <View style={{ marginTop: space.lg }}>
           <GroupLabel label="Account" />
           <View style={{ gap: space.xs }}>
-            <Row
-              label="Change Course"
-              onPress={() => router.push({ pathname: ROUTES.auth.profileSetup as any, params: { edit: '1' } })}
-            />
-          </View>
-        </View>
-
-        <View style={{ marginTop: space.lg }}>
-          <GroupLabel label="Support & Legal" />
-          <View style={{ gap: space.xs }}>
-            <Row label="Help and support" onPress={() => router.push(ROUTES.student.help)} />
-            {legal?.terms_url ? <Row label="Terms of Service" onPress={() => void WebBrowser.openBrowserAsync(legal.terms_url)} /> : null}
-            {legal?.privacy_url ? <Row label="Privacy Policy" onPress={() => void WebBrowser.openBrowserAsync(legal.privacy_url)} /> : null}
+            <Row label="Change course" onPress={() => router.push({ pathname: ROUTES.auth.profileSetup as any, params: { edit: '1' } })} />
+            {auth.status === 'authenticated' && auth.user.role === 'admin' ? <Row label="Switch role" onPress={switchRole} /> : null}
+            <Row label="Manage devices" onPress={() => router.push(ROUTES.student.manageDevices)} />
             <Row label={exporting ? 'Preparing your data…' : 'Download my data'} onPress={() => { if (!exporting) void exportData(); }} />
           </View>
         </View>
 
         <View style={{ marginTop: space.lg }}>
-          <GroupLabel label="Danger Zone" />
+          <GroupLabel label="Delete account" />
           <Row
-            label="Delete Account"
+            label="Delete account"
             caption="Permanently delete your account and data"
             onPress={() => setDeleteConfirmOpen(true)}
           />
@@ -237,7 +245,7 @@ export default function SettingsRoute() {
 
         <View style={{ marginTop: space['2xl'], alignItems: 'center' }}>
           <SecondaryButton
-            label="Log Out"
+            label="Log out"
             variant="danger"
             onPress={() => setLogoutConfirmOpen(true)}
             style={{ alignSelf: 'stretch' }}

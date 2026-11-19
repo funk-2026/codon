@@ -13,13 +13,13 @@ export type PickedPdf = { key: string; name: string };
  * stored key to attach to a lecture, null if the picker was cancelled.
  * Throws an Error with a readable message on failure.
  */
-export async function pickAndUploadPdf(onProgress?: (pct: number) => void): Promise<PickedPdf | null> {
+export async function pickAndUploadPdf(onProgress?: (pct: number) => void, purpose: 'lecture_pdf' | 'reference_pdf' = 'lecture_pdf'): Promise<PickedPdf | null> {
   const r = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
   if (r.canceled || !r.assets?.[0]) return null;
   const a = r.assets[0];
   if (a.size && a.size > MAX_PDF_BYTES) throw new Error('That PDF is over 50 MB — compress it and try again.');
   const name = a.name?.toLowerCase().endsWith('.pdf') ? a.name : `${a.name ?? 'notes'}.pdf`;
-  const presign = await getPresignedUrl({ file_name: name, content_type: 'application/pdf', purpose: 'lecture_pdf' });
+  const presign = await getPresignedUrl({ file_name: name, content_type: 'application/pdf', purpose });
   const task = FileSystem.createUploadTask(
     presign.upload_url,
     a.uri,

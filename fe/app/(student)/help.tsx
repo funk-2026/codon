@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import Constants from 'expo-constants';
+import * as WebBrowser from 'expo-web-browser';
+import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CaretDown, CaretRight, ChatCircleText, EnvelopeSimple, WhatsappLogo } from 'phosphor-react-native';
+import { CaretDown, CaretRight, ChatCircleText, EnvelopeSimple, FilePdf, Phone, Scales, Star, WhatsappLogo } from 'phosphor-react-native';
 import { BottomSheet, InputField, PrimaryButton, Screen, ScreenHeader, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { usePublicConfig } from '@/src/config/PublicConfig';
+import { listReferenceDocs } from '@/src/api/reference';
 import { submitFeedback } from '@/src/api/feedback';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
@@ -44,7 +48,12 @@ export default function HelpRoute() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { show } = useToast();
-  const support = usePublicConfig()?.support;
+  const cfg = usePublicConfig();
+  const support = cfg?.support;
+  const policies = useQuery({ queryKey: ['reference-docs', 'policy'], queryFn: () => listReferenceDocs({ kind: 'policy' }), staleTime: 5 * 60_000 });
+  const policy = (slug: string) => policies.data?.find((d) => d.slug === slug);
+  const storeUrl = Platform.OS === 'ios' ? cfg?.app?.store_url_ios : cfg?.app?.store_url_android;
+  const [pendingDoc, setPendingDoc] = useState<string | null>(null);
   const { order } = useLocalSearchParams<{ order?: string }>();
   const [open, setOpen] = useState<number | null>(null);
   const [payOpen, setPayOpen] = useState(!!order);
@@ -67,6 +76,13 @@ export default function HelpRoute() {
     </Pressable>
   );
 
+  const policyRow = (slug: string, label: string) => contactRow(<FilePdf size={24} color={color('accent/default')} />, label, () => {
+    const d = policy(slug);
+    if (d) router.push({ pathname: ROUTES.student.referenceDoc, params: { id: d.id } });
+    else setPendingDoc(label);
+  });
+  const linkRow = (url: string | undefined, label: string) => (url ? contactRow(<Scales size={24} color={color('accent/default')} />, label, () => void WebBrowser.openBrowserAsync(url)) : null);
+
   const sendPayment = async () => {
     setSending(true);
     try {
@@ -82,7 +98,7 @@ export default function HelpRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Help and support" />
+      <ScreenHeader title="Help and information" />
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
         <View style={{ gap: space.xs }}>
           <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>CONTACT US</Text>
@@ -90,6 +106,32 @@ export default function HelpRoute() {
           {support?.email ? contactRow(<EnvelopeSimple size={24} color={color('accent/default')} />, `Email ${support.email}`, () => void Linking.openURL(`mailto:${support.email}`)) : null}
           {contactRow(<ChatCircleText size={24} color={color('accent/default')} />, 'Send us a message in the app', () => router.push(ROUTES.student.giveFeedback))}
           {contactRow(<ChatCircleText size={24} color={color('semantic/warning')} />, 'Report a payment problem', () => setPayOpen(true))}
+          {contactRow(<FilePdf size={24} color={color('accent/default')} />, 'My question reports', () => router.push(ROUTES.student.myReports))}
+        </View>
+
+        {support?.phone ? (
+          <View style={{ gap: space.xs }}>
+            <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>CALL US</Text>
+            {contactRow(<Phone size={24} color={color('accent/default')} />, `${support.contact_name ? `${support.contact_name}, ` : ''}${support.phone}`, () => void Linking.openURL(`tel:${support.phone}`))}
+          </View>
+        ) : null}
+
+        <View style={{ gap: space.xs }}>
+          <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>POLICIES AND TROUBLESHOOTING</Text>
+          {policyRow('faq', 'Frequently asked questions (PDF)')}
+          {policyRow('device_policy', 'Device policy')}
+          {policyRow('video_troubleshooting', 'Video troubleshooting')}
+          {policyRow('piracy_report', 'Report video piracy')}
+        </View>
+
+        <View style={{ gap: space.xs }}>
+          <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>LEGAL</Text>
+          {linkRow(cfg?.legal?.terms_url, 'Terms and Conditions')}
+          {linkRow(cfg?.legal?.privacy_url, 'Privacy policy')}
+          {linkRow(cfg?.legal?.cancellation_url, 'Cancellation policy')}
+          {!cfg?.legal?.terms_url && !cfg?.legal?.privacy_url && !cfg?.legal?.cancellation_url ? <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>Our policies will be listed here soon.</Text> : null}
+          {storeUrl ? contactRow(<Star size={24} color={color('highlight/default')} weight="fill" />, 'Rate us', () => void Linking.openURL(storeUrl)) : null}
+          <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>Codon v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
         </View>
 
         <View style={{ gap: space.xs }}>
@@ -108,6 +150,10 @@ export default function HelpRoute() {
           })}
         </View>
       </ScrollView>
+
+      <BottomSheet visible={!!pendingDoc} onClose={() => setPendingDoc(null)} title={pendingDoc ?? ''}>
+        <Text style={[type['type/body-m'], { color: color('text/secondary'), paddingBottom: space.md }]}>This document hasn’t been added yet. Check back soon.</Text>
+      </BottomSheet>
 
       <BottomSheet visible={payOpen} onClose={() => setPayOpen(false)} title="Report a payment problem" dismissable={!sending}>
         <View style={{ gap: space.md, paddingHorizontal: space.lg, paddingTop: space.sm }}>

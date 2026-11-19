@@ -12,3 +12,24 @@ describe('hourLabel', () => {
     expect(hourLabel(0)).toBe('12:00 AM');
   });
 });
+
+import { normalizeReminder, toggleHour } from '../reminders';
+
+describe('reminder state', () => {
+  it('reads the old single-time shape', () => {
+    expect(normalizeReminder('practice', { enabled: true, hour: 19 })).toEqual({ enabled: true, hours: [19] });
+  });
+  it('drops times that are not offered, and stays off with no valid time', () => {
+    expect(normalizeReminder('practice', { enabled: true, hours: [7, 8, 21] })).toEqual({ enabled: true, hours: [7, 21] });
+    expect(normalizeReminder('water', { enabled: true, hours: [3] }).enabled).toBe(false);
+    expect(normalizeReminder('breathing', null).enabled).toBe(false);
+  });
+  it('lets several times be chosen, and the last removal turns it off', () => {
+    let s = { enabled: true, hours: [19] };
+    s = toggleHour(s, 7);
+    expect(s.hours).toEqual([7, 19]);
+    s = toggleHour(s, 19);
+    expect(s).toEqual({ enabled: true, hours: [7] });
+    expect(toggleHour(s, 7).enabled).toBe(false);
+  });
+});

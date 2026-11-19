@@ -1,359 +1,147 @@
-import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import {
-  PencilSimple,
-  Shield,
-  GearSix,
-  DeviceMobile,
-  ChatCircleText,
-  Question,
-  Receipt,
-  CaretRight,
-  ArrowsClockwise,
-  BookmarkSimple,
-  FlagBanner,
-} from 'phosphor-react-native';
-import { ErrorBanner, SkeletonBlock, Screen, TAB_EDGES } from '@/src/components';
+import { useQueryClient } from '@tanstack/react-query';
+import { Camera, CaretRight, ChartLineUp, FilePdf, Gear, Info, PencilSimple, Receipt, Shield, UsersThree, ShareNetwork } from 'phosphor-react-native';
+import type { Icon } from 'phosphor-react-native';
+import { ErrorBanner, SkeletonBlock, Screen, TAB_EDGES, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { useMe } from '@/src/queries/profile';
+import { keys } from '@/src/queries/keys';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
-import type { Subscription } from '@/src/api/profile';
+import { useMediaUpload } from '@/src/media/useMediaUpload';
+import { MediaImage } from '@/src/rich/MediaImage';
+import { updateMe, type Subscription } from '@/src/api/profile';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
-import { useOpenRolePicker } from '@/src/navigation/useOpenRolePicker';
 
-type SubState = 'active' | 'none';
 type KycState = 'not_started' | 'pending' | 'verified' | 'action_needed' | null;
+const KYC: Record<Exclude<KycState, null>, { label: string; token: 'text/tertiary' | 'semantic/warning' | 'semantic/success' | 'semantic/danger' }> = {
+  not_started: { label: 'Not started', token: 'text/tertiary' },
+  pending: { label: 'Pending', token: 'semantic/warning' },
+  verified: { label: 'Verified', token: 'semantic/success' },
+  action_needed: { label: 'Action needed', token: 'semantic/danger' },
+};
 
-function Stagger({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
-  const shown = useSharedValue(0);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      shown.value = withTiming(1, { duration: 300 });
-    }, delayMs);
-    return () => clearTimeout(t);
-  }, [delayMs, shown]);
-  const style = useAnimatedStyle(() => ({
-    opacity: shown.value,
-    transform: [{ translateY: (1 - shown.value) * 10 }],
-  }));
-  return <Animated.View style={style}>{children}</Animated.View>;
-}
+const ROWS: { label: string; text: string; Icon: Icon; href: string }[] = [
+  { label: 'Edit Profile', text: 'Name, exam date, state', Icon: PencilSimple, href: ROUTES.student.editProfile },
+  { label: 'My progress', text: 'QBank, tests, videos, Schema', Icon: ChartLineUp, href: ROUTES.student.myProgress },
+  { label: 'My plan and payments', text: 'Your plan and receipts', Icon: Receipt, href: ROUTES.student.payments },
+  { label: 'Settings', text: 'Theme, reminders, account', Icon: Gear, href: ROUTES.student.settings },
+  { label: 'How to use this app', text: 'A short guide to each feature', Icon: FilePdf, href: ROUTES.student.howToUse },
+  { label: 'Our team and faculty', text: 'The people behind Codon', Icon: UsersThree, href: ROUTES.student.team },
+  { label: 'Help and information', text: 'FAQ, contact, policies, legal', Icon: Info, href: ROUTES.student.help },
+  { label: 'Community and sharing', text: 'Follow us and invite friends', Icon: ShareNetwork, href: ROUTES.student.community },
+];
 
-
+/** The student's own page. Opens from the avatar on Home. Tapping the photo changes the photo only. */
 export default function ProfileHomeRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
-  const openRolePicker = useOpenRolePicker();
   const { user } = useAuth();
-  
-  const meQuery = useMe();
-  const loading = meQuery.isPending;
-  const loadError = meQuery.isError;
-  const load = () => void meQuery.refetch();
-  useRefetchOnFocus(load);
+  const { show } = useToast();
+  const qc = useQueryClient();
+  const me = useMe();
+  useRefetchOnFocus(() => void me.refetch());
 
-  const sub: Subscription | null = meQuery.data?.active_subscription ?? null;
-  const kycRequired = meQuery.data?.kyc_required ?? false;
+  const photo = useMediaUpload('profile_photo', {
+    onReady: (it) => {
+      if (!it.mediaId) return;
+      updateMe({ photo_media_id: it.mediaId })
+        .then(() => qc.invalidateQueries({ queryKey: keys.me }))
+        .catch(() => show('Couldn’t save your photo.', 'error'));
+    },
+  });
+  const uploading = photo.items.some((i) => i.stage !== 'ready' && i.stage !== 'failed');
 
-  const name = user?.name || 'Student';
-  // Note: we'd ideally resolve selected_course_id to a name, but for now we just show a generic label or fetch it
-  const courseChip = user?.selected_course_id ? 'Enrolled' : 'No Course';
-
+  const sub: Subscription | null = me.data?.active_subscription ?? null;
   const kycState = (user?.kyc_status as KycState) || 'not_started';
-
-  const kycConfig: Record<Exclude<KycState, null>, { label: string; token: 'text/tertiary' | 'semantic/warning' | 'semantic/success' | 'semantic/danger' }> = {
-    not_started: { label: 'Not Started', token: 'text/tertiary' },
-    pending: { label: 'Pending', token: 'semantic/warning' },
-    verified: { label: 'Verified', token: 'semantic/success' },
-    action_needed: { label: 'Action Needed', token: 'semantic/danger' },
-  };
-
-  const initials = name
-    .split(' ')
-    .map((p: string) => p[0])
-    .join('')
-    .slice(0, 2);
+  const name = user?.name || 'Student';
+  const initials = (name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2) || 'S').toUpperCase();
+  const photoId = me.data?.user?.photo_media_id ?? undefined;
+  const view = (photo.items.find((i) => i.stage === 'ready')?.view) ?? (photoId ? me.data?.media?.[photoId] : undefined);
 
   return (
     <Screen edges={TAB_EDGES}>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] }}
-        showsVerticalScrollIndicator={false}
-      >
-        <Stagger delayMs={0}>
-          <View style={{ marginTop: space.lg, alignItems: 'center' }}>
-            <View style={{ position: 'relative' }}>
-              <View
-                style={[
-                  styles.avatar,
-                  {
-                    width: 72,
-                    height: 72,
-                    borderRadius: 36,
-                    backgroundColor: color('accent/tint'),
-                  },
-                ]}
-              >
-                <Text style={[type['type/h1'], { color: color('accent/default') }]}>
-                  {initials}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => router.push(ROUTES.student.editProfile)}
-                hitSlop={space.xs}
-                style={({ pressed }) => [
-                  styles.editBadge,
-                  {
-                    backgroundColor: color('accent/default'),
-                    borderColor: color('bg/canvas'),
-                    opacity: pressed ? 0.85 : 1,
-                  },
-                ]}
-              >
-                <PencilSimple size={14} color={color('accent/on-accent')} weight="bold" />
-              </Pressable>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] }} showsVerticalScrollIndicator={false}>
+        <View style={{ alignItems: 'center', marginTop: space.xl }}>
+          <Pressable
+            onPress={() => void photo.pickFromLibrary(false)}
+            disabled={uploading}
+            accessibilityRole="button"
+            accessibilityLabel="Change profile photo"
+            style={{ width: 96, height: 96, borderRadius: 48 }}
+          >
+            <View style={{ width: 96, height: 96, borderRadius: 48, overflow: 'hidden', backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
+              {view ? <MediaImage media={view} variant="thumb" maxHeight={96} /> : <Text style={[type['type/display'], { color: color('accent/default'), fontSize: 32 }]}>{initials}</Text>}
             </View>
-            <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.sm }]}>
-              {name}
-            </Text>
-            <View
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: color('bg/sunken'),
-                  borderRadius: radius.pill,
-                  paddingHorizontal: space.sm,
-                  marginTop: space['2xs'],
-                },
-              ]}
+            <View style={{ position: 'absolute', right: 0, bottom: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: color('action/primary'), borderWidth: 2, borderColor: color('bg/canvas'), alignItems: 'center', justifyContent: 'center' }}>
+              <Camera size={16} color={color('action/on-primary')} weight="fill" />
+            </View>
+          </Pressable>
+          {uploading ? <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.xs }]}>Uploading…</Text> : null}
+          {photo.items.some((i) => i.stage === 'failed') ? <Text style={[type['type/caption'], { color: color('semantic/danger'), marginTop: space.xs }]}>The photo didn’t upload. Try again.</Text> : null}
+          {photo.permissionDenied ? <Text style={[type['type/caption'], { color: color('semantic/danger'), marginTop: space.xs }]}>Allow photo access in Settings to change your photo.</Text> : null}
+          <Text style={[type['type/h2'], { color: color('text/primary'), marginTop: space.sm }]} numberOfLines={1}>{name}</Text>
+          <View style={{ backgroundColor: color('bg/sunken'), borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2, marginTop: space['2xs'] }}>
+            <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{user?.selected_course_id ? 'Enrolled' : 'No course yet'}</Text>
+          </View>
+        </View>
+
+        {me.isError ? <View style={{ marginTop: space.md }}><ErrorBanner onRetry={() => void me.refetch()} /></View> : null}
+
+        <View style={{ marginTop: space.lg }}>
+          {me.isPending ? (
+            <SkeletonBlock height={72} radius={radius.lg} />
+          ) : sub ? (
+            // A paid plan shows what it is and when it ends. There is nothing to buy or renew from here.
+            <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md }, shadow()]}>
+              <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>ACTIVE PLAN</Text>
+              <Text style={[type['type/h3'], { color: color('text/primary'), marginTop: 2 }]}>{sub.plan?.name || 'Subscription'}</Text>
+              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Active until {new Date(sub.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+            </View>
+          ) : (
+            <Pressable onPress={() => router.push(ROUTES.student.subscriptionPlans)} accessibilityRole="button" style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}>
+              <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>PLAN</Text>
+              <Text style={[type['type/h3'], { color: color('text/primary'), marginTop: 2 }]}>You’re on free access</Text>
+              <Text style={[type['type/body-m-medium'], { color: color('accent/default'), marginTop: space['2xs'] }]}>View plans</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {me.data?.kyc_required ? (
+          <Pressable
+            onPress={() => router.push(kycState !== 'not_started' ? ROUTES.student.kycStatus : ROUTES.student.kycSubmission)}
+            accessibilityRole="button"
+            style={({ pressed }) => [{ marginTop: space.md, flexDirection: 'row', alignItems: 'center', backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
+          >
+            <Shield size={20} color={color('text/secondary')} />
+            <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>Identity verification</Text>
+            <Text style={[type['type/caption'], { color: color(KYC[kycState ?? 'not_started'].token), marginRight: space.xs }]}>{KYC[kycState ?? 'not_started'].label}</Text>
+            <CaretRight size={18} color={color('text/tertiary')} />
+          </Pressable>
+        ) : null}
+
+        <View style={[{ marginTop: space.lg, backgroundColor: color('bg/surface'), borderRadius: radius.lg, overflow: 'hidden' }, shadow()]}>
+          {ROWS.map((r, i) => (
+            <Pressable
+              key={r.label}
+              onPress={() => router.push(r.href as never)}
+              accessibilityRole="button"
+              accessibilityLabel={`${r.label}. ${r.text}`}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 60, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: color('border/subtle'), opacity: pressed ? 0.85 : 1 })}
             >
-              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
-                {courseChip}
-              </Text>
-            </View>
-          </View>
-        </Stagger>
-
-        {loadError ? (
-          <View style={{ marginTop: space.md }}>
-            <ErrorBanner onRetry={load} />
-          </View>
-        ) : null}
-
-        <Stagger delayMs={80}>
-          <View style={{ marginTop: space.xl }}>
-            {loading ? (
-              <SkeletonBlock height={76} radius={radius.lg} />
-            ) : (
-              <Pressable
-                onPress={() => router.push(ROUTES.student.subscriptionPlans)}
-                style={({ pressed }) => [
-                  {
-                    backgroundColor: color('bg/surface'),
-                    borderRadius: radius.lg,
-                    padding: space.lg,
-                    opacity: pressed ? 0.94 : 1,
-                  },
-                  shadow(),
-                ]}
-              >
-                {sub ? (
-                  <>
-                    <Text style={[type['type/h3'], { color: color('text/primary') }]}>
-                      {sub.plan?.name || 'Pro Subscription'}
-                    </Text>
-                    <Text
-                      style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}
-                    >
-                      Active until {new Date(sub.end_date).toLocaleDateString()}
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={[type['type/h3'], { color: color('text/primary') }]}>
-                      You&apos;re on Free access
-                    </Text>
-                    <Text
-                      style={[type['type/body-m-medium'], { color: color('accent/default'), marginTop: space.xs }]}
-                    >
-                      View Plans
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-            )}
-          </View>
-        </Stagger>
-
-        {kycRequired ? (
-          <Stagger delayMs={240}>
-            <View style={{ marginTop: space.lg }}>
-              <Pressable
-                onPress={() =>
-                  router.push(
-                    kycState && kycState !== 'not_started'
-                      ? ROUTES.student.kycStatus
-                      : ROUTES.student.kycSubmission
-                  )
-                }
-                style={({ pressed }) => [
-                  styles.row,
-                  { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, opacity: pressed ? 0.94 : 1 },
-                  shadow(),
-                ]}
-              >
-                <Shield size={20} color={color('text/secondary')} weight="regular" />
-                <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
-                  Identity Verification
-                </Text>
-                <Text
-                  style={[
-                    type['type/caption'],
-                    { color: color(kycConfig[kycState ?? 'not_started'].token), marginRight: space.xs },
-                  ]}
-                >
-                  {kycConfig[kycState ?? 'not_started'].label}
-                </Text>
-                <CaretRight size={18} color={color('text/tertiary')} />
-              </Pressable>
-            </View>
-          </Stagger>
-        ) : null}
-
-        <Stagger delayMs={320}>
-          <View style={{ marginTop: space.lg, gap: space.md }}>
-            <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md }, shadow()]}>
-              <MenuRow
-                icon={<BookmarkSimple size={20} color={color('text/secondary')} />}
-                label="Bookmarks"
-                onPress={() => router.push(ROUTES.student.bookmarks)}
-              />
-              <Divider />
-              <MenuRow
-                icon={<FlagBanner size={20} color={color('text/secondary')} />}
-                label="My reports"
-                onPress={() => router.push(ROUTES.student.myReports)}
-              />
-              <Divider />
-              <MenuRow
-                icon={<Receipt size={20} color={color('text/secondary')} />}
-                label="Payments"
-                onPress={() => router.push(ROUTES.student.payments)}
-              />
-              <Divider />
-              <MenuRow
-                icon={<GearSix size={20} color={color('text/secondary')} />}
-                label="Settings"
-                onPress={() => router.push(ROUTES.student.settings)}
-              />
-              {user?.role === 'admin' ? (
-                <>
-                  <Divider />
-                  <MenuRow
-                    icon={<ArrowsClockwise size={20} color={color('accent/default')} weight="duotone" />}
-                    label="Switch Role"
-                    onPress={async () => {
-                      const { clearAdminActiveRole } = await import('@/src/auth/tokenStore');
-                      await clearAdminActiveRole();
-                      openRolePicker();
-                    }}
-                  />
-                </>
-              ) : null}
-              <Divider />
-              <MenuRow
-                icon={<DeviceMobile size={20} color={color('text/secondary')} />}
-                label="Manage Devices"
-                onPress={() => router.push(ROUTES.student.manageDevices)}
-                last
-              />
-            </View>
-            <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.md }, shadow()]}>
-              <MenuRow
-                icon={<ChatCircleText size={20} color={color('text/secondary')} />}
-                label="Give Feedback"
-                onPress={() => router.push(ROUTES.student.giveFeedback)}
-              />
-              <Divider />
-              <MenuRow
-                icon={<Question size={20} color={color('text/secondary')} />}
-                label="Help and support"
-                onPress={() => router.push(ROUTES.student.help)}
-                last
-              />
-            </View>
-          </View>
-        </Stagger>
+              <r.Icon size={22} color={color('accent/default')} weight="duotone" />
+              <View style={{ flex: 1 }}>
+                <Text style={[type['type/body-l'], { color: color('text/primary') }]}>{r.label}</Text>
+                <Text style={[type['type/caption'], { color: color('text/tertiary') }]} numberOfLines={1}>{r.text}</Text>
+              </View>
+              <CaretRight size={18} color={color('text/tertiary')} />
+            </Pressable>
+          ))}
+        </View>
+        <View style={{ height: space.md }} />
       </ScrollView>
     </Screen>
   );
 }
-
-function MenuRow({
-  icon,
-  label,
-  onPress,
-  last,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onPress: () => void;
-  last?: boolean;
-}) {
-  const { color, type, space, radius } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        {
-          padding: space.md,
-          borderTopLeftRadius: 0,
-          borderTopRightRadius: 0,
-          borderBottomLeftRadius: last ? radius.md : 0,
-          borderBottomRightRadius: last ? radius.md : 0,
-          opacity: pressed ? 0.85 : 1,
-        },
-      ]}
-    >
-      {icon}
-      <Text style={[type['type/body-l'], { color: color('text/primary'), flex: 1, marginLeft: space.sm }]}>
-        {label}
-      </Text>
-      <CaretRight size={18} color={color('text/tertiary')} />
-    </Pressable>
-  );
-}
-
-function Divider() {
-  const { color } = useTheme();
-  return <View style={{ height: 1, backgroundColor: color('border/subtle') }} />;
-}
-
-const styles = StyleSheet.create({
-  avatar: { alignItems: 'center', justifyContent: 'center' },
-  editBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chip: { paddingVertical: 4 },
-  statRow: { flexDirection: 'row' },
-  statTile: { flex: 1 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-});

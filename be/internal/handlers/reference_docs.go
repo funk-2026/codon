@@ -23,7 +23,7 @@ func NewReferenceHandler(db *gorm.DB) *ReferenceHandler { return &ReferenceHandl
 
 var refKinds = map[string]bool{
 	models.RefHowTo: true, models.RefPattern: true, models.RefPastPaper: true,
-	models.RefPractice: true, models.RefWeightage: true, models.RefSchema: true,
+	models.RefPractice: true, models.RefWeightage: true, models.RefSchema: true, models.RefPolicy: true,
 }
 
 // kindNeedsYear: past and practice papers are organised by year; the others are not.
@@ -118,7 +118,7 @@ func (h *ReferenceHandler) apply(c *gin.Context, d *models.ReferenceDoc, r refDo
 	bad := func(code, msg string) bool { respondErr(c, http.StatusBadRequest, code, msg); return false }
 	if r.Kind != nil {
 		if !refKinds[*r.Kind] {
-			return bad("invalid_kind", "kind must be howto, pattern, past_paper, practice_paper, weightage or schema")
+			return bad("invalid_kind", "kind must be howto, policy, pattern, past_paper, practice_paper, weightage or schema")
 		}
 		d.Kind = *r.Kind
 	}
@@ -166,8 +166,8 @@ func (h *ReferenceHandler) apply(c *gin.Context, d *models.ReferenceDoc, r refDo
 	if kindNeedsYear(d.Kind) && d.Year == nil {
 		return bad("year_required", "past and practice papers need a year")
 	}
-	if d.Kind == models.RefHowTo && d.Slug == "" {
-		return bad("slug_required", "a how-to guide needs the feature it explains")
+	if (d.Kind == models.RefHowTo || d.Kind == models.RefPolicy) && d.Slug == "" {
+		return bad("slug_required", "a how-to guide or policy needs its name (slug)")
 	}
 	return true
 }

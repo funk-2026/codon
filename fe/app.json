@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon-1.png",
     "scheme": "codon",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.codon.learn",

@@ -1,3 +1,4 @@
+import { buzzOnWrong } from '@/src/settings/feedbackPrefs';
 import { track } from '@/src/analytics/track';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '@/src/api/client';
@@ -195,6 +196,8 @@ export function useAttemptSession(testId: string | undefined) {
       await sync.flushNow();
       const r = await revealAnswer(attempt.id, qid);
       setReveals((m) => ({ ...m, [qid]: r }));
+      // Revealing only happens where answers are shown at once (never in an exam), so a wrong one may buzz.
+      if (!r.is_correct) void buzzOnWrong();
       setMedia((m) => ({ ...m, ...(r.media ?? {}) }));
       patchLocal(qid, { revealed: true });
       return r;

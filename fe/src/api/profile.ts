@@ -13,6 +13,9 @@ export type UserProfile = {
   created_at: string;
   last_login_at?: string;
   exam_date?: string | null;
+  /** Indian state or union territory, from a fixed list. */
+  state?: string | null;
+  photo_media_id?: string | null;
   /** Hide my name on public leaderboards. */
   leaderboard_opt_out?: boolean;
   suspended_at?: string | null;
@@ -55,6 +58,8 @@ export type GetMeResponse = {
   user: UserProfile;
   kyc_required: boolean;
   active_subscription?: Subscription;
+  /** Pictures to show, by media id (the profile photo). */
+  media?: Record<string, import('@/src/rich/ast').MediaView>;
 };
 
 /** GET /api/v1/me */
@@ -68,6 +73,10 @@ export type UpdateMeRequest = {
   selected_course_id?: string;
   /** YYYY-MM-DD; an empty string clears it. */
   exam_date?: string;
+  /** One of INDIAN_STATES; an empty string clears it. */
+  state?: string;
+  /** A ready `profile_photo` media asset of mine; an empty string removes it. */
+  photo_media_id?: string;
   leaderboard_opt_out?: boolean;
 };
 
@@ -133,3 +142,18 @@ export type RecentContentResponse = {
 export function getRecentContent(): Promise<RecentContentResponse> {
   return apiFetch<RecentContentResponse>('/me/recent-content', { method: 'GET' }).then((r) => ({ recent: arr(r.recent) }));
 }
+
+export const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh',
+  'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha',
+  'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir',
+  'Ladakh', 'Lakshadweep', 'Puducherry',
+] as const;
+
+export type ResetScope = 'bookmarks' | 'qbank' | 'flashcards' | 'pulse';
+export type ResetStatus = { scope: ResetScope; last_reset_at?: string; next_allowed_at?: string; can_reset: boolean };
+/** GET /me/resets: when each kind of study data was last cleared and may be cleared again. */
+export const getResets = () => apiFetch<{ resets: ResetStatus[] }>('/me/resets').then((r) => arr(r.resets));
+/** POST /me/resets/:scope: clears it. 409 `reset_cooldown` if it was cleared within the last three months. */
+export const resetContent = (scope: ResetScope) => apiFetch<{ removed: number; resets: ResetStatus[] }>(`/me/resets/${scope}`, { method: 'POST' });

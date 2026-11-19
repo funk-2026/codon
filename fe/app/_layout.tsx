@@ -14,7 +14,7 @@ import {
   Figtree_800ExtraBold,
 } from '@expo-google-fonts/figtree';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { ThemeProvider } from '@/src/theme/ThemeProvider';
+import { ThemeProvider, useTheme } from '@/src/theme/ThemeProvider';
 import { AuthProvider, useAuth } from '@/src/auth/AuthContext';
 import { AppConfigProvider } from '@/src/config/AppConfigContext';
 import { BookmarksProvider } from '@/src/bookmarks/BookmarksContext';
@@ -67,6 +67,12 @@ function RootNavigator() {
   );
 }
 
+/** Light icons on the dark theme, dark icons on the light one. */
+function ThemedStatusBar() {
+  const { scheme } = useTheme();
+  return <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />;
+}
+
 export default function RootLayout() {
   useFrameworkReady();
 
@@ -104,7 +110,7 @@ export default function RootLayout() {
                   <AnalyticsBootstrap />
                   <RootNavigator />
                 </UpdateGate>
-                <StatusBar style="dark" />
+                <ThemedStatusBar />
               </ToastProvider>
             </PushProvider>
           </BookmarksProvider>

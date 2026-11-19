@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Broadcast, CaretRight, ChartBar, ChatCircleText, ClockCounterClockwise, FolderOpen, GearSix, HandHeart, Megaphone, ShieldCheck, Tag, Timer } from 'phosphor-react-native';
+import { Broadcast, CaretRight, FilePdf, UsersThree, ChartBar, ChatCircleText, ClockCounterClockwise, FolderOpen, GearSix, HandHeart, Megaphone, ShieldCheck, Tag, Timer } from 'phosphor-react-native';
 import { ErrorBanner, Screen, SkeletonBlock, TAB_EDGES } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAdminSummary } from '@/src/queries/admin';
@@ -25,6 +25,8 @@ const GROUPS: { title: string; tools: Tool[] }[] = [
       { label: 'Exams', text: 'Live tests: extend, results time, recompute scores', Icon: Timer, href: ROUTES.admin.exams },
       { label: 'Live content', text: 'Pull something back with a reason', Icon: ShieldCheck, href: ROUTES.admin.liveContent },
       { label: 'Home banners', text: 'What students see at the top of Home', Icon: Megaphone, href: ROUTES.admin.homeUpdates },
+      { label: 'Documents', text: 'Guides, board papers, Schema PDF', Icon: FilePdf, href: ROUTES.admin.referenceDocs },
+      { label: 'Faculty', text: 'The roster under Our team', Icon: UsersThree, href: ROUTES.admin.faculty },
       { label: 'Home message', text: 'The note with a photo on Home', Icon: HandHeart, href: ROUTES.admin.homeMessage },
       { label: 'Announcement', text: 'Message every student or teacher', Icon: Broadcast, href: ROUTES.admin.announcements },
     ],

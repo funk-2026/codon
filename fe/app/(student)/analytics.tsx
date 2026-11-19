@@ -1,19 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChartLineUp } from 'phosphor-react-native';
 import { EmptyState, Screen, ScreenHeader, SkeletonBlock, ErrorBanner } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { useAttempts } from '@/src/queries/attempts';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
-import { lastDays } from '@/src/home/chart';
-import { dayKey } from '@/src/home/monthCalendar';
+import { useAreaCounts } from '@/src/home/useAreaCounts';
 import { DailyLineChart } from '@/src/home/DailyLineChart';
 import { ANALYSIS_AREAS, type AnalysisArea } from '@/src/home/DetailedAnalysisCard';
 import { ROUTES } from '@/src/navigation/routes';
 
 const DAYS = 14;
-const MODULE_OF: Partial<Record<AnalysisArea, string>> = { qbank: 'qbank', tests: 'test_series' };
 const UNIT: Record<AnalysisArea, string> = { schema: 'topics', qbank: 'modules solved', tests: 'tests taken', video: 'lectures' };
 
 /**
@@ -26,32 +23,12 @@ export default function AnalyticsRoute() {
   const { area: raw } = useLocalSearchParams<{ area?: string }>();
   const area: AnalysisArea = ANALYSIS_AREAS.some((a) => a.key === raw) ? (raw as AnalysisArea) : 'qbank';
   const title = ANALYSIS_AREAS.find((a) => a.key === area)!.label;
-  const attempts = useAttempts();
-  useRefetchOnFocus(attempts.refetch);
+  const data = useAreaCounts(area);
+  useRefetchOnFocus(data.refetch);
   const [selected, setSelected] = useState<number | null>(null);
+  const { points, total, byDay, days } = data;
+  const mod = data.supported;
 
-  const mod = MODULE_OF[area];
-  const days = useMemo(() => lastDays(DAYS), []);
-  // A module counts once per day it was submitted; a retake the same day does not add a second.
-  const byDay = useMemo(() => {
-    const m = new Map<string, { id: string; title: string; where: string; pct?: number }[]>();
-    for (const a of attempts.data?.attempts ?? []) {
-      if (!mod || a.status !== 'submitted' || !a.submitted_at || a.test?.module_type !== mod) continue;
-      const k = dayKey(new Date(a.submitted_at));
-      const list = m.get(k) ?? [];
-      if (list.some((x) => x.id === a.test_id)) continue;
-      list.push({
-        id: a.test_id,
-        title: a.test?.title ?? 'Test',
-        where: a.test?.subject?.name ? `${a.test.subject.name} › ${a.test.chapter?.name ?? 'General'}` : a.test?.course?.name ?? '',
-        pct: a.total_marks ? Math.round(((a.score ?? 0) / a.total_marks) * 100) : undefined,
-      });
-      m.set(k, list);
-    }
-    return m;
-  }, [attempts.data, mod]);
-  const points = days.map((d) => ({ label: d.label, value: byDay.get(d.key)?.length ?? 0 }));
-  const total = points.reduce((n, p) => n + p.value, 0);
   const picked = selected != null ? days[selected] : null;
   const rows = picked ? byDay.get(picked.key) ?? [] : [];
 
@@ -65,10 +42,10 @@ export default function AnalyticsRoute() {
             title="Nothing to show yet"
             description={area === 'schema' ? 'This graph counts topics you mark Confident. It fills in once Schema is available.' : 'This graph counts lectures you complete. It fills in once lecture completion is tracked.'}
           />
-        ) : attempts.isPending ? (
+        ) : data.isPending ? (
           <SkeletonBlock height={220} radius={radius.lg} />
-        ) : attempts.isError ? (
-          <ErrorBanner onRetry={() => void attempts.refetch()} />
+        ) : data.isError ? (
+          <ErrorBanner onRetry={() => void data.refetch()} />
         ) : total === 0 ? (
           <EmptyState
             icon={<ChartLineUp size={32} color={color('text/tertiary')} />}

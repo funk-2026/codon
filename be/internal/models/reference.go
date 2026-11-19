@@ -15,6 +15,8 @@ const (
 	RefPractice  = "practice_paper"
 	RefWeightage = "weightage"
 	RefSchema    = "schema"
+	// RefPolicy is a help or policy PDF (FAQ, device policy, video troubleshooting, piracy reporting), found by slug.
+	RefPolicy = "policy"
 )
 
 // ReferenceDoc is one uploaded PDF students can read in the app: a how-to guide, a board paper, a paper pattern, a
