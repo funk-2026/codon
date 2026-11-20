@@ -77,11 +77,13 @@ type Test struct {
 	Visibility             string     `gorm:"type:text;not null;default:'public'" json:"visibility"`
 	Blueprint              JSONB      `gorm:"type:jsonb" json:"blueprint,omitempty"`
 	BlueprintSchemaVersion *int       `json:"blueprint_schema_version,omitempty"`
-	Mode                   string     `gorm:"type:text;not null;default:'exam'" json:"mode"`
-	ExpiresAt              *time.Time `json:"expires_at,omitempty"`
-	ArchivedAt             *time.Time `gorm:"index" json:"archived_at,omitempty"`
-	RatingAvg              float64    `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
-	RatingCount            int        `gorm:"not null;default:0" json:"rating_count"`
+	// ShareCode is the code of a custom module: friends enter it to solve the same questions.
+	ShareCode   *string    `gorm:"type:text" json:"share_code,omitempty"`
+	Mode        string     `gorm:"type:text;not null;default:'exam'" json:"mode"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	ArchivedAt  *time.Time `gorm:"index" json:"archived_at,omitempty"`
+	RatingAvg   float64    `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
+	RatingCount int        `gorm:"not null;default:0" json:"rating_count"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -275,11 +277,20 @@ type CustomTestPreset struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// CustomModuleOpen records that a student opened a friend's custom module with its code, so they may solve it.
+type CustomModuleOpen struct {
+	UserID   uuid.UUID `gorm:"type:uuid;primaryKey" json:"user_id"`
+	TestID   uuid.UUID `gorm:"type:uuid;primaryKey" json:"test_id"`
+	OpenedAt time.Time `json:"opened_at"`
+}
+
 type CustomTestTemplate struct {
 	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
 	Title     string    `gorm:"type:text;not null" json:"title"`
 	Blueprint JSONB     `gorm:"type:jsonb;not null" json:"blueprint"`
+	// Ask lists the filters the student left to choose when the test is made ("I will select this at test time").
+	Ask       JSONB     `gorm:"type:jsonb" json:"ask,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

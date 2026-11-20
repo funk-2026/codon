@@ -135,6 +135,9 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	ct := api.Group("/custom-tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin)).Use(handlers.RequireFlag("custom_test.enabled"))
 	{
 		ct.GET("/builder-config", d.Custom.BuilderConfig)
+		ct.POST("/open", d.Custom.OpenByCode)
+		ct.GET("/challenges", d.Custom.Challenges)
+		ct.GET("/:id/board", d.Custom.Board)
 		ct.POST("/share", d.Custom.ShareBlueprint)
 		ct.GET("/shared/:code", d.Custom.GetShared)
 		ct.POST("/count", d.Custom.Count)

@@ -15,13 +15,16 @@ Branch `feature/tests-exam-simulation`. Chunks 1 to 10 are built, tested (jest, 
 | 9 Tests | Grand / Mini / Subject-wise, Live / Library / Attempted, months and year, Grand analysis | `(tabs)/tests.tsx`, `src/exam/testsTabs.ts`, `grand-analysis.tsx` |
 | 10 Study | Schema, Pulse, Flashcards by chapter, analytics for each | `src/study/`, `schema*.tsx`, `pulse*.tsx`, `study-list.tsx`, `be/handlers/study.go` |
 
-## Not built, or decided by me (confirm)
-- Custom Module v44 flow (codes, challenges, templates, 3-page builder). The older module remains, shown as a segment beside QBank, not a second square.
-- Bookmark types (Revise later, Doubts, Important) for Pulse and Flashcards, and a Pulse bookmark category.
-- Video download and chapter cover images.
-- Pulse and Schema content must be loaded: teachers or admins add Pulse items (published at once, no review step); admins paste the Schema CSV (Admin > Schema table).
-- Pulse last item returns to the list; Idx = syllabus order, Frq = most asked first; Schema analytics counts topics that are Confident now, by the day they became so. Pulse analytics counts items read; Flashcards counts cards by their last review day.
-- Review ranges of 20 in test review, and the results screen redesign, were not touched.
+## Gaps closed in the final pass
+Custom Module v44 (three tiles, three-page builder, PYQ 10/25, saved templates with "select at test time", tick list, save popup, codes, Start screen, Challenges, leaderboard, percentage-only result); Pulse and Flashcard deck bookmarks; Tests result tiles, radar comparison, review ranges and Subjects filter, Discard Test; Grand analysis percentage/percentile and strongest/weakest; Home Test series opens the Grand analysis; QBank result screen and search; chapter covers, video download, Downloaded and Free videos; unavailable days in graphs; confidence picker in every test mode.
+
+## Decisions made (confirm)
+- Custom Module "Tests" source stays off by default so exam papers stay fresh (admin can allow it). Custom Module search icon opens Challenges.
+- Repeat solves of a custom module need its code; the first attempt per student is the leaderboard attempt.
+- Video download uses the host's MP4 rendition and only appears when it exists.
+- Subject percentile in Grand analysis; chapters show percentage only.
+- No rank prediction is offered.
+- Pulse items publish without review; Schema and Pulse are editable by teachers and admins.
 
 ## Needs a device
-Dark theme contrast, Android PDF viewer (pdf.js from cdnjs), picture in picture and the mini player, push taps, the Pulse timer.
+Dark theme contrast, Android PDF viewer, picture in picture and the mini player, push taps, the Pulse timer, video download (needs MP4 renditions on the host), clipboard copy.

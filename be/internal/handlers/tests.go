@@ -142,7 +142,7 @@ func (h *TestHandler) GetTest(c *gin.Context) {
 	if err := h.DB.WithContext(c.Request.Context()).
 		Where("id = ? AND status = ? AND archived_at IS NULL", id, models.StatusPublished).
 		Preload("Course").
-		First(&test).Error; err != nil || !visibleToUser(&test, user.ID) {
+		First(&test).Error; err != nil || !visibleOrOpened(h.DB, &test, user.ID) {
 		respondErr(c, http.StatusNotFound, "test_not_found", "test not found")
 		return
 	}
@@ -198,7 +198,7 @@ func (h *TestHandler) GetQuestions(c *gin.Context) {
 		return
 	}
 	var test models.Test
-	if err := h.DB.WithContext(ctx).First(&test, "id = ?", testID).Error; err != nil || !visibleToUser(&test, user.ID) {
+	if err := h.DB.WithContext(ctx).First(&test, "id = ?", testID).Error; err != nil || !visibleOrOpened(h.DB, &test, user.ID) {
 		respondErr(c, http.StatusNotFound, "test_not_found", "test not found")
 		return
 	}

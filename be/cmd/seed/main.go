@@ -12,6 +12,7 @@ import (
 	"codon-backend/internal/config"
 	"codon-backend/internal/db"
 	"codon-backend/internal/models"
+	"codon-backend/internal/settings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -78,6 +79,11 @@ func main() {
 		log.Fatal("refusing to seed a production database")
 	}
 
+	settings.Init(g)
+	// The features a tester needs switched on: Custom Module with Regular mode and answer-status filters, bookmarks, reports, ratings.
+	for _, k := range []string{"custom_test.enabled", "custom_test.tutor_mode", "custom_test.status_filters", "bookmarks.enabled", "reports.enabled", "ratings.enabled"} {
+		must(settings.Default.Set(k, "true", nil))
+	}
 	var course models.Course
 	must(g.Where("slug = ?", "neet-ug").First(&course).Error)
 	for _, p := range adminPhones {
@@ -217,6 +223,13 @@ func main() {
 	soon := time.Now().Add(26 * time.Hour)
 	resultsAt := soon.Add(5 * time.Hour)
 	examTest("Grand Test Live: Sunday Special", "full", true, 0, &soon, &resultsAt)
+	// A practice pool and a previous-year pool: Custom Module draws from these (and QBank), never from exam papers.
+	for _, pool := range []struct{ title, src string }{{"Practice pool: mixed", "practice"}, {"Previous-year pool (PYQ)", "pyq"}} {
+		if t := mk(pool.title, models.ModulePractice, models.StatusPublished, true, chapters[0], nil); t != nil {
+			addQuestions(t, 30, true, chapters[0])
+			g.Model(&models.Question{}).Where("test_id = ?", t.ID).Update("source_type", pool.src)
+		}
+	}
 	// something for the admin review queue
 	if t := mk("QBank (waiting for review): Optics extra", models.ModuleQBank, models.StatusPendingReview, true, chapters[8], nil); t != nil {
 		addQuestions(t, 3, false, chapters[8])

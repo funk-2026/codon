@@ -32,7 +32,7 @@ var Defaults = map[string]string{
 
 	// Custom test limits
 	"custom_test.min_questions":          "5",
-	"custom_test.max_questions":          "90",
+	"custom_test.max_questions":          "100",
 	"custom_test.min_duration_minutes":   "5",
 	"custom_test.max_duration_minutes":   "180",
 	"custom_test.eligible_sources":       "qbank,practice,pyq",
@@ -40,7 +40,7 @@ var Defaults = map[string]string{
 	"custom_test.free_daily_generations": "3",
 	"custom_test.max_active_generated":   "50",
 	"custom_test.generated_ttl_days":     "30",
-	"custom_test.max_templates":          "30",
+	"custom_test.max_templates":          "3",
 	"custom_test.count_rate_per_minute":  "60",
 	"custom_test.generate_rate_per_hour": "60",
 

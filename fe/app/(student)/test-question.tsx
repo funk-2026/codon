@@ -639,7 +639,7 @@ export default function TestQuestionRoute() {
       {/* Exit confirmation */}
       <BottomSheet visible={exitOpen} onClose={() => setExitOpen(false)} title="Exit test?">
         <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
-          Your answers are saved — you can resume anytime from Practice.
+          Your answers are saved — you can resume anytime. {attempt?.test?.module_type === 'custom' ? 'The Start screen will say Resume.' : 'Find it again in Practice.'}
           {left != null ? ' The clock keeps running while you’re away.' : ''}
         </Text>
         <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.lg }}>
@@ -647,7 +647,9 @@ export default function TestQuestionRoute() {
             label="Exit"
             onPress={() => {
               void sync.flushNow();
-              router.replace(ROUTES.student.practice);
+              // Back in the middle of a custom module pauses it: the Start screen then reads Resume.
+              if (attempt?.test?.module_type === 'custom' && attempt.test_id) router.replace({ pathname: ROUTES.student.customStart, params: { id: attempt.test_id } });
+              else router.replace(ROUTES.student.practice);
             }}
           />
           <PrimaryButton label="Stay" onPress={() => setExitOpen(false)} />

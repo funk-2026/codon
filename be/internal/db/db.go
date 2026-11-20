@@ -131,6 +131,7 @@ func AllModels() []interface{} {
 		&models.HomeUpdate{},
 		&models.HomeMessage{},
 		&models.ReferenceDoc{},
+		&models.CustomModuleOpen{},
 		&models.SchemaTopic{},
 		&models.SchemaYear{},
 		&models.SchemaStatus{},

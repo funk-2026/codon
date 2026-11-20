@@ -464,8 +464,14 @@ func TestIdempotencyRegenerateListRenameAndArchive(t *testing.T) {
 		t.Fatal("pagination")
 	}
 	// retake = another attempt on the same test, numbered
-	att2 := e.mustDo(200, "POST", "/tests/"+id+"/attempts", s, nil)
-	if num(att2, "attempt", "attempt_no") != 2 {
+	// a second solve needs the module's code
+	if code, body := e.do("POST", "/tests/"+id+"/attempts", s, nil); code != 409 || str(body, "code") != "already_solved" {
+		t.Fatalf("a second solve without the code: %d %v", code, body)
+	}
+	var shared models.Test
+	e.db.First(&shared, "id = ?", id)
+	rc, att2 := e.doHeader("POST", "/tests/"+id+"/attempts", s, nil, map[string]string{"X-Custom-Code": *shared.ShareCode})
+	if rc != 200 || num(att2, "attempt", "attempt_no") != 2 {
 		t.Fatalf("attempt_no: %v", att2["attempt"])
 	}
 	e.mustDo(200, "PATCH", "/custom-tests/"+id, s, map[string]interface{}{"title": "My sprint"})
@@ -503,7 +509,7 @@ func TestBuilderConfigTemplatesAndAdminPresets(t *testing.T) {
 	if num(ch, "available") != 15 || len(ch["topics"].([]interface{})) != 1 {
 		t.Fatalf("chapters/topics: %v", ch)
 	}
-	if num(cfg, "total_available") != 21 || num(cfg, "limits", "max_questions") != 90 || cfg["schema_version"] != float64(1) {
+	if num(cfg, "total_available") != 21 || num(cfg, "limits", "max_questions") != 100 || cfg["schema_version"] != float64(1) {
 		t.Fatalf("cfg: %v", cfg)
 	}
 	if len(cfg["presets"].([]interface{})) != 6 {
@@ -623,5 +629,59 @@ func TestCountListsAreNeverNull(t *testing.T) {
 	}
 	if len(cnt["suggestions"].([]interface{})) != 0 {
 		t.Fatalf("expected no suggestions here: %v", cnt["suggestions"])
+	}
+}
+
+// A custom module has a code. A friend opens it with the code, solves the same questions, and the first attempt of each
+// student is on the leaderboard. Solving again through the code never changes it.
+func TestCustomModuleCodeChallengesAndBoard(t *testing.T) {
+	e := newEnv(t)
+	owner := &e.w.Student
+	friend := e.newStudent()
+	e.buildPool(10, 10, 10, 0)
+	gen := e.generate(owner, map[string]interface{}{"course_id": e.w.Course.ID.String(), "count": 5, "mode": "exam", "title": "Mine"})
+	id := str(gen, "test", "id")
+	code := str(gen, "test", "share_code")
+	if len(code) != 8 {
+		t.Fatalf("an 8 character code: %q", code)
+	}
+	// nobody has solved it yet: white
+	rows := e.mustDo(200, "GET", "/custom-tests/challenges", owner, nil)["items"].([]interface{})
+	if len(rows) != 1 || str(rows[0].(map[string]interface{}), "marker") != "white" {
+		t.Fatalf("white: %v", rows)
+	}
+	// a stranger cannot solve it, a friend can once they enter the code
+	if c, _ := e.do("POST", "/tests/"+id+"/attempts", friend, nil); c != 404 {
+		t.Fatalf("not opened: %d", c)
+	}
+	if c, _ := e.do("POST", "/custom-tests/open", friend, map[string]interface{}{"code": "NOPE1234"}); c != 404 {
+		t.Fatalf("wrong code: %d", c)
+	}
+	e.mustDo(200, "POST", "/custom-tests/open", friend, map[string]interface{}{"code": code})
+	fa := e.mustDo(200, "POST", "/tests/"+id+"/attempts", friend, nil)
+	e.mustDo(200, "POST", "/attempts/"+str(fa, "attempt", "id")+"/submit", friend, nil)
+	oa := e.mustDo(200, "POST", "/tests/"+id+"/attempts", owner, nil)
+	e.mustDo(200, "POST", "/attempts/"+str(oa, "attempt", "id")+"/submit", owner, nil)
+
+	mine := e.mustDo(200, "GET", "/custom-tests/challenges", owner, nil)["items"].([]interface{})
+	if str(mine[0].(map[string]interface{}), "marker") != "green" {
+		t.Fatalf("green once attempted: %v", mine)
+	}
+	theirs := e.mustDo(200, "GET", "/custom-tests/challenges", friend, nil)["items"].([]interface{})
+	if str(theirs[0].(map[string]interface{}), "marker") != "red" {
+		t.Fatalf("red when shared with me: %v", theirs)
+	}
+	board := e.mustDo(200, "GET", "/custom-tests/"+id+"/board", owner, nil)
+	if num(board, "total") != 2 || len(board["top"].([]interface{})) != 2 || board["mine"].(map[string]interface{})["rank"] == nil {
+		t.Fatalf("board: %v", board)
+	}
+	// solving again through the code is allowed, but does not add to the board
+	rc, again := e.doHeader("POST", "/tests/"+id+"/attempts", friend, nil, map[string]string{"X-Custom-Code": code})
+	if rc != 200 {
+		t.Fatalf("re-attempt by code: %d %v", rc, again)
+	}
+	e.mustDo(200, "POST", "/attempts/"+str(again, "attempt", "id")+"/submit", friend, nil)
+	if n := num(e.mustDo(200, "GET", "/custom-tests/"+id+"/board", friend, nil), "total"); n != 2 {
+		t.Fatalf("the board still counts first attempts only: %v", n)
 	}
 }

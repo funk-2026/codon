@@ -23,6 +23,9 @@ import { shadow } from '@/src/theme/elevation';
 import { useAttemptResult } from '@/src/queries/attempts';
 import { rankText } from '@/src/exam/logic';
 import { QBankResult } from '@/src/qbank/QBankResult';
+import { CustomResult } from '@/src/custom/CustomResult';
+import { deleteCustomTest } from '@/src/api/customTests';
+import { ConfirmDialog } from '@/src/components';
 import { shortDate } from '@/src/qbank/logic';
 
 function band(p: number): { color: 'semantic/success' | 'semantic/warning' | 'semantic/danger'; headline: string } {
@@ -56,6 +59,7 @@ export default function TestResultRoute() {
   const load = () => void resultQuery.refetch();
   const [mistakesOpen, setMistakesOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const { user } = useAuth();
   const [include, setInclude] = useState<'wrong' | 'unattempted' | 'both'>('both');
   const [building, setBuilding] = useState(false);
@@ -149,6 +153,27 @@ export default function TestResultRoute() {
           action={<TextButton label="Retry" onPress={load} />}
           style={{ flex: 1, justifyContent: 'center' }}
         />
+      </Screen>
+    );
+  }
+
+  // A custom module's result is the percentage only: no rank, percentile or leaderboard (those live in Challenges).
+  const moduleCode = (attempt.test as { share_code?: string } | undefined)?.share_code;
+  if (isCustom && moduleCode) {
+    const total = CORRECT + INCORRECT + UNATTEMPTED;
+    return (
+      <Screen>
+        <CustomResult
+          title={attempt.test?.title ?? 'Custom module'}
+          correct={CORRECT}
+          total={total}
+          percent={total > 0 ? Math.round((CORRECT * 100) / total) : 0}
+          code={moduleCode}
+          onReview={() => router.push({ pathname: ROUTES.student.testReview, params: { id } })}
+          onDiscard={() => setDiscardOpen(true)}
+          onBack={() => router.replace({ pathname: ROUTES.student.customStart, params: { id: attempt.test_id } })}
+        />
+        <ConfirmDialog visible={discardOpen} title="Discard this module?" message="If you discard this custom module, you will not be able to attempt it again in the future." confirmLabel="Discard" cancelLabel="Keep it" tone="danger" onConfirm={() => void deleteCustomTest(attempt.test_id).then(() => router.replace({ pathname: ROUTES.student.practice, params: { kind: 'custom' } })).catch(() => show('Couldn’t discard it. Try again.', 'error'))} onCancel={() => setDiscardOpen(false)} />
       </Screen>
     );
   }

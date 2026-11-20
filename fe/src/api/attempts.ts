@@ -53,8 +53,15 @@ export type StartAttemptResponse = {
 };
 
 /** POST /api/v1/tests/:id/attempts — starts or resumes. 409 `attempt_expired` if it ran out. */
+// A custom module is solved once from its Start screen. A second solve sends the module's code, remembered here
+// when the student typed it in Challenges.
+const customCodes = new Map<string, string>();
+export const rememberCustomCode = (testId: string, code: string) => customCodes.set(testId, code);
+
 export function startAttempt(testId: string): Promise<StartAttemptResponse> {
-  return apiFetch<StartAttemptResponse>(`/tests/${testId}/attempts`, { method: 'POST' });
+  const code = customCodes.get(testId);
+  customCodes.delete(testId);
+  return apiFetch<StartAttemptResponse>(`/tests/${testId}/attempts`, { method: 'POST', ...(code ? { headers: { 'X-Custom-Code': code } } : {}) });
 }
 
 /**

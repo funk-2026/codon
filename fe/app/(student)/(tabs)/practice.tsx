@@ -24,7 +24,7 @@ export default function PracticeHubRoute() {
   const [searchOpen, setSearchOpen] = useState(false);
 
   const search = (
-    <Pressable onPress={() => setSearchOpen(true)} accessibilityRole="button" accessibilityLabel="Search subjects and chapters" style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable onPress={() => (segment === 'custom' ? router.push(ROUTES.student.customChallenges) : setSearchOpen(true))} accessibilityRole="button" accessibilityLabel={segment === 'custom' ? 'Search your custom module history' : 'Search subjects and chapters'} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
       <MagnifyingGlass size={24} color={color('header/text')} />
     </Pressable>
   );

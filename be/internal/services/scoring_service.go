@@ -187,7 +187,8 @@ func (s *ScoringService) StartAttempt(ctx context.Context, userID uuid.UUID, tes
 	}
 	attempt.ExpiresAt = decision.ExpiresAt
 	attempt.Source = decision.Source
-	attempt.Official = decision.Official && test.ModuleType == models.ModuleTestSeries
+	// A custom module's first attempt per student is the one the leaderboard counts.
+	attempt.Official = decision.Official && (test.ModuleType == models.ModuleTestSeries || (test.Origin == models.OriginGenerated && test.ShareCode != nil && prior == 0))
 	if err := s.DB.WithContext(ctx).Create(&attempt).Error; err != nil {
 		// Lost a race against a concurrent start (uq_attempt_in_progress): resume theirs.
 		var again models.StudentAttempt

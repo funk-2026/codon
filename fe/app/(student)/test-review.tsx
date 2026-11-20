@@ -11,6 +11,8 @@ import { ReportSheet } from '@/src/social/ReportSheet';
 import { QuestionTagRow, ReferencesBlock, shareQuestion } from '@/src/question/QuestionMeta';
 import { questionShareText } from '@/src/question/logic';
 import { plainText } from '@/src/rich';
+import { deleteCustomTest } from '@/src/api/customTests';
+import { ROUTES } from '@/src/navigation/routes';
 import { NoteSheet } from '@/src/social/NoteSheet';
 import { ExplanationThumbs } from '@/src/social/RatingControl';
 import { getAttemptReview, type ReviewFilter, type ReviewItem } from '@/src/api/attempts';
@@ -57,6 +59,7 @@ export default function TestReviewRoute() {
   // Tests review in ranges of twenty; QBank, Custom Module and the rest in ranges of ten.
   const moduleType = useAttemptResult(id, false).data?.attempt?.test?.module_type;
   const RANGE = moduleType === 'test_series' ? 20 : 10;
+  const testIdForDiscard = useAttemptResult(id, false).data?.attempt?.test_id;
   // Opened at a specific question (e.g. "slowest questions" on the result screen) — first load only.
   const startAt = useRef(position ? Number(position) : null);
 
@@ -369,6 +372,9 @@ export default function TestReviewRoute() {
                   </Pressable>
                 );
               })}
+              {moduleType === 'custom' && Math.floor(current / RANGE) >= Math.ceil(items.length / RANGE) - 1 && testIdForDiscard ? (
+                <TextButton label="Discard and create a new custom module" onPress={() => { setListOpen(false); void deleteCustomTest(testIdForDiscard).finally(() => router.replace({ pathname: ROUTES.student.practice, params: { kind: 'custom' } })); }} />
+              ) : null}
             </ScrollView>
           </BottomSheet>
 

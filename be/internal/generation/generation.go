@@ -9,6 +9,7 @@ package generation
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -111,7 +112,11 @@ func (e *Engine) pool(ctx context.Context, user *models.User, ent Entitlement, b
 		q = q.Where("q.difficulty IN ?", f.Difficulty)
 	}
 	if len(f.TagIDs) > 0 {
-		q = q.Where("EXISTS (SELECT 1 FROM question_tags qt WHERE qt.question_id = q.id AND qt.tag_id IN ?)", f.TagIDs)
+		if f.IncludeUntagged {
+			q = q.Where("(EXISTS (SELECT 1 FROM question_tags qt WHERE qt.question_id = q.id AND qt.tag_id IN ?) OR NOT EXISTS (SELECT 1 FROM question_tags qt2 WHERE qt2.question_id = q.id))", f.TagIDs)
+		} else {
+			q = q.Where("EXISTS (SELECT 1 FROM question_tags qt WHERE qt.question_id = q.id AND qt.tag_id IN ?)", f.TagIDs)
+		}
 	}
 	if len(f.ExcludeTagIDs) > 0 {
 		q = q.Where("NOT EXISTS (SELECT 1 FROM question_tags qt WHERE qt.question_id = q.id AND qt.tag_id IN ?)", f.ExcludeTagIDs)
@@ -134,6 +139,9 @@ func (e *Engine) pool(ctx context.Context, user *models.User, ent Entitlement, b
 			switch s {
 			case "unattempted":
 				ors = append(ors, "NOT EXISTS (SELECT 1 FROM student_question_states s WHERE s.user_id = ? AND s.question_id = q.id AND s.times_answered > 0)")
+				args = append(args, user.ID)
+			case "skipped":
+				ors = append(ors, "EXISTS (SELECT 1 FROM student_question_states s WHERE s.user_id = ? AND s.question_id = q.id AND s.last_result = 'unattempted')")
 				args = append(args, user.ID)
 			case "incorrect", "correct":
 				ors = append(ors, "EXISTS (SELECT 1 FROM student_question_states s WHERE s.user_id = ? AND s.question_id = q.id AND s.last_result = ?)")
@@ -791,8 +799,10 @@ func (e *Engine) Generate(ctx context.Context, user *models.User, bp blueprint.B
 	expires := now.AddDate(0, 0, settings.Int("custom_test.generated_ttl_days"))
 	var test models.Test
 	err = e.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		code := newShareCode(tx)
 		test = models.Test{
-			Title: title, CourseID: bp.CourseID, ModuleType: models.ModuleCustom, RequiresSubscription: false,
+			ShareCode: &code,
+			Title:     title, CourseID: bp.CourseID, ModuleType: models.ModuleCustom, RequiresSubscription: false,
 			CreatedBy: user.ID, TotalQuestions: len(sel.IDs), DurationMinutes: dur, MarksPerCorrect: c, MarksPerWrong: w,
 			Status: models.StatusPublished, Origin: models.OriginGenerated, OwnerUserID: &user.ID, Visibility: models.VisibilityPrivate,
 			Blueprint: bp.JSON(), BlueprintSchemaVersion: &sv, Mode: bp.Mode, ExpiresAt: &expires,
@@ -904,4 +914,22 @@ func (e *Engine) PoolCounts(ctx context.Context, ent Entitlement) PoolCounts {
 	}
 	pc.Total = e.countAvailable(ctx, &models.User{}, ent, blank)
 	return pc
+}
+
+// newShareCode makes an 8-character code of capital letters and digits (no 0, O, 1 or I) that no module uses yet.
+func newShareCode(tx *gorm.DB) string {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	for {
+		b := make([]byte, 8)
+		raw := make([]byte, 8)
+		_, _ = crand.Read(raw)
+		for i := range b {
+			b[i] = alphabet[int(raw[i])%len(alphabet)]
+		}
+		var n int64
+		tx.Model(&models.Test{}).Where("share_code = ?", string(b)).Count(&n)
+		if n == 0 {
+			return string(b)
+		}
+	}
 }

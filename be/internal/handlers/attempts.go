@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"codon-backend/internal/items"
@@ -83,9 +84,18 @@ func (h *AttemptHandler) StartAttempt(c *gin.Context) {
 	var test models.Test
 	if err := h.DB.WithContext(c.Request.Context()).
 		Where("id = ? AND status = ? AND archived_at IS NULL", testID, models.StatusPublished).
-		First(&test).Error; err != nil || !visibleToUser(&test, user.ID) {
+		First(&test).Error; err != nil || !(visibleToUser(&test, user.ID) || h.openedByCode(user.ID, &test)) {
 		respondErr(c, http.StatusNotFound, "test_not_found", "test not found")
 		return
+	}
+	// A custom module is solved once from its Start screen. Solving it again needs its code.
+	if test.Origin == models.OriginGenerated && test.ShareCode != nil {
+		var solved int64
+		h.DB.WithContext(c.Request.Context()).Model(&models.StudentAttempt{}).Where("user_id = ? AND test_id = ? AND status = ?", user.ID, test.ID, models.AttemptSubmitted).Count(&solved)
+		if solved > 0 && !strings.EqualFold(c.GetHeader("X-Custom-Code"), *test.ShareCode) {
+			respondErr(c, http.StatusConflict, "already_solved", "you have solved this module. To try it again, enter its code in Challenges.")
+			return
+		}
 	}
 
 	if err := h.Sub.Allow(c.Request.Context(), user, test.RequiresSubscription, test.CourseID); err != nil {
@@ -714,4 +724,27 @@ func (h *AttemptHandler) DiscardAttempt(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"discarded": true})
+}
+
+// visibleOrOpened is visibleToUser, plus a custom module the student opened with its code.
+func visibleOrOpened(db *gorm.DB, t *models.Test, userID uuid.UUID) bool {
+	if visibleToUser(t, userID) {
+		return true
+	}
+	if t.Origin != models.OriginGenerated || t.ShareCode == nil {
+		return false
+	}
+	var n int64
+	db.Model(&models.CustomModuleOpen{}).Where("user_id = ? AND test_id = ?", userID, t.ID).Count(&n)
+	return n > 0
+}
+
+// openedByCode: a student may solve a friend's custom module once they opened it with its code.
+func (h *AttemptHandler) openedByCode(userID uuid.UUID, t *models.Test) bool {
+	if t.Origin != models.OriginGenerated || t.ShareCode == nil {
+		return false
+	}
+	var n int64
+	h.DB.Model(&models.CustomModuleOpen{}).Where("user_id = ? AND test_id = ?", userID, t.ID).Count(&n)
+	return n > 0
 }
