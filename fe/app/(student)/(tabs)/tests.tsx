@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CaretRight, ChartLineUp, Timer, WarningCircle } from 'phosphor-react-native';
+import { Timer, WarningCircle } from 'phosphor-react-native';
 import Animated from 'react-native-reanimated';
-import { BottomSheet, CollapsingHeader, EmptyState, SegmentedControl, SkeletonBlock, TextButton, useCollapsingHeader, useToast } from '@/src/components';
+import { BottomSheet, CollapsingHeader, EmptyState, FilterPills, ProgressLink, SearchBar, SegmentedControl, SkeletonBlock, TextButton, useCollapsingHeader, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { listExams, registerForExam, unregisterFromExam, type ExamCard } from '@/src/api/exams';
@@ -115,39 +115,21 @@ export default function TestsTab() {
           <EmptyState icon={<Timer size={32} color={color('text/tertiary')} />} title="No tests yet" description="Tests your teachers publish will show up here." />
         ) : (
           <>
-            <View style={{ paddingHorizontal: space.md, gap: space.sm }}>
-              <SegmentedControl options={TEST_TABS.map((t) => ({ key: t.key, label: t.label }))} value={tab} onChange={(t) => { setTab(t); setView('live'); }} />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }}>
-                {TEST_VIEWS[tab].map((v) => {
-                  const on = v.key === view;
-                  const n = countTab(tests, tab, v.key);
-                  return (
-                    <Pressable
-                      key={v.key}
-                      onPress={() => setView(v.key)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: on }}
-                      style={{ minHeight: 36, paddingHorizontal: space.sm, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}
-                    >
-                      <Text style={[type['type/body-m-medium'], { color: on ? color('accent/default') : color('text/secondary') }]}>{v.label}{n ? ` (${n})` : ''}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
+            <View>
+              <View style={{ paddingHorizontal: space.md, gap: space.sm }}>
+                <SearchBar placeholder="Search tests" onPress={() => router.push(ROUTES.student.search)} />
+                <SegmentedControl options={TEST_TABS.map((t) => ({ key: t.key, label: t.label }))} value={tab} onChange={(t) => { setTab(t); setView('live'); }} />
+              </View>
+              <FilterPills
+                options={TEST_VIEWS[tab].map((v) => { const n = countTab(tests, tab, v.key); return { key: v.key, label: `${v.label}${n ? ` (${n})` : ''}` }; })}
+                value={view}
+                onChange={setView}
+              />
 
-            {tab === 'grand' && view === 'library' && years.length > 1 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
-                {years.map((y) => {
-                  const on = y === year;
-                  return (
-                    <Pressable key={y} onPress={() => setYear(y)} accessibilityRole="button" accessibilityLabel={`Show ${y}`} accessibilityState={{ selected: on }} style={{ minHeight: 36, paddingHorizontal: space.md, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: on ? color('action/primary') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('action/primary') : color('border/subtle') }}>
-                      <Text style={[type['type/body-m-medium'], { color: on ? color('action/on-primary') : color('text/secondary') }]}>{y}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            ) : null}
+              {tab === 'grand' && view === 'library' && years.length > 1 ? (
+                <FilterPills options={years.map((y) => ({ key: String(y), label: String(y) }))} value={String(year)} onChange={(k) => setYear(Number(k))} />
+              ) : null}
+            </View>
 
             {view === 'live' && home.next.kind !== 'none' ? (
               <View style={{ paddingHorizontal: space.md }}>
@@ -174,15 +156,9 @@ export default function TestsTab() {
             ) : null}
 
             {tab === 'grand' && view === 'attempted' ? (
-              <Pressable
-                onPress={() => router.push(ROUTES.student.grandAnalysis)}
-                accessibilityRole="button"
-                style={({ pressed }) => ({ marginHorizontal: space.md, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('accent/tint'), borderRadius: radius.lg, paddingHorizontal: space.md, opacity: pressed ? 0.9 : 1 })}
-              >
-                <ChartLineUp size={24} color={color('accent/default')} weight="duotone" />
-                <Text style={[type['type/h3'], { color: color('accent/default'), flex: 1 }]}>My Grand Test analysis</Text>
-                <CaretRight size={18} color={color('accent/default')} />
-              </Pressable>
+              <View style={{ paddingHorizontal: space.md }}>
+                <ProgressLink title="My Grand Test progress" onPress={() => router.push(ROUTES.student.grandAnalysis)} />
+              </View>
             ) : null}
 
             {view === 'library' && home.series.length > 0 ? (

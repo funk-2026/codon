@@ -1,6 +1,8 @@
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { CollapsingHeader, useCollapsingHeader } from '@/src/components';
+import { useRouter } from 'expo-router';
+import { CollapsingHeader, SearchBar, useCollapsingHeader } from '@/src/components';
+import { ROUTES } from '@/src/navigation/routes';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { BrainHackSection } from '@/src/brainhack/BrainHackSection';
 import { TabHeaderActions } from '@/src/components/TabHeaderActions';
@@ -9,6 +11,7 @@ import { usePullRefresh, RefreshPill } from '@/src/components/PullRefresh';
 /** Brain Hack: short videos, then short articles, each filtered on its own by All, Speed Reading, Fourth Book, Sleep or Breathing. */
 export default function BrainHackTabRoute() {
   const { color, type, space } = useTheme();
+  const router = useRouter();
   const header = useCollapsingHeader(64);
   const pull = usePullRefresh(header.maxHeight);
   return (
@@ -32,9 +35,10 @@ export default function BrainHackTabRoute() {
         refreshControl={pull.control}
         scrollEventThrottle={16}
         scrollIndicatorInsets={{ top: header.minHeight }}
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: header.maxHeight + space.md, paddingBottom: space['3xl'], gap: space.xl }}
+        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: header.maxHeight + space.md, paddingBottom: space['3xl'], gap: space.lg }}
         showsVerticalScrollIndicator={false}
       >
+        <SearchBar placeholder="Search Brain Hacks" onPress={() => router.push(ROUTES.student.search)} />
         <BrainHackSection kind="video" title="Videos" />
         <BrainHackSection kind="article" title="Articles" />
       </Animated.ScrollView>

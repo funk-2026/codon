@@ -13,6 +13,8 @@ export default function StudentLayout() {
         <RoleStack
           screens={{
             'test-question': { gestureEnabled: false },
+            // Dragging a card to the right must move to the previous card, not swipe the screen away. The back arrow still works.
+            'flashcard-study': { gestureEnabled: false },
           }}
         />
         <MiniPlayer />

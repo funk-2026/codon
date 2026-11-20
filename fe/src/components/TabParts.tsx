@@ -104,25 +104,33 @@ export function ProgressStrip({ line, fraction }: { line: string; fraction: numb
   );
 }
 
-/** The row of filter pills under a subject's header. */
-export function FilterPills<K extends string>({ options, value, onChange }: { options: { key: K; label: string }[]; value: K; onChange: (k: K) => void }) {
+/**
+ * The row of filter pills: under a subject's header, the views of the Tests tab, the Brain Hack categories.
+ * `wrap` lets them flow onto a second line (so none hides off the edge); `inset` adds the screen's side padding
+ * (leave it off when the parent already pads); `marginTop` sets the gap above.
+ */
+export function FilterPills<K extends string>({ options, value, onChange, wrap = false, inset = true, marginTop }: { options: { key: K; label: string }[]; value: K; onChange: (k: K) => void; wrap?: boolean; inset?: boolean; marginTop?: number }) {
   const { color, type, space, radius } = useTheme();
+  const top = marginTop ?? space.sm;
+  const pills = options.map((f) => {
+    const on = f.key === value;
+    return (
+      <Pressable
+        key={f.key}
+        onPress={() => onChange(f.key)}
+        accessibilityRole="button"
+        accessibilityState={{ selected: on }}
+        style={{ minHeight: 36, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}
+      >
+        <Text style={[type['type/caption'], { color: on ? color('accent/default') : color('text/secondary') }]}>{f.label}</Text>
+      </Pressable>
+    );
+  });
+  const pad = inset ? space.md : 0;
+  if (wrap) return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: top, paddingHorizontal: pad }}>{pills}</View>;
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
-      {options.map((f) => {
-        const on = f.key === value;
-        return (
-          <Pressable
-            key={f.key}
-            onPress={() => onChange(f.key)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            style={{ minHeight: 36, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}
-          >
-            <Text style={[type['type/caption'], { color: on ? color('accent/default') : color('text/secondary') }]}>{f.label}</Text>
-          </Pressable>
-        );
-      })}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: top }} contentContainerStyle={{ paddingHorizontal: pad, gap: space.xs }}>
+      {pills}
     </ScrollView>
   );
 }
