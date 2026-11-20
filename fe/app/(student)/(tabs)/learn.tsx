@@ -51,8 +51,6 @@ export default function VideoTabRoute() {
         showsVerticalScrollIndicator={false}
       >
         <SearchBar placeholder="Search video lectures" onPress={() => router.push(ROUTES.student.search)} />
-        <ShortcutCard icon={<DownloadSimple size={26} color={color('accent/default')} weight="duotone" />} title="Downloaded videos" caption="Watch without a connection" onPress={() => router.push(ROUTES.student.downloads)} />
-        <ShortcutCard icon={<PlayCircle size={26} color={color('accent/default')} weight="duotone" />} title="Free videos" caption="Open to everyone, no plan needed" onPress={() => router.push(ROUTES.student.freeVideos)} />
         <ProgressLink title="My video progress" onPress={() => router.push({ pathname: ROUTES.student.analytics, params: { area: 'video' } })} />
 
         {cur.isPending ? (
@@ -77,6 +75,9 @@ export default function VideoTabRoute() {
             );
           })
         )}
+
+        <ShortcutCard icon={<DownloadSimple size={26} color={color('accent/default')} weight="duotone" />} title="Downloaded videos" caption="Watch without a connection" onPress={() => router.push(ROUTES.student.downloads)} />
+        <ShortcutCard icon={<PlayCircle size={26} color={color('accent/default')} weight="duotone" />} title="Free videos" caption="Open to everyone, no plan needed" onPress={() => router.push(ROUTES.student.freeVideos)} />
       </Animated.ScrollView>
       <RefreshPill visible={pull.refreshing} top={header.maxHeight} />
     </View>
