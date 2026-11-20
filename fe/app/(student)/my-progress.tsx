@@ -21,7 +21,7 @@ function Mini({ area, label }: { area: AnalysisArea; label: string }) {
       onPress={() => router.push({ pathname: ROUTES.student.analytics, params: { area } })}
       accessibilityRole="button"
       accessibilityLabel={`${label}. ${d.supported ? `${d.total} ${UNIT[area]} in the last 14 days` : 'No data yet'}. Open`}
-      style={({ pressed }) => [{ width: '48.5%', backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, gap: space.xs, opacity: pressed ? 0.94 : 1 }, shadow()]}
+      style={({ pressed }) => [{ flex: 1, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, gap: space.xs, opacity: pressed ? 0.94 : 1 }, shadow()]}
     >
       <Text style={[type['type/h3'], { color: color('text/primary') }]}>{label}</Text>
       {!d.supported ? (
@@ -46,8 +46,12 @@ export default function MyProgressRoute() {
     <Screen>
       <ScreenHeader title="My progress" />
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space['3xl'] }}>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-          {order.map((a) => <Mini key={a} area={a} label={ANALYSIS_AREAS.find((x) => x.key === a)!.label === 'Video lectures' ? 'Videos' : ANALYSIS_AREAS.find((x) => x.key === a)!.label} />)}
+        <View style={{ gap: space.sm }}>
+          {[order.slice(0, 2), order.slice(2)].map((row, i) => (
+            <View key={i} style={{ flexDirection: 'row', gap: space.sm }}>
+              {row.map((a) => <Mini key={a} area={a} label={ANALYSIS_AREAS.find((x) => x.key === a)!.label === 'Video lectures' ? 'Videos' : ANALYSIS_AREAS.find((x) => x.key === a)!.label} />)}
+            </View>
+          ))}
         </View>
       </ScrollView>
     </Screen>

@@ -144,12 +144,14 @@ export default function EditProfileRoute() {
                 <Info size={22} color={color('accent/default')} />
               </Pressable>
             </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-              {RESETS.map((r) => {
+            <View style={{ gap: space.sm }}>
+              {[RESETS.slice(0, 2), RESETS.slice(2)].map((row, i) => (
+              <View key={i} style={{ flexDirection: 'row', gap: space.sm }}>
+              {row.map((r) => {
                 const st = statusOf(r.scope);
                 const blocked = st ? !st.can_reset : false;
                 return (
-                  <View key={r.scope} style={{ width: '48.5%', gap: 2 }}>
+                  <View key={r.scope} style={{ flex: 1, gap: 2 }}>
                     <SecondaryButton label={r.label} onPress={() => setConfirm(r)} disabled={blocked || resets.isPending} />
                     <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'center' }]}>
                       {blocked ? `Again on ${when(st?.next_allowed_at)}` : st?.last_reset_at ? `Last reset ${when(st.last_reset_at)}` : 'Not reset yet'}
@@ -157,6 +159,8 @@ export default function EditProfileRoute() {
                   </View>
                 );
               })}
+              </View>
+              ))}
             </View>
           </View>
         </View>
