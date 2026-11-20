@@ -103,28 +103,31 @@ type examMyAttempt struct {
 }
 
 type examCard struct {
-	ID                   uuid.UUID      `json:"id"`
-	Title                string         `json:"title"`
-	Kind                 string         `json:"kind"`
-	ExamStyle            string         `json:"exam_style"`
-	Delivery             string         `json:"delivery"`
-	Phase                string         `json:"phase"`
-	OpensAt              *time.Time     `json:"opens_at,omitempty"`
-	CreatedAt            time.Time      `json:"created_at"`
-	LastStartAt          *time.Time     `json:"last_start_at,omitempty"`
-	EndsAt               *time.Time     `json:"ends_at,omitempty"`
-	ResultsAt            *time.Time     `json:"results_at,omitempty"`
-	ResultsReleased      bool           `json:"results_released"`
-	LateEntryMinutes     int            `json:"late_entry_minutes"`
-	DurationMinutes      *int           `json:"duration_minutes,omitempty"`
-	TotalQuestions       int            `json:"total_questions"`
-	RequiresSubscription bool           `json:"requires_subscription"`
-	CourseID             uuid.UUID      `json:"course_id"`
-	ExamYear             *int           `json:"exam_year,omitempty"`
-	AuthorName           *string        `json:"author_name,omitempty"`
-	Series               *examSeriesRef `json:"series,omitempty"`
-	Registered           bool           `json:"registered"`
-	MyAttempt            *examMyAttempt `json:"my_attempt,omitempty"`
+	ID                   uuid.UUID  `json:"id"`
+	Title                string     `json:"title"`
+	Kind                 string     `json:"kind"`
+	ExamStyle            string     `json:"exam_style"`
+	Delivery             string     `json:"delivery"`
+	Phase                string     `json:"phase"`
+	OpensAt              *time.Time `json:"opens_at,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	LastStartAt          *time.Time `json:"last_start_at,omitempty"`
+	EndsAt               *time.Time `json:"ends_at,omitempty"`
+	ResultsAt            *time.Time `json:"results_at,omitempty"`
+	ResultsReleased      bool       `json:"results_released"`
+	LateEntryMinutes     int        `json:"late_entry_minutes"`
+	DurationMinutes      *int       `json:"duration_minutes,omitempty"`
+	TotalQuestions       int        `json:"total_questions"`
+	RequiresSubscription bool       `json:"requires_subscription"`
+	CourseID             uuid.UUID  `json:"course_id"`
+	ExamYear             *int       `json:"exam_year,omitempty"`
+	AuthorName           *string    `json:"author_name,omitempty"`
+	// SubjectName and ChapterName say what a Subject-wise or Mini test covers, so the card does not rely on the title.
+	SubjectName *string        `json:"subject_name,omitempty"`
+	ChapterName *string        `json:"chapter_name,omitempty"`
+	Series      *examSeriesRef `json:"series,omitempty"`
+	Registered  bool           `json:"registered"`
+	MyAttempt   *examMyAttempt `json:"my_attempt,omitempty"`
 }
 
 // Exams lists the published tests (Test Series module) with where each one stands for this student.
@@ -149,6 +152,32 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 		}
 	}
 	authors := authorNames(h.DB.WithContext(ctx), creators)
+	subjectNames, chapterNames := map[uuid.UUID]string{}, map[uuid.UUID]string{}
+	{
+		var subIDs, chIDs []uuid.UUID
+		for i := range tests {
+			if tests[i].SubjectID != nil {
+				subIDs = append(subIDs, *tests[i].SubjectID)
+			}
+			if tests[i].ChapterID != nil {
+				chIDs = append(chIDs, *tests[i].ChapterID)
+			}
+		}
+		if len(subIDs) > 0 {
+			var rows []models.Subject
+			h.DB.WithContext(ctx).Select("id", "name").Where("id IN ?", subIDs).Find(&rows)
+			for _, r := range rows {
+				subjectNames[r.ID] = r.Name
+			}
+		}
+		if len(chIDs) > 0 {
+			var rows []models.Chapter
+			h.DB.WithContext(ctx).Select("id", "name").Where("id IN ?", chIDs).Find(&rows)
+			for _, r := range rows {
+				chapterNames[r.ID] = r.Name
+			}
+		}
+	}
 	series := map[uuid.UUID]examSeriesRef{}
 	if len(seriesIDs) > 0 {
 		var ss []models.TestSeries
@@ -197,6 +226,16 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 		}
 		if n, ok := authors[t.CreatedBy]; ok {
 			card.AuthorName = &n
+		}
+		if t.SubjectID != nil {
+			if n, ok := subjectNames[*t.SubjectID]; ok {
+				card.SubjectName = &n
+			}
+		}
+		if t.ChapterID != nil {
+			if n, ok := chapterNames[*t.ChapterID]; ok {
+				card.ChapterName = &n
+			}
 		}
 		if t.SeriesID != nil {
 			if s, ok := series[*t.SeriesID]; ok {
