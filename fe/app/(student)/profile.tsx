@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Camera, CaretRight, ChartLineUp, FilePdf, Gear, Info, PencilSimple, Receipt, Shield, UsersThree, ShareNetwork } from 'phosphor-react-native';
+import { Camera, CaretRight, ChatCircleText, ChartLineUp, FilePdf, Gear, Info, PencilSimple, Receipt, Shield, UsersThree, ShareNetwork } from 'phosphor-react-native';
 import type { Icon } from 'phosphor-react-native';
 import { ErrorBanner, SkeletonBlock, Screen, ScreenHeader, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
@@ -30,6 +30,7 @@ const ROWS: { label: string; text: string; Icon: Icon; href: string }[] = [
   { label: 'Settings', text: 'Theme, reminders, account', Icon: Gear, href: ROUTES.student.settings },
   { label: 'How to use this app', text: 'A short guide to each feature', Icon: FilePdf, href: ROUTES.student.howToUse },
   { label: 'Our team and faculty', text: 'The people behind Codon', Icon: UsersThree, href: ROUTES.student.team },
+  { label: 'Give feedback', text: 'Report a problem or send an idea', Icon: ChatCircleText, href: ROUTES.student.giveFeedback },
   { label: 'Help and information', text: 'FAQ, contact, policies, legal', Icon: Info, href: ROUTES.student.help },
   { label: 'Community and sharing', text: 'Follow us and invite friends', Icon: ShareNetwork, href: ROUTES.student.community },
 ];

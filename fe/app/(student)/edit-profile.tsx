@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Switch, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { ROUTES } from '@/src/navigation/routes';
 import { Info, Lock } from 'phosphor-react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMe } from '@/src/queries/profile';
@@ -26,6 +28,7 @@ export default function EditProfileRoute() {
   const { color, type, space, radius } = useTheme();
   const goBack = useSafeBack();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { show } = useToast();
   const { user, refreshUser } = useAuth();
   const meQuery = useMe();
@@ -50,6 +53,7 @@ export default function EditProfileRoute() {
 
   const [infoOpen, setInfoOpen] = useState(false);
   const [confirm, setConfirm] = useState<(typeof RESETS)[number] | null>(null);
+  const [typed, setTyped] = useState('');
   const [resetting, setResetting] = useState(false);
   const resets = useQuery({ queryKey: ['me', 'resets'], queryFn: getResets });
   const statusOf = (s: ResetScope): ResetStatus | undefined => resets.data?.find((r) => r.scope === s);
@@ -119,6 +123,10 @@ export default function EditProfileRoute() {
             <Switch value={optOut} onValueChange={setOptOutEdit} accessibilityLabel="Hide my name on leaderboards" />
           </View>
 
+          <View style={{ alignItems: 'flex-start' }}>
+            <TextButton label="Give feedback or report a problem" onPress={() => router.push(ROUTES.student.giveFeedback)} />
+          </View>
+
           <View>
             <Text style={[type['type/caption'], { color: color('text/secondary'), marginBottom: space['2xs'] }]}>Phone number</Text>
             <View style={[styles.row, { backgroundColor: color('bg/sunken'), borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: space.sm }]}>
@@ -152,7 +160,7 @@ export default function EditProfileRoute() {
                 const blocked = st ? !st.can_reset : false;
                 return (
                   <View key={r.scope} style={{ flex: 1, gap: 2 }}>
-                    <SecondaryButton label={r.label} onPress={() => setConfirm(r)} disabled={blocked || resets.isPending} />
+                    <SecondaryButton label={r.label} onPress={() => { setTyped(''); setConfirm(r); }} disabled={blocked || resets.isPending} />
                     <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'center' }]}>
                       {blocked ? `Again on ${when(st?.next_allowed_at)}` : st?.last_reset_at ? `Last reset ${when(st.last_reset_at)}` : 'Not reset yet'}
                     </Text>
@@ -185,9 +193,14 @@ export default function EditProfileRoute() {
         confirmLabel="Reset"
         tone="danger"
         loading={resetting}
+        confirmDisabled={typed.trim().toUpperCase() !== 'RESET'}
         onConfirm={() => void doReset()}
         onCancel={() => setConfirm(null)}
-      />
+      >
+        <View style={{ marginTop: space.sm }}>
+          <InputField label="Type RESET to confirm" value={typed} onChangeText={setTyped} autoCapitalize="characters" autoCorrect={false} placeholder="RESET" />
+        </View>
+      </ConfirmDialog>
     </Screen>
   );
 }

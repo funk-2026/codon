@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Lightbulb, PlayCircle } from 'phosphor-react-native';
 import { EmptyState, SecondaryButton, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { listBrainHacks, type BrainHack } from '@/src/api/discover';
+import { getBrainHackCategories, listBrainHacks, type BrainHack } from '@/src/api/discover';
 import { MediaImage, type MediaMap } from '@/src/rich';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
@@ -19,6 +19,8 @@ export function BrainHackSection({ kind, title }: { kind: 'article' | 'video'; t
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
   const [category, setCategory] = useState<string | undefined>();
+  const cats = useQuery({ queryKey: ['brain-hack-categories'], queryFn: getBrainHackCategories, staleTime: 10 * 60_000, select: (r) => (r.categories as (string | { key: string; label: string })[]).map((c) => (typeof c === 'string' ? c : c.label ?? c.key)) });
+  const categories = cats.data?.length ? cats.data : [...BRAIN_HACK_CATEGORIES];
   const q = useInfiniteQuery({
     queryKey: ['brain-hacks', kind, category],
     queryFn: ({ pageParam }) => listBrainHacks({ kind, category, limit: 10, cursor: pageParam ?? undefined }),
@@ -46,10 +48,11 @@ export function BrainHackSection({ kind, title }: { kind: 'article' | 'video'; t
   return (
     <View style={{ gap: space.sm }}>
       <Text style={[type['type/h2'], { color: color('text/primary') }]}>{title}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: space.xs }}>
+      {/* All the tags show at once, wrapping to a second line, so none hides off the edge of the screen. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>
         {chip('All', undefined)}
-        {BRAIN_HACK_CATEGORIES.map((c) => chip(c, c))}
-      </ScrollView>
+        {categories.map((c) => chip(c, c))}
+      </View>
 
       {q.isPending ? (
         <SkeletonBlock height={96} radius={radius.md} />
