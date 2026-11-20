@@ -66,6 +66,8 @@ export type GetContentResponse = LecturePDFs & {
   chapter_name?: string;
   is_completed?: boolean;
   related_qbank_test_id?: string;
+  /** The chapter's cover image, shown while the lecture loads. */
+  chapter_cover?: import('@/src/rich/ast').MediaView;
   content: ContentItem;
   url?: string; // Pre-signed URL for document, or HLS URL for video
 };
@@ -96,7 +98,13 @@ export type SubjectVideo = {
   locked: boolean;
 };
 /** GET /subjects/:id/videos: the subject's video lectures by chapter, with my progress. */
-export const listSubjectVideos = (subjectId: string) => apiFetch<{ videos: SubjectVideo[] }>(`/subjects/${subjectId}/videos`).then((r) => r.videos ?? []);
+export type SubjectVideos = { videos: SubjectVideo[]; covers: Record<string, string>; media: import('@/src/rich/ast').MediaMap };
+export const listSubjectVideos = (subjectId: string) =>
+  apiFetch<{ videos: SubjectVideo[]; covers?: Record<string, string>; media?: import('@/src/rich/ast').MediaMap }>(`/subjects/${subjectId}/videos`).then((r): SubjectVideos => ({ videos: r.videos ?? [], covers: r.covers ?? {}, media: r.media ?? {} }));
+
+export type FreeVideo = { id: string; title: string; subject_name: string; chapter_name: string; duration_seconds: number; is_completed: boolean };
+/** GET /videos/free: lectures anyone can watch without a plan. */
+export const listFreeVideos = (courseId?: string) => apiFetch<{ videos: FreeVideo[] }>(`/videos/free${courseId ? `?course_id=${courseId}` : ''}`).then((r) => r.videos ?? []);
 
 /** POST /content/:id/complete: mark a lecture complete, or not complete again. */
 export const setLectureCompleted = (id: string, completed: boolean) =>

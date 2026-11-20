@@ -63,3 +63,30 @@ func TestLectureCarriesFourPDFTypes(t *testing.T) {
 		t.Fatalf("a PDF must come from lecture_pdf uploads: %d", code)
 	}
 }
+
+func TestChapterCoverAndFreeVideos(t *testing.T) {
+	e := newEnv(t)
+	s, a := &e.w.Student, &e.w.Admin
+	vs := models.VideoReady
+	free := models.ContentItem{Title: "Free lecture", CourseID: e.w.Course.ID, ContentType: models.ContentVideo, ChapterID: e.w.Chapter.ID, UploadedBy: e.w.Teacher.ID, FileKey: "bunny:y", Status: models.StatusPublished, VideoStatus: &vs}
+	paid := models.ContentItem{Title: "Paid lecture", CourseID: e.w.Course.ID, ContentType: models.ContentVideo, ChapterID: e.w.Chapter.ID, UploadedBy: e.w.Teacher.ID, FileKey: "bunny:z", Status: models.StatusPublished, VideoStatus: &vs, RequiresSubscription: true}
+	if err := e.db.Create(&free).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := e.db.Create(&paid).Error; err != nil {
+		t.Fatal(err)
+	}
+	list := e.mustDo(200, "GET", "/videos/free", s, nil)["videos"].([]interface{})
+	if len(list) != 1 || str(list[0].(map[string]interface{}), "title") != "Free lecture" {
+		t.Fatalf("only free lectures: %v", list)
+	}
+	// a bad cover id is refused; clearing is fine
+	if code, _ := e.do("PATCH", "/admin/chapters/"+e.w.Chapter.ID.String(), a, map[string]interface{}{"cover_media_id": "nope"}); code != 400 {
+		t.Fatalf("bad cover id: %d", code)
+	}
+	e.mustDo(200, "PATCH", "/admin/chapters/"+e.w.Chapter.ID.String(), a, map[string]interface{}{"cover_media_id": ""})
+	out := e.mustDo(200, "GET", "/subjects/"+e.w.Subject.ID.String()+"/videos", s, nil)
+	if _, ok := out["covers"]; !ok {
+		t.Fatalf("covers map present: %v", out)
+	}
+}

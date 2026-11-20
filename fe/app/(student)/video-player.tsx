@@ -7,12 +7,14 @@ import { isPictureInPictureSupported, VideoView, VideoTrack } from 'expo-video';
 import { useVideoSession } from '@/src/video/VideoSession';
 import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
 import { track } from '@/src/analytics/track';
-import { CaretLeft, PictureInPicture, ArrowsInSimple, WarningCircle, LockSimple, ArrowClockwise, ArrowCounterClockwise, Play, Pause, FlagBanner, Exam } from 'phosphor-react-native';
+import { CaretLeft, PictureInPicture, ArrowsInSimple, WarningCircle, LockSimple, ArrowClockwise, ArrowCounterClockwise, Play, Pause, FlagBanner, Exam, DownloadSimple, CheckCircle } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getContentItem, ContentItem, sendHeartbeat, setLectureCompleted, type LecturePDFs } from '@/src/api/content';
 import { submitFeedback } from '@/src/api/feedback';
 import { PLAYBACK_SPEEDS, speedLabel } from '@/src/video/lectureState';
 import { LecturePdfDownloads } from '@/src/content/LecturePdfDownloads';
+import { downloadVideo, listDownloads, mp4Url } from '@/src/video/downloads';
+import { MediaImage } from '@/src/rich';
 
 const WATCHED_FRACTION = 0.9;
 const pdfsOf = (r: LecturePDFs): LecturePDFs => ({
@@ -44,6 +46,8 @@ export default function VideoPlayerRoute() {
   const [pdfs, setPdfs] = useState<LecturePDFs | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
   type Meta = { subject?: string; chapter?: string; qbank?: string; completed: boolean };
+  const [cover, setCover] = useState<import('@/src/rich/ast').MediaView | undefined>();
+  const [dl, setDl] = useState<{ state: 'idle' | 'busy' | 'done'; pct: number }>({ state: 'idle', pct: 0 });
   const [meta, setMeta] = useState<Meta>({ completed: false });
   const [reportOpen, setReportOpen] = useState(false);
   const [reportNote, setReportNote] = useState('');
@@ -72,6 +76,8 @@ export default function VideoPlayerRoute() {
         if (res.url) start({ id: String(id), title: res.content.title, url: res.url });
         track('video.started', { resumed: resumeAt.current > 0 });
         setPdfs(pdfsOf(res));
+        setCover(res.chapter_cover);
+        void listDownloads().then((all) => setDl(all.some((d) => d.id === String(id)) ? { state: 'done', pct: 1 } : { state: 'idle', pct: 0 }));
         setMeta({ subject: res.subject_name, chapter: res.chapter_name, qbank: res.related_qbank_test_id, completed: !!res.is_completed });
       })
       .catch((err) => {
@@ -262,7 +268,9 @@ export default function VideoPlayerRoute() {
               </Text>
             </View>
           ) : (
-            <View style={{ width: '100%', height: 200 }} />
+            <View style={{ width: '100%', height: 200, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              {cover ? <MediaImage media={cover} variant="display" maxHeight={200} /> : null}
+            </View>
           )}
 
           <View style={[styles.topRow, { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: space.md, paddingTop: space.sm, justifyContent: 'space-between' }]} pointerEvents="box-none">
@@ -298,6 +306,24 @@ export default function VideoPlayerRoute() {
                   style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' })}
                 >
                   <ArrowsInSimple size={22} color="#fff" />
+                </Pressable>
+              ) : null}
+              {videoUrl && mp4Url(videoUrl) ? (
+                <Pressable
+                  disabled={dl.state !== 'idle'}
+                  onPress={() => {
+                    setDl({ state: 'busy', pct: 0 });
+                    downloadVideo({ id: String(id), title: content?.title ?? 'Lecture', subject: meta?.subject, chapter: meta?.chapter, hlsUrl: videoUrl }, (f) => setDl({ state: 'busy', pct: f }))
+                      .then(() => { setDl({ state: 'done', pct: 1 }); show('Downloaded. Find it under Video › Downloaded Videos.', 'success'); })
+                      .catch(() => { setDl({ state: 'idle', pct: 0 }); show('Couldn’t download this lecture. It may not be available offline.', 'error'); });
+                  }}
+                  hitSlop={space.xs}
+                  accessibilityRole="button"
+                  accessibilityLabel={dl.state === 'done' ? 'Downloaded' : dl.state === 'busy' ? `Downloading, ${Math.round(dl.pct * 100)} percent` : 'Download this lecture'}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20, minWidth: 40, height: 40, paddingHorizontal: dl.state === 'busy' ? 10 : 0, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 })}
+                >
+                  {dl.state === 'done' ? <CheckCircle size={22} color="#fff" weight="fill" /> : <DownloadSimple size={22} color="#fff" />}
+                  {dl.state === 'busy' ? <Text style={{ color: '#fff', fontSize: 12 }}>{Math.round(dl.pct * 100)}%</Text> : null}
                 </Pressable>
               ) : null}
               {videoUrl && isPictureInPictureSupported() ? (

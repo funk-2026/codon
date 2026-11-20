@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { shadow } from '@/src/theme/elevation';
 import { listCourses, getCurriculum } from '@/src/api/courses';
 import { defaultCourse } from '@/src/api/courseSelection';
+import { useMediaUpload } from '@/src/media/useMediaUpload';
 import { adminListAllContent, adminListAllTests, createChapter, createSubject, updateChapter, updateSubject } from '@/src/api/admin';
 import { createCourse, deleteChapter, deleteSubject, takedown } from '@/src/api/adminOps';
 import { ReasonSheet } from '@/src/admin/ReasonSheet';
@@ -61,6 +62,16 @@ export default function CourseStructureRoute() {
   const [courseSheet, setCourseSheet] = useState(false);
   const [removing, setRemoving] = useState<{ kind: 'subject' | 'chapter'; id: string; name: string } | null>(null);
   const [rename, setRename] = useState<{ kind: 'subject' | 'chapter'; id: string } | null>(null);
+  const coverFor = useRef<string | null>(null);
+  const cover = useMediaUpload('chapter_cover', {
+    onReady: (it) => {
+      const id = coverFor.current;
+      if (!id || !it.mediaId) return;
+      updateChapter(id, { cover_media_id: it.mediaId })
+        .then(() => show('Cover saved. Students see it on that chapter’s lectures.', 'success'))
+        .catch(() => show('Couldn’t save the cover. Try again.', 'error'));
+    },
+  });
   const [down, setDown] = useState<{ id: string; title: string; type: ItemType } | null>(null);
   const close = () => { setSubjectSheet(false); setChapterFor(null); setName(''); setDescription(''); };
 
@@ -225,6 +236,8 @@ export default function CourseStructureRoute() {
                               <View style={{ flexDirection: 'row', gap: space.sm }}>
                                 <TextButton label="Rename chapter" onPress={() => { setName(c.name); setRename({ kind: 'chapter', id: c.id }); }} />
                                 <TextButton label="Delete chapter" onPress={() => setRemoving({ kind: 'chapter', id: c.id, name: c.name })} />
+                                <TextButton label="Set cover image" onPress={() => { coverFor.current = c.id; void cover.pickFromLibrary(false); }} />
+                                <TextButton label="Remove cover" onPress={() => updateChapter(c.id, { cover_media_id: '' }).then(() => show('Cover removed', 'success')).catch(() => show('Couldn’t remove it.', 'error'))} />
                               </View>
                               {content.isPending || tests.isPending ? (
                                 <SkeletonBlock height={44} radius={radius.sm} />

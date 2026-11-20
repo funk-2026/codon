@@ -49,6 +49,14 @@ export default function VideoTabRoute() {
         contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: header.maxHeight + space.md, paddingBottom: space['3xl'], gap: space.sm }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          {[{ label: 'Downloaded Videos', href: ROUTES.student.downloads }, { label: 'Free Videos', href: ROUTES.student.freeVideos }].map((b) => (
+            <Pressable key={b.label} onPress={() => router.push(b.href)} accessibilityRole="button" style={({ pressed }) => [{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: color('bg/surface'), borderRadius: radius.lg, opacity: pressed ? 0.94 : 1 }, shadow()]}>
+              <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{b.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
         <Pressable
           onPress={() => router.push({ pathname: ROUTES.student.analytics, params: { area: 'video' } })}
           accessibilityRole="button"

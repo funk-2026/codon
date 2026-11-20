@@ -10,6 +10,7 @@ import (
 	"codon-backend/internal/bunny"
 	"codon-backend/internal/httpx"
 	"codon-backend/internal/jobs"
+	"codon-backend/internal/media"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 	"codon-backend/internal/services"
@@ -521,6 +522,17 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 	if h.DB.WithContext(c.Request.Context()).Select("id").Where("chapter_id = ? AND module_type = ? AND status = ? AND origin = 'authored'", item.ChapterID, models.ModuleQBank, models.StatusPublished).Order("created_at ASC").First(&qb).Error == nil {
 		resp.RelatedQBankTestID = &qb.ID
 	}
+	var cover struct{ CoverMediaID *uuid.UUID }
+	h.DB.WithContext(c.Request.Context()).Raw(`SELECT cover_media_id FROM chapters WHERE id = ?`, item.ChapterID).Scan(&cover)
+	if cover.CoverMediaID != nil {
+		mc := media.NewCollector()
+		mc.AddID(cover.CoverMediaID)
+		if m := media.NewService(h.DB).ResolveCollector(c.Request.Context(), mc, media.URLTTL(nil)); m != nil {
+			if v, ok := m[cover.CoverMediaID.String()]; ok {
+				resp.ChapterCover = &v
+			}
+		}
+	}
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -698,6 +710,8 @@ type getContentResponse struct {
 	ChapterName        string     `json:"chapter_name,omitempty"`
 	IsCompleted        bool       `json:"is_completed"`
 	RelatedQBankTestID *uuid.UUID `json:"related_qbank_test_id,omitempty"`
+	// ChapterCover is the chapter's cover image, used as the poster of its lectures.
+	ChapterCover *media.View `json:"chapter_cover,omitempty"`
 	lecturePDFs
 }
 

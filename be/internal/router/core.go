@@ -112,6 +112,7 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 		student.POST("/content/:id/heartbeat", d.ProfileH.ContentHeartbeat)
 		student.POST("/content/:id/complete", d.ContentH.SetLectureCompleted)
 		student.GET("/subjects/:id/videos", d.ContentH.SubjectVideos)
+		student.GET("/videos/free", d.ContentH.FreeVideos)
 		student.GET("/me/video-completions", d.ContentH.VideoCompletions)
 	}
 

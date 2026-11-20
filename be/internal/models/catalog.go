@@ -36,8 +36,10 @@ type Chapter struct {
 	Name        string    `gorm:"type:text;not null" json:"name"`
 	Description string    `gorm:"type:text" json:"description,omitempty"`
 	OrderIndex  int       `gorm:"not null;default:0" json:"order_index"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	// CoverMediaID is the image shown as the thumbnail of the chapter's lectures and as the poster of their players.
+	CoverMediaID *uuid.UUID `gorm:"type:uuid" json:"cover_media_id,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 type Topic struct {

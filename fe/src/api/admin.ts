@@ -272,7 +272,7 @@ export function createChapter(subjectId: string, name: string, description: stri
 /** PATCH /api/v1/admin/chapters/:id */
 export function updateChapter(
   id: string,
-  fields: Partial<Pick<Chapter, 'name' | 'description' | 'order_index'>>
+  fields: Partial<Pick<Chapter, 'name' | 'description' | 'order_index'>> & { cover_media_id?: string }
 ): Promise<Chapter> {
   return apiFetch<Chapter>(`/admin/chapters/${id}`, {
     method: 'PATCH',

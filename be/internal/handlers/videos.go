@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"codon-backend/internal/httpx"
+	"codon-backend/internal/media"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 )
@@ -65,7 +66,20 @@ func (h *ContentHandler) SubjectVideos(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"videos": []interface{}{}})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"videos": rows})
+	// Chapter covers, so each lecture can show its chapter's image.
+	covers := map[uuid.UUID]uuid.UUID{}
+	var chs []models.Chapter
+	h.DB.WithContext(ctx).Select("id", "cover_media_id").Where("subject_id = ? AND cover_media_id IS NOT NULL", sid).Find(&chs)
+	mc := media.NewCollector()
+	for _, ch := range chs {
+		covers[ch.ID] = *ch.CoverMediaID
+		mc.AddID(ch.CoverMediaID)
+	}
+	byChapter := map[string]string{}
+	for k, v := range covers {
+		byChapter[k.String()] = v.String()
+	}
+	c.JSON(http.StatusOK, gin.H{"videos": rows, "covers": byChapter, "media": media.NewService(h.DB).ResolveCollector(ctx, mc, media.URLTTL(nil))})
 }
 
 type completeRequest struct {
@@ -141,4 +155,30 @@ func (h *ContentHandler) VideoCompletions(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"completions": rows})
+}
+
+type freeVideo struct {
+	ID              uuid.UUID `json:"id"`
+	Title           string    `json:"title"`
+	SubjectName     string    `json:"subject_name"`
+	ChapterName     string    `json:"chapter_name"`
+	DurationSeconds int       `json:"duration_seconds"`
+	IsCompleted     bool      `json:"is_completed"`
+}
+
+// FreeVideos lists the published lectures anyone can watch without a plan, Biology first, in chapter order.
+func (h *ContentHandler) FreeVideos(c *gin.Context) {
+	user := middleware.GetUser(c)
+	rows := []freeVideo{}
+	q := `SELECT ci.id, ci.title, s.name AS subject_name, ch.name AS chapter_name, ci.duration_seconds, COALESCE(w.is_completed, false) AS is_completed
+		FROM content_items ci JOIN chapters ch ON ch.id = ci.chapter_id JOIN subjects s ON s.id = ch.subject_id
+		LEFT JOIN user_watch_histories w ON w.content_item_id = ci.id AND w.user_id = ?
+		WHERE ci.content_type = 'video' AND ci.status = 'published' AND NOT ci.requires_subscription`
+	args := []interface{}{user.ID}
+	if cid := c.Query("course_id"); cid != "" {
+		q += " AND ci.course_id = ?"
+		args = append(args, cid)
+	}
+	h.DB.WithContext(c.Request.Context()).Raw(q+" ORDER BY s.order_index, s.name, ch.order_index, ci.created_at", args...).Scan(&rows)
+	c.JSON(http.StatusOK, gin.H{"videos": rows})
 }

@@ -6,6 +6,7 @@ import { CheckCircle, Lock, MonitorPlay, PauseCircle } from 'phosphor-react-nati
 import { EmptyState, ErrorBanner, Screen, ScreenHeader, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { listSubjectVideos } from '@/src/api/content';
+import { MediaImage } from '@/src/rich';
 import { groupByChapter, LECTURE_FILTERS, lectureLength, lectureState, matchesFilter, type LectureFilter } from '@/src/video/lectureState';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { ROUTES } from '@/src/navigation/routes';
@@ -19,7 +20,7 @@ export default function VideoSubjectRoute() {
   const [filter, setFilter] = useState<LectureFilter>('all');
   const q = useQuery({ queryKey: ['subject-videos', subjectId], queryFn: () => listSubjectVideos(String(subjectId)), enabled: !!subjectId });
   useRefetchOnFocus(() => void q.refetch());
-  const groups = groupByChapter((q.data ?? []).filter((v) => matchesFilter(v, filter)));
+  const groups = groupByChapter((q.data?.videos ?? []).filter((v) => matchesFilter(v, filter)));
 
   return (
     <Screen>
@@ -57,8 +58,12 @@ export default function VideoSubjectRoute() {
                     accessibilityLabel={`${v.title}. ${len}. ${v.locked ? 'Needs a plan' : st === 'completed' ? 'Completed' : st === 'paused' ? 'Paused' : 'Not started'}`}
                     style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm, opacity: pressed ? 0.94 : 1 }, shadow()]}
                   >
-                    <View style={{ width: 88, height: 56, borderRadius: radius.sm, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
-                      <MonitorPlay size={26} color={color('accent/default')} weight="duotone" />
+                    <View style={{ width: 88, height: 56, borderRadius: radius.sm, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {q.data?.covers[v.chapter_id] && q.data.media[q.data.covers[v.chapter_id]] ? (
+                        <MediaImage media={q.data.media[q.data.covers[v.chapter_id]]} variant="thumb" maxHeight={56} />
+                      ) : (
+                        <MonitorPlay size={26} color={color('accent/default')} weight="duotone" />
+                      )}
                       {st === 'paused' && pct > 0 ? <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: color('bg/sunken') }}><View style={{ width: `${pct}%`, height: 3, backgroundColor: color('accent/default') }} /></View> : null}
                     </View>
                     <View style={{ flex: 1 }}>

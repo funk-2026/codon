@@ -43,6 +43,7 @@ var Purposes = map[string]Purpose{
 	"note_image":         {Name: "note_image"},
 	"profile_photo":      {Name: "profile_photo"},
 	"faculty_photo":      {Name: "faculty_photo", Roles: []models.UserRole{models.RoleAdmin}},
+	"chapter_cover":      {Name: "chapter_cover", Roles: []models.UserRole{models.RoleAdmin}},
 	"import_bundle":      {Name: "import_bundle", Roles: []models.UserRole{models.RoleTeacher, models.RoleAdmin}, Zip: true},
 }
 
