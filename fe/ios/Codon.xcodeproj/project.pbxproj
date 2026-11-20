@@ -150,6 +150,7 @@
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				143B1D02229D42D281F076B9 /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
 				68AFD8731BADB235AD48BAB0 /* [CP] Embed Pods Frameworks */,
+				E7A1C0DE5B0174E51A1100A1 /* Apply version from .env */,
 			);
 			buildRules = (
 			);
@@ -362,6 +363,23 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Codon/Pods-Codon-resources.sh\"\n";
 			showEnvVarsInLog = 0;
+		};
+		E7A1C0DE5B0174E51A1100A1 /* Apply version from .env */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../.env",
+				"$(SRCROOT)/scripts/apply-env-version.sh",
+			);
+			name = "Apply version from .env";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/apply-env-version.sh\"\n";
 		};
 		D85C2FFEC6212711B17F35DD /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
