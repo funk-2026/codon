@@ -49,9 +49,9 @@ export default function BookmarksRoute() {
   const curriculum = useQuery({ queryKey: ['curriculum', user?.selected_course_id], queryFn: () => getCurriculum(String(user?.selected_course_id)), enabled: !!user?.selected_course_id, staleTime: 10 * 60_000 });
   const cols = useMemo(() => [...(collections.data ?? [])].sort((a, b) => TYPE_ORDER.indexOf(a.key as never) - TYPE_ORDER.indexOf(b.key as never)), [collections.data]);
   const keyOf = useMemo(() => Object.fromEntries(cols.map((c) => [c.id, c.key])), [cols]);
-  const countOfType = (id: string) => summary.data?.by_collection.find((x) => x.collection_id === id)?.count ?? 0;
+  const countOfType = (id: string) => (summary.data?.by_collection ?? []).find((x) => x.collection_id === id)?.count ?? 0;
   const subjects = subjectOrder(summary.data?.by_subject ?? []);
-  const subjectName = (id?: string) => summary.data?.by_subject.find((s) => s.subject_id === id)?.name ?? '';
+  const subjectName = (id?: string) => (summary.data?.by_subject ?? []).find((s) => s.subject_id === id)?.name ?? '';
   const subjectChapters = scope !== 'landing' && scope !== 'all' ? (curriculum.data?.course.subjects.find((s) => s.id === scope)?.chapters ?? []) : [];
 
   const inList = scope !== 'landing' && tab !== 'pulse';

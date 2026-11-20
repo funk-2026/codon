@@ -23,14 +23,16 @@ export default function BoardPapersRoute() {
       <ScreenHeader title="Sample Board Exam Paper" />
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space['3xl'] }}>
         <Text style={[type['type/h2'], { color: color('text/primary'), marginBottom: space.sm }]}>Class 10</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-          {TILES.map((t) => (
+        <View style={{ gap: space.sm }}>
+          {[TILES.slice(0, 2), TILES.slice(2)].map((row, ri) => (
+            <View key={ri} style={{ flexDirection: 'row', gap: space.sm }}>
+              {row.map((t) => (
             <Pressable
               key={t.kind}
               onPress={() => router.push({ pathname: ROUTES.student.boardPaperList, params: { kind: t.kind } })}
               accessibilityRole="button"
               accessibilityLabel={`${t.label}. ${t.text}`}
-              style={({ pressed }) => [{ width: '48.5%', minHeight: 124, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, justifyContent: 'space-between', opacity: pressed ? 0.94 : 1 }, shadow()]}
+              style={({ pressed }) => [{ flex: 1, minHeight: 124, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, justifyContent: 'space-between', opacity: pressed ? 0.94 : 1 }, shadow()]}
             >
               <t.Icon size={30} color={color('accent/default')} weight="duotone" />
               <View>
@@ -38,6 +40,8 @@ export default function BoardPapersRoute() {
                 <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{t.text}</Text>
               </View>
             </Pressable>
+              ))}
+            </View>
           ))}
         </View>
       </ScrollView>

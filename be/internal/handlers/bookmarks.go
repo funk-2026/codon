@@ -505,7 +505,11 @@ func (h *BookmarkHandler) Summary(c *gin.Context) {
 	for _, sj := range subs {
 		subjects = append(subjects, gin.H{"subject_id": sj.ID, "name": sj.Name, "count": counts[sj.ID]})
 	}
-	c.JSON(http.StatusOK, gin.H{"total": total, "by_collection": byCol, "by_subject": subjects})
+	var colOut interface{} = byCol
+	if byCol == nil {
+		colOut = []interface{}{}
+	}
+	c.JSON(http.StatusOK, gin.H{"total": total, "by_collection": colOut, "by_subject": subjects})
 }
 
 type checkRequest struct {

@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Camera, CaretRight, ChartLineUp, FilePdf, Gear, Info, PencilSimple, Receipt, Shield, UsersThree, ShareNetwork } from 'phosphor-react-native';
 import type { Icon } from 'phosphor-react-native';
-import { ErrorBanner, SkeletonBlock, Screen, TAB_EDGES, useToast } from '@/src/components';
+import { ErrorBanner, SkeletonBlock, Screen, ScreenHeader, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { useMe } from '@/src/queries/profile';
@@ -62,7 +62,8 @@ export default function ProfileHomeRoute() {
   const view = (photo.items.find((i) => i.stage === 'ready')?.view) ?? (photoId ? me.data?.media?.[photoId] : undefined);
 
   return (
-    <Screen edges={TAB_EDGES}>
+    <Screen>
+      <ScreenHeader title="Profile" />
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] }} showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', marginTop: space.xl }}>
           <Pressable

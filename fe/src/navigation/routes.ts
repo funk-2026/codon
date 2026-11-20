@@ -50,7 +50,7 @@ export const ROUTES = {
     community: '/(student)/community',
     howToUse: '/(student)/how-to-use',
     myProgress: '/(student)/my-progress',
-    profile: '/(student)/(tabs)/profile',
+    profile: '/(student)/profile',
     referenceDoc: '/(student)/reference-doc',
     team: '/(student)/team',
     pulse: '/(student)/pulse',

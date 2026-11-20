@@ -1,7 +1,7 @@
-import { House, Exam, MonitorPlay, Lightbulb, User, Timer } from 'phosphor-react-native';
+import { House, Exam, MonitorPlay, Lightbulb, Timer } from 'phosphor-react-native';
 import { RoleTabs } from '@/src/navigation/RoleTabs';
 
-// Five tabs. Profile is still a screen of this group but opens from the avatar on Home, not from the bar.
+// Five tabs. Profile is a pushed screen that opens from the avatar on Home.
 export default function StudentTabs() {
   return (
     <RoleTabs
@@ -11,7 +11,6 @@ export default function StudentTabs() {
         { name: 'learn', title: 'Video', Icon: MonitorPlay },
         { name: 'tests', title: 'Tests', Icon: Timer },
         { name: 'support', title: 'Brain Hack', Icon: Lightbulb },
-        { name: 'profile', title: 'Profile', Icon: User, hidden: true },
       ]}
     />
   );
