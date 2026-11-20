@@ -450,7 +450,7 @@ export default function TestQuestionRoute() {
               </Text>
             ) : null}
 
-            {a?.selected && !checked && !locked && !isExam ? (
+            {a?.selected && !checked && !locked ? (
               <View style={{ marginTop: space.md, gap: space.xs }}>
                 <Text style={[type['type/caption'], { color: color('text/secondary') }]}>How sure are you? (optional)</Text>
                 <ChipGroup

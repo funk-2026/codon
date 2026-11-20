@@ -67,6 +67,8 @@ var Defaults = map[string]string{
 
 	// Exams: percentile is hidden until this many students have a score (a rank is always shown as "rank X of N")
 	"results.percentile_min": "30",
+	// A QBank result shows "better than x% of your peers" only once this many other students have solved the module.
+	"results.qbank_peers_min": "5",
 	// Exams: the earliest a live test's results may open after its window closes, so staff can check the key
 	"exams.min_result_gap_minutes": "15",
 

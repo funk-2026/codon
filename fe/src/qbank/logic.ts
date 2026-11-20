@@ -34,3 +34,21 @@ export const solvedLine = (m: QBankModule) =>
   m.state === 'completed' && m.solved_at
     ? `Solved on ${shortDate(m.solved_at)}`
     : '';
+
+export type QBankHit = { key: string; kind: 'subject' | 'chapter'; title: string; sub: string; subjectId: string; testId?: string };
+
+/** Subjects and chapters whose name contains the text. Subjects come first, in the order given. */
+export function searchQBank(subjects: import('@/src/api/qbank').QBankSubject[], q: string): QBankHit[] {
+  const s = q.trim().toLowerCase();
+  if (!s) return [];
+  const out: QBankHit[] = [];
+  for (const sj of subjects) {
+    if (sj.name.toLowerCase().includes(s)) out.push({ key: `s${sj.subject_id}`, kind: 'subject', title: sj.name, sub: `${sj.completed} / ${sj.total} modules`, subjectId: sj.subject_id });
+  }
+  for (const sj of subjects) {
+    for (const m of sj.modules) {
+      if (`${m.chapter_name} ${m.title}`.toLowerCase().includes(s)) out.push({ key: m.test_id, kind: 'chapter', title: m.chapter_name || m.title, sub: `${sj.name} · ${m.mcq_count} MCQs`, subjectId: sj.subject_id, testId: m.test_id });
+    }
+  }
+  return out;
+}

@@ -25,3 +25,13 @@ describe('QBank rules', () => {
     expect(progressFraction({ completed: 0, total: 0 })).toBe(0);
   });
 });
+
+import { searchQBank } from '../logic';
+describe('searchQBank', () => {
+  it('finds subjects and chapters by name', () => {
+    const subs = [{ subject_id: 's1', name: 'Biology', completed: 1, total: 2, modules: [{ test_id: 't1', title: 'QBank: Cell', chapter_id: 'c1', chapter_name: 'Cell', chapter_order: 1, mcq_count: 5, requires_subscription: false, locked: false, state: 'unattempted' as const }] }];
+    expect(searchQBank(subs, 'bio').map((h) => h.kind)).toEqual(['subject']);
+    expect(searchQBank(subs, 'cell')[0]).toMatchObject({ kind: 'chapter', testId: 't1' });
+    expect(searchQBank(subs, '')).toEqual([]);
+  });
+});

@@ -6,6 +6,7 @@ import { MagnifyingGlass } from 'phosphor-react-native';
 import { CollapsingHeader, SegmentedControl, useCollapsingHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { QBankPanel } from '@/src/qbank/QBankPanel';
+import { QBankSearchSheet } from '@/src/qbank/QBankSearchSheet';
 import { CustomTestsPanel } from '@/src/screens/CustomTestsPanel';
 import { useFlag } from '@/src/config/AppConfigContext';
 import { ROUTES } from '@/src/navigation/routes';
@@ -20,9 +21,10 @@ export default function PracticeHubRoute() {
   const params = useLocalSearchParams<{ kind?: string }>();
   const customOn = useFlag('custom_test.enabled');
   const [segment, setSegment] = useState<Segment>(params.kind === 'custom' ? 'custom' : 'qbank');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const search = (
-    <Pressable onPress={() => router.push(ROUTES.student.search)} accessibilityRole="button" accessibilityLabel="Search subjects and chapters" style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable onPress={() => setSearchOpen(true)} accessibilityRole="button" accessibilityLabel="Search subjects and chapters" style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
       <MagnifyingGlass size={24} color={color('header/text')} />
     </Pressable>
   );
@@ -53,6 +55,7 @@ export default function PracticeHubRoute() {
         {customOn ? <SegmentedControl options={[{ key: 'qbank' as const, label: 'QBank' }, { key: 'custom' as const, label: 'Custom Module' }]} value={segment} onChange={setSegment} /> : null}
         {segment === 'custom' && customOn ? <CustomTestsPanel /> : <QBankPanel />}
       </Animated.ScrollView>
+      <QBankSearchSheet visible={searchOpen} onClose={() => setSearchOpen(false)} />
     </View>
   );
 }

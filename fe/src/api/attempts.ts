@@ -162,6 +162,8 @@ export type AttemptResultResponse = {
     /** The test shows rank to subscribers only. */
     locked?: boolean;
   };
+  /** QBank modules only: progress in the subject, bookmarks saved from this module, and the share of peers beaten (once enough peers). */
+  qbank?: { solved: number; total: number; bookmarks: number; peers?: number; better_than_pct?: number };
   /** A live test keeps the score back until results open. */
   pending?: boolean;
   results_at?: string;

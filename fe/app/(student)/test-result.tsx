@@ -22,6 +22,8 @@ import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 import { useAttemptResult } from '@/src/queries/attempts';
 import { rankText } from '@/src/exam/logic';
+import { QBankResult } from '@/src/qbank/QBankResult';
+import { shortDate } from '@/src/qbank/logic';
 
 function band(p: number): { color: 'semantic/success' | 'semantic/warning' | 'semantic/danger'; headline: string } {
   if (p >= 85) return { color: 'semantic/success', headline: 'Excellent work.' };
@@ -146,6 +148,32 @@ export default function TestResultRoute() {
           description="Something went wrong fetching this test result. Check your connection and try again."
           action={<TextButton label="Retry" onPress={load} />}
           style={{ flex: 1, justifyContent: 'center' }}
+        />
+      </Screen>
+    );
+  }
+
+  // A solved QBank module gets its own result: modules solved, peer comparison, the bar, REVIEW and the bookmarks count.
+  const qb = resultQuery.data?.qbank;
+  if (module.key === 'qbank' && attempt.test?.origin === 'authored' && qb) {
+    return (
+      <Screen>
+        <QBankResult
+          title={attempt.test?.chapter?.name ?? attempt.test?.title ?? 'QBank'}
+          subject={attempt.test?.subject?.name}
+          completedOn={attempt.submitted_at ? shortDate(attempt.submitted_at) : undefined}
+          mcqs={CORRECT + INCORRECT + UNATTEMPTED}
+          correct={CORRECT}
+          wrong={INCORRECT}
+          skipped={UNATTEMPTED}
+          percent={PERCENT}
+          betterThan={qb.better_than_pct}
+          solved={qb.solved}
+          total={qb.total}
+          bookmarks={qb.bookmarks}
+          onReview={() => router.push({ pathname: ROUTES.student.testReview, params: { id } })}
+          onBack={() => leave(ROUTES.student.practice)}
+          onBookmarks={() => router.push(ROUTES.student.bookmarks)}
         />
       </Screen>
     );

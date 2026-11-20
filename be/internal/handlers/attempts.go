@@ -360,7 +360,44 @@ func (h *AttemptHandler) GetResult(c *gin.Context) {
 	if cohort := h.cohortFor(c.Request.Context(), user, &attempt); cohort != nil {
 		out["cohort"] = cohort
 	}
+	if attempt.Test.ModuleType == models.ModuleQBank && attempt.Test.Origin == models.OriginAuthored {
+		out["qbank"] = h.qbankSummary(c.Request.Context(), user.ID, &attempt)
+	}
 	c.JSON(http.StatusOK, out)
+}
+
+// qbankSummary is what a solved QBank module's result adds: how many modules the student has solved in this subject,
+// how many bookmarks they saved from this module, and how they did against other students (a share of peers they beat,
+// shown only once enough students have solved it).
+func (h *AttemptHandler) qbankSummary(ctx context.Context, userID uuid.UUID, a *models.StudentAttempt) gin.H {
+	out := gin.H{}
+	var solved, total int64
+	if a.Test.SubjectID != nil {
+		h.DB.WithContext(ctx).Raw(`SELECT count(*) FROM tests t WHERE t.module_type = 'qbank' AND t.origin = 'authored' AND t.status = 'published' AND t.subject_id = ? AND t.course_id = ?`, *a.Test.SubjectID, a.Test.CourseID).Scan(&total)
+		h.DB.WithContext(ctx).Raw(`SELECT count(DISTINCT t.id) FROM tests t JOIN student_attempts sa ON sa.test_id = t.id AND sa.user_id = ? AND sa.status = 'submitted'
+			WHERE t.module_type = 'qbank' AND t.origin = 'authored' AND t.status = 'published' AND t.subject_id = ? AND t.course_id = ?`, userID, *a.Test.SubjectID, a.Test.CourseID).Scan(&solved)
+	}
+	out["solved"], out["total"] = solved, total
+	var marks int64
+	h.DB.WithContext(ctx).Raw(`SELECT count(*) FROM bookmarks b JOIN attempt_answers aa ON aa.question_id = b.item_id AND aa.attempt_id = ? WHERE b.user_id = ? AND b.item_type = 'question'`, a.ID, userID).Scan(&marks)
+	out["bookmarks"] = marks
+	if a.Score != nil && a.TotalMarks != nil && *a.TotalMarks > 0 {
+		var peers []float64
+		h.DB.WithContext(ctx).Raw(`SELECT (sa.score * 100 / sa.total_marks)::float8 FROM student_attempts sa JOIN users u ON u.id = sa.user_id
+			WHERE sa.test_id = ? AND sa.status = 'submitted' AND sa.user_id <> ? AND u.role = 'student' AND sa.total_marks > 0`, a.TestID, userID).Scan(&peers)
+		if len(peers) >= settings.Default.Int("results.qbank_peers_min") {
+			mine := *a.Score * 100 / *a.TotalMarks
+			beat := 0
+			for _, p := range peers {
+				if p < mine {
+					beat++
+				}
+			}
+			out["peers"] = len(peers)
+			out["better_than_pct"] = beat * 100 / len(peers)
+		}
+	}
+	return out
 }
 
 // cohortFor places a Test Series result among the students whose official attempt counts: rank among N, the

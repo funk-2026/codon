@@ -37,6 +37,9 @@ func TestQBankOverviewAndSolveOnce(t *testing.T) {
 	}
 	id := str(att, "attempt", "id")
 	e.mustDo(200, "POST", "/attempts/"+id+"/submit", s, nil)
+	if res := e.mustDo(200, "GET", "/attempts/"+id+"/result", s, nil); res["qbank"] == nil || num(res["qbank"].(map[string]interface{}), "solved") != 1 || num(res["qbank"].(map[string]interface{}), "total") != 1 {
+		t.Fatalf("a solved module's result carries its subject progress: %v", res["qbank"])
+	}
 	sj = find()
 	m := sj["modules"].([]interface{})[0].(map[string]interface{})
 	if str(m, "state") != "completed" || m["solved_at"] == nil || num(sj, "completed") != 1 || str(m, "attempt_id") != id {
