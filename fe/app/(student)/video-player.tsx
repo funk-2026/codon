@@ -7,27 +7,28 @@ import { isPictureInPictureSupported, VideoView, VideoTrack } from 'expo-video';
 import { useVideoSession } from '@/src/video/VideoSession';
 import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
 import { track } from '@/src/analytics/track';
-import { CaretLeft, PictureInPicture, ArrowsInSimple, WarningCircle, LockSimple } from 'phosphor-react-native';
-import { BookmarkToggle } from '@/src/bookmarks/BookmarkToggle';
+import { CaretLeft, PictureInPicture, ArrowsInSimple, WarningCircle, LockSimple, ArrowClockwise, ArrowCounterClockwise, Play, Pause, FlagBanner, Exam } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { getContentItem, getChapterContent, ContentItem, sendHeartbeat, type LecturePDFs } from '@/src/api/content';
+import { getContentItem, ContentItem, sendHeartbeat, setLectureCompleted, type LecturePDFs } from '@/src/api/content';
+import { submitFeedback } from '@/src/api/feedback';
+import { PLAYBACK_SPEEDS, speedLabel } from '@/src/video/lectureState';
 import { LecturePdfDownloads } from '@/src/content/LecturePdfDownloads';
 
 const WATCHED_FRACTION = 0.9;
 const pdfsOf = (r: LecturePDFs): LecturePDFs => ({
   has_notes_pdf: r.has_notes_pdf, notes_pdf_url: r.notes_pdf_url,
   has_annotated_pdf: r.has_annotated_pdf, annotated_pdf_url: r.annotated_pdf_url, annotated_pdf_locked: r.annotated_pdf_locked,
+  has_fourth_book_pdf: r.has_fourth_book_pdf, fourth_book_pdf_url: r.fourth_book_pdf_url,
+  has_board_questions_pdf: r.has_board_questions_pdf, board_questions_pdf_url: r.board_questions_pdf_url,
 });
 import { ApiError } from '@/src/api/client';
-import { EmptyState, PrimaryButton, SkeletonBlock, TextButton, Screen } from '@/src/components';
+import { BottomSheet, ConfirmDialog, EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, Screen, useToast } from '@/src/components';
 import { ROUTES } from '@/src/navigation/routes';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 import { shadow } from '@/src/theme/elevation';
 
 
 
-const SPEEDS = ['0.5x', '0.75x', '1x', '1.25x', '1.5x', '2x'];
-const SPEED_VALUES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export default function VideoPlayerRoute() {
   const { color, type, space, radius } = useTheme();
@@ -42,7 +43,13 @@ export default function VideoPlayerRoute() {
   const [content, setContent] = useState<ContentItem | null>(null);
   const [pdfs, setPdfs] = useState<LecturePDFs | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
-  const [siblings, setSiblings] = useState<ContentItem[]>([]);
+  type Meta = { subject?: string; chapter?: string; qbank?: string; completed: boolean };
+  const [meta, setMeta] = useState<Meta>({ completed: false });
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportNote, setReportNote] = useState('');
+  const [reporting, setReporting] = useState(false);
+  const [confirmUndo, setConfirmUndo] = useState(false);
+  const { show } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -65,10 +72,7 @@ export default function VideoPlayerRoute() {
         if (res.url) start({ id: String(id), title: res.content.title, url: res.url });
         track('video.started', { resumed: resumeAt.current > 0 });
         setPdfs(pdfsOf(res));
-        return getChapterContent(res.content.chapter_id);
-      })
-      .then((chRes) => {
-        setSiblings(chRes.content.filter((c) => c.id !== id));
+        setMeta({ subject: res.subject_name, chapter: res.chapter_name, qbank: res.related_qbank_test_id, completed: !!res.is_completed });
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 403) {
@@ -117,7 +121,7 @@ export default function VideoPlayerRoute() {
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
 
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [speedIdx, setSpeedIdx] = useState(2);
+  const [speedIdx, setSpeedIdx] = useState(PLAYBACK_SPEEDS.indexOf(1));
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -142,7 +146,7 @@ export default function VideoPlayerRoute() {
     if (!isPlaying || !id) return;
     const beat = () => {
       const d = player.duration || 0;
-      if (d > 0) sendHeartbeat(id, Math.floor(timeRef.current), timeRef.current >= d * WATCHED_FRACTION).catch(() => {});
+      if (d > 0) sendHeartbeat(id, Math.floor(timeRef.current), timeRef.current >= d * WATCHED_FRACTION, d).catch(() => {});
     };
     const t = setInterval(beat, 10000);
     return () => {
@@ -173,7 +177,7 @@ export default function VideoPlayerRoute() {
   };
   const selectSpeed = (i: number) => {
     setSpeedIdx(i);
-    player.playbackRate = SPEED_VALUES[i];
+    player.playbackRate = PLAYBACK_SPEEDS[i];
     setSpeedMenuOpen(false);
   };
 
@@ -346,18 +350,46 @@ export default function VideoPlayerRoute() {
             />
           ) : (
             <>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: space.md }}>
-                <Text style={[type['type/h2'], { color: color('text/primary'), flex: 1 }]}>
-                  {content?.title || 'Loading...'}
-                </Text>
-                <BookmarkToggle type="content" id={content?.id} />
+              {/* 15-second seeks and play or pause, then the eight speeds */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xl, marginTop: space.md }}>
+                <Pressable onPress={() => { player.currentTime = Math.max(0, player.currentTime - 15); }} accessibilityRole="button" accessibilityLabel="Back 15 seconds" style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: color('bg/surface'), alignItems: 'center', justifyContent: 'center' }}>
+                  <ArrowCounterClockwise size={26} color={color('text/primary')} />
+                </Pressable>
+                <Pressable onPress={togglePlay} accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: color('action/primary'), alignItems: 'center', justifyContent: 'center' }}>
+                  {isPlaying ? <Pause size={28} color={color('action/on-primary')} weight="fill" /> : <Play size={28} color={color('action/on-primary')} weight="fill" />}
+                </Pressable>
+                <Pressable onPress={() => { player.currentTime = Math.min(duration || Infinity, player.currentTime + 15); }} accessibilityRole="button" accessibilityLabel="Forward 15 seconds" style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: color('bg/surface'), alignItems: 'center', justifyContent: 'center' }}>
+                  <ArrowClockwise size={26} color={color('text/primary')} />
+                </Pressable>
               </View>
-              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                Video Lesson{content?.author_name ? ` · By ${content.author_name}` : ''}
-              </Text>
-              {pdfs && (pdfs.has_notes_pdf || pdfs.has_annotated_pdf) ? (
-                <LecturePdfDownloads pdfs={pdfs} title={content?.title ?? 'Lecture'} />
-              ) : null}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.xs, marginTop: space.sm }} accessibilityRole="radiogroup">
+                {PLAYBACK_SPEEDS.map((sp, i) => {
+                  const on = i === speedIdx;
+                  return (
+                    <Pressable key={sp} onPress={() => selectSpeed(i)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Speed ${speedLabel(sp)}`} style={{ minHeight: 36, minWidth: 52, paddingHorizontal: space.sm, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}>
+                      <Text style={[type['type/caption'], { color: on ? color('accent/default') : color('text/secondary') }]}>{speedLabel(sp)}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Subject, then chapter, then the teacher */}
+              <View style={{ marginTop: space.lg, gap: 2 }}>
+                {meta.subject ? <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>{meta.subject}</Text> : null}
+                {meta.chapter ? <Text style={[type['type/body-m-medium'], { color: color('text/secondary') }]}>{meta.chapter}</Text> : null}
+                <Text style={[type['type/h2'], { color: color('text/primary') }]}>{content?.title || 'Loading...'}</Text>
+                <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{content?.author_name ?? ''}</Text>
+              </View>
+
+              {pdfs ? <LecturePdfDownloads pdfs={pdfs} title={content?.title ?? 'Lecture'} /> : null}
+
+              <View style={{ marginTop: space.md }}>
+                <Pressable onPress={() => setReportOpen(true)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44 }}>
+                  <FlagBanner size={20} color={color('text/secondary')} />
+                  <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Report a problem with this lecture</Text>
+                </Pressable>
+              </View>
+
               {id ? (
                 <VideoNotesPanel
                   contentId={String(id)}
@@ -368,46 +400,84 @@ export default function VideoPlayerRoute() {
                   }}
                 />
               ) : null}
-              <Text
-                style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.lg, marginBottom: space.sm }]}
-              >
-                MORE IN THIS CHAPTER
-              </Text>
-              <View style={{ gap: space.xs }}>
-                {siblings.map((s) => (
-                  <Pressable
-                    key={s.id}
-                    onPress={() => router.replace({ pathname: ROUTES.student.videoPlayer, params: { id: s.id } })}
-                    style={({ pressed }) => [
-                      styles.siblingRow,
-                      {
-                        backgroundColor: color('bg/surface'),
-                        borderRadius: radius.md,
-                        padding: space.sm,
-                        opacity: pressed ? 0.94 : 1,
-                      },
-                      shadow(),
-                    ]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[type['type/body-m-medium'], { color: color('text/primary') }]}
-                        numberOfLines={1}
-                      >
-                        {s.title}
-                      </Text>
-                      <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                        {s.content_type === 'video' ? 'Video' : 'Document'}
-                      </Text>
-                    </View>
-                    <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />
-                  </Pressable>
-                ))}
+
+              {/* The QBank module of this same chapter, matched by chapter id */}
+              {meta.qbank ? (
+                <Pressable
+                  onPress={() => router.push({ pathname: ROUTES.student.testPreStart, params: { id: meta.qbank } })}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [{ marginTop: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
+                >
+                  <Exam size={26} color={color('accent/default')} weight="duotone" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>PRACTISE THIS CHAPTER</Text>
+                    <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{meta.chapter ? `${meta.chapter} · QBank` : 'QBank'}</Text>
+                  </View>
+                  <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />
+                </Pressable>
+              ) : null}
+
+              <View style={{ marginTop: space.lg }}>
+                <PrimaryButton
+                  label={meta.completed ? 'Completed. Tap to undo' : 'Mark complete'}
+                  onPress={async () => {
+                    if (meta.completed) return setConfirmUndo(true);
+                    try {
+                      await setLectureCompleted(String(id), true);
+                      setMeta((m) => ({ ...m, completed: true }));
+                      show('Marked complete', 'success');
+                    } catch {
+                      show('Couldn’t update. Try again.', 'error');
+                    }
+                  }}
+                />
               </View>
             </>
           )}
         </ScrollView>
       </View>
+
+      <ConfirmDialog
+        visible={confirmUndo}
+        title="Mark as not completed?"
+        message="This lecture will count as not finished again."
+        confirmLabel="Mark not completed"
+        onCancel={() => setConfirmUndo(false)}
+        onConfirm={async () => {
+          setConfirmUndo(false);
+          try {
+            await setLectureCompleted(String(id), false);
+            setMeta((m) => ({ ...m, completed: false }));
+          } catch {
+            show('Couldn’t update. Try again.', 'error');
+          }
+        }}
+      />
+      <BottomSheet visible={reportOpen} onClose={() => !reporting && setReportOpen(false)} title="Report a problem" dismissable={!reporting}>
+        <View style={{ gap: space.md, paddingBottom: space.lg }}>
+          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Tell us what went wrong with this lecture. We note the lecture and the moment you were at.</Text>
+          <InputField label="What happened?" value={reportNote} onChangeText={setReportNote} multiline maxLength={800} />
+          <PrimaryButton
+            label="Send"
+            loading={reporting}
+            disabled={reportNote.trim().length < 5}
+            onPress={async () => {
+              setReporting(true);
+              try {
+                const at = Math.floor(currentTime);
+                await submitFeedback({ category: 'Lecture problem', message: `${reportNote.trim()}\n\nLecture: ${content?.title ?? ''} (${id}) at ${Math.floor(at / 60)}:${String(at % 60).padStart(2, '0')}` });
+                show('Sent. Thank you.', 'success');
+                setReportOpen(false);
+                setReportNote('');
+              } catch {
+                show('Couldn’t send. Try again.', 'error');
+              } finally {
+                setReporting(false);
+              }
+            }}
+          />
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }

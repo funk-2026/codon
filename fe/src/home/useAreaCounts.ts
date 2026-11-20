@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { listVideoCompletions } from '@/src/api/content';
 import { useAttempts } from '@/src/queries/attempts';
 import { lastDays, type ChartPoint } from './chart';
 import { dayKey } from './monthCalendar';
@@ -13,6 +15,7 @@ export type DayItem = { id: string; title: string; where: string; pct?: number }
  */
 export function useAreaCounts(area: AnalysisArea, daysBack = 14) {
   const attempts = useAttempts();
+  const videos = useQuery({ queryKey: ['video-completions'], queryFn: listVideoCompletions, enabled: area === 'video' });
   const mod = MODULE_OF[area];
   const days = useMemo(() => lastDays(daysBack), [daysBack]);
   const byDay = useMemo(() => {
@@ -30,9 +33,24 @@ export function useAreaCounts(area: AnalysisArea, daysBack = 14) {
       });
       m.set(k, list);
     }
+    // Video lectures: each lecture counts once, on the day it was completed.
+    if (area === 'video') {
+      for (const v of videos.data ?? []) {
+        const k = dayKey(new Date(v.completed_at));
+        const list = m.get(k) ?? [];
+        if (!list.some((x) => x.id === v.id)) list.push({ id: v.id, title: v.title, where: `${v.subject} › ${v.chapter}` });
+        m.set(k, list);
+      }
+    }
     return m;
-  }, [attempts.data, mod]);
+  }, [attempts.data, videos.data, mod, area]);
   const points: ChartPoint[] = days.map((d) => ({ label: d.label, value: byDay.get(d.key)?.length ?? 0 }));
   const total = points.reduce((n, p) => n + p.value, 0);
-  return { supported: !!mod, days, byDay, points, total, isPending: attempts.isPending, isError: attempts.isError, refetch: attempts.refetch };
+  const isVideo = area === 'video';
+  return {
+    supported: !!mod || isVideo, days, byDay, points, total,
+    isPending: isVideo ? videos.isPending : attempts.isPending,
+    isError: isVideo ? videos.isError : attempts.isError,
+    refetch: isVideo ? videos.refetch : attempts.refetch,
+  };
 }

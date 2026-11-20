@@ -11,7 +11,7 @@ import { ANALYSIS_AREAS, type AnalysisArea } from '@/src/home/DetailedAnalysisCa
 import { ROUTES } from '@/src/navigation/routes';
 
 const DAYS = 14;
-const UNIT: Record<AnalysisArea, string> = { schema: 'topics', qbank: 'modules solved', tests: 'tests taken', video: 'lectures' };
+const UNIT: Record<AnalysisArea, string> = { schema: 'topics', qbank: 'modules solved', tests: 'tests taken', video: 'lectures completed' };
 
 /**
  * One daily graph for an area, reached from Home. QBank and Test series count submitted tests per day.
@@ -40,7 +40,7 @@ export default function AnalyticsRoute() {
           <EmptyState
             icon={<ChartLineUp size={32} color={color('text/tertiary')} />}
             title="Nothing to show yet"
-            description={area === 'schema' ? 'This graph counts topics you mark Confident. It fills in once Schema is available.' : 'This graph counts lectures you complete. It fills in once lecture completion is tracked.'}
+            description="This graph counts topics you mark Confident. It fills in once Schema is available."
           />
         ) : data.isPending ? (
           <SkeletonBlock height={220} radius={radius.lg} />
@@ -50,7 +50,7 @@ export default function AnalyticsRoute() {
           <EmptyState
             icon={<ChartLineUp size={32} color={color('text/tertiary')} />}
             title="No activity in the last 14 days"
-            description={`When you finish ${area === 'qbank' ? 'a QBank module' : 'a test'}, it shows up here.`}
+            description={`When you ${area === 'video' ? 'complete a lecture' : area === 'qbank' ? 'finish a QBank module' : 'finish a test'}, it shows up here.`}
           />
         ) : (
           <>
@@ -64,7 +64,7 @@ export default function AnalyticsRoute() {
                 <>
                   <Text style={[type['type/h3'], { color: color('text/primary') }]}>{picked.key}: {rows.length} {UNIT[area]}</Text>
                   {rows.length === 0 ? <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Nothing finished that day.</Text> : rows.map((r) => (
-                    <Pressable key={r.id} onPress={() => router.push({ pathname: ROUTES.student.testPreStart, params: { id: r.id } })} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
+                    <Pressable key={r.id} onPress={() => router.push(area === 'video' ? { pathname: ROUTES.student.videoPlayer, params: { id: r.id } } : { pathname: ROUTES.student.testPreStart, params: { id: r.id } })} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
                       <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{r.title}{r.pct != null ? ` · ${r.pct}%` : ''}</Text>
                       {r.where ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{r.where}</Text> : null}
                     </Pressable>

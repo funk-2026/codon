@@ -274,6 +274,8 @@ type listAttemptsResponse struct {
 type heartbeatRequest struct {
 	ProgressSeconds int  `json:"progress_seconds"`
 	IsCompleted     bool `json:"is_completed"`
+	// DurationSeconds is the lecture length as the player knows it; stored once, for the lecture list.
+	DurationSeconds int `json:"duration_seconds"`
 }
 
 func (h *ProfileHandler) ContentHeartbeat(c *gin.Context) {
@@ -300,6 +302,10 @@ func (h *ProfileHandler) ContentHeartbeat(c *gin.Context) {
 	if n == 0 {
 		httpx.NotFound(c, "content_not_found", "content not found")
 		return
+	}
+
+	if req.DurationSeconds > 0 && req.DurationSeconds < 6*3600 {
+		h.DB.WithContext(ctx).Model(&models.ContentItem{}).Where("id = ? AND duration_seconds = 0", contentID).UpdateColumn("duration_seconds", req.DurationSeconds)
 	}
 
 	// One atomic upsert: progress only moves forward, completion is sticky.

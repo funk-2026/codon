@@ -5,55 +5,41 @@ import { SecondaryButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import type { LecturePDFs } from '@/src/api/content';
 import { downloadPdf } from './lecturePdf';
+import { pdfChoices, type PdfKind4 as Kind } from './pdfChoices';
 
-/**
- * Student: a lecture's PDFs (video player). Notes download any time; the
- * annotated PDF shows as locked until the lecture has been watched (~90 %),
- * then becomes downloadable — the server decides, this only reflects it.
- */
+/** Student: the lecture's PDFs. Hidden entirely when nothing has been uploaded. */
 export function LecturePdfDownloads({ pdfs, title }: { pdfs: LecturePDFs; title: string }) {
   const { color, type, space, radius } = useTheme();
   const { show } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  const choices = pdfChoices(pdfs);
+  if (choices.length === 0) return null;
 
-  const get = async (which: 'notes' | 'annotated', url?: string) => {
+  const get = async (kind: Kind, label: string, url?: string) => {
     if (!url) return show('This PDF isn’t available right now. Try again later.', 'error');
-    setBusy(which);
+    setBusy(kind);
     try {
-      await downloadPdf(url, `${title} - ${which === 'notes' ? 'Notes' : 'Annotated notes'}.pdf`);
+      await downloadPdf(url, `${title} - ${label}.pdf`);
     } catch {
-      show('Couldn’t download the PDF. Check your connection.', 'error');
+      show('Couldn’t open the PDF. Check your connection.', 'error');
     } finally {
       setBusy(null);
     }
   };
 
-  const row = (icon: React.ReactNode, name: string, sub: string, action?: React.ReactNode) => (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }}>
-      {icon}
-      <View style={{ flex: 1 }}>
-        <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{name}</Text>
-        <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{sub}</Text>
-      </View>
-      {action}
-    </View>
-  );
-
-  const download = (which: 'notes' | 'annotated', url?: string) => (
-    <SecondaryButton label="Download" onPress={() => get(which, url)} loading={busy === which} />
-  );
-
   return (
     <View style={{ marginTop: space.lg, gap: space.xs }}>
-      <Text accessibilityRole="header" style={[type['type/overline'], { color: color('text/tertiary') }]}>LECTURE PDFS</Text>
-      {pdfs.has_notes_pdf
-        ? row(<FilePdf size={26} color={color('accent/default')} />, 'Notes', 'The lecture notes', download('notes', pdfs.notes_pdf_url))
-        : null}
-      {pdfs.has_annotated_pdf
-        ? pdfs.annotated_pdf_locked
-          ? row(<LockSimple size={26} color={color('text/tertiary')} />, 'Annotated notes', 'Unlocks after you watch the lecture')
-          : row(<FilePdf size={26} color={color('accent/default')} />, 'Annotated notes', 'Everything written during the lecture', download('annotated', pdfs.annotated_pdf_url))
-        : null}
+      <Text accessibilityRole="header" style={[type['type/overline'], { color: color('text/tertiary') }]}>VIEW PDF / NOTES</Text>
+      {choices.map((c) => (
+        <View key={c.kind} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md }}>
+          {c.locked ? <LockSimple size={26} color={color('text/tertiary')} /> : <FilePdf size={26} color={color('accent/default')} />}
+          <View style={{ flex: 1 }}>
+            <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{c.label}</Text>
+            <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{c.sub}</Text>
+          </View>
+          {c.locked ? null : <SecondaryButton label="Open" onPress={() => get(c.kind, c.label, c.url)} loading={busy === c.kind} />}
+        </View>
+      ))}
     </View>
   );
 }

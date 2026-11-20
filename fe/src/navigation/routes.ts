@@ -67,6 +67,7 @@ export const ROUTES = {
     testResult: '/(student)/test-result',
     testReview: '/(student)/test-review',
     videoPlayer: '/(student)/video-player',
+    videoSubject: '/(student)/video-subject',
     wellnessArticle: '/(student)/wellness-article',
     wellnessCategory: '/(student)/wellness-category',
   },

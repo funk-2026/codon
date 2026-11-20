@@ -221,6 +221,8 @@ export type CreateContentRequest = {
   /** lecture_pdf upload keys; on update "" removes the PDF. */
   notes_pdf_key?: string;
   annotated_pdf_key?: string;
+  fourth_book_pdf_key?: string;
+  board_questions_pdf_key?: string;
   /** A document lesson written in the app (send this instead of a file). */
   body_text?: string;
 };

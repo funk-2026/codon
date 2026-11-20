@@ -110,6 +110,9 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 		student.GET("/chapters/:chapter_id/content", d.ContentH.GetChapterContent)
 		student.GET("/content/:id", d.ContentH.GetContentItem)
 		student.POST("/content/:id/heartbeat", d.ProfileH.ContentHeartbeat)
+		student.POST("/content/:id/complete", d.ContentH.SetLectureCompleted)
+		student.GET("/subjects/:id/videos", d.ContentH.SubjectVideos)
+		student.GET("/me/video-completions", d.ContentH.VideoCompletions)
 	}
 
 	// ── Teacher: lecture content ──

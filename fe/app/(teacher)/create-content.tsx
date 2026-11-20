@@ -6,7 +6,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { CaretRight, UploadSimple, X } from 'phosphor-react-native';
 import { CourseSelector, ErrorBanner, InputField, PrimaryButton, SecondaryButton, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { LecturePdfEditor, type PdfKind } from '@/src/content/LecturePdfEditor';
+import { LecturePdfEditor, PDF_FIELD, PDF_KINDS, type PdfKind } from '@/src/content/LecturePdfEditor';
 import { createContent } from '@/src/api/teacher';
 import { formatBytes, MAX_VIDEO_BYTES, uploadVideo as uploadVideoFile, type VideoUploadHandle } from '@/src/upload/videoUpload';
 import { listCourses, getCurriculum, type Course } from '@/src/api/courses';
@@ -42,7 +42,7 @@ export default function CreateContentRoute() {
   const [videoError, setVideoError] = useState<string | null>(null);
   const [docBody, setDocBody] = useState('');
   // Lecture PDFs (videos only): notes + annotated, uploaded before the lesson is created
-  const [pdfs, setPdfs] = useState<Record<PdfKind, { key?: string; name?: string }>>({ notes: {}, annotated: {} });
+  const [pdfs, setPdfs] = useState<Record<PdfKind, { key?: string; name?: string }>>({ annotated: {}, notes: {}, fourth_book: {}, board_questions: {} });
   const [saving, setSaving] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -192,8 +192,7 @@ export default function CreateContentRoute() {
         content_type: contentType === 'Video' ? 'video' : 'document',
         chapter_id: chapterId!,
         ...(contentType === 'Video' ? { file_key: videoFileKey! } : { body_text: docBody.trim() }),
-        ...(contentType === 'Video' && pdfs.notes.key ? { notes_pdf_key: pdfs.notes.key } : {}),
-        ...(contentType === 'Video' && pdfs.annotated.key ? { annotated_pdf_key: pdfs.annotated.key } : {}),
+        ...(contentType === 'Video' ? Object.fromEntries(PDF_KINDS.filter((k) => pdfs[k].key).map((k) => [PDF_FIELD[k], pdfs[k].key])) : {}),
       });
       show('Content saved', 'success');
       router.push({ pathname: ROUTES.teacher.contentPreview, params: { type: contentType, id: res.id } });
@@ -344,10 +343,7 @@ export default function CreateContentRoute() {
           <View style={{ marginTop: space.xl, gap: space.sm }}>
             <Text style={[type['type/h3'], { color: color('text/primary') }]}>Lecture PDFs</Text>
             <LecturePdfEditor
-              slots={{
-                notes: { present: !!pdfs.notes.key, name: pdfs.notes.name },
-                annotated: { present: !!pdfs.annotated.key, name: pdfs.annotated.name },
-              }}
+              slots={Object.fromEntries(PDF_KINDS.map((k) => [k, { present: !!pdfs[k].key, name: pdfs[k].name }])) as Record<PdfKind, { present: boolean; name?: string }>}
               onChange={(kind, key, name) => setPdfs((p) => ({ ...p, [kind]: key ? { key, name } : {} }))}
             />
           </View>

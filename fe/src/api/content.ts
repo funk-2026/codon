@@ -51,11 +51,21 @@ export type LecturePDFs = {
   has_annotated_pdf: boolean;
   annotated_pdf_url?: string;
   annotated_pdf_locked?: boolean;
+  has_fourth_book_pdf?: boolean;
+  fourth_book_pdf_url?: string;
+  has_board_questions_pdf?: boolean;
+  board_questions_pdf_url?: string;
 };
 
 export type GetContentResponse = LecturePDFs & {
   /** Where this student left off (seconds). Absent when never watched or already finished. */
   progress_seconds?: number;
+  /** Where the lecture sits, whether I marked it complete, and the QBank module of the same chapter. */
+  subject_id?: string;
+  subject_name?: string;
+  chapter_name?: string;
+  is_completed?: boolean;
+  related_qbank_test_id?: string;
   content: ContentItem;
   url?: string; // Pre-signed URL for document, or HLS URL for video
 };
@@ -66,9 +76,32 @@ export function getContentItem(id: string): Promise<GetContentResponse> {
 }
 
 /** POST /api/v1/content/:id/heartbeat (Student) */
-export function sendHeartbeat(id: string, progressSeconds: number, isCompleted: boolean): Promise<{status: string}> {
+export function sendHeartbeat(id: string, progressSeconds: number, isCompleted: boolean, durationSeconds?: number): Promise<{status: string}> {
   return apiFetch<{status: string}>(`/content/${id}/heartbeat`, {
     method: 'POST',
-    body: JSON.stringify({ progress_seconds: progressSeconds, is_completed: isCompleted })
+    body: JSON.stringify({ progress_seconds: progressSeconds, is_completed: isCompleted, ...(durationSeconds ? { duration_seconds: Math.round(durationSeconds) } : {}) })
   });
 }
+
+export type SubjectVideo = {
+  id: string;
+  title: string;
+  chapter_id: string;
+  chapter_name: string;
+  chapter_order: number;
+  duration_seconds: number;
+  requires_subscription: boolean;
+  progress_seconds: number;
+  is_completed: boolean;
+  locked: boolean;
+};
+/** GET /subjects/:id/videos: the subject's video lectures by chapter, with my progress. */
+export const listSubjectVideos = (subjectId: string) => apiFetch<{ videos: SubjectVideo[] }>(`/subjects/${subjectId}/videos`).then((r) => r.videos ?? []);
+
+/** POST /content/:id/complete: mark a lecture complete, or not complete again. */
+export const setLectureCompleted = (id: string, completed: boolean) =>
+  apiFetch<{ completed: boolean }>(`/content/${id}/complete`, { method: 'POST', body: JSON.stringify({ completed }) });
+
+export type VideoCompletion = { id: string; title: string; subject: string; chapter: string; completed_at: string };
+/** GET /me/video-completions: lectures I completed, newest first. */
+export const listVideoCompletions = () => apiFetch<{ completions: VideoCompletion[] }>('/me/video-completions').then((r) => r.completions ?? []);

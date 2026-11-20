@@ -54,8 +54,13 @@ type ContentItem struct {
 	FileKey              string      `gorm:"type:text;not null" json:"file_key"`
 	// Lecture PDFs (videos): plain notes, and the annotated PDF of what was taught —
 	// students get the annotated one only after watching the lecture.
-	NotesPDFKey     *string       `gorm:"type:text" json:"notes_pdf_key,omitempty"`
-	AnnotatedPDFKey *string       `gorm:"type:text" json:"annotated_pdf_key,omitempty"`
+	NotesPDFKey     *string `gorm:"type:text" json:"notes_pdf_key,omitempty"`
+	AnnotatedPDFKey *string `gorm:"type:text" json:"annotated_pdf_key,omitempty"`
+	// Two more PDFs a lecture can carry: the Fourth Book chapter and Board Exam Questions.
+	FourthBookPDFKey     *string `gorm:"type:text" json:"fourth_book_pdf_key,omitempty"`
+	BoardQuestionsPDFKey *string `gorm:"type:text" json:"board_questions_pdf_key,omitempty"`
+	// DurationSeconds is learned from the first student who plays the lecture.
+	DurationSeconds int           `gorm:"not null;default:0" json:"duration_seconds,omitempty"`
 	VideoStatus     *VideoStatus  `gorm:"type:text" json:"video_status,omitempty"`
 	HLSPlaylistURL  *string       `gorm:"type:text" json:"hls_playlist_url,omitempty"`
 	Status          ContentStatus `gorm:"type:text;not null;default:'draft'" json:"status"`

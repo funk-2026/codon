@@ -95,7 +95,7 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 	for _, f := range []struct {
 		key string
 		dst **string
-	}{{req.NotesPDFKey, &item.NotesPDFKey}, {req.AnnotatedPDFKey, &item.AnnotatedPDFKey}} {
+	}{{req.NotesPDFKey, &item.NotesPDFKey}, {req.AnnotatedPDFKey, &item.AnnotatedPDFKey}, {req.FourthBookPDFKey, &item.FourthBookPDFKey}, {req.BoardQuestionsPDFKey, &item.BoardQuestionsPDFKey}} {
 		if f.key == "" {
 			continue
 		}
@@ -201,7 +201,7 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 		updates["body_text"] = t
 	}
 	// Lecture PDFs can be added or replaced at any time (annotated notes often come after the class).
-	for col, v := range map[string]*string{"notes_pdf_key": req.NotesPDFKey, "annotated_pdf_key": req.AnnotatedPDFKey} {
+	for col, v := range map[string]*string{"notes_pdf_key": req.NotesPDFKey, "annotated_pdf_key": req.AnnotatedPDFKey, "fourth_book_pdf_key": req.FourthBookPDFKey, "board_questions_pdf_key": req.BoardQuestionsPDFKey} {
 		switch {
 		case v == nil:
 		case *v == "":
@@ -501,9 +501,25 @@ func (h *ContentHandler) GetContentItem(c *gin.Context) {
 		resp.MyRating = &v
 	}
 	var hist models.UserWatchHistory
-	if h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND content_item_id = ?", user.ID, item.ID).First(&hist).Error == nil && !hist.IsCompleted && hist.ProgressSeconds > 0 {
-		p := hist.ProgressSeconds
-		resp.ProgressSeconds = &p
+	if h.DB.WithContext(c.Request.Context()).Where("user_id = ? AND content_item_id = ?", user.ID, item.ID).First(&hist).Error == nil {
+		resp.IsCompleted = hist.IsCompleted
+		if !hist.IsCompleted && hist.ProgressSeconds > 0 {
+			p := hist.ProgressSeconds
+			resp.ProgressSeconds = &p
+		}
+	}
+	var where struct {
+		SubjectID   *uuid.UUID
+		SubjectName string
+		ChapterName string
+	}
+	h.DB.WithContext(c.Request.Context()).Raw(`SELECT s.id AS subject_id, s.name AS subject_name, ch.name AS chapter_name
+		FROM chapters ch JOIN subjects s ON s.id = ch.subject_id WHERE ch.id = ?`, item.ChapterID).Scan(&where)
+	resp.SubjectID, resp.SubjectName, resp.ChapterName = where.SubjectID, where.SubjectName, where.ChapterName
+	// The QBank module for the same chapter, matched by chapter id (never by similar titles).
+	var qb models.Test
+	if h.DB.WithContext(c.Request.Context()).Select("id").Where("chapter_id = ? AND module_type = ? AND status = ? AND origin = 'authored'", item.ChapterID, models.ModuleQBank, models.StatusPublished).Order("created_at ASC").First(&qb).Error == nil {
+		resp.RelatedQBankTestID = &qb.ID
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -651,6 +667,8 @@ type createContentRequest struct {
 	RequiresSubscription *bool  `json:"requires_subscription" example:"true"`
 	NotesPDFKey          string `json:"notes_pdf_key"     example:"lecture_pdf/user-uuid/file-uuid.pdf"`
 	AnnotatedPDFKey      string `json:"annotated_pdf_key" example:"lecture_pdf/user-uuid/file-uuid.pdf"`
+	FourthBookPDFKey     string `json:"fourth_book_pdf_key"`
+	BoardQuestionsPDFKey string `json:"board_questions_pdf_key"`
 	// BodyText is the text of a document lesson written in the app (instead of an uploaded file).
 	BodyText string `json:"body_text"`
 }
@@ -661,9 +679,11 @@ type updateContentRequest struct {
 	FileKey              *string `json:"file_key"`
 	RequiresSubscription *bool   `json:"requires_subscription"`
 	// "" removes the PDF; omitted leaves it unchanged.
-	NotesPDFKey     *string `json:"notes_pdf_key"`
-	AnnotatedPDFKey *string `json:"annotated_pdf_key"`
-	BodyText        *string `json:"body_text"`
+	NotesPDFKey          *string `json:"notes_pdf_key"`
+	AnnotatedPDFKey      *string `json:"annotated_pdf_key"`
+	FourthBookPDFKey     *string `json:"fourth_book_pdf_key"`
+	BoardQuestionsPDFKey *string `json:"board_questions_pdf_key"`
+	BodyText             *string `json:"body_text"`
 }
 
 type getContentResponse struct {
@@ -672,6 +692,12 @@ type getContentResponse struct {
 	MyRating *int               `json:"my_rating,omitempty"`
 	// ProgressSeconds is where this student left off, so the player can resume. Absent when finished or never started.
 	ProgressSeconds *int `json:"progress_seconds,omitempty"`
+	// Where the lecture sits, whether this student has marked it complete, and the QBank module of the same chapter.
+	SubjectID          *uuid.UUID `json:"subject_id,omitempty"`
+	SubjectName        string     `json:"subject_name,omitempty"`
+	ChapterName        string     `json:"chapter_name,omitempty"`
+	IsCompleted        bool       `json:"is_completed"`
+	RelatedQBankTestID *uuid.UUID `json:"related_qbank_test_id,omitempty"`
 	lecturePDFs
 }
 
@@ -679,11 +705,15 @@ type getContentResponse struct {
 // linked for students once they've watched the lecture; until then
 // annotated_pdf_locked tells the app to show it as locked.
 type lecturePDFs struct {
-	HasNotesPDF        bool   `json:"has_notes_pdf"`
-	NotesPDFURL        string `json:"notes_pdf_url,omitempty"`
-	HasAnnotatedPDF    bool   `json:"has_annotated_pdf"`
-	AnnotatedPDFURL    string `json:"annotated_pdf_url,omitempty"`
-	AnnotatedPDFLocked bool   `json:"annotated_pdf_locked,omitempty"`
+	HasNotesPDF          bool   `json:"has_notes_pdf"`
+	NotesPDFURL          string `json:"notes_pdf_url,omitempty"`
+	HasAnnotatedPDF      bool   `json:"has_annotated_pdf"`
+	AnnotatedPDFURL      string `json:"annotated_pdf_url,omitempty"`
+	AnnotatedPDFLocked   bool   `json:"annotated_pdf_locked,omitempty"`
+	HasFourthBookPDF     bool   `json:"has_fourth_book_pdf"`
+	FourthBookPDFURL     string `json:"fourth_book_pdf_url,omitempty"`
+	HasBoardQuestionsPDF bool   `json:"has_board_questions_pdf"`
+	BoardQuestionsPDFURL string `json:"board_questions_pdf_url,omitempty"`
 }
 
 type adminContentDetailResponse struct {
@@ -719,6 +749,10 @@ func pdfURL(ctx context.Context, key *string) string {
 func (h *ContentHandler) lecturePDFsFor(ctx context.Context, item *models.ContentItem, student *models.User) lecturePDFs {
 	out := lecturePDFs{HasNotesPDF: item.NotesPDFKey != nil && *item.NotesPDFKey != "", HasAnnotatedPDF: item.AnnotatedPDFKey != nil && *item.AnnotatedPDFKey != ""}
 	out.NotesPDFURL = pdfURL(ctx, item.NotesPDFKey)
+	out.HasFourthBookPDF = item.FourthBookPDFKey != nil && *item.FourthBookPDFKey != ""
+	out.FourthBookPDFURL = pdfURL(ctx, item.FourthBookPDFKey)
+	out.HasBoardQuestionsPDF = item.BoardQuestionsPDFKey != nil && *item.BoardQuestionsPDFKey != ""
+	out.BoardQuestionsPDFURL = pdfURL(ctx, item.BoardQuestionsPDFKey)
 	if !out.HasAnnotatedPDF {
 		return out
 	}
