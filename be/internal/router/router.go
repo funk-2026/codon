@@ -175,6 +175,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	exams := api.Group("/exams").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
 	{
 		exams.GET("", d.Exams.Exams)
+		exams.GET("/grand-analysis", d.Exams.GrandAnalysis)
 	}
 	adminExams := api.Group("/admin/exams").Use(auth).Use(middleware.RequireRole(models.RoleAdmin))
 	{

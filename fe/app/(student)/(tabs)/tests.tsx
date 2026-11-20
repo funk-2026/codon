@@ -1,26 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ClockCounterClockwise, Timer, WarningCircle } from 'phosphor-react-native';
+import { CaretRight, ChartLineUp, ClockCounterClockwise, Timer, WarningCircle } from 'phosphor-react-native';
 import Animated from 'react-native-reanimated';
-import { BottomSheet, CollapsingHeader, EmptyState, SkeletonBlock, TextButton, useCollapsingHeader, useToast } from '@/src/components';
+import { BottomSheet, CollapsingHeader, EmptyState, SegmentedControl, SkeletonBlock, TextButton, useCollapsingHeader, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { listExams, registerForExam, unregisterFromExam, type ExamCard } from '@/src/api/exams';
 import { CompactTestCard, NextUpCard, SeriesCard } from '@/src/exam/TestsHomeParts';
 import { buildTestsHome, clockOffset, formatCountdown, withPhaseAt, type SeriesProgress } from '@/src/exam/logic';
 import { useServerNow } from '@/src/exam/useServerNow';
+import { DEFAULT_YEAR, monthGroups, TEST_TABS, TEST_VIEWS, YEARS, countTab, type TestTab, type TestView } from '@/src/exam/testsTabs';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { useHasSubscription } from '@/src/queries/curriculum';
 import { ROUTES } from '@/src/navigation/routes';
-
-type Filter = 'all' | 'new' | 'taken';
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'new', label: 'Not attempted' },
-  { key: 'taken', label: 'Taken' },
-];
 
 /** Tests home: one thing to do now, then your tests by type and your series with progress. */
 export default function TestsTab() {
@@ -31,7 +25,10 @@ export default function TestsTab() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const courseId = user && 'selected_course_id' in user ? (user.selected_course_id as string | undefined) : undefined;
-  const [filter, setFilter] = useState<Filter>('all');
+  const [tab, setTab] = useState<TestTab>('grand');
+  const [view, setView] = useState<TestView>('live');
+  const [year, setYear] = useState<number>(DEFAULT_YEAR);
+  const { width } = useWindowDimensions();
   const [openSeries, setOpenSeries] = useState<SeriesProgress | null>(null);
 
   const q = useQuery({ queryKey: ['exams', courseId ?? 'all'], queryFn: () => listExams(courseId) });
@@ -40,7 +37,7 @@ export default function TestsTab() {
   const offset = useMemo(() => (q.data ? clockOffset(q.data.server_now, receivedAt) : 0), [q.data, receivedAt]);
   const now = useServerNow(offset, true);
   const tests = useMemo(() => withPhaseAt(q.data?.tests ?? [], now), [q.data, now]);
-  const home = useMemo(() => buildTestsHome(tests, filter, now), [tests, filter, now]);
+  const home = useMemo(() => buildTestsHome(tests, 'all', now), [tests, now]);
   // A test crossed its start or end: fetch again so my attempt, late entry and results are current.
   const crossed = tests.some((c, i) => c.phase !== q.data?.tests[i]?.phase);
   const { refetch } = q;
@@ -67,6 +64,7 @@ export default function TestsTab() {
     router.push({ pathname: ROUTES.student.testPreStart, params: { id: c.id } });
   };
 
+  const groups = useMemo(() => monthGroups(tests, tab, view, year), [tests, tab, view, year]);
   const total = q.data?.tests.length ?? 0;
   const resultsLink = (
     <Pressable
@@ -120,13 +118,46 @@ export default function TestsTab() {
           <EmptyState icon={<Timer size={32} color={color('text/tertiary')} />} title="No tests yet" description="Tests your teachers publish will show up here." />
         ) : (
           <>
-            {home.next.kind !== 'none' ? (
+            <View style={{ paddingHorizontal: space.md, gap: space.sm }}>
+              <SegmentedControl options={TEST_TABS.map((t) => ({ key: t.key, label: t.label }))} value={tab} onChange={(t) => { setTab(t); setView('live'); }} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }}>
+                {TEST_VIEWS[tab].map((v) => {
+                  const on = v.key === view;
+                  const n = countTab(tests, tab, v.key);
+                  return (
+                    <Pressable
+                      key={v.key}
+                      onPress={() => setView(v.key)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      style={{ minHeight: 36, paddingHorizontal: space.sm, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}
+                    >
+                      <Text style={[type['type/body-m-medium'], { color: on ? color('accent/default') : color('text/secondary') }]}>{v.label}{n ? ` (${n})` : ''}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {tab === 'grand' ? (
+              <Pressable
+                onPress={() => router.push(ROUTES.student.grandAnalysis)}
+                accessibilityRole="button"
+                style={({ pressed }) => ({ marginHorizontal: space.md, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('accent/tint'), borderRadius: radius.lg, paddingHorizontal: space.md, opacity: pressed ? 0.94 : 1 })}
+              >
+                <ChartLineUp size={24} color={color('accent/default')} weight="duotone" />
+                <Text style={[type['type/h3'], { color: color('accent/default'), flex: 1 }]}>My Grand Test performance analysis</Text>
+                <CaretRight size={18} color={color('accent/default')} />
+              </Pressable>
+            ) : null}
+
+            {tab === 'grand' && view === 'live' && home.next.kind !== 'none' ? (
               <View style={{ paddingHorizontal: space.md }}>
                 <NextUpCard next={home.next} now={now} onOpen={open} onRemind={(c) => remind.mutate(c)} />
               </View>
             ) : null}
 
-            {home.waiting.length > 0 ? (
+            {tab === 'grand' && view === 'attempted' && home.waiting.length > 0 ? (
               <View style={{ paddingHorizontal: space.md }}>
                 <View style={{ backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.sm, gap: 2 }}>
                   <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>
@@ -144,7 +175,7 @@ export default function TestsTab() {
               </View>
             ) : null}
 
-            {home.series.length > 0 ? (
+            {tab === 'grand' && view === 'library' && home.series.length > 0 ? (
               <View style={{ gap: space.sm }}>
                 {label('YOUR SERIES')}
                 <View style={{ paddingHorizontal: space.md, gap: space.sm }}>
@@ -154,33 +185,27 @@ export default function TestsTab() {
             ) : null}
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
-              {FILTERS.map((f) => {
-                const on = f.key === filter;
+              {YEARS.map((y) => {
+                const on = y === year;
                 return (
-                  <Pressable
-                    key={f.key}
-                    onPress={() => setFilter(f.key)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    style={{ minHeight: 36, paddingHorizontal: space.sm, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}
-                  >
-                    <Text style={[type['type/body-m-medium'], { color: on ? color('accent/default') : color('text/secondary') }]}>{f.label}</Text>
+                  <Pressable key={y} onPress={() => setYear(y)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ minHeight: 36, paddingHorizontal: space.md, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: on ? color('accent/default') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}>
+                    <Text style={[type['type/body-m-medium'], { color: on ? color('accent/on-accent') : color('text/secondary') }]}>{y}</Text>
                   </Pressable>
                 );
               })}
             </ScrollView>
 
-            {home.rows.length === 0 ? (
+            {groups.length === 0 ? (
               <Text style={[type['type/body-m'], { color: color('text/tertiary'), paddingHorizontal: space.md }]}>
-                {filter === 'new' ? 'You have attempted every test here.' : 'Nothing here yet.'}
+                {view === 'attempted' ? `You have not attempted any ${TEST_TABS.find((t) => t.key === tab)?.label} in ${year} yet.` : view === 'live' ? `No live or upcoming tests in ${year}.` : `No tests in ${year}.`}
               </Text>
             ) : (
-              home.rows.map((r) => (
-                <View key={r.key} style={{ gap: space.sm }}>
-                  {label(r.title.toUpperCase())}
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.sm, paddingBottom: space.xs }}>
-                    {r.cards.map((c) => <CompactTestCard key={c.id} card={c} onOpen={() => open(c)} />)}
-                  </ScrollView>
+              groups.map((g) => (
+                <View key={g.key} style={{ gap: space.sm }}>
+                  {label(g.title.toUpperCase())}
+                  <View style={{ paddingHorizontal: space.md, gap: space.sm }}>
+                    {g.cards.map((c) => <CompactTestCard key={c.id} card={c} width={width - space.md * 2} onOpen={() => open(c)} />)}
+                  </View>
                 </View>
               ))
             )}

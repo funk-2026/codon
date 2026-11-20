@@ -103,3 +103,22 @@ export const adminSetResultsAt = (id: string, resultsAt: string) =>
 export type RescoreResult = { attempts: number; changed: number; max_drop: number; max_rise: number; applied: boolean };
 export const adminRescoreExam = (id: string, dryRun: boolean) =>
   apiFetch<RescoreResult>(`/admin/exams/${id}/rescore`, { method: 'POST', body: JSON.stringify({ dry_run: dryRun }) });
+
+// ── Grand Test performance analysis ─────────────────────────────────────────
+export type GrandPart = { name: string; subject?: string; total: number; attempted: number; correct: number; marks: number; percent: number };
+export type GrandAttempt = {
+  attempt_id: string;
+  test_id: string;
+  title: string;
+  at: string;
+  score: number;
+  total_marks: number;
+  percent: number;
+  rank?: number;
+  cohort: number;
+  percentile?: number;
+  subjects: GrandPart[];
+  chapters: GrandPart[];
+};
+/** GET /exams/grand-analysis — every Grand Test I have taken with results out, oldest first. */
+export const getGrandAnalysis = () => apiFetch<{ attempts: GrandAttempt[]; min_attempts: number }>('/exams/grand-analysis');

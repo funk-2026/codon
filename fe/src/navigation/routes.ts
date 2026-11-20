@@ -60,6 +60,7 @@ export const ROUTES = {
     settings: '/(student)/settings',
     subscriptionPlans: '/(student)/subscription-plans',
     support: '/(student)/(tabs)/support',
+    grandAnalysis: '/(student)/grand-analysis',
     testHistory: '/(student)/test-history',
     tests: '/(student)/(tabs)/tests',
     testAnalysis: '/(student)/test-analysis',
