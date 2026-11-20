@@ -124,3 +124,6 @@ export type GrandAttempt = {
 };
 /** GET /exams/grand-analysis — every Grand Test I have taken with results out, oldest first. */
 export const getGrandAnalysis = () => apiFetch<{ attempts: GrandAttempt[]; min_attempts: number }>('/exams/grand-analysis');
+
+export const renameSeries = (id: string, title: string) => apiFetch<{ title: string }>(`/teacher/series/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) });
+export const deleteSeries = (id: string) => apiFetch<{ deleted: boolean }>(`/teacher/series/${id}`, { method: 'DELETE' });

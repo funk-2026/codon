@@ -132,7 +132,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	api.GET("/explore", auth, d.Extras.Explore)
 
 	// ── Custom tests (student; behind the custom_test.enabled flag) ──
-	ct := api.Group("/custom-tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent)).Use(handlers.RequireFlag("custom_test.enabled"))
+	ct := api.Group("/custom-tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin)).Use(handlers.RequireFlag("custom_test.enabled"))
 	{
 		ct.GET("/builder-config", d.Custom.BuilderConfig)
 		ct.POST("/share", d.Custom.ShareBlueprint)
@@ -152,7 +152,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	}
 
 	// ── Brain hacks (student read) ──
-	bh := api.Group("/brain-hacks").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	bh := api.Group("/brain-hacks").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		bh.GET("", d.Hacks.StudentList)
 		bh.GET("/categories", d.Hacks.Categories)
@@ -160,7 +160,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	}
 
 	// ── Flashcards (student) ──
-	fc := api.Group("/flashcards").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	fc := api.Group("/flashcards").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		fc.GET("/decks", d.Cards.StudentDecks)
 		fc.GET("/decks/:id/cards", d.Cards.StudentDeckCards)
@@ -170,7 +170,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	}
 
 	// ── Tests (student) ──
-	tests := api.Group("/tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	tests := api.Group("/tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		tests.GET("", d.Tests.ListTests)
 		tests.GET("/:id", d.Tests.GetTest)
@@ -182,7 +182,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	}
 
 	// ── Attempts (student) ──
-	exams := api.Group("/exams").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	exams := api.Group("/exams").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		exams.GET("", d.Exams.Exams)
 		exams.GET("/grand-analysis", d.Exams.GrandAnalysis)
@@ -195,7 +195,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		adminExams.POST("/:id/rescore", d.Exams.RescoreExam)
 	}
 
-	attempts := api.Group("/attempts").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	attempts := api.Group("/attempts").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		attempts.PUT("/:id/answers", d.Attempts.BatchUpsertAnswers)
 		attempts.PUT("/:id/answers/:question_id", d.Attempts.UpsertAnswer)
@@ -278,6 +278,8 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		teacher.GET("/review-stats", d.TE.ReviewStats)
 		teacher.GET("/series", d.Exams.ListSeries)
 		teacher.POST("/series", d.Exams.CreateSeries)
+		teacher.PATCH("/series/:id", d.Exams.RenameSeries)
+		teacher.DELETE("/series/:id", d.Exams.DeleteSeries)
 		teacher.DELETE("/content/:id", d.TE.DeleteContent)
 		teacher.POST("/tests/:id/clone", d.TE.CloneTest)
 		teacher.POST("/tests/:id/transfer", d.TE.TransferTest)

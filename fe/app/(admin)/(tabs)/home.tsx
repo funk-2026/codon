@@ -14,6 +14,18 @@ import { shadow } from '@/src/theme/elevation';
 type Tool = { key?: 'feedback'; label: string; text: string; Icon: typeof GearSix; href: Href };
 const GROUPS: { title: string; tools: Tool[] }[] = [
   {
+    title: 'CREATE (same tools teachers use)',
+    tools: [
+      { label: 'New exam', text: 'Grand, Mini or Subject-wise test; live or anytime; in a series', Icon: Timer, href: ROUTES.teacher.createExam },
+      { label: 'Test series', text: 'Create, rename or delete a series of mocks', Icon: FolderOpen, href: ROUTES.admin.series },
+      { label: 'New Q Bank set', text: 'Chapter practice from questions or a CSV', Icon: Tag, href: ROUTES.teacher.createTest },
+      { label: 'New lesson', text: 'Upload a video lecture or a document', Icon: FilePdf, href: ROUTES.teacher.createContent },
+      { label: 'New Brain Hack', text: 'An article or a short video', Icon: HandHeart, href: ROUTES.teacher.createBrainHack },
+      { label: 'New flashcard deck', text: 'Cards for a chapter', Icon: Tag, href: ROUTES.teacher.flashcardDeck },
+      { label: 'All content and questions', text: 'Everything every teacher made, to edit or remove', Icon: ShieldCheck, href: ROUTES.teacher.content },
+    ],
+  },
+  {
     title: 'COURSE',
     tools: [{ label: 'Course structure', text: 'Subjects, chapters and what each holds', Icon: FolderOpen, href: ROUTES.admin.courseStructure }],
   },

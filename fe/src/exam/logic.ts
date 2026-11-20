@@ -2,11 +2,11 @@
 import type { ExamCard, ExamKind, ExamStyle } from '@/src/api/exams';
 
 export const KIND_LABEL: Record<ExamKind, string> = {
-  full: 'Full-length mock',
-  pyq: 'Previous-year paper',
-  subject: 'Subject test',
-  part: 'Mini test',
-  chapter: 'Chapter test',
+  full: 'Grand Test',
+  pyq: 'Grand Test (previous-year paper)',
+  subject: 'Subject-wise Test',
+  part: 'Mini Test (part syllabus)',
+  chapter: 'Mini Test (one chapter)',
 };
 export const STYLE_LABEL: Record<ExamStyle, string> = { neet: 'NEET style', school: 'School' };
 

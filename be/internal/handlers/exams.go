@@ -465,3 +465,39 @@ func (h *ExamHandler) CreateSeries(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, s)
 }
+
+// RenameSeries changes a series' title.
+func (h *ExamHandler) RenameSeries(c *gin.Context) {
+	var req struct {
+		Title string `json:"title"`
+	}
+	if !httpx.Bind(c, &req) {
+		return
+	}
+	title := strings.TrimSpace(req.Title)
+	if len([]rune(title)) < 3 || len([]rune(title)) > 120 {
+		httpx.BadRequest(c, "bad_request", "a title of 3 to 120 characters is required")
+		return
+	}
+	res := h.DB.WithContext(c.Request.Context()).Model(&models.TestSeries{}).Where("id = ?", c.Param("id")).Update("title", title)
+	if res.RowsAffected == 0 {
+		respondErr(c, http.StatusNotFound, "not_found", "series not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"title": title})
+}
+
+// DeleteSeries removes a series. Its tests stay; they just no longer belong to a series.
+func (h *ExamHandler) DeleteSeries(c *gin.Context) {
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Test{}).Where("series_id = ?", c.Param("id")).Update("series_id", nil).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.TestSeries{}, "id = ?", c.Param("id")).Error
+	})
+	if err != nil {
+		respondErr(c, http.StatusInternalServerError, "internal", "could not delete")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": true})
+}
