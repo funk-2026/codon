@@ -523,3 +523,196 @@ func (h *StudyHandler) MyFlashcardActivity(c *gin.Context) {
 		WHERE st.user_id = ? AND st.reps > 0 ORDER BY st.updated_at`, user.ID).Scan(&rows)
 	c.JSON(http.StatusOK, gin.H{"items": rows})
 }
+
+// ── Schema management (teachers and admins) ─────────────────────────────────
+
+type schemaListRow struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	SubjectID uuid.UUID `json:"subject_id"`
+	Subject   string    `json:"subject"`
+	ChapterID uuid.UUID `json:"chapter_id"`
+	Chapter   string    `json:"chapter"`
+	Total     int       `json:"total"`
+	Rows      int       `json:"rows"`
+}
+
+// ManageSchemaList lists every topic of a course with its totals, for editing.
+func (h *StudyHandler) ManageSchemaList(c *gin.Context) {
+	rows := []schemaListRow{}
+	q := `SELECT t.id, t.name, t.subject_id, s.name AS subject, t.chapter_id, ch.name AS chapter,
+		COALESCE(sum(y.questions), 0)::int AS total, count(y.id)::int AS rows
+		FROM schema_topics t JOIN subjects s ON s.id = t.subject_id JOIN chapters ch ON ch.id = t.chapter_id
+		LEFT JOIN schema_years y ON y.topic_id = t.id WHERE 1 = 1`
+	args := []interface{}{}
+	if cid := c.Query("course_id"); cid != "" {
+		q += " AND t.course_id = ?"
+		args = append(args, cid)
+	}
+	h.DB.WithContext(c.Request.Context()).Raw(q+" GROUP BY t.id, s.name, ch.name, ch.order_index ORDER BY s.name, ch.order_index, t.order_index, t.name", args...).Scan(&rows)
+	c.JSON(http.StatusOK, gin.H{"topics": rows})
+}
+
+type schemaTopicReq struct {
+	CourseID  string  `json:"course_id"`
+	SubjectID string  `json:"subject_id"`
+	ChapterID string  `json:"chapter_id"`
+	Name      *string `json:"name"`
+}
+
+func (h *StudyHandler) ManageSchemaCreate(c *gin.Context) {
+	var r schemaTopicReq
+	if c.ShouldBindJSON(&r) != nil || r.Name == nil || strings.TrimSpace(*r.Name) == "" {
+		respondErr(c, http.StatusBadRequest, "invalid_body", "a topic name is needed")
+		return
+	}
+	course, e1 := uuid.Parse(r.CourseID)
+	subject, e2 := uuid.Parse(r.SubjectID)
+	chapter, e3 := uuid.Parse(r.ChapterID)
+	if e1 != nil || e2 != nil || e3 != nil {
+		respondErr(c, http.StatusBadRequest, "invalid_body", "choose the course, subject and chapter")
+		return
+	}
+	var ch models.Chapter
+	if h.DB.Where("id = ? AND subject_id = ?", chapter, subject).First(&ch).Error != nil {
+		respondErr(c, http.StatusBadRequest, "invalid_chapter", "that chapter is not in that subject")
+		return
+	}
+	var next int
+	h.DB.Model(&models.SchemaTopic{}).Where("chapter_id = ?", chapter).Select("COALESCE(max(order_index), 0) + 1").Scan(&next)
+	t := models.SchemaTopic{CourseID: course, SubjectID: subject, ChapterID: chapter, Name: strings.TrimSpace(*r.Name), OrderIndex: next}
+	if err := h.DB.Create(&t).Error; err != nil {
+		respondErr(c, http.StatusInternalServerError, "internal", "could not save")
+		return
+	}
+	c.JSON(http.StatusCreated, t)
+}
+
+// ManageSchemaUpdate renames a topic, and may move it to another chapter of the same subject.
+func (h *StudyHandler) ManageSchemaUpdate(c *gin.Context) {
+	var t models.SchemaTopic
+	if h.DB.First(&t, "id = ?", c.Param("id")).Error != nil {
+		respondErr(c, http.StatusNotFound, "not_found", "topic not found")
+		return
+	}
+	var r schemaTopicReq
+	if c.ShouldBindJSON(&r) != nil {
+		respondErr(c, http.StatusBadRequest, "invalid_body", "bad body")
+		return
+	}
+	if r.Name != nil {
+		n := strings.TrimSpace(*r.Name)
+		if n == "" {
+			respondErr(c, http.StatusBadRequest, "invalid_body", "a topic name is needed")
+			return
+		}
+		t.Name = n
+	}
+	if r.ChapterID != "" && r.ChapterID != t.ChapterID.String() {
+		var ch models.Chapter
+		if h.DB.Where("id = ? AND subject_id = ?", r.ChapterID, t.SubjectID).First(&ch).Error != nil {
+			respondErr(c, http.StatusBadRequest, "invalid_chapter", "that chapter is not in this topic's subject")
+			return
+		}
+		t.ChapterID = ch.ID
+	}
+	h.DB.Save(&t)
+	c.JSON(http.StatusOK, t)
+}
+
+// ManageSchemaDelete removes a topic with its year rows and every student's status on it.
+func (h *StudyHandler) ManageSchemaDelete(c *gin.Context) {
+	id := c.Param("id")
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("topic_id = ?", id).Delete(&models.SchemaYear{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("topic_id = ?", id).Delete(&models.SchemaStatus{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.SchemaTopic{}, "id = ?", id).Error
+	})
+	if err != nil {
+		respondErr(c, http.StatusInternalServerError, "internal", "could not delete")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": true})
+}
+
+// ManageSchemaYears replaces a topic's Year | Subtopic | Qs rows.
+func (h *StudyHandler) ManageSchemaYears(c *gin.Context) {
+	var t models.SchemaTopic
+	if h.DB.First(&t, "id = ?", c.Param("id")).Error != nil {
+		respondErr(c, http.StatusNotFound, "not_found", "topic not found")
+		return
+	}
+	var r struct {
+		Rows []struct {
+			Year      string `json:"year"`
+			Subtopic  string `json:"subtopic"`
+			Questions int    `json:"questions"`
+		} `json:"rows"`
+	}
+	if c.ShouldBindJSON(&r) != nil || len(r.Rows) > 500 {
+		respondErr(c, http.StatusBadRequest, "invalid_body", "send up to 500 rows")
+		return
+	}
+	var out []models.SchemaYear
+	for i, row := range r.Rows {
+		y, re, ok := parseYear(row.Year)
+		if !ok || row.Questions < 0 {
+			respondErr(c, http.StatusUnprocessableEntity, "invalid_rows", "row "+strconv.Itoa(i+1)+": the year must look like 2022 or 2022 Re, and questions must be 0 or more")
+			return
+		}
+		out = append(out, models.SchemaYear{TopicID: t.ID, Year: y, ReExam: re, Subtopic: strings.TrimSpace(row.Subtopic), Questions: row.Questions})
+	}
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("topic_id = ?", t.ID).Delete(&models.SchemaYear{}).Error; err != nil {
+			return err
+		}
+		if len(out) > 0 {
+			return tx.Create(&out).Error
+		}
+		return nil
+	})
+	if err != nil {
+		respondErr(c, http.StatusInternalServerError, "internal", "could not save")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"rows": len(out)})
+}
+
+// PulseMove swaps an item with its neighbour in the same chapter (direction "up" or "down").
+func (h *StudyHandler) TeacherPulseMove(c *gin.Context) {
+	var it models.PulseItem
+	if h.DB.First(&it, "id = ?", c.Param("id")).Error != nil {
+		respondErr(c, http.StatusNotFound, "not_found", "item not found")
+		return
+	}
+	var r struct {
+		Direction string `json:"direction"`
+	}
+	if c.ShouldBindJSON(&r) != nil || (r.Direction != "up" && r.Direction != "down") {
+		respondErr(c, http.StatusBadRequest, "invalid_body", "direction must be up or down")
+		return
+	}
+	var peers []models.PulseItem
+	h.DB.Where("chapter_id = ? AND is_active", it.ChapterID).Order("order_index, created_at").Find(&peers)
+	idx := -1
+	for i, p := range peers {
+		if p.ID == it.ID {
+			idx = i
+		}
+	}
+	j := idx - 1
+	if r.Direction == "down" {
+		j = idx + 1
+	}
+	if idx >= 0 && j >= 0 && j < len(peers) {
+		peers[idx], peers[j] = peers[j], peers[idx]
+	}
+	for i := range peers {
+		h.DB.Model(&models.PulseItem{}).Where("id = ?", peers[i].ID).Update("order_index", i+1)
+	}
+	c.JSON(http.StatusOK, gin.H{"moved": true})
+}

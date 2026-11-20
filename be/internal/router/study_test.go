@@ -85,3 +85,41 @@ func TestPulseTeacherCreateReadAndReset(t *testing.T) {
 		t.Fatalf("reset keeps the content: %d", left)
 	}
 }
+
+func TestSchemaAndPulseManagement(t *testing.T) {
+	e := newEnv(t)
+	tr, s := &e.w.Teacher, &e.w.Student
+	base := map[string]interface{}{"course_id": e.w.Course.ID, "subject_id": e.w.Subject.ID, "chapter_id": e.w.Chapter.ID}
+	if code, _ := e.do("POST", "/teacher/schema/topics", s, map[string]interface{}{"name": "x"}); code != 403 {
+		t.Fatalf("students cannot manage: %d", code)
+	}
+	body := map[string]interface{}{"course_id": base["course_id"], "subject_id": base["subject_id"], "chapter_id": base["chapter_id"], "name": "Entropy"}
+	topic := e.mustDo(201, "POST", "/teacher/schema/topics", tr, body)
+	id := str(topic, "id")
+	e.mustDo(200, "PATCH", "/teacher/schema/topics/"+id, tr, map[string]interface{}{"name": "Entropy and heat"})
+	if code, _ := e.do("PUT", "/teacher/schema/topics/"+id+"/years", tr, map[string]interface{}{"rows": []map[string]interface{}{{"year": "abc", "questions": 1}}}); code != 422 {
+		t.Fatalf("bad year: %d", code)
+	}
+	e.mustDo(200, "PUT", "/teacher/schema/topics/"+id+"/years", tr, map[string]interface{}{"rows": []map[string]interface{}{{"year": "2023", "subtopic": "", "questions": 4}, {"year": "2022 Re", "subtopic": "Heat", "questions": 1}}})
+	list := e.mustDo(200, "GET", "/teacher/schema/topics?course_id="+e.w.Course.ID.String(), tr, nil)["topics"].([]interface{})
+	row := list[0].(map[string]interface{})
+	if len(list) != 1 || str(row, "name") != "Entropy and heat" || num(row, "total") != 5 || num(row, "rows") != 2 {
+		t.Fatalf("list: %v", list)
+	}
+	e.mustDo(200, "DELETE", "/teacher/schema/topics/"+id, tr, nil)
+	if n := len(e.mustDo(200, "GET", "/teacher/schema/topics", tr, nil)["topics"].([]interface{})); n != 0 {
+		t.Fatalf("deleted: %d", n)
+	}
+
+	// pulse: edit and reorder
+	pb := map[string]interface{}{"course_id": base["course_id"], "subject_id": base["subject_id"], "chapter_id": base["chapter_id"], "title": "One", "body": "first item body"}
+	a := e.mustDo(201, "POST", "/teacher/pulse", tr, pb)
+	pb["title"] = "Two"
+	b := e.mustDo(201, "POST", "/teacher/pulse", tr, pb)
+	e.mustDo(200, "PATCH", "/teacher/pulse/"+str(a, "id"), tr, map[string]interface{}{"title": "One edited"})
+	e.mustDo(200, "POST", "/teacher/pulse/"+str(b, "id")+"/move", tr, map[string]interface{}{"direction": "up"})
+	items := e.mustDo(200, "GET", "/pulse", s, nil)["items"].([]interface{})
+	if len(items) != 2 || str(items[0].(map[string]interface{}), "title") != "Two" || str(items[1].(map[string]interface{}), "title") != "One edited" {
+		t.Fatalf("order after move: %v", items)
+	}
+}

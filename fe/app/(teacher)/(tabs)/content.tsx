@@ -147,6 +147,7 @@ export default function TeacherContentRoute() {
       </View>
       <View style={{ paddingHorizontal: space.md, marginTop: space.xs, alignItems: 'flex-start' }}>
         <TextButton label="Pulse items (one-minute revision)" onPress={() => router.push(ROUTES.teacher.pulseItems)} />
+        <TextButton label="Schema topics" onPress={() => router.push(ROUTES.teacher.schemaTopics)} />
       </View>
       <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
         <ManageAllBanner />

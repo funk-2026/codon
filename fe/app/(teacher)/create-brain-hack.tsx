@@ -25,6 +25,7 @@ export default function CreateBrainHackRoute() {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string | undefined>();
   const [cats, setCats] = useState<string[]>(DEFAULT_CATS);
+  const [newCat, setNewCat] = useState('');
   const [body, setBody] = useState('');
   const [kind, setKind] = useState<'article' | 'video'>('article');
   const [videoUrl, setVideoUrl] = useState('');
@@ -63,11 +64,11 @@ export default function CreateBrainHackRoute() {
 
   const errors = useMemo(() => ({
     title: title.trim().length < 3 ? 'Give it a title (at least 3 characters).' : title.length > 120 ? 'Keep the title under 120 characters.' : null,
-    category: category ? null : 'Pick a category.',
+    category: (newCat.trim() || category) ? (newCat.trim().length > 30 ? 'Keep a new category under 30 characters.' : null) : 'Pick a category or type a new one.',
     body: kind === 'video' ? null : plainText(body, 'rich_v1').trim().length < 20 && !/!\[/.test(body) ? 'Write the tip (at least a couple of sentences).' : body.length > MAX_BODY ? 'Too long.' : null,
     video: kind === 'article' ? null : !/^https:\/\/\S+$/.test(videoUrl.trim()) ? 'Paste the video link. It must start with https://' : null,
     length: kind === 'article' || !length.trim() ? null : parseDuration(length) == null ? 'Use minutes and seconds, like 2:30.' : null,
-  }), [title, category, body, kind, videoUrl, length]);
+  }), [title, category, newCat, body, kind, videoUrl, length]);
   const valid = !errors.title && !errors.category && !errors.body && !errors.video && !errors.length;
 
   const save = async (submit: boolean) => {
@@ -76,8 +77,8 @@ export default function CreateBrainHackRoute() {
     setBusy(submit ? 'submit' : 'draft');
     try {
       const payload = kind === 'video'
-        ? { title: title.trim(), category: category!, kind: 'video' as const, video_url: videoUrl.trim(), duration_seconds: parseDuration(length) ?? 0 }
-        : { title: title.trim(), category: category!, kind: 'article' as const, body: body.trim(), read_minutes: readMinutes(body) };
+        ? { title: title.trim(), category: (newCat.trim() || category)!, kind: 'video' as const, video_url: videoUrl.trim(), duration_seconds: parseDuration(length) ?? 0 }
+        : { title: title.trim(), category: (newCat.trim() || category)!, kind: 'article' as const, body: body.trim(), read_minutes: readMinutes(body) };
       let id = savedId;
       if (id) await updateBrainHackApi(id, payload);
       else id = (await createBrainHackApi(payload)).id;
@@ -108,7 +109,8 @@ export default function CreateBrainHackRoute() {
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg, paddingBottom: 120 + insets.bottom }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <SegmentedControl options={[{ key: 'article' as const, label: 'Article' }, { key: 'video' as const, label: 'Video' }]} value={kind} onChange={setKind} />
         <InputField label="Title" value={title} onChangeText={setTitle} error={touched ? errors.title ?? undefined : undefined} />
-        <SelectField label="Category" value={category} options={cats.map((c) => ({ value: c, label: c }))} onChange={setCategory} error={touched ? errors.category : null} />
+        <SelectField label="Category" value={newCat.trim() ? undefined : category} options={cats.map((c) => ({ value: c, label: c }))} onChange={(v) => { setCategory(v); setNewCat(''); }} error={touched ? errors.category : null} />
+        <InputField label="Or a new category" value={newCat} onChangeText={setNewCat} maxLength={30} helperText="It appears for students once a Brain Hack in it is published." />
         {kind === 'article' ? (
           <RichField
             label="The tip" required value={body} onChange={setBody} media={media} onMedia={(v: MediaView) => setMedia((m) => ({ ...m, [v.id]: v }))}

@@ -42,3 +42,14 @@ export const deletePulse = (id: string) => apiFetch<{ deleted: boolean }>(`/teac
 export type SchemaImportRow = { subject: string; chapter: string; topic: string; year: string; subtopic: string; questions: number };
 export const importSchema = (courseId: string, rows: SchemaImportRow[]) =>
   apiFetch<{ rows: number; topics: number; new_topics: number }>('/admin/schema/import', { method: 'POST', body: JSON.stringify({ course_id: courseId, rows }) });
+
+export const updatePulse = (id: string, b: { title?: string; body?: string }) => apiFetch<{ id: string }>(`/teacher/pulse/${id}`, { method: 'PATCH', body: JSON.stringify(b) });
+export const movePulse = (id: string, direction: 'up' | 'down') => apiFetch<{ moved: boolean }>(`/teacher/pulse/${id}/move`, { method: 'POST', body: JSON.stringify({ direction }) });
+
+export type ManagedTopic = { id: string; name: string; subject_id: string; subject: string; chapter_id: string; chapter: string; total: number; rows: number };
+export const listManagedTopics = (courseId?: string) => apiFetch<{ topics: ManagedTopic[] }>(`/teacher/schema/topics${qs({ course_id: courseId })}`).then((r) => r.topics ?? []);
+export const createManagedTopic = (b: { course_id: string; subject_id: string; chapter_id: string; name: string }) => apiFetch<{ id: string }>('/teacher/schema/topics', { method: 'POST', body: JSON.stringify(b) });
+export const renameManagedTopic = (id: string, name: string) => apiFetch<{ id: string }>(`/teacher/schema/topics/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+export const deleteManagedTopic = (id: string) => apiFetch<{ deleted: boolean }>(`/teacher/schema/topics/${id}`, { method: 'DELETE' });
+export const saveTopicYears = (id: string, rows: { year: string; subtopic: string; questions: number }[]) =>
+  apiFetch<{ rows: number }>(`/teacher/schema/topics/${id}/years`, { method: 'PUT', body: JSON.stringify({ rows }) });

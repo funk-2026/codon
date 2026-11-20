@@ -253,11 +253,14 @@ func (h *FlashcardHandler) SubmitDeck(c *gin.Context) {
 	}
 	gate := func(ctx context.Context, id uuid.UUID) error {
 		var d models.FlashcardDeck
-		if err := h.DB.WithContext(ctx).Select("id", "card_count").First(&d, "id = ?", id).Error; err != nil {
+		if err := h.DB.WithContext(ctx).Select("id", "card_count", "chapter_id").First(&d, "id = ?", id).Error; err != nil {
 			return err
 		}
 		if d.CardCount < 1 {
 			return services.Invalid("incomplete", "add at least one card first")
+		}
+		if d.ChapterID == nil {
+			return services.Invalid("chapter_required", "choose the subject and chapter this deck belongs to, so students find it under Flashcards")
 		}
 		return nil
 	}

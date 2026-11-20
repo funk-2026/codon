@@ -26,7 +26,7 @@ const GROUPS: { title: string; tools: Tool[] }[] = [
       { label: 'Live content', text: 'Pull something back with a reason', Icon: ShieldCheck, href: ROUTES.admin.liveContent },
       { label: 'Home banners', text: 'What students see at the top of Home', Icon: Megaphone, href: ROUTES.admin.homeUpdates },
       { label: 'Documents', text: 'Guides, board papers, Schema PDF', Icon: FilePdf, href: ROUTES.admin.referenceDocs },
-      { label: 'Schema table', text: 'Load topics and the questions asked per year', Icon: FilePdf, href: ROUTES.admin.schemaImport },
+      { label: 'Schema topics', text: 'Add, edit, delete, or import the topic table', Icon: FilePdf, href: ROUTES.admin.schemaTopics },
       { label: 'Pulse items', text: 'One-minute revision items by chapter', Icon: Tag, href: ROUTES.admin.pulseItems },
       { label: 'Faculty', text: 'The roster under Our team', Icon: UsersThree, href: ROUTES.admin.faculty },
       { label: 'Home message', text: 'The note with a photo on Home', Icon: HandHeart, href: ROUTES.admin.homeMessage },

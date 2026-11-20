@@ -13,6 +13,10 @@ func TestCsvImportedDeckReachesStudents(t *testing.T) {
 		{"front": "Powerhouse of the cell", "back": "Mitochondria"},
 		{"front": "Unit of force", "back": "Newton"},
 	}})
+	if code, body := e.do("POST", "/teacher/flashcard-decks/"+did+"/submit-for-review", &e.w.Teacher, nil); code != 422 || str(body, "code") != "chapter_required" {
+		t.Fatalf("a deck needs a chapter before review: %d %v", code, body)
+	}
+	e.mustDo(200, "PATCH", "/teacher/flashcard-decks/"+did, &e.w.Teacher, map[string]interface{}{"subject_id": e.w.Subject.ID.String(), "chapter_id": e.w.Chapter.ID.String()})
 	e.mustDo(200, "POST", "/teacher/flashcard-decks/"+did+"/submit-for-review", &e.w.Teacher, nil)
 	e.mustDo(200, "POST", "/admin/flashcard-decks/"+did+"/approve", &e.w.Admin, nil)
 	e.mustDo(200, "POST", "/teacher/flashcard-decks/"+did+"/publish", &e.w.Teacher, nil)

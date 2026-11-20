@@ -5,7 +5,7 @@ import { InputField, PrimaryButton, Screen, ScreenHeader, SelectField, TextButto
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useCourses } from '@/src/queries/curriculum';
 import { getCurriculum } from '@/src/api/courses';
-import { createPulse, deletePulse, listTeacherPulse } from '@/src/api/study';
+import { createPulse, deletePulse, listTeacherPulse, movePulse, updatePulse, type PulseItem } from '@/src/api/study';
 
 /** Teachers and admins add one-minute Pulse items under a chapter. They show to students straight away. */
 export function PulseAuthor() {
@@ -18,6 +18,7 @@ export function PulseAuthor() {
   const [chapterId, setChapterId] = useState<string | undefined>();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
 
   const tree = useQuery({ queryKey: ['curriculum-tree', courseId], queryFn: () => getCurriculum(courseId as string), enabled: !!courseId, select: (r) => r.course.subjects ?? [] });
   const mine = useQuery({ queryKey: ['teacher-pulse', courseId], queryFn: () => listTeacherPulse(courseId), enabled: !!courseId });
@@ -35,6 +36,30 @@ export function PulseAuthor() {
     },
     onError: () => show('Couldn’t save. Your text is still here.', 'error'),
   });
+  const save = useMutation({
+    mutationFn: () => updatePulse(editId!, { title: title.trim(), body: body.trim() }),
+    onSuccess: () => {
+      setEditId(null);
+      setTitle('');
+      setBody('');
+      void qc.invalidateQueries({ queryKey: ['teacher-pulse'] });
+      void qc.invalidateQueries({ queryKey: ['pulse'] });
+      show('Changes saved', 'success');
+    },
+    onError: () => show('Couldn’t save your changes.', 'error'),
+  });
+  const move = useMutation({
+    mutationFn: (v: { id: string; dir: 'up' | 'down' }) => movePulse(v.id, v.dir),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['teacher-pulse'] });
+      void qc.invalidateQueries({ queryKey: ['pulse'] });
+    },
+  });
+  const startEdit = (p: PulseItem) => {
+    setEditId(p.id);
+    setTitle(p.title);
+    setBody(p.body);
+  };
   const del = useMutation({
     mutationFn: (id: string) => deletePulse(id),
     onSuccess: () => {
@@ -55,17 +80,27 @@ export function PulseAuthor() {
         <SelectField label="Chapter" value={chapterId} options={chapters.map((c) => ({ value: c.id, label: c.name }))} onChange={setChapterId} disabled={!subjectId} disabledHint={!subjectId ? 'Pick a subject first' : undefined} />
         <InputField label="Title" value={title} onChangeText={setTitle} maxLength={120} />
         <InputField label="The one-minute read" value={body} onChangeText={setBody} multiline maxLength={1500} helperText="About 150 words reads in a minute." />
-        <PrimaryButton label="Add item" onPress={() => add.mutate()} loading={add.isPending} disabled={!ready} />
+        {editId ? (
+          <View style={{ gap: space.xs }}>
+            <PrimaryButton label="Save changes" onPress={() => save.mutate()} loading={save.isPending} disabled={title.trim().length < 3 || body.trim().length < 10} />
+            <TextButton label="Cancel editing" onPress={() => { setEditId(null); setTitle(''); setBody(''); }} />
+          </View>
+        ) : (
+          <PrimaryButton label="Add item" onPress={() => add.mutate()} loading={add.isPending} disabled={!ready} />
+        )}
 
         {courseId ? (
           <View style={{ gap: space.xs }}>
             <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>ALREADY ADDED ({mine.data?.length ?? 0})</Text>
-            {(mine.data ?? []).map((p) => (
+            {(mine.data ?? []).map((p, i, all) => (
               <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.sm }}>
                 <View style={{ flex: 1 }}>
                   <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]} numberOfLines={2}>{p.title}</Text>
                   <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{p.subject_name} › {p.chapter_name}</Text>
                 </View>
+                <TextButton label="↑" onPress={() => move.mutate({ id: p.id, dir: 'up' })} disabled={i === 0 || all[i - 1].chapter_id !== p.chapter_id} />
+                <TextButton label="↓" onPress={() => move.mutate({ id: p.id, dir: 'down' })} disabled={i === all.length - 1 || all[i + 1].chapter_id !== p.chapter_id} />
+                <TextButton label="Edit" onPress={() => startEdit(p)} />
                 <TextButton label="Delete" onPress={() => del.mutate(p.id)} />
               </View>
             ))}

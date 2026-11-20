@@ -221,7 +221,7 @@ export default function FlashcardDeckRoute() {
       }
     } catch (e) {
       const code = e instanceof ApiError ? e.code : undefined;
-      show(code === 'incomplete' ? 'Add at least one card first.' : code === 'not_approved' ? 'Only approved decks can be published.' : 'Something went wrong. Try again.', 'error');
+      show(code === 'incomplete' ? 'Add at least one card first.' : code === 'chapter_required' ? 'Choose the subject and chapter first, then save details.' : code === 'not_approved' ? 'Only approved decks can be published.' : 'Something went wrong. Try again.', 'error');
     } finally {
       setBusy(null);
     }
@@ -308,8 +308,8 @@ export default function FlashcardDeckRoute() {
             disabled={!editable || !!deck}
             disabledHint={deck ? 'The course is fixed once a deck is created' : undefined}
           />
-          <SelectField label="Subject (optional)" value={subjectId} options={subjectOpts} allowClear onChange={(v) => { setSubjectId(v); setChapterId(undefined); }} disabled={!editable || subjectOpts.length === 0} />
-          <SelectField label="Chapter (optional)" value={chapterId} options={chapterOpts} allowClear onChange={setChapterId} disabled={!editable || !subjectId} disabledHint={!subjectId ? 'Pick a subject first' : undefined} />
+          <SelectField label="Subject" value={subjectId} options={subjectOpts} onChange={(v) => { setSubjectId(v); setChapterId(undefined); }} disabled={!editable || subjectOpts.length === 0} />
+          <SelectField label="Chapter" value={chapterId} options={chapterOpts} onChange={setChapterId} disabled={!editable || !subjectId} disabledHint={!subjectId ? 'Pick a subject first' : undefined} />
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 }}>
             <View style={{ flex: 1 }}>
               <Text style={[type['type/body-m'], { color: color('text/primary') }]}>Free for everyone</Text>
@@ -365,7 +365,7 @@ export default function FlashcardDeckRoute() {
                 label={deck.status === 'rejected' ? 'Resubmit for review' : 'Submit for review'}
                 onPress={() => setSubmitOpen(true)}
                 loading={busy === 'submit'}
-                disabled={cards.length === 0 || detailsDirty}
+                disabled={cards.length === 0 || detailsDirty || !chapterId}
               />
             ) : null}
             {editable && detailsDirty ? <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Save the details first.</Text> : null}
