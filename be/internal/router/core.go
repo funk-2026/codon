@@ -69,6 +69,8 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 	{
 		me.GET("", d.ProfileH.GetMe)
 		me.PATCH("", d.ProfileH.UpdateMe)
+		me.GET("/resets", d.ProfileH.ResetStatus)
+		me.POST("/resets/:scope", d.ProfileH.ResetContent)
 		me.GET("/progress", d.ProfileH.GetProgress)
 		me.GET("/progress/breakdown", d.ProfileH.GetProgressBreakdown)
 		me.GET("/recent-content", d.ProfileH.GetRecentContent)
@@ -108,6 +110,10 @@ func RegisterCore(api *gin.RouterGroup, d *CoreDeps) {
 		student.GET("/chapters/:chapter_id/content", d.ContentH.GetChapterContent)
 		student.GET("/content/:id", d.ContentH.GetContentItem)
 		student.POST("/content/:id/heartbeat", d.ProfileH.ContentHeartbeat)
+		student.POST("/content/:id/complete", d.ContentH.SetLectureCompleted)
+		student.GET("/subjects/:id/videos", d.ContentH.SubjectVideos)
+		student.GET("/videos/free", d.ContentH.FreeVideos)
+		student.GET("/me/video-completions", d.ContentH.VideoCompletions)
 	}
 
 	// ── Teacher: lecture content ──

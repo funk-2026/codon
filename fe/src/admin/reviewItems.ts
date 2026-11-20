@@ -1,3 +1,4 @@
+import { formatDate } from '@/src/format/date';
 /**
  * Everything waiting on an admin's approval, in one shape: tests, videos, documents, Brain Hacks
  * and flashcard decks. Pure logic so it can be tested; the screens and fetching live elsewhere.
@@ -40,7 +41,7 @@ export const DETAIL_TYPE: Record<ReviewType, string> = {
 
 type Person = { name?: string | null; phone_number?: string | null } | undefined;
 const who = (p: Person, fallback = 'Unknown teacher') => p?.name || p?.phone_number || fallback;
-const day = (iso?: string) => new Date(iso || Date.now()).toLocaleDateString();
+const day = (iso?: string) => formatDate(iso || Date.now());
 const join = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(' · ');
 
 export function buildReviewItems(src: {

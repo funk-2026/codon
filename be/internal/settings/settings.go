@@ -32,7 +32,7 @@ var Defaults = map[string]string{
 
 	// Custom test limits
 	"custom_test.min_questions":          "5",
-	"custom_test.max_questions":          "90",
+	"custom_test.max_questions":          "100",
 	"custom_test.min_duration_minutes":   "5",
 	"custom_test.max_duration_minutes":   "180",
 	"custom_test.eligible_sources":       "qbank,practice,pyq",
@@ -40,7 +40,7 @@ var Defaults = map[string]string{
 	"custom_test.free_daily_generations": "3",
 	"custom_test.max_active_generated":   "50",
 	"custom_test.generated_ttl_days":     "30",
-	"custom_test.max_templates":          "30",
+	"custom_test.max_templates":          "3",
 	"custom_test.count_rate_per_minute":  "60",
 	"custom_test.generate_rate_per_hour": "60",
 
@@ -48,18 +48,32 @@ var Defaults = map[string]string{
 	"analytics.events": "false",
 
 	// App version gate, store links, legal pages and support contact (all blank until an admin sets them)
-	"app.min_version":       "",
-	"app.store_url_android": "",
-	"app.store_url_ios":     "",
-	"legal.terms_url":       "",
-	"legal.privacy_url":     "",
-	"support.email":         "",
-	"support.whatsapp":      "",
+	"app.min_version":             "",
+	"app.store_url_android":       "",
+	"app.store_url_ios":           "",
+	"legal.terms_url":             "",
+	"legal.privacy_url":           "",
+	"support.email":               "",
+	"support.whatsapp":            "",
+	"support.phone":               "",
+	"support.contact_name":        "",
+	"legal.cancellation_url":      "",
+	"app.share_url":               "",
+	"social.instagram_url":        "",
+	"social.youtube_url":          "",
+	"social.telegram_url":         "",
+	"social.whatsapp_channel_url": "",
+	"social.facebook_url":         "",
 
 	// Exams: percentile is hidden until this many students have a score (a rank is always shown as "rank X of N")
 	"results.percentile_min": "30",
+	// A QBank result shows "better than x% of your peers" only once this many other students have solved the module.
+	"results.qbank_peers_min": "5",
 	// Exams: the earliest a live test's results may open after its window closes, so staff can check the key
 	"exams.min_result_gap_minutes": "15",
+
+	// A student may clear each kind of their own study data (bookmarks, QBank, flashcards, Pulse) once per this many days
+	"resets.cooldown_days": "90",
 
 	// Attempts
 	"attempt.answer_grace_seconds": "10",

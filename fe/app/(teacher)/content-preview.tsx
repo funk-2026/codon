@@ -8,7 +8,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, StatusBadge, TextButton, type BadgeStatus, useToast, ScreenHeader, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { submitTestForReview, submitContentForReview, publishContent, publishTest, getTeacherContent, getTeacherTest, deleteTest, deleteContent, updateContent, cloneTest, transferItem, scheduleItem, getReviewStats } from '@/src/api/teacher';
-import { LecturePdfEditor, type PdfKind, type PdfSlot } from '@/src/content/LecturePdfEditor';
+import { EMPTY_PDF_SLOTS, LecturePdfEditor, PDF_FIELD, type PdfKind, type PdfSlot } from '@/src/content/LecturePdfEditor';
 import { Test, AuthoredQuestion } from '@/src/api/tests';
 import { QuestionPreviewCard, type MediaMap } from '@/src/rich';
 import { ContentItem } from '@/src/api/content';
@@ -21,6 +21,7 @@ import { ReplaceVideo } from '@/src/teacher/ReplaceVideo';
 import { ItemStatsCard } from '@/src/teacher/ItemStatsCard';
 import { KIND_LABEL, STYLE_LABEL, patternHint } from '@/src/exam/logic';
 import { describeWait, formatScheduled } from '@/src/teacher/schedule';
+import { formatDateTime } from '@/src/format/date';
 
 type ContentType = 'Test' | 'Video' | 'Document' | 'Brain Hack';
 type Status = 'draft' | 'pending' | 'approved' | 'published' | 'rejected';
@@ -106,7 +107,7 @@ function ContentPreview() {
   const [testData, setTestData] = useState<Test | null>(null);
   const [contentData, setContentData] = useState<ContentItem | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
-  const [pdfSlots, setPdfSlots] = useState<Record<PdfKind, PdfSlot>>({ notes: { present: false }, annotated: { present: false } });
+  const [pdfSlots, setPdfSlots] = useState<Record<PdfKind, PdfSlot>>({ ...EMPTY_PDF_SLOTS });
   const player = useVideoPlayer(videoUrl ?? null, (p) => {
     p.loop = false;
   });
@@ -148,7 +149,7 @@ function ContentPreview() {
       getTeacherContent(id).then((res) => {
         setContentData(res.content);
         setVideoUrl(res.url);
-        setPdfSlots({ notes: { present: res.has_notes_pdf }, annotated: { present: res.has_annotated_pdf } });
+        setPdfSlots({ notes: { present: res.has_notes_pdf }, annotated: { present: res.has_annotated_pdf }, fourth_book: { present: !!res.has_fourth_book_pdf }, board_questions: { present: !!res.has_board_questions_pdf } });
         const rawContentType = String(res.content.content_type);
         setResolvedType(
           rawContentType === 'video' ? 'Video' : rawContentType === 'brain_hack' ? 'Brain Hack' : 'Document'
@@ -190,7 +191,7 @@ function ContentPreview() {
       loadItem();
       show('Sent for review', 'success');
     } catch (err) {
-      show(err instanceof ApiError ? err.message : 'Failed to submit', 'error');
+      show(err instanceof ApiError ? err.message : 'Couldn’t submit. Try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -256,7 +257,7 @@ function ContentPreview() {
       void qc.invalidateQueries({ queryKey: ['teacher'] });
       show('Now live for students', 'success');
     } catch (err) {
-      show(err instanceof ApiError ? err.message : 'Failed to publish', 'error');
+      show(err instanceof ApiError ? err.message : 'Couldn’t publish. Try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -272,7 +273,7 @@ function ContentPreview() {
       show(contentType === 'Test' ? 'Test deleted' : 'Lesson deleted', 'success');
       goBack();
     } catch (err) {
-      show('Failed to delete', 'error');
+      show('Couldn’t delete. Try again.', 'error');
       setDeleting(false);
       setDeleteConfirmOpen(false);
     }
@@ -347,7 +348,7 @@ function ContentPreview() {
             <EmptyState
               icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
               title="Couldn't load preview"
-              description="Something went wrong fetching this item."
+              description="Couldn’t load this item. Check your connection and try again."
               action={<TextButton label="Retry" onPress={loadItem} />}
             />
           ) : contentType === 'Test' ? (
@@ -367,7 +368,7 @@ function ContentPreview() {
                 <View style={{ paddingHorizontal: space.sm, marginTop: space.xs, gap: 2 }}>
                   <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
                     {STYLE_LABEL[testData.exam_style ?? 'school']} · {KIND_LABEL[testData.kind ?? 'chapter']}
-                    {testData.delivery === 'live' && testData.opens_at ? ` · Live ${new Date(testData.opens_at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ' · Anytime'}
+                    {testData.delivery === 'live' && testData.opens_at ? ` · Live ${formatDateTime(testData.opens_at)}` : ' · Anytime'}
                   </Text>
                   {patternHint(testData.exam_style ?? 'school', testData.kind ?? 'chapter', questionCountNum, testData.duration_minutes) ? (
                     <Text style={[type['type/caption'], { color: color('semantic/warning') }]}>{patternHint(testData.exam_style ?? 'school', testData.kind ?? 'chapter', questionCountNum, testData.duration_minutes)}</Text>
@@ -457,7 +458,7 @@ function ContentPreview() {
                   <LecturePdfEditor
                     slots={pdfSlots}
                     onChange={async (kind, key, name) => {
-                      await updateContent(String(id), kind === 'notes' ? { notes_pdf_key: key ?? '' } : { annotated_pdf_key: key ?? '' });
+                      await updateContent(String(id), { [PDF_FIELD[kind]]: key ?? '' });
                       setPdfSlots((s) => ({ ...s, [kind]: { present: !!key, name } }));
                       show(key ? 'PDF attached — students see it right away' : 'PDF removed', 'success');
                     }}

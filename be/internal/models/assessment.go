@@ -77,11 +77,13 @@ type Test struct {
 	Visibility             string     `gorm:"type:text;not null;default:'public'" json:"visibility"`
 	Blueprint              JSONB      `gorm:"type:jsonb" json:"blueprint,omitempty"`
 	BlueprintSchemaVersion *int       `json:"blueprint_schema_version,omitempty"`
-	Mode                   string     `gorm:"type:text;not null;default:'exam'" json:"mode"`
-	ExpiresAt              *time.Time `json:"expires_at,omitempty"`
-	ArchivedAt             *time.Time `gorm:"index" json:"archived_at,omitempty"`
-	RatingAvg              float64    `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
-	RatingCount            int        `gorm:"not null;default:0" json:"rating_count"`
+	// ShareCode is the code of a custom module: friends enter it to solve the same questions.
+	ShareCode   *string    `gorm:"type:text" json:"share_code,omitempty"`
+	Mode        string     `gorm:"type:text;not null;default:'exam'" json:"mode"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	ArchivedAt  *time.Time `gorm:"index" json:"archived_at,omitempty"`
+	RatingAvg   float64    `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
+	RatingCount int        `gorm:"not null;default:0" json:"rating_count"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -104,23 +106,27 @@ type Question struct {
 
 	// Rich-content + metadata (custom test module). All optional/defaulted so
 	// legacy rows keep working exactly as before.
-	ContentFormat  string     `gorm:"type:text;not null;default:'plain'" json:"content_format"`
-	SubjectID      *uuid.UUID `gorm:"type:uuid;index" json:"subject_id,omitempty"`
-	ChapterID      *uuid.UUID `gorm:"type:uuid;index" json:"chapter_id,omitempty"`
-	TopicID        *uuid.UUID `gorm:"type:uuid" json:"topic_id,omitempty"`
-	Difficulty     *string    `gorm:"type:text" json:"difficulty,omitempty"`
-	NCERTClass     *int       `json:"ncert_class,omitempty"`
-	NCERTPage      *int       `json:"ncert_page,omitempty"`
-	SourceType     string     `gorm:"type:text;not null;default:'qbank'" json:"source_type"`
-	SourceYear     *int       `json:"source_year,omitempty"`
-	SourceLabel    *string    `gorm:"type:text" json:"source_label,omitempty"`
-	CustomEligible bool       `gorm:"not null" json:"custom_eligible"`
-	ContentHash    string     `gorm:"type:text;index" json:"-"`
-	QuestionType   string     `gorm:"type:text;not null;default:'mcq_single'" json:"question_type"`
-	Version        int        `gorm:"not null;default:1" json:"version"`
-	Lang           string     `gorm:"type:text;not null;default:'en'" json:"lang"`
-	FlagStatus     string     `gorm:"type:text;not null;default:'active'" json:"flag_status"`
-	Tags           []Tag      `gorm:"-" json:"tags,omitempty"`
+	ContentFormat string     `gorm:"type:text;not null;default:'plain'" json:"content_format"`
+	SubjectID     *uuid.UUID `gorm:"type:uuid;index" json:"subject_id,omitempty"`
+	ChapterID     *uuid.UUID `gorm:"type:uuid;index" json:"chapter_id,omitempty"`
+	TopicID       *uuid.UUID `gorm:"type:uuid" json:"topic_id,omitempty"`
+	Difficulty    *string    `gorm:"type:text" json:"difficulty,omitempty"`
+	NCERTClass    *int       `json:"ncert_class,omitempty"`
+	NCERTPage     *int       `json:"ncert_page,omitempty"`
+	// Where the answer is written up: shown as a "References" block under the explanation, hidden when empty.
+	RefBook        *string `gorm:"type:text" json:"ref_book,omitempty"`
+	RefEdition     *string `gorm:"type:text" json:"ref_edition,omitempty"`
+	RefPages       *string `gorm:"type:text" json:"ref_pages,omitempty"`
+	SourceType     string  `gorm:"type:text;not null;default:'qbank'" json:"source_type"`
+	SourceYear     *int    `json:"source_year,omitempty"`
+	SourceLabel    *string `gorm:"type:text" json:"source_label,omitempty"`
+	CustomEligible bool    `gorm:"not null" json:"custom_eligible"`
+	ContentHash    string  `gorm:"type:text;index" json:"-"`
+	QuestionType   string  `gorm:"type:text;not null;default:'mcq_single'" json:"question_type"`
+	Version        int     `gorm:"not null;default:1" json:"version"`
+	Lang           string  `gorm:"type:text;not null;default:'en'" json:"lang"`
+	FlagStatus     string  `gorm:"type:text;not null;default:'active'" json:"flag_status"`
+	Tags           []Tag   `gorm:"-" json:"tags,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -271,11 +277,20 @@ type CustomTestPreset struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// CustomModuleOpen records that a student opened a friend's custom module with its code, so they may solve it.
+type CustomModuleOpen struct {
+	UserID   uuid.UUID `gorm:"type:uuid;primaryKey" json:"user_id"`
+	TestID   uuid.UUID `gorm:"type:uuid;primaryKey" json:"test_id"`
+	OpenedAt time.Time `json:"opened_at"`
+}
+
 type CustomTestTemplate struct {
 	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
 	Title     string    `gorm:"type:text;not null" json:"title"`
 	Blueprint JSONB     `gorm:"type:jsonb;not null" json:"blueprint"`
+	// Ask lists the filters the student left to choose when the test is made ("I will select this at test time").
+	Ask       JSONB     `gorm:"type:jsonb" json:"ask,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

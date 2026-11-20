@@ -97,30 +97,37 @@ type examMyAttempt struct {
 	Status      string     `json:"status"`
 	Official    bool       `json:"official"`
 	SubmittedAt *time.Time `json:"submitted_at,omitempty"`
+	// Score and TotalMarks are only sent once results are released.
+	Score      *float64 `json:"score,omitempty"`
+	TotalMarks *float64 `json:"total_marks,omitempty"`
 }
 
 type examCard struct {
-	ID                   uuid.UUID      `json:"id"`
-	Title                string         `json:"title"`
-	Kind                 string         `json:"kind"`
-	ExamStyle            string         `json:"exam_style"`
-	Delivery             string         `json:"delivery"`
-	Phase                string         `json:"phase"`
-	OpensAt              *time.Time     `json:"opens_at,omitempty"`
-	LastStartAt          *time.Time     `json:"last_start_at,omitempty"`
-	EndsAt               *time.Time     `json:"ends_at,omitempty"`
-	ResultsAt            *time.Time     `json:"results_at,omitempty"`
-	ResultsReleased      bool           `json:"results_released"`
-	LateEntryMinutes     int            `json:"late_entry_minutes"`
-	DurationMinutes      *int           `json:"duration_minutes,omitempty"`
-	TotalQuestions       int            `json:"total_questions"`
-	RequiresSubscription bool           `json:"requires_subscription"`
-	CourseID             uuid.UUID      `json:"course_id"`
-	ExamYear             *int           `json:"exam_year,omitempty"`
-	AuthorName           *string        `json:"author_name,omitempty"`
-	Series               *examSeriesRef `json:"series,omitempty"`
-	Registered           bool           `json:"registered"`
-	MyAttempt            *examMyAttempt `json:"my_attempt,omitempty"`
+	ID                   uuid.UUID  `json:"id"`
+	Title                string     `json:"title"`
+	Kind                 string     `json:"kind"`
+	ExamStyle            string     `json:"exam_style"`
+	Delivery             string     `json:"delivery"`
+	Phase                string     `json:"phase"`
+	OpensAt              *time.Time `json:"opens_at,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	LastStartAt          *time.Time `json:"last_start_at,omitempty"`
+	EndsAt               *time.Time `json:"ends_at,omitempty"`
+	ResultsAt            *time.Time `json:"results_at,omitempty"`
+	ResultsReleased      bool       `json:"results_released"`
+	LateEntryMinutes     int        `json:"late_entry_minutes"`
+	DurationMinutes      *int       `json:"duration_minutes,omitempty"`
+	TotalQuestions       int        `json:"total_questions"`
+	RequiresSubscription bool       `json:"requires_subscription"`
+	CourseID             uuid.UUID  `json:"course_id"`
+	ExamYear             *int       `json:"exam_year,omitempty"`
+	AuthorName           *string    `json:"author_name,omitempty"`
+	// SubjectName and ChapterName say what a Subject-wise or Mini test covers, so the card does not rely on the title.
+	SubjectName *string        `json:"subject_name,omitempty"`
+	ChapterName *string        `json:"chapter_name,omitempty"`
+	Series      *examSeriesRef `json:"series,omitempty"`
+	Registered  bool           `json:"registered"`
+	MyAttempt   *examMyAttempt `json:"my_attempt,omitempty"`
 }
 
 // Exams lists the published tests (Test Series module) with where each one stands for this student.
@@ -145,6 +152,32 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 		}
 	}
 	authors := authorNames(h.DB.WithContext(ctx), creators)
+	subjectNames, chapterNames := map[uuid.UUID]string{}, map[uuid.UUID]string{}
+	{
+		var subIDs, chIDs []uuid.UUID
+		for i := range tests {
+			if tests[i].SubjectID != nil {
+				subIDs = append(subIDs, *tests[i].SubjectID)
+			}
+			if tests[i].ChapterID != nil {
+				chIDs = append(chIDs, *tests[i].ChapterID)
+			}
+		}
+		if len(subIDs) > 0 {
+			var rows []models.Subject
+			h.DB.WithContext(ctx).Select("id", "name").Where("id IN ?", subIDs).Find(&rows)
+			for _, r := range rows {
+				subjectNames[r.ID] = r.Name
+			}
+		}
+		if len(chIDs) > 0 {
+			var rows []models.Chapter
+			h.DB.WithContext(ctx).Select("id", "name").Where("id IN ?", chIDs).Find(&rows)
+			for _, r := range rows {
+				chapterNames[r.ID] = r.Name
+			}
+		}
+	}
 	series := map[uuid.UUID]examSeriesRef{}
 	if len(seriesIDs) > 0 {
 		var ss []models.TestSeries
@@ -162,14 +195,14 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 			registered[r.TestID] = true
 		}
 		var atts []models.StudentAttempt
-		h.DB.WithContext(ctx).Select("id", "test_id", "status", "official", "submitted_at", "started_at").
+		h.DB.WithContext(ctx).Select("id", "test_id", "status", "official", "submitted_at", "started_at", "score", "total_marks").
 			Where("user_id = ? AND test_id IN ?", user.ID, ids).Order("started_at ASC").Find(&atts)
 		for _, a := range atts { // later attempts replace earlier ones, but the official one and an unfinished one win
 			cur, has := mine[a.TestID]
 			if has && (cur.Official || cur.Status == string(models.AttemptInProgress)) && !(a.Status == models.AttemptInProgress) {
 				continue
 			}
-			mine[a.TestID] = examMyAttempt{ID: a.ID, Status: string(a.Status), Official: a.Official, SubmittedAt: a.SubmittedAt}
+			mine[a.TestID] = examMyAttempt{ID: a.ID, Status: string(a.Status), Official: a.Official, SubmittedAt: a.SubmittedAt, Score: a.Score, TotalMarks: a.TotalMarks}
 		}
 	}
 	now := time.Now()
@@ -181,7 +214,7 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 		}
 		card := examCard{
 			ID: t.ID, Title: t.Title, Kind: t.Kind, ExamStyle: t.ExamStyle, Delivery: t.Delivery, Phase: services.PhaseOf(t, now),
-			OpensAt: t.OpensAt, ResultsAt: t.ResultsAt, ResultsReleased: services.ResultsReleased(t, now), LateEntryMinutes: t.LateEntryMinutes,
+			OpensAt: t.OpensAt, CreatedAt: t.CreatedAt, ResultsAt: t.ResultsAt, ResultsReleased: services.ResultsReleased(t, now), LateEntryMinutes: t.LateEntryMinutes,
 			DurationMinutes: t.DurationMinutes, TotalQuestions: t.TotalQuestions, RequiresSubscription: t.RequiresSubscription,
 			CourseID: t.CourseID, ExamYear: t.ExamYear, Registered: registered[t.ID],
 		}
@@ -194,6 +227,16 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 		if n, ok := authors[t.CreatedBy]; ok {
 			card.AuthorName = &n
 		}
+		if t.SubjectID != nil {
+			if n, ok := subjectNames[*t.SubjectID]; ok {
+				card.SubjectName = &n
+			}
+		}
+		if t.ChapterID != nil {
+			if n, ok := chapterNames[*t.ChapterID]; ok {
+				card.ChapterName = &n
+			}
+		}
 		if t.SeriesID != nil {
 			if s, ok := series[*t.SeriesID]; ok {
 				sc := s
@@ -202,6 +245,9 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 		}
 		if a, ok := mine[t.ID]; ok {
 			aa := a
+			if !card.ResultsReleased {
+				aa.Score, aa.TotalMarks = nil, nil
+			}
 			card.MyAttempt = &aa
 		}
 		cards = append(cards, card)
@@ -312,16 +358,19 @@ func (h *ExamHandler) Leaderboard(c *gin.Context) {
 }
 
 type sectionStat struct {
-	Name     string  `json:"name"`
-	Total    int     `json:"total"`
-	Correct  int     `json:"correct"`
-	Wrong    int     `json:"wrong"`
-	Skipped  int     `json:"skipped"`
-	Marks    float64 `json:"marks"`
-	Negative float64 `json:"negative"`
-	Seconds  int     `json:"seconds"`
+	Name     string   `json:"name"`
+	Total    int      `json:"total"`
+	Correct  int      `json:"correct"`
+	Wrong    int      `json:"wrong"`
+	Skipped  int      `json:"skipped"`
+	Marks    float64  `json:"marks"`
+	Negative float64  `json:"negative"`
+	Seconds  int      `json:"seconds"`
 	Avg      *float64 `json:"cohort_avg,omitempty"`
 	Top      *float64 `json:"cohort_top,omitempty"`
+	// Top100 is the average marks of the 100 highest scorers in this section, and Max the most the section could give.
+	Top100 *float64 `json:"top100_avg,omitempty"`
+	Max    float64  `json:"max_marks"`
 }
 
 // Analysis breaks a finished attempt down by section: correct, wrong, skipped, marks, marks lost to negative
@@ -375,6 +424,29 @@ func (h *ExamHandler) Analysis(c *gin.Context) {
 			if p.Name == secs[i].Name {
 				avg, top := p.Avg, p.Top
 				secs[i].Avg, secs[i].Top = &avg, &top
+			}
+		}
+	}
+	var top []struct {
+		Name string
+		Avg  float64
+	}
+	h.DB.WithContext(ctx).Raw(`
+		WITH coh AS (
+			SELECT a.id FROM student_attempts a JOIN users u ON u.id = a.user_id
+			WHERE a.test_id = ? AND a.status = 'submitted' AND a.official AND a.score IS NOT NULL AND u.role = 'student' AND (? <> 'live' OR a.source = 'live')
+			ORDER BY a.score DESC LIMIT 100),
+		per AS (
+			SELECT aa.attempt_id, COALESCE(NULLIF(q.section, ''), s.name, 'General') AS name, SUM(aa.marks_awarded) AS m
+			FROM attempt_answers aa JOIN questions q ON q.id = aa.question_id LEFT JOIN subjects s ON s.id = q.subject_id
+			WHERE aa.attempt_id IN (SELECT id FROM coh) GROUP BY 1, 2)
+		SELECT name, AVG(m)::float8 AS avg FROM per GROUP BY name`, a.TestID, a.Test.Delivery).Scan(&top)
+	for i := range secs {
+		secs[i].Max = float64(secs[i].Total) * a.Test.MarksPerCorrect
+		for _, p := range top {
+			if p.Name == secs[i].Name {
+				v := p.Avg
+				secs[i].Top100 = &v
 			}
 		}
 	}
@@ -463,4 +535,40 @@ func (h *ExamHandler) CreateSeries(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, s)
+}
+
+// RenameSeries changes a series' title.
+func (h *ExamHandler) RenameSeries(c *gin.Context) {
+	var req struct {
+		Title string `json:"title"`
+	}
+	if !httpx.Bind(c, &req) {
+		return
+	}
+	title := strings.TrimSpace(req.Title)
+	if len([]rune(title)) < 3 || len([]rune(title)) > 120 {
+		httpx.BadRequest(c, "bad_request", "a title of 3 to 120 characters is required")
+		return
+	}
+	res := h.DB.WithContext(c.Request.Context()).Model(&models.TestSeries{}).Where("id = ?", c.Param("id")).Update("title", title)
+	if res.RowsAffected == 0 {
+		respondErr(c, http.StatusNotFound, "not_found", "series not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"title": title})
+}
+
+// DeleteSeries removes a series. Its tests stay; they just no longer belong to a series.
+func (h *ExamHandler) DeleteSeries(c *gin.Context) {
+	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Test{}).Where("series_id = ?", c.Param("id")).Update("series_id", nil).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.TestSeries{}, "id = ?", c.Param("id")).Error
+	})
+	if err != nil {
+		respondErr(c, http.StatusInternalServerError, "internal", "could not delete")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": true})
 }

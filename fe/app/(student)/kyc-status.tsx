@@ -7,6 +7,7 @@ import { EmptyState, PrimaryButton, TextButton, SkeletonBlock, ScreenHeader, Scr
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useMyKyc } from '@/src/queries/discover';
 import { ROUTES } from '@/src/navigation/routes';
+import { formatDate } from '@/src/format/date';
 
 type Status = 'pending' | 'approved' | 'rejected';
 
@@ -64,7 +65,7 @@ export default function KycStatusRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Identity Verification" />
+      <ScreenHeader title="Identity verification" />
 
       <View style={[styles.body, { paddingHorizontal: space.lg }]}>
         {loading ? (
@@ -73,7 +74,7 @@ export default function KycStatusRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load verification status"
-            description="Something went wrong fetching your identity verification status."
+            description="Couldn’t load your identity verification status. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
           />
         ) : (
@@ -99,7 +100,7 @@ export default function KycStatusRoute() {
                 <Divider />
                 <DetailRow label="ID Number" value={record.id_number} />
                 <Divider />
-                <DetailRow label="Submitted" value={new Date(record.submitted_at).toLocaleDateString()} />
+                <DetailRow label="Submitted" value={formatDate(record.submitted_at)} />
               </View>
             )}
           </>

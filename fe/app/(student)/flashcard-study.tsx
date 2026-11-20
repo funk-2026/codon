@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CheckCircle, WarningCircle } from 'phosphor-react-native';
+import { CaretLeft, CaretRight, CheckCircle, WarningCircle } from 'phosphor-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
@@ -11,6 +11,7 @@ import { ApiError } from '@/src/api/client';
 import { browseDeckCards, quickCards, reviewCard, studyDeck, type ReviewResult, type StudyCard } from '@/src/api/discover';
 import type { MediaMap } from '@/src/rich';
 import { FlipCard, type SwipeDir } from '@/src/flashcards/FlipCard';
+import { CardCarousel, cardHeight } from '@/src/flashcards/CardCarousel';
 import { RatingBar } from '@/src/flashcards/RatingBar';
 import { StudyComplete } from '@/src/flashcards/StudyComplete';
 import { tap } from '@/src/flashcards/haptics';
@@ -35,6 +36,7 @@ export default function FlashcardStudyRoute() {
   const [title, setTitle] = useState('Flashcards');
   const [i, setI] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  const { height: windowH } = useWindowDimensions();
   const [state, setState] = useState<'loading' | 'ready' | 'error' | 'locked'>('loading');
   const [saving, setSaving] = useState(false);
   const [counts, setCounts] = useState<Record<ReviewResult, number>>({ again: 0, hard: 0, good: 0, easy: 0 });
@@ -90,6 +92,10 @@ export default function FlashcardStudyRoute() {
   const step = (delta: 1 | -1) => {
     setFlipped(false);
     setI((n) => Math.max(0, n + delta));
+  };
+  const goTo = (n: number) => {
+    setFlipped(false);
+    setI(Math.max(0, n));
   };
   // Revise: swipe left for next, right for previous. Study: after flipping, left is Again and right is Good.
   const onSwipe = (dir: SwipeDir) => {
@@ -147,29 +153,36 @@ export default function FlashcardStudyRoute() {
         />
       ) : card ? (
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <View style={{ flex: 1, padding: space.md }}>
-            <FlipCard
-              key={card.id}
-              front={card.front}
-              back={card.back}
-              format={card.content_format}
-              media={media}
-              flipped={flipped}
-              onFlip={flip}
-              onSwipe={swipeOn ? onSwipe : undefined}
-              swipeHints={!revise && flipped ? { left: 'Again', right: 'Good' } : undefined}
-              deckTitle={title}
-            />
-          </View>
+          {revise ? (
+            <View style={{ flex: 1, justifyContent: 'center' }}>
+              <CardCarousel cards={cards} media={media} deckTitle={title} index={i} onIndexChange={goTo} flippedId={flipped ? card.id : null} onFlip={(id) => (id === card.id ? flip() : goTo(cards.findIndex((c) => c.id === id)))} />
+            </View>
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'center', padding: space.md }}>
+              <View style={{ height: cardHeight(windowH) }}>
+                <FlipCard
+                  key={card.id}
+                  front={card.front}
+                  back={card.back}
+                  format={card.content_format}
+                  media={media}
+                  flipped={flipped}
+                  onFlip={flip}
+                  onSwipe={swipeOn ? onSwipe : undefined}
+                  swipeHints={flipped ? { left: 'Again', right: 'Good' } : undefined}
+                  deckTitle={title}
+                />
+              </View>
+            </View>
+          )}
           <View style={{ padding: space.md, paddingBottom: space.md + insets.bottom, gap: space.sm }}>
             {revise ? (
-              <View style={{ flexDirection: 'row', gap: space.sm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                <ArrowButton direction="left" disabled={i === 0} onPress={() => step(-1)} />
                 <View style={{ flex: 1 }}>
-                  <SecondaryButton label="Previous" disabled={i === 0} onPress={() => step(-1)} />
+                  <SecondaryButton label={flipped ? 'Show question' : 'Show answer'} onPress={flip} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <PrimaryButton label={i === cards.length - 1 ? 'Finish' : 'Next'} onPress={() => step(1)} />
-                </View>
+                <ArrowButton direction="right" label={i === cards.length - 1 ? 'Finish' : 'Next card'} onPress={() => step(1)} />
               </View>
             ) : flipped ? (
               <RatingBar onRate={rate} disabled={saving} />
@@ -177,11 +190,28 @@ export default function FlashcardStudyRoute() {
               <PrimaryButton label="Show answer" onPress={flip} />
             )}
             <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'center' }]}>
-              {revise ? 'Swipe or use the buttons · tap the card to flip' : flipped ? 'Swipe left for Again, right for Good' : `${remaining} left`}
+              {revise ? 'Hold and drag the card, or use the arrows · tap the card to flip' : flipped ? 'Swipe left for Again, right for Good' : `${remaining} left`}
             </Text>
           </View>
         </GestureHandlerRootView>
       ) : null}
     </Screen>
+  );
+}
+
+/** Round arrow for stepping through cards. */
+function ArrowButton({ direction, disabled, onPress, label }: { direction: 'left' | 'right'; disabled?: boolean; onPress: () => void; label?: string }) {
+  const { color } = useTheme();
+  const Icon = direction === 'left' ? CaretLeft : CaretRight;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label ?? 'Previous card'}
+      style={({ pressed }) => ({ width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: color(direction === 'right' ? 'action/primary' : 'bg/surface'), borderWidth: direction === 'right' ? 0 : 1, borderColor: color('border/subtle'), opacity: disabled ? 0.35 : pressed ? 0.85 : 1 })}
+    >
+      <Icon size={24} weight="bold" color={color(direction === 'right' ? 'action/on-primary' : 'text/primary')} />
+    </Pressable>
   );
 }

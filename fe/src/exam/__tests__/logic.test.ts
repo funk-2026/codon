@@ -108,3 +108,17 @@ describe('startGate', () => {
     expect(startGate({ delivery: 'anytime' }, 0)).toEqual({ state: 'open', official: false });
   });
 });
+
+import { phaseAt } from '../logic';
+describe('phaseAt', () => {
+  const live = { delivery: 'live', phase: 'upcoming', opens_at: '2030-01-01T10:00:00Z', ends_at: '2030-01-01T13:00:00Z' } as never;
+  it('moves from upcoming to live to ended with the clock', () => {
+    const t = (iso: string) => new Date(iso).getTime();
+    expect(phaseAt(live, t('2030-01-01T09:59:59Z'))).toBe('upcoming');
+    expect(phaseAt(live, t('2030-01-01T10:00:00Z'))).toBe('live');
+    expect(phaseAt(live, t('2030-01-01T13:00:00Z'))).toBe('ended');
+  });
+  it('leaves anytime tests alone', () => {
+    expect(phaseAt({ delivery: 'anytime', phase: 'anytime' } as never, 0)).toBe('anytime');
+  });
+});

@@ -238,11 +238,11 @@ func (h *TeacherExtrasHandler) TestStats(c *gin.Context) {
 		return
 	}
 	var agg struct {
-		Started     int64   `json:"started"`
-		Submitted   int64   `json:"submitted"`
-		Students    int64   `json:"students"`
-		AvgPercent  float64 `json:"avg_percent"`
-		AvgMinutes  float64 `json:"avg_minutes"`
+		Started    int64   `json:"started"`
+		Submitted  int64   `json:"submitted"`
+		Students   int64   `json:"students"`
+		AvgPercent float64 `json:"avg_percent"`
+		AvgMinutes float64 `json:"avg_minutes"`
 	}
 	h.DB.WithContext(ctx).Raw(`
 		SELECT COUNT(*) AS started,
@@ -316,13 +316,13 @@ func (h *TeacherExtrasHandler) Impact(c *gin.Context) {
 	teacher := middleware.GetUser(c)
 	ctx := c.Request.Context()
 	var out struct {
-		PublishedTests    int64 `json:"published_tests"`
-		PublishedLessons  int64 `json:"published_lessons"`
-		PublishedHacks    int64 `json:"published_hacks"`
-		PublishedDecks    int64 `json:"published_decks"`
-		TestAttempts      int64 `json:"test_attempts"`
-		TestStudents      int64 `json:"test_students"`
-		LessonViewers     int64 `json:"lesson_viewers"`
+		PublishedTests   int64 `json:"published_tests"`
+		PublishedLessons int64 `json:"published_lessons"`
+		PublishedHacks   int64 `json:"published_hacks"`
+		PublishedDecks   int64 `json:"published_decks"`
+		TestAttempts     int64 `json:"test_attempts"`
+		TestStudents     int64 `json:"test_students"`
+		LessonViewers    int64 `json:"lesson_viewers"`
 	}
 	var ta struct{ TestAttempts, TestStudents int64 }
 	var lv struct{ LessonViewers int64 }

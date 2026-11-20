@@ -76,9 +76,10 @@ func (h *AppConfigHandler) Get(c *gin.Context) {
 				"min_duration_minutes": s.Int("custom_test.min_duration_minutes"), "max_duration_minutes": s.Int("custom_test.max_duration_minutes")},
 			"ratings": gin.H{"min_count_display": s.Int("ratings.min_count_display")},
 		},
-		"app":                  gin.H{"min_version": s.String("app.min_version"), "store_url_android": s.String("app.store_url_android"), "store_url_ios": s.String("app.store_url_ios")},
-		"legal":                gin.H{"terms_url": s.String("legal.terms_url"), "privacy_url": s.String("legal.privacy_url")},
-		"support":              gin.H{"email": s.String("support.email"), "whatsapp": s.String("support.whatsapp")},
+		"app":                  gin.H{"min_version": s.String("app.min_version"), "store_url_android": s.String("app.store_url_android"), "store_url_ios": s.String("app.store_url_ios"), "share_url": s.String("app.share_url")},
+		"social":               socialLinks(s),
+		"legal":                gin.H{"terms_url": s.String("legal.terms_url"), "privacy_url": s.String("legal.privacy_url"), "cancellation_url": s.String("legal.cancellation_url")},
+		"support":              gin.H{"email": s.String("support.email"), "whatsapp": s.String("support.whatsapp"), "phone": s.String("support.phone"), "contact_name": s.String("support.contact_name")},
 		"report_reasons":       ReportReasons,
 		"rating_rules":         RatingRules,
 		"bookmark_collections": colOut,
@@ -106,13 +107,14 @@ func (h *AppConfigHandler) Public(c *gin.Context) {
 	s := settings.Default
 	c.Header("Cache-Control", "public, max-age=300")
 	c.JSON(http.StatusOK, gin.H{
-		"app":     gin.H{"min_version": s.String("app.min_version"), "store_url_android": s.String("app.store_url_android"), "store_url_ios": s.String("app.store_url_ios")},
-		"legal":   gin.H{"terms_url": s.String("legal.terms_url"), "privacy_url": s.String("legal.privacy_url")},
-		"support": gin.H{"email": s.String("support.email"), "whatsapp": s.String("support.whatsapp")},
+		"app":     gin.H{"min_version": s.String("app.min_version"), "store_url_android": s.String("app.store_url_android"), "store_url_ios": s.String("app.store_url_ios"), "share_url": s.String("app.share_url")},
+		"social":  socialLinks(s),
+		"legal":   gin.H{"terms_url": s.String("legal.terms_url"), "privacy_url": s.String("legal.privacy_url"), "cancellation_url": s.String("legal.cancellation_url")},
+		"support": gin.H{"email": s.String("support.email"), "whatsapp": s.String("support.whatsapp"), "phone": s.String("support.phone"), "contact_name": s.String("support.contact_name")},
 	})
 }
 
-var adminSettingPrefixes = []string{"app.", "legal.", "support.", "results.", "custom_test.", "reports.", "media.", "import.", "richtext.", "analytics.", "pool.", "ratings.", "bookmarks.", "attempt.", "rich_content.", "test_questions."}
+var adminSettingPrefixes = []string{"app.", "legal.", "support.", "social.", "exams.", "resets.", "results.", "custom_test.", "reports.", "media.", "import.", "richtext.", "analytics.", "pool.", "ratings.", "bookmarks.", "attempt.", "rich_content.", "test_questions."}
 
 func isAdminSetting(key string) bool {
 	for _, p := range adminSettingPrefixes {
@@ -245,4 +247,12 @@ func validateTextSetting(key, v string) string {
 func isNumeric(s string) bool {
 	_, err := strconv.ParseFloat(s, 64)
 	return err == nil
+}
+
+// socialLinks are the community channels the app shows under "Community and sharing". Blank means not set.
+func socialLinks(s *settings.Store) gin.H {
+	return gin.H{
+		"instagram": s.String("social.instagram_url"), "youtube": s.String("social.youtube_url"), "telegram": s.String("social.telegram_url"),
+		"whatsapp_channel": s.String("social.whatsapp_channel_url"), "facebook": s.String("social.facebook_url"),
+	}
 }

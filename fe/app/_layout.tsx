@@ -14,7 +14,7 @@ import {
   Figtree_800ExtraBold,
 } from '@expo-google-fonts/figtree';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { ThemeProvider } from '@/src/theme/ThemeProvider';
+import { ThemeProvider, useTheme } from '@/src/theme/ThemeProvider';
 import { AuthProvider, useAuth } from '@/src/auth/AuthContext';
 import { AppConfigProvider } from '@/src/config/AppConfigContext';
 import { BookmarksProvider } from '@/src/bookmarks/BookmarksContext';
@@ -22,6 +22,8 @@ import { PushProvider } from '@/src/notifications/PushProvider';
 import { ToastProvider } from '@/src/components';
 import { stackAnimation } from '@/src/components/ThemedStack';
 import { UpdateGate } from '@/src/config/UpdateGate';
+import { OfflineFrame } from '@/src/components/OfflineBar';
+import { useWireOnlineManager } from '@/src/net/network';
 import { AnalyticsBootstrap } from '@/src/analytics/AnalyticsBootstrap';
 
 SplashScreen.preventAutoHideAsync();
@@ -67,6 +69,12 @@ function RootNavigator() {
   );
 }
 
+/** Light icons on the dark theme, dark icons on the light one. */
+function ThemedStatusBar() {
+  const { scheme } = useTheme();
+  return <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />;
+}
+
 export default function RootLayout() {
   useFrameworkReady();
 
@@ -79,6 +87,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => wireAppStateFocus(), []);
+  useWireOnlineManager();
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -102,9 +111,11 @@ export default function RootLayout() {
               <ToastProvider>
                 <UpdateGate>
                   <AnalyticsBootstrap />
-                  <RootNavigator />
+                  <OfflineFrame>
+                    <RootNavigator />
+                  </OfflineFrame>
                 </UpdateGate>
-                <StatusBar style="dark" />
+                <ThemedStatusBar />
               </ToastProvider>
             </PushProvider>
           </BookmarksProvider>

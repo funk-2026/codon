@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { todayDMY } from '@/src/components/calendar';
 import { Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { BottomSheet, InputField, PrimaryButton, SecondaryButton, TextButton } from '@/src/components';
+import { BottomSheet, InputField, PrimaryButton, SecondaryButton, TextButton, DateField } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getReviewStats } from '@/src/api/teacher';
 import { describeWait, formatScheduled, parseSchedule, scheduleError } from './schedule';
@@ -63,7 +64,7 @@ export function PublishSheet({
   loading?: boolean;
 }) {
   const { color, type, space } = useTheme();
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(() => todayDMY());
   const [time, setTime] = useState('09:00');
   const [touched, setTouched] = useState(false);
   const err = touched ? scheduleError(date, time) : null;
@@ -86,7 +87,7 @@ export function PublishSheet({
         <Text style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.sm }]}>OR PICK A TIME</Text>
         <View style={{ flexDirection: 'row', gap: space.sm }}>
           <View style={{ flex: 1.4 }}>
-            <InputField label="Date" value={date} onChangeText={setDate} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" />
+            <DateField label="Date" value={date} onChange={setDate} />
           </View>
           <View style={{ flex: 1 }}>
             <InputField label="Time (24h)" value={time} onChangeText={setTime} placeholder="HH:MM" keyboardType="numbers-and-punctuation" />

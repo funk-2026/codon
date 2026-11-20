@@ -1,234 +1,85 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import Animated from 'react-native-reanimated';
-import { PlayCircle, FileText } from 'phosphor-react-native';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { DownloadSimple, MonitorPlay, PlayCircle } from 'phosphor-react-native';
+import { CollapsingHeader, EmptyState, ErrorBanner, ProgressLink, SearchBar, ShortcutCard, SkeletonBlock, SubjectCard, SUBJECT_SKELETON_HEIGHT, TextButton, useCollapsingHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { useRecentContent } from '@/src/queries/attempts';
-import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
-import { CollapsingHeader, ErrorBanner, SegmentedControl, useCollapsingHeader } from '@/src/components';
-import { CurriculumTree, TreeToolbar } from '@/src/screens/CurriculumTree';
-import { FlashcardDeckList } from '@/src/screens/FlashcardDeckList';
+import { useAuth } from '@/src/auth/AuthContext';
+import { getCurriculum } from '@/src/api/courses';
+import { subjectOrder } from '@/src/bookmarks/logic';
 import { ROUTES } from '@/src/navigation/routes';
-import { shadow } from '@/src/theme/elevation';
+import { listSubjectVideos } from '@/src/api/content';
+import { lectureState } from '@/src/video/lectureState';
+import { TabHeaderActions } from '@/src/components/TabHeaderActions';
+import { usePullRefresh, RefreshPill } from '@/src/components/PullRefresh';
 
-type LearnSegment = 'video' | 'document' | 'flashcards';
-const SEGMENTS: { key: LearnSegment; label: string }[] = [
-  { key: 'video', label: 'Videos' },
-  { key: 'document', label: 'Notes' },
-  { key: 'flashcards', label: 'Flashcards' },
-];
-const TREE_SEGMENTS = ['video', 'document'] as const;
-const initialSegment = (k?: string): LearnSegment => (k === 'document' || k === 'flashcards' ? k : 'video');
-
-type RecentItem = {
-  id: string;
-  title: string;
-  breadcrumb: string;
-  kind: 'video' | 'document';
-  pct: number;
-};
-
-
-
-export default function LearnHubRoute() {
+/** Video: the analytics entry, then exactly Biology, Chemistry and Physics. A subject opens its own page of lectures. */
+export default function VideoTabRoute() {
   const { color, type, space, radius } = useTheme();
-  const header = useCollapsingHeader(64);
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ kind?: string }>();
-  const [segment, setSegmentState] = useState<LearnSegment>(initialSegment(params.kind));
-  const [visited, setVisited] = useState<Set<LearnSegment>>(() => new Set([initialSegment(params.kind)]));
-  const setSegment = (k: LearnSegment) => {
-    setSegmentState(k);
-    setQuery('');
-    setVisited((v) => (v.has(k) ? v : new Set(v).add(k)));
-  };
-  const [query, setQuery] = useState('');
-  const recentQuery = useRecentContent();
-  useRefetchOnFocus(recentQuery.refetch);
-  const recent: RecentItem[] = recentQuery.data?.recent ?? [];
-  const loading = recentQuery.isPending;
-  const loadError = recentQuery.isError;
-  const loadRecent = () => void recentQuery.refetch();
-  const isNewUser = !loading && recent.length === 0;
+  const { user } = useAuth();
+  const header = useCollapsingHeader(64);
+  const pull = usePullRefresh(header.maxHeight);
+  const cur = useQuery({ queryKey: ['curriculum', user?.selected_course_id], queryFn: () => getCurriculum(String(user?.selected_course_id)), enabled: !!user?.selected_course_id, staleTime: 10 * 60_000 });
+  const subjects = subjectOrder(cur.data?.course.subjects ?? []);
+  // Lectures watched per subject: the same lists the subject page uses, so opening a subject is instant.
+  const lectures = useQueries({ queries: subjects.map((s) => ({ queryKey: ['subject-videos', s.id], queryFn: () => listSubjectVideos(s.id), staleTime: 60_000 })) });
 
   return (
-    <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
+    <View style={{ flex: 1, backgroundColor: color('bg/canvas') }}>
       <CollapsingHeader
         state={header}
         expanded={
-          <View>
-            <Text style={[type['type/h1'], { color: color('header/text') }]}>Learn</Text>
-            <Text style={[type['type/body-m'], { color: color('header/text-secondary'), marginTop: space['2xs'] }]}>
-              Video classes, notes and flashcards
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[type['type/h1'], { color: color('header/text') }]}>Video</Text>
+              <Text style={[type['type/body-m'], { color: color('header/text-secondary'), marginTop: space['2xs'] }]}>Watch chapter by chapter</Text>
+            </View>
+            <TabHeaderActions size="large" />
           </View>
         }
-        compact={<Text style={[type['type/h3'], { color: color('header/text') }]}>Learn</Text>}
+        compact={<View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={[type['type/h3'], { color: color('header/text'), flex: 1 }]}>Video</Text><TabHeaderActions size="small" /></View>}
       />
       <Animated.ScrollView
         style={{ flex: 1 }}
         onScroll={header.onScroll}
+        refreshControl={pull.control}
         scrollEventThrottle={16}
         scrollIndicatorInsets={{ top: header.minHeight }}
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: header.maxHeight + space.md, paddingBottom: space['3xl'] + insets.bottom }}
+        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: header.maxHeight + space.md, paddingBottom: space['3xl'], gap: space.sm }}
         showsVerticalScrollIndicator={false}
       >
-        {loadError ? (
-          <View style={{ marginTop: space.md }}>
-            <ErrorBanner onRetry={loadRecent} />
-          </View>
-        ) : null}
+        <SearchBar placeholder="Search video lectures" onPress={() => router.push(ROUTES.student.search)} />
+        <ProgressLink title="My video progress" onPress={() => router.push({ pathname: ROUTES.student.analytics, params: { area: 'video' } })} />
 
-        <View style={{ marginTop: space.lg }}>
-          <SegmentedControl options={SEGMENTS} value={segment} onChange={setSegment} />
-          {/* One toolbar for every segment, so the container looks the same when switching */}
-          <View style={{ marginTop: space.md }}>
-            <TreeToolbar
-              query={query}
-              onQuery={setQuery}
-              placeholder={segment === 'flashcards' ? 'Search flashcard decks' : undefined}
-            />
-          </View>
-          <View style={{ marginTop: space.md }}>
-            {/* Each tree mounts on first visit and stays mounted, so open subjects survive switching segments */}
-            {TREE_SEGMENTS.filter((k) => visited.has(k)).map((k) => (
-              <View key={k} style={{ display: segment === k ? 'flex' : 'none' }}>
-                <CurriculumTree kind={k} query={query} />
-              </View>
-            ))}
-            {segment === 'flashcards' ? <FlashcardDeckList query={query} /> : null}
-          </View>
-        </View>
+        {cur.isPending ? (
+          [0, 1, 2].map((i) => <SkeletonBlock key={i} height={SUBJECT_SKELETON_HEIGHT} radius={radius.lg} />)
+        ) : cur.isError ? (
+          <ErrorBanner onRetry={() => void cur.refetch()} />
+        ) : subjects.length === 0 ? (
+          <EmptyState icon={<MonitorPlay size={32} color={color('text/tertiary')} />} title="No subjects yet" description="Video classes will appear here as they are published." action={<TextButton label="Refresh" onPress={() => void cur.refetch()} />} />
+        ) : (
+          subjects.map((s, i) => {
+            const vids = lectures[i]?.data?.videos;
+            const progress = vids ? { done: vids.filter((v) => lectureState(v) === 'completed').length, total: vids.length, unit: 'lectures' } : undefined;
+            return (
+              <SubjectCard
+                key={s.id}
+                icon={<MonitorPlay size={28} color={color('accent/default')} weight="duotone" />}
+                name={s.name}
+                progress={progress}
+                label={progress ? `${s.name}. ${progress.done} of ${progress.total} lectures watched` : `${s.name}. Open lectures`}
+                onPress={() => router.push({ pathname: ROUTES.student.videoSubject, params: { subjectId: s.id, name: s.name } })}
+              />
+            );
+          })
+        )}
 
-        {/* Recently Watched */}
-        <View style={{ marginTop: space.xl }}>
-          <View style={[styles.sectionRow, { marginBottom: space.sm }]}>
-            <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>
-              RECENTLY WATCHED
-            </Text>
-          </View>
-
-          {isNewUser ? (
-            <View style={{ alignItems: 'center', paddingVertical: space.lg, gap: space.xs }}>
-              <PlayCircle size={28} color={color('text/tertiary')} weight="duotone" />
-              <Text
-                style={[
-                  type['type/body-m'],
-                  { color: color('text/secondary'), textAlign: 'center' },
-                ]}
-              >
-                Videos and notes you&apos;ve opened will show up here.
-              </Text>
-            </View>
-          ) : (
-            <View style={{ gap: space.xs }}>
-              {recent.map((item) => (
-                <Pressable
-                  key={item.id}
-                  onPress={() =>
-                    router.push({
-                      pathname:
-                        item.kind === 'video'
-                          ? ROUTES.student.videoPlayer
-                          : ROUTES.student.contentReader,
-                      params: { id: item.id },
-                    })
-                  }
-                  style={({ pressed }) => [
-                    {
-                      backgroundColor: color('bg/surface'),
-                      borderRadius: radius.md,
-                      padding: space.sm,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                    shadow(),
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.recentIcon,
-                      { backgroundColor: color('accent/tint'), borderRadius: radius.sm },
-                    ]}
-                  >
-                    {item.kind === 'video' ? (
-                      <PlayCircle size={20} color={color('accent/default')} weight="duotone" />
-                    ) : (
-                      <FileText size={20} color={color('accent/default')} weight="duotone" />
-                    )}
-                  </View>
-                  <View style={{ flex: 1, marginLeft: space.sm }}>
-                    <Text
-                      style={[type['type/body-m-medium'], { color: color('text/primary') }]}
-                      numberOfLines={1}
-                    >
-                      {item.title}
-                    </Text>
-                    <Text
-                      style={[
-                        type['type/caption'],
-                        { color: color('text/tertiary'), marginTop: 2 },
-                      ]}
-                    >
-                      {item.breadcrumb}
-                    </Text>
-                  </View>
-                  <ProgressRing pct={item.pct} />
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
+        <ShortcutCard icon={<DownloadSimple size={26} color={color('accent/default')} weight="duotone" />} title="Downloaded videos" caption="Watch without a connection" onPress={() => router.push(ROUTES.student.downloads)} />
+        <ShortcutCard icon={<PlayCircle size={26} color={color('accent/default')} weight="duotone" />} title="Free videos" caption="Open to everyone, no plan needed" onPress={() => router.push(ROUTES.student.freeVideos)} />
       </Animated.ScrollView>
+      <RefreshPill visible={pull.refreshing} top={header.maxHeight} />
     </View>
   );
 }
-
-function ProgressRing({ pct }: { pct: number }) {
-  const { color } = useTheme();
-  const R = 8;
-  const CIRC = 2 * Math.PI * R;
-  return (
-    <View style={{ width: 16, height: 16 }}>
-      {(() => {
-        const Svg = require('react-native-svg').Svg;
-        const Circle = require('react-native-svg').Circle;
-        return (
-          <Svg width={16} height={16}>
-            <Circle cx={8} cy={8} r={R} stroke={color('bg/sunken')} strokeWidth={2} fill="none" />
-            <Circle
-              cx={8}
-              cy={8}
-              r={R}
-              stroke={color('accent/default')}
-              strokeWidth={2}
-              fill="none"
-              strokeDasharray={CIRC}
-              strokeDashoffset={CIRC * (1 - pct / 100)}
-              strokeLinecap="round"
-              rotation={-90}
-              origin="8,8"
-            />
-          </Svg>
-        );
-      })()}
-    </View>
-  );
-}
-
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  iconWrap: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  resumeBtn: { alignSelf: 'flex-end', paddingHorizontal: 16, paddingVertical: 8, minHeight: 36 },
-  catCard: { justifyContent: 'center' },
-  catRow: { flexDirection: 'row', alignItems: 'center' },
-  catIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  recentIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-});

@@ -145,6 +145,11 @@ export default function TeacherContentRoute() {
           chips={{ options: STATUS_CHIPS, value: status, onChange: (k) => setStatus(k as ItemStatus | 'all') }}
         />
       </View>
+      <View style={{ paddingHorizontal: space.md, marginTop: space.xs, alignItems: 'flex-start' }}>
+        <TextButton label="Pulse items (one-minute revision)" onPress={() => router.push(ROUTES.teacher.pulseItems)} />
+        <TextButton label="Schema topics" onPress={() => router.push(ROUTES.teacher.schemaTopics)} />
+        <TextButton label="Test series" onPress={() => router.push(ROUTES.teacher.series)} />
+      </View>
       <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
         <ManageAllBanner />
       </View>
@@ -179,7 +184,7 @@ export default function TeacherContentRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load your content"
-            description="Something went wrong fetching your work."
+            description="Couldn’t load your work. Check your connection and try again."
             action={<TextButton label="Retry" onPress={() => void itemsQuery.refetch()} />}
           />
         ) : !hasAny ? (

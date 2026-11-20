@@ -10,7 +10,7 @@ import { ROUTES } from '@/src/navigation/routes';
 export const INTRO_SEEN_KEY = 'intro-seen';
 
 const SLIDES = [
-  { Icon: Exam, title: 'Practise the way the exam tests you', text: 'Chapter-wise question banks, full-length test series and tests you build yourself.' },
+  { Icon: Exam, title: 'Practice the way the exam tests you', text: 'Chapter-wise question banks, full-length test series and tests you build yourself.' },
   { Icon: PlayCircle, title: 'Learn at your own pace', text: 'Video classes, chapter notes and flashcards, and every lecture picks up where you left off.' },
   { Icon: ChartLineUp, title: 'See what to work on next', text: 'Your streak, your weak chapters and a countdown to your exam, all in one place.' },
 ];

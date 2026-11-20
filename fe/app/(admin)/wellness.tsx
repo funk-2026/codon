@@ -82,7 +82,7 @@ export default function AdminWellnessRoute() {
       show(confirm.kind === 'hide' ? 'Hidden from students' : 'Deleted', 'success');
       setConfirm(null);
     } catch {
-      show('Something went wrong. Try again.', 'error');
+      show('Couldn’t do that. Try again.', 'error');
     } finally {
       setBusy(false);
     }

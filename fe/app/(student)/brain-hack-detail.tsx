@@ -49,7 +49,7 @@ export default function BrainHackDetailRoute() {
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title={state === 'missing' ? 'This Brain Hack isn’t available' : 'Couldn’t load this Brain Hack'}
             description={state === 'missing' ? 'It may have been removed.' : 'Check your connection and try again.'}
-            action={state === 'missing' ? <TextButton label="Back to Brain Hacks" onPress={() => router.replace(ROUTES.student.brainHacks)} /> : <TextButton label="Retry" onPress={load} />}
+            action={state === 'missing' ? <TextButton label="Back to Brain Hacks" onPress={() => router.dismissTo(ROUTES.student.support)} /> : <TextButton label="Retry" onPress={load} />}
             style={{ marginTop: space.xl }}
           />
         ) : (
@@ -69,7 +69,7 @@ export default function BrainHackDetailRoute() {
               <StarRating itemType="brain_hack" itemId={hack.id} value={hack.my_rating ?? null} label="Was this helpful?" />
             </View>
             <View style={{ marginTop: space.md, alignItems: 'center' }}>
-              <TextButton label="Back to Brain Hacks" onPress={() => router.replace(ROUTES.student.brainHacks)} />
+              <TextButton label="Back to Brain Hacks" onPress={() => router.dismissTo(ROUTES.student.support)} />
             </View>
           </>
         )}

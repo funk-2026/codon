@@ -1,4 +1,4 @@
-import { StyleProp, ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { useTheme } from '@/src/theme/ThemeProvider';
 
@@ -11,17 +11,25 @@ export type ScreenProps = {
   wellness?: boolean;
   edges?: Edge[];
   style?: StyleProp<ViewStyle>;
+  /** A form screen: lifts the content above the keyboard so the field being typed in stays visible. */
+  keyboard?: boolean;
 };
 
 /** Base container for every full screen: safe area + themed background. */
-export function Screen({ children, wellness, edges, style }: ScreenProps) {
+export function Screen({ children, wellness, edges, style, keyboard }: ScreenProps) {
   const { color } = useTheme();
   return (
     <SafeAreaView
       edges={edges}
       style={[{ flex: 1, backgroundColor: color(wellness ? 'wellness/bg' : 'bg/canvas') }, style]}
     >
-      {children}
+      {keyboard ? (
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          {children}
+        </KeyboardAvoidingView>
+      ) : (
+        children
+      )}
     </SafeAreaView>
   );
 }

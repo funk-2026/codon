@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"codon-backend/internal/items"
@@ -83,9 +84,18 @@ func (h *AttemptHandler) StartAttempt(c *gin.Context) {
 	var test models.Test
 	if err := h.DB.WithContext(c.Request.Context()).
 		Where("id = ? AND status = ? AND archived_at IS NULL", testID, models.StatusPublished).
-		First(&test).Error; err != nil || !visibleToUser(&test, user.ID) {
+		First(&test).Error; err != nil || !(visibleToUser(&test, user.ID) || h.openedByCode(user.ID, &test)) {
 		respondErr(c, http.StatusNotFound, "test_not_found", "test not found")
 		return
+	}
+	// A custom module is solved once from its Start screen. Solving it again needs its code.
+	if test.Origin == models.OriginGenerated && test.ShareCode != nil {
+		var solved int64
+		h.DB.WithContext(c.Request.Context()).Model(&models.StudentAttempt{}).Where("user_id = ? AND test_id = ? AND status = ?", user.ID, test.ID, models.AttemptSubmitted).Count(&solved)
+		if solved > 0 && !strings.EqualFold(c.GetHeader("X-Custom-Code"), *test.ShareCode) {
+			respondErr(c, http.StatusConflict, "already_solved", "you have solved this module. To try it again, enter its code in Challenges.")
+			return
+		}
 	}
 
 	if err := h.Sub.Allow(c.Request.Context(), user, test.RequiresSubscription, test.CourseID); err != nil {
@@ -266,6 +276,11 @@ func (h *AttemptHandler) RevealAnswer(c *gin.Context) {
 		"question_id": res.QuestionID, "correct_option": res.CorrectOption, "explanation": res.Explanation,
 		"is_correct": res.IsCorrect, "marks": res.Marks,
 		"content_format": res.Question.ContentFormat,
+		"ref_book":       res.Question.RefBook, "ref_edition": res.Question.RefEdition, "ref_pages": res.Question.RefPages,
+	}
+	if shares := optionShares(h.DB, c.Request.Context(), []uuid.UUID{res.QuestionID})[res.QuestionID]; shares != nil {
+		resp["option_shares"] = shares
+		resp["percent_correct"] = shares[res.CorrectOption]
 	}
 	mc := media.NewCollector()
 	mc.Add(res.Question.ContentFormat, res.Explanation)
@@ -355,7 +370,44 @@ func (h *AttemptHandler) GetResult(c *gin.Context) {
 	if cohort := h.cohortFor(c.Request.Context(), user, &attempt); cohort != nil {
 		out["cohort"] = cohort
 	}
+	if attempt.Test.ModuleType == models.ModuleQBank && attempt.Test.Origin == models.OriginAuthored {
+		out["qbank"] = h.qbankSummary(c.Request.Context(), user.ID, &attempt)
+	}
 	c.JSON(http.StatusOK, out)
+}
+
+// qbankSummary is what a solved QBank module's result adds: how many modules the student has solved in this subject,
+// how many bookmarks they saved from this module, and how they did against other students (a share of peers they beat,
+// shown only once enough students have solved it).
+func (h *AttemptHandler) qbankSummary(ctx context.Context, userID uuid.UUID, a *models.StudentAttempt) gin.H {
+	out := gin.H{}
+	var solved, total int64
+	if a.Test.SubjectID != nil {
+		h.DB.WithContext(ctx).Raw(`SELECT count(*) FROM tests t WHERE t.module_type = 'qbank' AND t.origin = 'authored' AND t.status = 'published' AND t.subject_id = ? AND t.course_id = ?`, *a.Test.SubjectID, a.Test.CourseID).Scan(&total)
+		h.DB.WithContext(ctx).Raw(`SELECT count(DISTINCT t.id) FROM tests t JOIN student_attempts sa ON sa.test_id = t.id AND sa.user_id = ? AND sa.status = 'submitted'
+			WHERE t.module_type = 'qbank' AND t.origin = 'authored' AND t.status = 'published' AND t.subject_id = ? AND t.course_id = ?`, userID, *a.Test.SubjectID, a.Test.CourseID).Scan(&solved)
+	}
+	out["solved"], out["total"] = solved, total
+	var marks int64
+	h.DB.WithContext(ctx).Raw(`SELECT count(*) FROM bookmarks b JOIN attempt_answers aa ON aa.question_id = b.item_id AND aa.attempt_id = ? WHERE b.user_id = ? AND b.item_type = 'question'`, a.ID, userID).Scan(&marks)
+	out["bookmarks"] = marks
+	if a.Score != nil && a.TotalMarks != nil && *a.TotalMarks > 0 {
+		var peers []float64
+		h.DB.WithContext(ctx).Raw(`SELECT (sa.score * 100 / sa.total_marks)::float8 FROM student_attempts sa JOIN users u ON u.id = sa.user_id
+			WHERE sa.test_id = ? AND sa.status = 'submitted' AND sa.user_id <> ? AND u.role = 'student' AND sa.total_marks > 0`, a.TestID, userID).Scan(&peers)
+		if len(peers) >= settings.Default.Int("results.qbank_peers_min") {
+			mine := *a.Score * 100 / *a.TotalMarks
+			beat := 0
+			for _, p := range peers {
+				if p < mine {
+					beat++
+				}
+			}
+			out["peers"] = len(peers)
+			out["better_than_pct"] = beat * 100 / len(peers)
+		}
+	}
+	return out
 }
 
 // cohortFor places a Test Series result among the students whose official attempt counts: rank among N, the
@@ -425,6 +477,11 @@ type reviewMeta struct {
 	Difficulty *string    `json:"difficulty,omitempty"`
 	NCERTClass *int       `json:"ncert_class,omitempty"`
 	NCERTPage  *int       `json:"ncert_page,omitempty"`
+	// Tags and References for the tag chip and the References block under the explanation.
+	Tags       []string `json:"tags,omitempty"`
+	RefBook    *string  `json:"ref_book,omitempty"`
+	RefEdition *string  `json:"ref_edition,omitempty"`
+	RefPages   *string  `json:"ref_pages,omitempty"`
 }
 
 // GetReview godoc
@@ -466,13 +523,16 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 		Select(`aa.question_id, aa.position, aa.selected_option, aa.is_correct, aa.marks_awarded,
 			aa.marked_for_review, aa.time_spent_seconds, aa.confidence,
 			q.content_format, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d,
-			q.correct_option, q.explanation, q.subject_id, q.chapter_id, q.difficulty, q.ncert_class, q.ncert_page,
+			q.correct_option, q.explanation, q.subject_id, q.chapter_id, q.difficulty, q.ncert_class, q.ncert_page, q.ref_book, q.ref_edition, q.ref_pages,
 			s.name AS subject_name, ch.name AS chapter_name`).
 		Joins("JOIN questions q ON q.id = aa.question_id").
 		Joins("LEFT JOIN subjects s ON s.id = q.subject_id").
 		Joins("LEFT JOIN chapters ch ON ch.id = q.chapter_id").
 		Where("aa.attempt_id = ?", attemptID)
 
+	if sid := c.Query("subject_id"); sid != "" {
+		q = q.Where("q.subject_id = ?", sid)
+	}
 	switch c.DefaultQuery("filter", "all") {
 	case "correct":
 		q = q.Where("aa.is_correct IS TRUE")
@@ -532,6 +592,9 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 		Difficulty       *string
 		NCERTClass       *int
 		NCERTPage        *int
+		RefBook          *string
+		RefEdition       *string
+		RefPages         *string
 		SubjectName      *string
 		ChapterName      *string
 	}
@@ -554,6 +617,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 	myRatings := items.MyRatings(ctx, h.DB, user.ID, items.Question, ids)
 	cohort := cohortCorrectPct(h.DB, ctx, ids)
 	shares := optionShares(h.DB, ctx, ids)
+	tagsBy := tagNames(h.DB, ctx, ids)
 	notes := map[uuid.UUID]string{}
 	if len(ids) > 0 {
 		var ns []models.QuestionNote
@@ -573,7 +637,7 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 			IsCorrect: r.IsCorrect, MarksAwarded: r.MarksAwarded, MarkedForReview: r.MarkedForReview,
 			TimeSpentSeconds: r.TimeSpentSeconds, Confidence: r.Confidence,
 			Bookmarked: bookmarked[r.QuestionID], ReportedByMe: reported[r.QuestionID],
-			QuestionMeta: reviewMeta{SubjectID: r.SubjectID, ChapterID: r.ChapterID, Difficulty: r.Difficulty, NCERTClass: r.NCERTClass, NCERTPage: r.NCERTPage},
+			QuestionMeta: reviewMeta{SubjectID: r.SubjectID, ChapterID: r.ChapterID, Difficulty: r.Difficulty, NCERTClass: r.NCERTClass, NCERTPage: r.NCERTPage, Tags: tagsBy[r.QuestionID], RefBook: r.RefBook, RefEdition: r.RefEdition, RefPages: r.RefPages},
 		}
 		if r.SubjectName != nil {
 			it.QuestionMeta.Subject = *r.SubjectName
@@ -629,4 +693,58 @@ func (h *AttemptHandler) Takeover(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, messageResponse{Message: "attempt moved to this device"})
+}
+
+// DiscardAttempt throws away an attempt that is still in progress: its answers go and the test is as if never started.
+// An official attempt inside a live exam window cannot be discarded; the student submits or lets the clock end it.
+func (h *AttemptHandler) DiscardAttempt(c *gin.Context) {
+	user := middleware.GetUser(c)
+	ctx := c.Request.Context()
+	var a models.StudentAttempt
+	if h.DB.WithContext(ctx).Preload("Test").Where("id = ? AND user_id = ?", c.Param("id"), user.ID).First(&a).Error != nil {
+		respondErr(c, http.StatusNotFound, "not_found", "attempt not found")
+		return
+	}
+	if a.Status != models.AttemptInProgress {
+		respondErr(c, http.StatusConflict, "not_in_progress", "only an attempt in progress can be discarded")
+		return
+	}
+	if a.Test.Delivery == "live" && a.Official {
+		respondErr(c, http.StatusConflict, "live_attempt", "a live exam attempt can't be discarded. Submit it instead")
+		return
+	}
+	err := h.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("attempt_id = ?", a.ID).Delete(&models.AttemptAnswer{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.StudentAttempt{}, "id = ?", a.ID).Error
+	})
+	if err != nil {
+		respondErr(c, http.StatusInternalServerError, "internal", "could not discard")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"discarded": true})
+}
+
+// visibleOrOpened is visibleToUser, plus a custom module the student opened with its code.
+func visibleOrOpened(db *gorm.DB, t *models.Test, userID uuid.UUID) bool {
+	if visibleToUser(t, userID) {
+		return true
+	}
+	if t.Origin != models.OriginGenerated || t.ShareCode == nil {
+		return false
+	}
+	var n int64
+	db.Model(&models.CustomModuleOpen{}).Where("user_id = ? AND test_id = ?", userID, t.ID).Count(&n)
+	return n > 0
+}
+
+// openedByCode: a student may solve a friend's custom module once they opened it with its code.
+func (h *AttemptHandler) openedByCode(userID uuid.UUID, t *models.Test) bool {
+	if t.Origin != models.OriginGenerated || t.ShareCode == nil {
+		return false
+	}
+	var n int64
+	h.DB.Model(&models.CustomModuleOpen{}).Where("user_id = ? AND test_id = ?", userID, t.ID).Count(&n)
+	return n > 0
 }

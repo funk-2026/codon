@@ -1,14 +1,24 @@
+import { View } from 'react-native';
 import { RoleStack } from '@/src/navigation/RoleStack';
+import { VideoSessionProvider } from '@/src/video/VideoSession';
+import { MiniPlayer } from '@/src/video/MiniPlayer';
 
 // Deep links into a detail screen still get the hub tabs underneath, so Back works.
 export const unstable_settings = { anchor: '(tabs)' };
 
 export default function StudentLayout() {
   return (
-    <RoleStack
-      screens={{
-        'test-question': { gestureEnabled: false },
-      }}
-    />
+    <VideoSessionProvider>
+      <View style={{ flex: 1 }}>
+        <RoleStack
+          screens={{
+            'test-question': { gestureEnabled: false },
+            // Dragging a card to the right must move to the previous card, not swipe the screen away. The back arrow still works.
+            'flashcard-study': { gestureEnabled: false },
+          }}
+        />
+        <MiniPlayer />
+      </View>
+    </VideoSessionProvider>
   );
 }

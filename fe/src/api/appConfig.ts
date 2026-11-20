@@ -17,9 +17,10 @@ export type AppConfig = {
 
 /** Links and the version gate; readable before sign-in (GET /public-config). Blank values mean "not set". */
 export type PublicConfig = {
-  app: { min_version: string; store_url_android: string; store_url_ios: string };
-  legal: { terms_url: string; privacy_url: string };
-  support: { email: string; whatsapp: string };
+  app: { min_version: string; store_url_android: string; store_url_ios: string; share_url?: string };
+  legal: { terms_url: string; privacy_url: string; cancellation_url?: string };
+  support: { email: string; whatsapp: string; phone?: string; contact_name?: string };
+  social?: { instagram: string; youtube: string; telegram: string; whatsapp_channel: string; facebook: string };
 };
 
 export const getPublicConfig = () => apiFetch<PublicConfig>('/public-config', { method: 'GET' });

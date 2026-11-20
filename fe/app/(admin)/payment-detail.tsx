@@ -8,6 +8,7 @@ import type { UserProfile } from '@/src/api/profile';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 import { useAdminPayment } from '@/src/queries/admin';
+import { formatDate } from '@/src/format/date';
 
 type Status = 'created' | 'captured' | 'failed' | 'refunded';
 
@@ -49,7 +50,7 @@ export default function PaymentDetailRoute() {
   if (loading || loadError || !p) {
     return (
       <Screen>
-        <ScreenHeader title="Payment Detail" />
+        <ScreenHeader title="Payment detail" />
 
         {loading ? (
           <View style={{ paddingHorizontal: space.md }}>
@@ -73,7 +74,7 @@ export default function PaymentDetailRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load this payment"
-            description="Something went wrong fetching the payment details."
+            description="Couldn’t load the payment details. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
           />
         )}
@@ -85,11 +86,11 @@ export default function PaymentDetailRoute() {
   const userName = p.user?.name || 'Unknown User';
   const userPhone = p.user?.phone_number || 'No Phone';
   const planName = p.subscription?.plan?.name || 'Unknown Plan';
-  const displayDate = new Date(p.created_at).toLocaleDateString();
+  const displayDate = formatDate(p.created_at);
 
   return (
     <Screen>
-      <ScreenHeader title="Payment Detail" right={<>
+      <ScreenHeader title="Payment detail" right={<>
 <View
           style={[
             styles.statusBadge,
@@ -148,7 +149,7 @@ export default function PaymentDetailRoute() {
               <Divider />
               <DetailRow label="Refund Reason" value={p.refund_reason ?? '—'} />
               <Divider />
-              <DetailRow label="Refunded On" value={p.refunded_at ? new Date(p.refunded_at).toLocaleDateString() : '—'} />
+              <DetailRow label="Refunded On" value={p.refunded_at ? formatDate(p.refunded_at) : '—'} />
             </>
           ) : null}
         </View>

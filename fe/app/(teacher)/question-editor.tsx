@@ -357,6 +357,11 @@ export default function QuestionEditorRoute() {
                     <View style={{ flex: 1 }}><InputField label="NCERT class" value={draft.ncert_class ?? ''} onChangeText={(t: string) => set('ncert_class', t.replace(/\D/g, ''))} keyboardType="number-pad" error={err('ncert_class') ?? undefined} /></View>
                     <View style={{ flex: 1 }}><InputField label="NCERT page" value={draft.ncert_page ?? ''} onChangeText={(t: string) => set('ncert_page', t.replace(/\D/g, ''))} keyboardType="number-pad" error={err('ncert_page') ?? undefined} /></View>
                   </View>
+                  <InputField label="Reference book (optional)" value={draft.ref_book ?? ''} onChangeText={(t: string) => set('ref_book', t)} maxLength={120} helperText="Shown under the explanation, like a textbook name." />
+                  <View style={{ flexDirection: 'row', gap: space.sm }}>
+                    <View style={{ flex: 1 }}><InputField label="Edition" value={draft.ref_edition ?? ''} onChangeText={(t: string) => set('ref_edition', t)} maxLength={120} /></View>
+                    <View style={{ flex: 1 }}><InputField label="Page numbers" value={draft.ref_pages ?? ''} onChangeText={(t: string) => set('ref_pages', t)} maxLength={120} placeholder="142-144" /></View>
+                  </View>
                   <SelectField label="Source" value={draft.source_type} options={SOURCES} onChange={(v) => set('source_type', v ?? 'qbank')} />
                   <View style={{ flexDirection: 'row', gap: space.sm }}>
                     <View style={{ flex: 1 }}><InputField label="Year" value={draft.source_year ?? ''} onChangeText={(t: string) => set('source_year', t.replace(/\D/g, '').slice(0, 4))} keyboardType="number-pad" error={err('source_year') ?? undefined} /></View>

@@ -23,7 +23,15 @@ type BookmarkHandler struct{ DB *gorm.DB }
 
 func NewBookmarkHandler(db *gorm.DB) *BookmarkHandler { return &BookmarkHandler{DB: db} }
 
-var bookmarkTypes = []string{items.Question, items.Flashcard, items.Content}
+var bookmarkTypes = []string{items.Question, items.Flashcard, items.Content, items.FlashcardDeck, items.Pulse}
+
+// typesFor widens a tab's item type to every stored type it shows: the Flashcards tab holds cards and decks.
+func typesFor(it string) []string {
+	if it == items.Flashcard {
+		return []string{items.Flashcard, items.FlashcardDeck}
+	}
+	return []string{it}
+}
 
 func (h *BookmarkHandler) collectionsFor(userID uuid.UUID) []models.BookmarkCollection {
 	var cols []models.BookmarkCollection
@@ -60,7 +68,7 @@ func (h *BookmarkHandler) ListCollections(c *gin.Context) {
 }
 
 type putBookmarkRequest struct {
-	ItemType     string  `json:"item_type" enums:"question,flashcard,content"`
+	ItemType     string  `json:"item_type" enums:"question,flashcard,flashcard_deck,pulse,content"`
 	ItemID       string  `json:"item_id"`
 	CollectionID *string `json:"collection_id"`
 	Note         *string `json:"note"`
@@ -169,7 +177,7 @@ func (h *BookmarkHandler) IDs(c *gin.Context) {
 	user := middleware.GetUser(c)
 	typ := c.DefaultQuery("item_type", items.Question)
 	var rows []models.Bookmark
-	h.DB.Select("item_id", "collection_id").Where("user_id = ? AND item_type = ?", user.ID, typ).Find(&rows)
+	h.DB.Select("item_id", "collection_id").Where("user_id = ? AND item_type IN ?", user.ID, typesFor(typ)).Find(&rows)
 	by := map[string][]uuid.UUID{}
 	all := make([]uuid.UUID, 0, len(rows))
 	for _, r := range rows {
@@ -192,6 +200,10 @@ type bookmarkQuestion struct {
 	SubjectID     *uuid.UUID            `json:"subject_id,omitempty"`
 	ChapterID     *uuid.UUID            `json:"chapter_id,omitempty"`
 	Difficulty    *string               `json:"difficulty,omitempty"`
+	Tags          []string              `json:"tags,omitempty"`
+	RefBook       *string               `json:"ref_book,omitempty"`
+	RefEdition    *string               `json:"ref_edition,omitempty"`
+	RefPages      *string               `json:"ref_pages,omitempty"`
 }
 
 type bookmarkRow struct {
@@ -199,6 +211,8 @@ type bookmarkRow struct {
 	Question  *bookmarkQuestion `json:"question,omitempty"`
 	Content   gin.H             `json:"content,omitempty"`
 	Flashcard gin.H             `json:"flashcard,omitempty"`
+	Deck      gin.H             `json:"deck,omitempty"`
+	Pulse     gin.H             `json:"pulse,omitempty"`
 }
 
 // List godoc
@@ -221,26 +235,53 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 		q = q.Where("bookmarks.collection_id = ?", v)
 	}
 	if v := c.Query("item_type"); v != "" {
-		q = q.Where("bookmarks.item_type = ?", v)
+		q = q.Where("bookmarks.item_type IN ?", typesFor(v))
 	}
-	if v := c.Query("subject_id"); v != "" {
-		q = q.Where("bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE subject_id = ?)", v)
+	if ids := csvIDs(c.Query("collection_ids")); len(ids) > 0 {
+		q = q.Where("bookmarks.collection_id IN ?", ids)
 	}
-	if v := c.Query("chapter_id"); v != "" {
-		q = q.Where("bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE chapter_id = ?)", v)
+	subjects := csvIDs(firstNonEmpty(c.Query("subject_ids"), c.Query("subject_id")))
+	chapters := csvIDs(firstNonEmpty(c.Query("chapter_ids"), c.Query("chapter_id")))
+	if len(subjects) > 0 {
+		switch c.Query("item_type") {
+		case items.Flashcard:
+			q = q.Where("(bookmarks.item_type = 'flashcard' AND bookmarks.item_id IN (SELECT f.id FROM flashcards f JOIN flashcard_decks d ON d.id = f.deck_id WHERE d.subject_id IN ?)) OR (bookmarks.item_type = 'flashcard_deck' AND bookmarks.item_id IN (SELECT id FROM flashcard_decks WHERE subject_id IN ?))", subjects, subjects)
+		case items.Pulse:
+			q = q.Where("bookmarks.item_type = 'pulse' AND bookmarks.item_id IN (SELECT id FROM pulse_items WHERE subject_id IN ?)", subjects)
+		default:
+			q = q.Where("bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE subject_id IN ?)", subjects)
+		}
+	}
+	if len(chapters) > 0 {
+		switch c.Query("item_type") {
+		case items.Flashcard:
+			q = q.Where("(bookmarks.item_type = 'flashcard' AND bookmarks.item_id IN (SELECT f.id FROM flashcards f JOIN flashcard_decks d ON d.id = f.deck_id WHERE d.chapter_id IN ?)) OR (bookmarks.item_type = 'flashcard_deck' AND bookmarks.item_id IN (SELECT id FROM flashcard_decks WHERE chapter_id IN ?))", chapters, chapters)
+		case items.Pulse:
+			q = q.Where("bookmarks.item_type = 'pulse' AND bookmarks.item_id IN (SELECT id FROM pulse_items WHERE chapter_id IN ?)", chapters)
+		default:
+			q = q.Where("bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE chapter_id IN ?)", chapters)
+		}
 	}
 	if v := strings.TrimSpace(c.Query("q")); v != "" {
 		like := "%" + v + "%"
-		q = q.Where("(bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE question_text ILIKE ?)) OR (bookmarks.item_type = 'content' AND bookmarks.item_id IN (SELECT id FROM content_items WHERE title ILIKE ?))", like, like)
+		q = q.Where(`(bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE question_text ILIKE ?))
+			OR (bookmarks.item_type = 'content' AND bookmarks.item_id IN (SELECT id FROM content_items WHERE title ILIKE ?))
+			OR (bookmarks.item_type = 'flashcard' AND bookmarks.item_id IN (SELECT id FROM flashcards WHERE front ILIKE ?))
+			OR (bookmarks.item_type = 'flashcard_deck' AND bookmarks.item_id IN (SELECT id FROM flashcard_decks WHERE title ILIKE ?))
+			OR (bookmarks.item_type = 'pulse' AND bookmarks.item_id IN (SELECT id FROM pulse_items WHERE title ILIKE ?))`, like, like, like, like, like)
 	}
 	q = pagination.Apply(q, "bookmarks", pagination.Decode(c.Query("cursor")), limit)
 	var bms []models.Bookmark
 	q.Find(&bms)
 	bms, next := pagination.Page(bms, limit, func(b models.Bookmark) (time.Time, uuid.UUID) { return b.CreatedAt, b.ID })
 
-	var qids, cids, fids []uuid.UUID
+	var qids, cids, fids, dids, pids []uuid.UUID
 	for _, b := range bms {
 		switch b.ItemType {
+		case items.FlashcardDeck:
+			dids = append(dids, b.ItemID)
+		case items.Pulse:
+			pids = append(pids, b.ItemID)
 		case items.Question:
 			qids = append(qids, b.ItemID)
 		case items.Content:
@@ -282,6 +323,34 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 			revealed[id] = true
 		}
 	}
+	decks := map[uuid.UUID]gin.H{}
+	if len(dids) > 0 {
+		var ds []struct {
+			ID        uuid.UUID
+			Title     string
+			CardCount int
+			Subject   *string
+			Chapter   *string
+		}
+		h.DB.WithContext(ctx).Raw(`SELECT d.id, d.title, d.card_count, s.name AS subject, ch.name AS chapter FROM flashcard_decks d LEFT JOIN subjects s ON s.id = d.subject_id LEFT JOIN chapters ch ON ch.id = d.chapter_id WHERE d.id IN ?`, dids).Scan(&ds)
+		for _, d := range ds {
+			decks[d.ID] = gin.H{"id": d.ID, "title": d.Title, "card_count": d.CardCount, "subject": d.Subject, "chapter": d.Chapter}
+		}
+	}
+	pulses := map[uuid.UUID]gin.H{}
+	if len(pids) > 0 {
+		var ps []struct {
+			ID      uuid.UUID
+			Title   string
+			Subject string
+			Chapter string
+		}
+		h.DB.WithContext(ctx).Raw(`SELECT p.id, p.title, s.name AS subject, ch.name AS chapter FROM pulse_items p JOIN subjects s ON s.id = p.subject_id JOIN chapters ch ON ch.id = p.chapter_id WHERE p.id IN ?`, pids).Scan(&ps)
+		for _, p := range ps {
+			pulses[p.ID] = gin.H{"id": p.ID, "title": p.Title, "subject": p.Subject, "chapter": p.Chapter}
+		}
+	}
+	tagsBy := tagNames(h.DB, ctx, qids)
 	mc := media.NewCollector()
 	rows := make([]bookmarkRow, len(bms))
 	for i, b := range bms {
@@ -290,7 +359,8 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 		case items.Question:
 			if qq, ok := qs[b.ItemID]; ok {
 				v := &bookmarkQuestion{ID: qq.ID, ContentFormat: qq.ContentFormat, QuestionText: qq.QuestionText, OptionA: qq.OptionA, OptionB: qq.OptionB,
-					OptionC: qq.OptionC, OptionD: qq.OptionD, SubjectID: qq.SubjectID, ChapterID: qq.ChapterID, Difficulty: qq.Difficulty}
+					OptionC: qq.OptionC, OptionD: qq.OptionD, SubjectID: qq.SubjectID, ChapterID: qq.ChapterID, Difficulty: qq.Difficulty,
+					Tags: tagsBy[qq.ID], RefBook: qq.RefBook, RefEdition: qq.RefEdition, RefPages: qq.RefPages}
 				if revealed[qq.ID] {
 					v.CorrectOption, v.Explanation = &qq.CorrectOption, qq.Explanation
 				}
@@ -302,6 +372,10 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 				rows[i].Flashcard = gin.H{"id": fc.ID, "deck_id": fc.DeckID, "content_format": fc.ContentFormat, "front": fc.Front, "back": fc.Back}
 				mc.Add(fc.ContentFormat, &fc.Front, &fc.Back)
 			}
+		case items.FlashcardDeck:
+			rows[i].Deck = decks[b.ItemID]
+		case items.Pulse:
+			rows[i].Pulse = pulses[b.ItemID]
 		case items.Content:
 			if ct, ok := contents[b.ItemID]; ok {
 				rows[i].Content = gin.H{"id": ct.ID, "title": ct.Title, "content_type": ct.ContentType, "chapter_id": ct.ChapterID}
@@ -398,4 +472,164 @@ func (h *BookmarkHandler) AdminPatchCollection(c *gin.Context) {
 	}
 	h.DB.First(&col, "id = ?", col.ID)
 	c.JSON(http.StatusOK, col)
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
+// csvIDs reads "id1,id2" into UUIDs, ignoring anything that is not one.
+func csvIDs(v string) []uuid.UUID {
+	var out []uuid.UUID
+	for _, p := range strings.Split(v, ",") {
+		if id, err := uuid.Parse(strings.TrimSpace(p)); err == nil {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// Summary godoc
+//
+//	@Summary		Bookmark counts for the Bookmarks screen
+//	@Description	For one item type (default question): the total, the count per bookmark type (collection) and the count per subject. Subjects are in the order Biology, Chemistry, Physics, then any others.
+//	@Tags			Bookmarks
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			item_type	query		string	false	"question or flashcard"
+//	@Success		200			{object}	map[string]interface{}
+//	@Router			/api/v1/me/bookmarks/summary [get]
+func (h *BookmarkHandler) Summary(c *gin.Context) {
+	user := middleware.GetUser(c)
+	ctx := c.Request.Context()
+	it := c.DefaultQuery("item_type", items.Question)
+	if it != items.Question && it != items.Flashcard && it != items.Pulse {
+		respondErr(c, http.StatusBadRequest, "invalid_item_type", "item_type must be question, flashcard or pulse")
+		return
+	}
+	var total int64
+	h.DB.WithContext(ctx).Model(&models.Bookmark{}).Where("user_id = ? AND item_type IN ?", user.ID, typesFor(it)).Count(&total)
+	var byCol []struct {
+		CollectionID uuid.UUID `json:"collection_id"`
+		N            int       `json:"count"`
+	}
+	h.DB.WithContext(ctx).Raw("SELECT collection_id, count(*) AS n FROM bookmarks WHERE user_id = ? AND item_type IN ? GROUP BY collection_id", user.ID, typesFor(it)).Scan(&byCol)
+	subjectSQL := `SELECT q.subject_id AS subject_id, count(*) AS n FROM bookmarks b JOIN questions q ON q.id = b.item_id
+		WHERE b.user_id = ? AND b.item_type = 'question' AND q.subject_id IS NOT NULL GROUP BY q.subject_id`
+	switch it {
+	case items.Flashcard:
+		subjectSQL = `SELECT subject_id, sum(n)::int AS n FROM (
+			SELECT d.subject_id AS subject_id, count(*) AS n FROM bookmarks b JOIN flashcards f ON f.id = b.item_id JOIN flashcard_decks d ON d.id = f.deck_id
+			  WHERE b.user_id = ? AND b.item_type = 'flashcard' AND d.subject_id IS NOT NULL GROUP BY d.subject_id
+			UNION ALL
+			SELECT d.subject_id, count(*) FROM bookmarks b JOIN flashcard_decks d ON d.id = b.item_id
+			  WHERE b.user_id = ? AND b.item_type = 'flashcard_deck' AND d.subject_id IS NOT NULL GROUP BY d.subject_id) u GROUP BY subject_id`
+	case items.Pulse:
+		subjectSQL = `SELECT p.subject_id AS subject_id, count(*) AS n FROM bookmarks b JOIN pulse_items p ON p.id = b.item_id
+			WHERE b.user_id = ? AND b.item_type = 'pulse' GROUP BY p.subject_id`
+	}
+	var bySubject []struct {
+		SubjectID uuid.UUID
+		N         int
+	}
+	if it == items.Flashcard {
+		h.DB.WithContext(ctx).Raw(subjectSQL, user.ID, user.ID).Scan(&bySubject)
+	} else {
+		h.DB.WithContext(ctx).Raw(subjectSQL, user.ID).Scan(&bySubject)
+	}
+	counts := map[uuid.UUID]int{}
+	for _, x := range bySubject {
+		counts[x.SubjectID] = x.N
+	}
+	// Every subject of the student's course is listed, even with no bookmarks, so the landing always has the same rows.
+	var subs []models.Subject
+	q := h.DB.WithContext(ctx).Model(&models.Subject{})
+	if user.SelectedCourseID != nil {
+		q = q.Where("course_id = ?", *user.SelectedCourseID)
+	}
+	q.Find(&subs)
+	rank := func(name string) int {
+		switch strings.ToLower(name) {
+		case "biology":
+			return 0
+		case "chemistry":
+			return 1
+		case "physics":
+			return 2
+		}
+		return 3
+	}
+	slices.SortFunc(subs, func(a, b models.Subject) int {
+		if ra, rb := rank(a.Name), rank(b.Name); ra != rb {
+			return ra - rb
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+	subjects := make([]gin.H, 0, len(subs))
+	for _, sj := range subs {
+		subjects = append(subjects, gin.H{"subject_id": sj.ID, "name": sj.Name, "count": counts[sj.ID]})
+	}
+	var colOut interface{} = byCol
+	if byCol == nil {
+		colOut = []interface{}{}
+	}
+	c.JSON(http.StatusOK, gin.H{"total": total, "by_collection": colOut, "by_subject": subjects})
+}
+
+type checkRequest struct {
+	Option string `json:"option"`
+}
+
+// CheckQuestion godoc
+//
+//	@Summary		Answer a bookmarked question again, without saving anything
+//	@Description	Returns whether the chosen option is right, the correct option, the explanation and, where enough students have answered, the share who chose each option. Nothing is written: attempts, accuracy, progress, goals and streak are untouched. Only a question the student has bookmarked can be checked.
+//	@Tags			Bookmarks
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string			true	"Question UUID"
+//	@Param			body	body		checkRequest	true	"Chosen option"
+//	@Success		200		{object}	map[string]interface{}
+//	@Router			/api/v1/me/bookmarks/questions/{id}/check [post]
+func (h *BookmarkHandler) CheckQuestion(c *gin.Context) {
+	user := middleware.GetUser(c)
+	ctx := c.Request.Context()
+	id, ok := httpx.ParamUUID(c, "id")
+	if !ok {
+		return
+	}
+	var req checkRequest
+	// An empty option means the time ran out with no answer: the answer is shown and nothing is marked right.
+	if c.ShouldBindJSON(&req) != nil || !slices.Contains([]string{"", "A", "B", "C", "D"}, req.Option) {
+		respondErr(c, http.StatusBadRequest, "invalid_option", "option must be A, B, C, D or empty for no answer")
+		return
+	}
+	var n int64
+	h.DB.WithContext(ctx).Model(&models.Bookmark{}).Where("user_id = ? AND item_type = 'question' AND item_id = ?", user.ID, id).Count(&n)
+	if n == 0 {
+		respondErr(c, http.StatusNotFound, "not_bookmarked", "only a bookmarked question can be re-attempted here")
+		return
+	}
+	var qq models.Question
+	if h.DB.WithContext(ctx).First(&qq, "id = ?", id).Error != nil {
+		respondErr(c, http.StatusNotFound, "not_found", "question not found")
+		return
+	}
+	mc := media.NewCollector()
+	mc.Add(qq.ContentFormat, qq.Explanation)
+	shares := optionShares(h.DB, ctx, []uuid.UUID{id})[id]
+	out := gin.H{
+		"is_correct": req.Option != "" && string(qq.CorrectOption) == req.Option, "tags": tagNames(h.DB, ctx, []uuid.UUID{id})[id],
+		"ref_book": qq.RefBook, "ref_edition": qq.RefEdition, "ref_pages": qq.RefPages, "correct_option": qq.CorrectOption, "explanation": qq.Explanation,
+		"content_format": qq.ContentFormat, "media": media.NewService(h.DB).ResolveCollector(ctx, mc, media.URLTTL(nil)),
+	}
+	if shares != nil {
+		out["option_shares"] = shares
+		out["percent_correct"] = shares[string(qq.CorrectOption)]
+	}
+	c.JSON(http.StatusOK, out)
 }

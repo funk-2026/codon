@@ -9,13 +9,14 @@ import { listFeedback, updateFeedback, type FeedbackEntry, type FeedbackStatus }
 import { useCursorList } from '@/src/queries/useCursorList';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { shadow } from '@/src/theme/elevation';
+import { formatDate } from '@/src/format/date';
 
 const CHIPS: { key: FeedbackStatus; label: string }[] = [
   { key: 'new', label: 'New' },
   { key: 'in_progress', label: 'In progress' },
   { key: 'resolved', label: 'Resolved' },
 ];
-const when = (iso: string) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+const when = (iso: string) => formatDate(iso);
 
 /** What users sent through "Give feedback". New ones first; each can be moved along with a note. */
 export default function FeedbackInboxRoute() {

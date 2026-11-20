@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Broadcast, CaretRight, ChartBar, ChatCircleText, ClockCounterClockwise, FolderOpen, GearSix, HandHeart, Megaphone, ShieldCheck, Tag, Timer } from 'phosphor-react-native';
+import { Broadcast, CaretRight, FilePdf, UsersThree, ChartBar, ChatCircleText, ClockCounterClockwise, FolderOpen, GearSix, HandHeart, Megaphone, ShieldCheck, Tag, Timer } from 'phosphor-react-native';
 import { ErrorBanner, Screen, SkeletonBlock, TAB_EDGES } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAdminSummary } from '@/src/queries/admin';
@@ -14,6 +14,18 @@ import { shadow } from '@/src/theme/elevation';
 type Tool = { key?: 'feedback'; label: string; text: string; Icon: typeof GearSix; href: Href };
 const GROUPS: { title: string; tools: Tool[] }[] = [
   {
+    title: 'CREATE (same tools teachers use)',
+    tools: [
+      { label: 'New exam', text: 'Grand, Mini or Subject-wise test; live or anytime; in a series', Icon: Timer, href: ROUTES.teacher.createExam },
+      { label: 'Test series', text: 'Create, rename or delete a series of mocks', Icon: FolderOpen, href: ROUTES.admin.series },
+      { label: 'New Q Bank set', text: 'Chapter practice from questions or a CSV', Icon: Tag, href: ROUTES.teacher.createTest },
+      { label: 'New lesson', text: 'Upload a video lecture or a document', Icon: FilePdf, href: ROUTES.teacher.createContent },
+      { label: 'New Brain Hack', text: 'An article or a short video', Icon: HandHeart, href: ROUTES.teacher.createBrainHack },
+      { label: 'New flashcard deck', text: 'Cards for a chapter', Icon: Tag, href: ROUTES.teacher.flashcardDeck },
+      { label: 'All content and questions', text: 'Everything every teacher made, to edit or remove', Icon: ShieldCheck, href: ROUTES.teacher.content },
+    ],
+  },
+  {
     title: 'COURSE',
     tools: [{ label: 'Course structure', text: 'Subjects, chapters and what each holds', Icon: FolderOpen, href: ROUTES.admin.courseStructure }],
   },
@@ -25,6 +37,11 @@ const GROUPS: { title: string; tools: Tool[] }[] = [
       { label: 'Exams', text: 'Live tests: extend, results time, recompute scores', Icon: Timer, href: ROUTES.admin.exams },
       { label: 'Live content', text: 'Pull something back with a reason', Icon: ShieldCheck, href: ROUTES.admin.liveContent },
       { label: 'Home banners', text: 'What students see at the top of Home', Icon: Megaphone, href: ROUTES.admin.homeUpdates },
+      { label: 'Documents', text: 'Guides, board papers, Schema PDF', Icon: FilePdf, href: ROUTES.admin.referenceDocs },
+      { label: 'Schema topics', text: 'Add, edit, delete, or import the topic table', Icon: FilePdf, href: ROUTES.admin.schemaTopics },
+      { label: 'Pulse items', text: 'One-minute revision items by chapter', Icon: Tag, href: ROUTES.admin.pulseItems },
+      { label: 'Faculty', text: 'The roster under Our team', Icon: UsersThree, href: ROUTES.admin.faculty },
+      { label: 'Home message', text: 'The note with a photo on Home', Icon: HandHeart, href: ROUTES.admin.homeMessage },
       { label: 'Announcement', text: 'Message every student or teacher', Icon: Broadcast, href: ROUTES.admin.announcements },
     ],
   },

@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"fmt"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -348,9 +348,9 @@ func notificationAudience(q *gorm.DB, col, audience string) *gorm.DB {
 
 type readRequest struct {
 	// Audience scopes "all" to what the current view shows: student, teacher or admin.
-	Audience string `json:"audience"`
-	IDs []string `json:"ids"`
-	All bool     `json:"all"`
+	Audience string   `json:"audience"`
+	IDs      []string `json:"ids"`
+	All      bool     `json:"all"`
 }
 
 // MarkRead godoc

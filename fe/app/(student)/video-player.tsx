@@ -2,36 +2,35 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { useEvent } from 'expo';
-import { useVideoPlayer, VideoView, VideoTrack } from 'expo-video';
+import { isPictureInPictureSupported, VideoView, VideoTrack } from 'expo-video';
+import { useVideoSession } from '@/src/video/VideoSession';
 import { VideoNotesPanel } from '@/src/video/VideoNotesPanel';
 import { track } from '@/src/analytics/track';
-import { CaretLeft, Play, Pause, X, WarningCircle, LockSimple, PictureInPicture } from 'phosphor-react-native';
-import { BookmarkToggle } from '@/src/bookmarks/BookmarkToggle';
+import { CaretLeft, PictureInPicture, ArrowsInSimple, WarningCircle, LockSimple, ArrowClockwise, ArrowCounterClockwise, Play, Pause, FlagBanner, Exam, DownloadSimple, CheckCircle } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { getContentItem, getChapterContent, ContentItem, sendHeartbeat, type LecturePDFs } from '@/src/api/content';
+import { getContentItem, ContentItem, sendHeartbeat, setLectureCompleted, type LecturePDFs } from '@/src/api/content';
+import { submitFeedback } from '@/src/api/feedback';
+import { PLAYBACK_SPEEDS, speedLabel } from '@/src/video/lectureState';
 import { LecturePdfDownloads } from '@/src/content/LecturePdfDownloads';
+import { downloadVideo, listDownloads, mp4Url } from '@/src/video/downloads';
+import { MediaImage } from '@/src/rich';
 
 const WATCHED_FRACTION = 0.9;
 const pdfsOf = (r: LecturePDFs): LecturePDFs => ({
   has_notes_pdf: r.has_notes_pdf, notes_pdf_url: r.notes_pdf_url,
   has_annotated_pdf: r.has_annotated_pdf, annotated_pdf_url: r.annotated_pdf_url, annotated_pdf_locked: r.annotated_pdf_locked,
+  has_fourth_book_pdf: r.has_fourth_book_pdf, fourth_book_pdf_url: r.fourth_book_pdf_url,
+  has_board_questions_pdf: r.has_board_questions_pdf, board_questions_pdf_url: r.board_questions_pdf_url,
 });
 import { ApiError } from '@/src/api/client';
-import { EmptyState, PrimaryButton, SkeletonBlock, TextButton, Screen } from '@/src/components';
+import { BottomSheet, ConfirmDialog, EmptyState, InputField, PrimaryButton, SkeletonBlock, TextButton, Screen, useToast } from '@/src/components';
 import { ROUTES } from '@/src/navigation/routes';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 import { shadow } from '@/src/theme/elevation';
 
 
 
-const SPEEDS = ['0.5x', '0.75x', '1x', '1.25x', '1.5x', '2x'];
-const SPEED_VALUES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export default function VideoPlayerRoute() {
   const { color, type, space, radius } = useTheme();
@@ -39,13 +38,22 @@ export default function VideoPlayerRoute() {
   const goBack = useSafeBack();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
+  const { player, start, dock, close, currentId } = useVideoSession();
 
   // Where to pick up, taken from the server when the lecture opens and used once the player is ready.
   const resumeAt = useRef(0);
   const [content, setContent] = useState<ContentItem | null>(null);
   const [pdfs, setPdfs] = useState<LecturePDFs | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
-  const [siblings, setSiblings] = useState<ContentItem[]>([]);
+  type Meta = { subject?: string; chapter?: string; qbank?: string; completed: boolean };
+  const [cover, setCover] = useState<import('@/src/rich/ast').MediaView | undefined>();
+  const [dl, setDl] = useState<{ state: 'idle' | 'busy' | 'done'; pct: number }>({ state: 'idle', pct: 0 });
+  const [meta, setMeta] = useState<Meta>({ completed: false });
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportNote, setReportNote] = useState('');
+  const [reporting, setReporting] = useState(false);
+  const [confirmUndo, setConfirmUndo] = useState(false);
+  const { show } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -62,13 +70,15 @@ export default function VideoPlayerRoute() {
       .then((res) => {
         setContent(res.content);
         setVideoUrl(res.url);
-        resumeAt.current = res.progress_seconds && res.progress_seconds > 5 ? res.progress_seconds : 0;
+        // Coming back from the small player: the player is already at the right spot, so don't jump.
+        const alreadyLoaded = currentId() === id;
+        resumeAt.current = !alreadyLoaded && res.progress_seconds && res.progress_seconds > 5 ? res.progress_seconds : 0;
+        if (res.url) start({ id: String(id), title: res.content.title, url: res.url });
         track('video.started', { resumed: resumeAt.current > 0 });
         setPdfs(pdfsOf(res));
-        return getChapterContent(res.content.chapter_id);
-      })
-      .then((chRes) => {
-        setSiblings(chRes.content.filter((c) => c.id !== id));
+        setCover(res.chapter_cover);
+        void listDownloads().then((all) => setDl(all.some((d) => d.id === String(id)) ? { state: 'done', pct: 1 } : { state: 'idle', pct: 0 }));
+        setMeta({ subject: res.subject_name, chapter: res.chapter_name, qbank: res.related_qbank_test_id, completed: !!res.is_completed });
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 403) {
@@ -78,15 +88,12 @@ export default function VideoPlayerRoute() {
         }
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, start, currentId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const player = useVideoPlayer(videoUrl || null, (p) => {
-    p.timeUpdateEventInterval = 0.5;
-  });
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
   const { currentTime } = useEvent(player, 'timeUpdate', {
     currentTime: 0,
@@ -106,26 +113,33 @@ export default function VideoPlayerRoute() {
   }, [playerStatus, player]);
 
   const videoViewRef = useRef<VideoView>(null);
+  // Leaving by Back stops the lesson; leaving through the small-player button keeps it going.
+  const dockingRef = useRef(false);
+  useEffect(() => {
+    dockingRef.current = false;
+    return () => {
+      if (!dockingRef.current && id) close(String(id));
+    };
+  }, [id, close]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [qualityTracks, setQualityTracks] = useState<VideoTrack[]>([]);
   const [selectedQuality, setSelectedQuality] = useState<string | null>(null);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
 
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [floating, setFloating] = useState(false);
-  const [speedIdx, setSpeedIdx] = useState(2);
+  const [speedIdx, setSpeedIdx] = useState(PLAYBACK_SPEEDS.indexOf(1));
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!isPlaying || !controlsVisible || floating) return;
+    if (!isPlaying || !controlsVisible) return;
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [isPlaying, controlsVisible, floating]);
+  }, [isPlaying, controlsVisible]);
 
   // Watch-progress heartbeat. currentTime updates every 0.5 s, so it's read from a
   // ref — depending on it directly restarted the 10 s interval before it ever fired,
@@ -138,7 +152,7 @@ export default function VideoPlayerRoute() {
     if (!isPlaying || !id) return;
     const beat = () => {
       const d = player.duration || 0;
-      if (d > 0) sendHeartbeat(id, Math.floor(timeRef.current), timeRef.current >= d * WATCHED_FRACTION).catch(() => {});
+      if (d > 0) sendHeartbeat(id, Math.floor(timeRef.current), timeRef.current >= d * WATCHED_FRACTION, d).catch(() => {});
     };
     const t = setInterval(beat, 10000);
     return () => {
@@ -158,11 +172,6 @@ export default function VideoPlayerRoute() {
       .catch(() => {});
   }, [currentTime, duration, id]);
 
-  const floatScale = useSharedValue(0);
-  useEffect(() => {
-    floatScale.value = withTiming(floating ? 1 : 0, { duration: 280 });
-  }, [floating, floatScale]);
-
   const mm = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const togglePlay = () => {
     if (player.playing) {
@@ -174,7 +183,7 @@ export default function VideoPlayerRoute() {
   };
   const selectSpeed = (i: number) => {
     setSpeedIdx(i);
-    player.playbackRate = SPEED_VALUES[i];
+    player.playbackRate = PLAYBACK_SPEEDS[i];
     setSpeedMenuOpen(false);
   };
 
@@ -223,14 +232,6 @@ export default function VideoPlayerRoute() {
     }
   };
 
-  const fullStyle = useAnimatedStyle(() => ({
-    opacity: 1 - floatScale.value,
-    transform: [{ scale: 1 - floatScale.value * 0.04 }],
-  }));
-  const floatStyle = useAnimatedStyle(() => ({
-    opacity: floatScale.value,
-  }));
-
   // Turned sideways, a full-width 16:9 video is taller than the screen and pushes everything below it out of
   // reach. Cap its height to about half the screen so the title, notes and next lessons stay scrollable.
   const { width: winW, height: winH } = useWindowDimensions();
@@ -244,15 +245,18 @@ export default function VideoPlayerRoute() {
   return (
     <Screen>
       {/* Full-screen mode */}
-      <Animated.View style={[styles.fullWrap, fullStyle]}>
+      <View style={styles.fullWrap}>
         {/* Video canvas */}
         <View style={{ backgroundColor: '#000' }}>
-          {videoUrl && !floating ? (
+          {videoUrl ? (
             <VideoView
+              ref={videoViewRef}
               player={player}
               style={videoBox}
               contentFit="contain"
               nativeControls
+              allowsPictureInPicture
+              startsPictureInPictureAutomatically
               fullscreenOptions={{ enable: true, orientation: 'landscape' }}
             />
           ) : videoNotReady ? (
@@ -264,7 +268,9 @@ export default function VideoPlayerRoute() {
               </Text>
             </View>
           ) : (
-            <View style={{ width: '100%', height: 200 }} />
+            <View style={{ width: '100%', height: 200, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              {cover ? <MediaImage media={cover} variant="display" maxHeight={200} /> : null}
+            </View>
           )}
 
           <View style={[styles.topRow, { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: space.md, paddingTop: space.sm, justifyContent: 'space-between' }]} pointerEvents="box-none">
@@ -286,25 +292,52 @@ export default function VideoPlayerRoute() {
             >
               <CaretLeft size={24} color="#fff" />
             </Pressable>
-            {videoUrl && !floating ? (
-              <Pressable
-                onPress={() => setFloating(true)}
-                hitSlop={space.xs}
-                accessibilityRole="button"
-                accessibilityLabel="Mini player — keep watching while you read notes"
-                style={({ pressed }) => ({
-                  opacity: pressed ? 0.6 : 1,
-                  backgroundColor: 'rgba(0,0,0,0.4)',
-                  borderRadius: 20,
-                  width: 40,
-                  height: 40,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                })}
-              >
-                <PictureInPicture size={22} color="#fff" />
-              </Pressable>
-            ) : null}
+            <View style={{ flexDirection: 'row', gap: space.xs }}>
+              {videoUrl ? (
+                <Pressable
+                  onPress={() => {
+                    dockingRef.current = true;
+                    dock();
+                    goBack();
+                  }}
+                  hitSlop={space.xs}
+                  accessibilityRole="button"
+                  accessibilityLabel="Keep watching in a small player while you browse"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' })}
+                >
+                  <ArrowsInSimple size={22} color="#fff" />
+                </Pressable>
+              ) : null}
+              {videoUrl && mp4Url(videoUrl) ? (
+                <Pressable
+                  disabled={dl.state !== 'idle'}
+                  onPress={() => {
+                    setDl({ state: 'busy', pct: 0 });
+                    downloadVideo({ id: String(id), title: content?.title ?? 'Lecture', subject: meta?.subject, chapter: meta?.chapter, hlsUrl: videoUrl }, (f) => setDl({ state: 'busy', pct: f }))
+                      .then(() => { setDl({ state: 'done', pct: 1 }); show('Downloaded. Find it under Video › Downloaded Videos.', 'success'); })
+                      .catch(() => { setDl({ state: 'idle', pct: 0 }); show('Couldn’t download this lecture. It may not be available offline.', 'error'); });
+                  }}
+                  hitSlop={space.xs}
+                  accessibilityRole="button"
+                  accessibilityLabel={dl.state === 'done' ? 'Downloaded' : dl.state === 'busy' ? `Downloading, ${Math.round(dl.pct * 100)} percent` : 'Download this lecture'}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20, minWidth: 40, height: 40, paddingHorizontal: dl.state === 'busy' ? 10 : 0, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 })}
+                >
+                  {dl.state === 'done' ? <CheckCircle size={22} color="#fff" weight="fill" /> : <DownloadSimple size={22} color="#fff" />}
+                  {dl.state === 'busy' ? <Text style={{ color: '#fff', fontSize: 12 }}>{Math.round(dl.pct * 100)}%</Text> : null}
+                </Pressable>
+              ) : null}
+              {videoUrl && isPictureInPictureSupported() ? (
+                <Pressable
+                  onPress={() => void videoViewRef.current?.startPictureInPicture().catch(() => {})}
+                  hitSlop={space.xs}
+                  accessibilityRole="button"
+                  accessibilityLabel="Picture in picture, float the video over other apps"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' })}
+                >
+                  <PictureInPicture size={22} color="#fff" />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -324,7 +357,7 @@ export default function VideoPlayerRoute() {
             <EmptyState
               icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
               title="Couldn't load this video"
-              description="Something went wrong loading this lesson. Check your connection and try again."
+              description="Couldn’t load this lesson. Check your connection and try again."
               action={<TextButton label="Retry" onPress={load} />}
               style={{ marginTop: space.md }}
             />
@@ -343,18 +376,46 @@ export default function VideoPlayerRoute() {
             />
           ) : (
             <>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: space.md }}>
-                <Text style={[type['type/h2'], { color: color('text/primary'), flex: 1 }]}>
-                  {content?.title || 'Loading...'}
-                </Text>
-                <BookmarkToggle type="content" id={content?.id} />
+              {/* 15-second seeks and play or pause, then the eight speeds */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xl, marginTop: space.md }}>
+                <Pressable onPress={() => { player.currentTime = Math.max(0, player.currentTime - 15); }} accessibilityRole="button" accessibilityLabel="Back 15 seconds" style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: color('bg/surface'), alignItems: 'center', justifyContent: 'center' }}>
+                  <ArrowCounterClockwise size={26} color={color('text/primary')} />
+                </Pressable>
+                <Pressable onPress={togglePlay} accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: color('action/primary'), alignItems: 'center', justifyContent: 'center' }}>
+                  {isPlaying ? <Pause size={28} color={color('action/on-primary')} weight="fill" /> : <Play size={28} color={color('action/on-primary')} weight="fill" />}
+                </Pressable>
+                <Pressable onPress={() => { player.currentTime = Math.min(duration || Infinity, player.currentTime + 15); }} accessibilityRole="button" accessibilityLabel="Forward 15 seconds" style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: color('bg/surface'), alignItems: 'center', justifyContent: 'center' }}>
+                  <ArrowClockwise size={26} color={color('text/primary')} />
+                </Pressable>
               </View>
-              <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                Video Lesson{content?.author_name ? ` · By ${content.author_name}` : ''}
-              </Text>
-              {pdfs && (pdfs.has_notes_pdf || pdfs.has_annotated_pdf) ? (
-                <LecturePdfDownloads pdfs={pdfs} title={content?.title ?? 'Lecture'} />
-              ) : null}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.xs, marginTop: space.sm }} accessibilityRole="radiogroup">
+                {PLAYBACK_SPEEDS.map((sp, i) => {
+                  const on = i === speedIdx;
+                  return (
+                    <Pressable key={sp} onPress={() => selectSpeed(i)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Speed ${speedLabel(sp)}`} style={{ minHeight: 36, minWidth: 52, paddingHorizontal: space.sm, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}>
+                      <Text style={[type['type/caption'], { color: on ? color('accent/default') : color('text/secondary') }]}>{speedLabel(sp)}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Subject, then chapter, then the teacher */}
+              <View style={{ marginTop: space.lg, gap: 2 }}>
+                {meta.subject ? <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>{meta.subject}</Text> : null}
+                {meta.chapter ? <Text style={[type['type/body-m-medium'], { color: color('text/secondary') }]}>{meta.chapter}</Text> : null}
+                <Text style={[type['type/h2'], { color: color('text/primary') }]}>{content?.title || 'Loading...'}</Text>
+                <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{content?.author_name ?? ''}</Text>
+              </View>
+
+              {pdfs ? <LecturePdfDownloads pdfs={pdfs} title={content?.title ?? 'Lecture'} /> : null}
+
+              <View style={{ marginTop: space.md }}>
+                <Pressable onPress={() => setReportOpen(true)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44 }}>
+                  <FlagBanner size={20} color={color('text/secondary')} />
+                  <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Report a problem with this lecture</Text>
+                </Pressable>
+              </View>
+
               {id ? (
                 <VideoNotesPanel
                   contentId={String(id)}
@@ -362,117 +423,87 @@ export default function VideoPlayerRoute() {
                   onPause={() => player.pause()}
                   onSeek={(t) => {
                     player.currentTime = t;
-                    setFloating(false);
                   }}
                 />
               ) : null}
-              <Text
-                style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.lg, marginBottom: space.sm }]}
-              >
-                MORE IN THIS CHAPTER
-              </Text>
-              <View style={{ gap: space.xs }}>
-                {siblings.map((s) => (
-                  <Pressable
-                    key={s.id}
-                    onPress={() => router.push({ pathname: ROUTES.student.videoPlayer, params: { id: s.id } })}
-                    style={({ pressed }) => [
-                      styles.siblingRow,
-                      {
-                        backgroundColor: color('bg/surface'),
-                        borderRadius: radius.md,
-                        padding: space.sm,
-                        opacity: pressed ? 0.94 : 1,
-                      },
-                      shadow(),
-                    ]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[type['type/body-m-medium'], { color: color('text/primary') }]}
-                        numberOfLines={1}
-                      >
-                        {s.title}
-                      </Text>
-                      <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]}>
-                        {s.content_type === 'video' ? 'Video' : 'Document'}
-                      </Text>
-                    </View>
-                    <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />
-                  </Pressable>
-                ))}
+
+              {/* The QBank module of this same chapter, matched by chapter id */}
+              {meta.qbank ? (
+                <Pressable
+                  onPress={() => router.push({ pathname: ROUTES.student.testPreStart, params: { id: meta.qbank } })}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [{ marginTop: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
+                >
+                  <Exam size={26} color={color('accent/default')} weight="duotone" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>Practice this chapter</Text>
+                    <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{meta.chapter ? `${meta.chapter} · QBank` : 'QBank'}</Text>
+                  </View>
+                  <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />
+                </Pressable>
+              ) : null}
+
+              <View style={{ marginTop: space.lg }}>
+                <PrimaryButton
+                  label={meta.completed ? 'Completed. Tap to undo' : 'Mark complete'}
+                  onPress={async () => {
+                    if (meta.completed) return setConfirmUndo(true);
+                    try {
+                      await setLectureCompleted(String(id), true);
+                      setMeta((m) => ({ ...m, completed: true }));
+                      show('Marked complete', 'success');
+                    } catch {
+                      show('Couldn’t update. Try again.', 'error');
+                    }
+                  }}
+                />
               </View>
             </>
           )}
         </ScrollView>
-      </Animated.View>
+      </View>
 
-      {/* Floating mini-player */}
-      <Animated.View
-        style={[
-          {
-            position: 'absolute',
-            bottom: 80 + insets.bottom,
-            right: space.md,
-            width: 160,
-            height: 90,
-            backgroundColor: '#000',
-            borderRadius: radius.md,
-            overflow: 'hidden',
-            elevation: 8,
-            shadowColor: '#000',
-            shadowOpacity: 0.3,
-            shadowRadius: 16,
-            shadowOffset: { width: 0, height: 6 },
-          },
-          floatStyle,
-        ]}
-        pointerEvents={floating ? 'auto' : 'none'}
-      >
-        <Pressable
-          onPress={() => setFloating(false)}
-          style={{ flex: 1, backgroundColor: '#000' }}
-        >
-          {videoUrl && floating ? (
-            <VideoView
-              player={player}
-              style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
-              contentFit="contain"
-              nativeControls={false}
-              pointerEvents="none"
-            />
-          ) : null}
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' }]}>
-            <Pressable onPress={togglePlay} hitSlop={space.xs}>
-              {isPlaying ? (
-                <Pause size={24} color="#fff" weight="fill" />
-              ) : (
-                <Play size={24} color="#fff" weight="fill" />
-              )}
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                setFloating(false);
-                player.pause();
-                goBack();
-              }}
-              hitSlop={space.lg}
-              style={{ position: 'absolute', top: 6, right: 6 }}
-            >
-              <X size={16} color="#fff" weight="bold" />
-            </Pressable>
-          </View>
-          <View style={styles.floatProgress}>
-            <View
-              style={{
-                width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                height: 2,
-                backgroundColor: color('accent/default'),
-              }}
-            />
-          </View>
-        </Pressable>
-      </Animated.View>
+      <ConfirmDialog
+        visible={confirmUndo}
+        title="Mark as not completed?"
+        message="This lecture will count as not finished again."
+        confirmLabel="Mark not completed"
+        onCancel={() => setConfirmUndo(false)}
+        onConfirm={async () => {
+          setConfirmUndo(false);
+          try {
+            await setLectureCompleted(String(id), false);
+            setMeta((m) => ({ ...m, completed: false }));
+          } catch {
+            show('Couldn’t update. Try again.', 'error');
+          }
+        }}
+      />
+      <BottomSheet visible={reportOpen} onClose={() => !reporting && setReportOpen(false)} title="Report a problem" dismissable={!reporting}>
+        <View style={{ gap: space.md, paddingBottom: space.lg }}>
+          <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Tell us what went wrong with this lecture. We note the lecture and the moment you were at.</Text>
+          <InputField label="What happened?" value={reportNote} onChangeText={setReportNote} multiline maxLength={800} />
+          <PrimaryButton
+            label="Send"
+            loading={reporting}
+            disabled={reportNote.trim().length < 5}
+            onPress={async () => {
+              setReporting(true);
+              try {
+                const at = Math.floor(currentTime);
+                await submitFeedback({ category: 'Lecture problem', message: `${reportNote.trim()}\n\nLecture: ${content?.title ?? ''} (${id}) at ${Math.floor(at / 60)}:${String(at % 60).padStart(2, '0')}` });
+                show('Sent. Thank you.', 'success');
+                setReportOpen(false);
+                setReportNote('');
+              } catch {
+                show('Couldn’t send. Try again.', 'error');
+              } finally {
+                setReporting(false);
+              }
+            }}
+          />
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }
@@ -506,6 +537,5 @@ const styles = StyleSheet.create({
   controlsRow: { flexDirection: 'row', alignItems: 'center' },
   speedMenu: { alignItems: 'flex-end' },
   siblingRow: { flexDirection: 'row', alignItems: 'center' },
-  floatProgress: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.2)' },
   floatControls: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

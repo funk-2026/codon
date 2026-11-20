@@ -91,6 +91,10 @@ export type CreateQuestionRequest = {
   difficulty?: 'easy' | 'medium' | 'hard';
   ncert_class?: number;
   ncert_page?: number;
+  /** Book, edition and pages that explain the answer: the References block students see. "" clears. */
+  ref_book?: string;
+  ref_edition?: string;
+  ref_pages?: string;
   source_type?: string;
   source_year?: number;
   source_label?: string;
@@ -217,6 +221,8 @@ export type CreateContentRequest = {
   /** lecture_pdf upload keys; on update "" removes the PDF. */
   notes_pdf_key?: string;
   annotated_pdf_key?: string;
+  fourth_book_pdf_key?: string;
+  board_questions_pdf_key?: string;
   /** A document lesson written in the app (send this instead of a file). */
   body_text?: string;
 };

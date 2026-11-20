@@ -1,7 +1,6 @@
-import { Redirect } from 'expo-router';
-import { ROUTES } from '@/src/navigation/routes';
+import { StudyLanding } from '@/src/study/StudyLanding';
 
-/** Retired screen: flashcard decks now live in the Learn tab. Kept so old links still open. */
+/** Flashcards: opens from Home and is no longer part of the Video tab. */
 export default function FlashcardDecksRoute() {
-  return <Redirect href={{ pathname: ROUTES.student.learn, params: { kind: 'flashcards' } }} />;
+  return <StudyLanding kind="flashcards" />;
 }

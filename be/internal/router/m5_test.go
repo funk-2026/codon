@@ -71,7 +71,7 @@ func TestBrainHacksWorkflowWithImages(t *testing.T) {
 		t.Fatalf("student list: %v", list)
 	}
 	cats := e.mustDo(200, "GET", "/brain-hacks/categories", &e.w.Student, nil)["categories"].([]interface{})
-	if len(cats) != 3 {
+	if len(cats) != 5 {
 		t.Fatalf("defaults + used categories: %v", cats)
 	}
 	// rating + rich body arrives with resolved images

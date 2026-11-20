@@ -253,11 +253,14 @@ func (h *FlashcardHandler) SubmitDeck(c *gin.Context) {
 	}
 	gate := func(ctx context.Context, id uuid.UUID) error {
 		var d models.FlashcardDeck
-		if err := h.DB.WithContext(ctx).Select("id", "card_count").First(&d, "id = ?", id).Error; err != nil {
+		if err := h.DB.WithContext(ctx).Select("id", "card_count", "chapter_id").First(&d, "id = ?", id).Error; err != nil {
 			return err
 		}
 		if d.CardCount < 1 {
 			return services.Invalid("incomplete", "add at least one card first")
+		}
+		if d.ChapterID == nil {
+			return services.Invalid("chapter_required", "choose the subject and chapter this deck belongs to, so students find it under Flashcards")
 		}
 		return nil
 	}
@@ -697,11 +700,14 @@ func (h *FlashcardHandler) publishedDeck(c *gin.Context) (*models.FlashcardDeck,
 
 type deckCard struct {
 	models.FlashcardDeck
-	Locked   bool `json:"locked"`
-	New      int  `json:"new_cards"`
-	Due      int  `json:"due_cards"`
-	Learned  int  `json:"learned_cards"`
-	MyRating *int `json:"my_rating,omitempty"`
+	Locked       bool   `json:"locked"`
+	SubjectName  string `json:"subject_name,omitempty"`
+	ChapterName  string `json:"chapter_name,omitempty"`
+	ChapterOrder int    `json:"chapter_order"`
+	New          int    `json:"new_cards"`
+	Due          int    `json:"due_cards"`
+	Learned      int    `json:"learned_cards"`
+	MyRating     *int   `json:"my_rating,omitempty"`
 }
 
 // StudentDecks godoc
@@ -761,6 +767,7 @@ func (h *FlashcardHandler) StudentDecks(c *gin.Context) {
 		}
 	}
 	mine := items.MyRatings(ctx, h.DB, user.ID, items.FlashcardDeck, ids)
+	names := loadNames(ctx, h.DB, ds)
 	access, aerr := h.Sub.AccessFor(ctx, user)
 	if aerr != nil {
 		httpx.Fail(c, aerr)
@@ -771,6 +778,12 @@ func (h *FlashcardHandler) StudentDecks(c *gin.Context) {
 		out[i] = deckCard{FlashcardDeck: d, New: d.CardCount - p.Seen, Due: p.Due, Learned: p.Learned,
 			Locked: access.Allow(d.RequiresSubscription, d.CourseID) != nil}
 		out[i].MyRating = items.Ptr(mine, d.ID)
+		if d.ChapterID != nil {
+			out[i].ChapterName, out[i].ChapterOrder = names.chapter(*d.ChapterID)
+		}
+		if d.SubjectID != nil {
+			out[i].SubjectName = names.subject(*d.SubjectID)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"decks": out, "next_cursor": nilIfEmpty(next)})
 }
@@ -993,3 +1006,43 @@ func (h *FlashcardHandler) Review(c *gin.Context) {
 }
 
 func deckKey(d models.FlashcardDeck) (time.Time, uuid.UUID) { return d.CreatedAt, d.ID }
+
+// deckNames resolves the subject and chapter names of a page of decks.
+type deckNames struct {
+	subjects map[uuid.UUID]string
+	chapters map[uuid.UUID]models.Chapter
+}
+
+func (n deckNames) subject(id uuid.UUID) string { return n.subjects[id] }
+func (n deckNames) chapter(id uuid.UUID) (string, int) {
+	ch := n.chapters[id]
+	return ch.Name, ch.OrderIndex
+}
+
+func loadNames(ctx context.Context, db *gorm.DB, ds []models.FlashcardDeck) deckNames {
+	n := deckNames{subjects: map[uuid.UUID]string{}, chapters: map[uuid.UUID]models.Chapter{}}
+	var sids, cids []uuid.UUID
+	for _, d := range ds {
+		if d.SubjectID != nil {
+			sids = append(sids, *d.SubjectID)
+		}
+		if d.ChapterID != nil {
+			cids = append(cids, *d.ChapterID)
+		}
+	}
+	if len(sids) > 0 {
+		var ss []models.Subject
+		db.WithContext(ctx).Where("id IN ?", sids).Find(&ss)
+		for _, s := range ss {
+			n.subjects[s.ID] = s.Name
+		}
+	}
+	if len(cids) > 0 {
+		var cs []models.Chapter
+		db.WithContext(ctx).Where("id IN ?", cids).Find(&cs)
+		for _, c := range cs {
+			n.chapters[c.ID] = c
+		}
+	}
+	return n
+}

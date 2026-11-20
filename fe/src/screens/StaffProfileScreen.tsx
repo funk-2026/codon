@@ -58,7 +58,7 @@ export function StaffProfileScreen({ roleLabel, routes, badges, extras, canSwitc
         await auth.refreshUser();
         show('Profile updated', 'success');
       } catch {
-        show('Failed to update profile', 'error');
+        show('Couldn’t update your profile. Try again.', 'error');
         setName(previous);
       }
     } else {
@@ -74,8 +74,8 @@ export function StaffProfileScreen({ roleLabel, routes, badges, extras, canSwitc
   };
 
   return (
-    <Screen edges={TAB_EDGES}>
-      <ScrollView
+    <Screen edges={TAB_EDGES} keyboard>
+      <ScrollView keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
@@ -142,7 +142,7 @@ export function StaffProfileScreen({ roleLabel, routes, badges, extras, canSwitc
         </View>
 
         <View style={{ marginTop: space['2xl'], alignItems: 'center' }}>
-          <SecondaryButton label="Log Out" variant="danger" onPress={() => setLogoutOpen(true)} style={{ alignSelf: 'stretch' }} />
+          <SecondaryButton label="Log out" variant="danger" onPress={() => setLogoutOpen(true)} style={{ alignSelf: 'stretch' }} />
           <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: space.md }]}>Codon v1.0.0</Text>
         </View>
       </ScrollView>
@@ -152,7 +152,7 @@ export function StaffProfileScreen({ roleLabel, routes, badges, extras, canSwitc
         tone="danger"
         title="Log out of Codon?"
         message="You'll need your phone number and a new code to sign back in."
-        confirmLabel="Log Out"
+        confirmLabel="Log out"
         onConfirm={handleLogout}
         onCancel={() => setLogoutOpen(false)}
       />

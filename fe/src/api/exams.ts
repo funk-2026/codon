@@ -13,6 +13,8 @@ export type ExamCard = {
   delivery: ExamDelivery;
   phase: ExamPhase;
   opens_at?: string;
+  /** When the test was created; files an anytime test under a month when it has no live date. */
+  created_at?: string;
   last_start_at?: string;
   ends_at?: string;
   results_at?: string;
@@ -24,9 +26,12 @@ export type ExamCard = {
   course_id: string;
   exam_year?: number;
   author_name?: string;
+  /** What a Subject-wise or Mini test covers. */
+  subject_name?: string;
+  chapter_name?: string;
   series?: { id: string; title: string };
   registered: boolean;
-  my_attempt?: { id: string; status: string; official: boolean; submitted_at?: string };
+  my_attempt?: { id: string; status: string; official: boolean; submitted_at?: string; score?: number; total_marks?: number };
 };
 
 /** GET /exams — published tests, each with where it stands for this student. */
@@ -58,6 +63,8 @@ export type SectionStat = {
   seconds: number;
   cohort_avg?: number;
   cohort_top?: number;
+  top100_avg?: number;
+  max_marks?: number;
 };
 export type AttemptAnalysis = {
   sections: SectionStat[];
@@ -103,3 +110,25 @@ export const adminSetResultsAt = (id: string, resultsAt: string) =>
 export type RescoreResult = { attempts: number; changed: number; max_drop: number; max_rise: number; applied: boolean };
 export const adminRescoreExam = (id: string, dryRun: boolean) =>
   apiFetch<RescoreResult>(`/admin/exams/${id}/rescore`, { method: 'POST', body: JSON.stringify({ dry_run: dryRun }) });
+
+// ── Grand Test performance analysis ─────────────────────────────────────────
+export type GrandPart = { name: string; subject?: string; total: number; attempted: number; correct: number; marks: number; percent: number; percentile?: number };
+export type GrandAttempt = {
+  attempt_id: string;
+  test_id: string;
+  title: string;
+  at: string;
+  score: number;
+  total_marks: number;
+  percent: number;
+  rank?: number;
+  cohort: number;
+  percentile?: number;
+  subjects: GrandPart[];
+  chapters: GrandPart[];
+};
+/** GET /exams/grand-analysis — every Grand Test I have taken with results out, oldest first. */
+export const getGrandAnalysis = () => apiFetch<{ attempts: GrandAttempt[]; min_attempts: number }>('/exams/grand-analysis');
+
+export const renameSeries = (id: string, title: string) => apiFetch<{ title: string }>(`/teacher/series/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) });
+export const deleteSeries = (id: string) => apiFetch<{ deleted: boolean }>(`/teacher/series/${id}`, { method: 'DELETE' });

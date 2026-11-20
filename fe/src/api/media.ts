@@ -3,7 +3,7 @@ import type { MediaView } from '@/src/rich/ast';
 
 export type MediaPurpose =
   | 'question_image' | 'explanation_image' | 'brain_hack_image' | 'wellness_image'
-  | 'flashcard_image' | 'home_update_image' | 'note_image' | 'import_bundle';
+  | 'flashcard_image' | 'home_update_image' | 'home_message_photo' | 'profile_photo' | 'faculty_photo' | 'chapter_cover' | 'note_image' | 'import_bundle';
 
 export type PresignInput = {
   media_id?: string;

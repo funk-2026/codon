@@ -11,6 +11,7 @@ import { visibleModules } from '@/src/modules/registry';
 import { useFlag } from '@/src/config/AppConfigContext';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
+import { usePullRefresh } from '@/src/components/PullRefresh';
 
 
 
@@ -25,6 +26,7 @@ function scoreTone(pct: number): 'semantic/success' | 'semantic/warning' | 'sema
 
 export default function TestHistoryRoute() {
   const { color, type, space, radius } = useTheme();
+  const pull = usePullRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const customOn = useFlag('custom_test.enabled');
@@ -43,7 +45,7 @@ export default function TestHistoryRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Test History" />
+      <ScreenHeader title="Test history" />
 
       {!isEmptyOverall ? (
         <ScrollView
@@ -83,7 +85,7 @@ export default function TestHistoryRoute() {
         </ScrollView>
       ) : null}
 
-      <ScrollView
+      <ScrollView refreshControl={pull.control}
         style={styles.list}
         contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
@@ -98,7 +100,7 @@ export default function TestHistoryRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load your test history"
-            description="Something went wrong fetching your attempts."
+            description="Couldn’t load your attempts. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
           />
         ) : isEmptyOverall ? (

@@ -127,7 +127,7 @@ export default function UserManagementListRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load users"
-            description="Something went wrong fetching the user list."
+            description="Couldn’t load the user list. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
           />
         ) : filtered.length === 0 ? (

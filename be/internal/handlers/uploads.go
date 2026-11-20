@@ -29,6 +29,7 @@ var allowedPurposes = map[string][]string{
 	"csv":           {"text/csv", "application/csv", "application/vnd.ms-excel"},
 	"profile_photo": {"image/jpeg", "image/png", "image/webp"},
 	"lecture_pdf":   {"application/pdf"}, // notes / annotated PDFs attached to a lecture
+	"reference_pdf": {"application/pdf"}, // how-to guides, board papers and the schema PDF (admin only)
 }
 
 // Presign godoc
@@ -61,6 +62,11 @@ func (h *UploadHandler) Presign(c *gin.Context) {
 
 	if !slices.Contains(allowedTypes, req.ContentType) {
 		respondErr(c, http.StatusBadRequest, "bad_request", fmt.Sprintf("content_type %s not allowed for purpose %s", req.ContentType, req.Purpose))
+		return
+	}
+
+	if req.Purpose == "reference_pdf" && user.Role != models.RoleAdmin {
+		respondErr(c, http.StatusForbidden, "forbidden", "only admins may upload reference documents")
 		return
 	}
 
@@ -151,7 +157,7 @@ type presignRequest struct {
 	FileName    string `json:"file_name"    example:"lecture.mp4"`
 	ContentType string `json:"content_type" example:"video/mp4"`
 	// Purpose must be one of: kyc_document, video, csv, profile_photo, lecture_pdf
-	Purpose string `json:"purpose" example:"video" enums:"kyc_document,video,csv,profile_photo,lecture_pdf"`
+	Purpose string `json:"purpose" example:"video" enums:"kyc_document,video,csv,profile_photo,lecture_pdf,reference_pdf"`
 }
 
 type presignResponse struct {

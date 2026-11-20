@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { BottomSheet, PrimaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import type { MasteryRow } from '@/src/api/analytics';
+import { formatDate } from '@/src/format/date';
 
 type Bucket = MasteryRow['bucket'];
 const LABEL: Record<Bucket, string> = { weak: 'Needs work', improving: 'Improving', strong: 'Strong', not_enough_data: 'Not enough data' };
@@ -17,7 +18,7 @@ const TONE: Record<Bucket, Tone> = {
 /**
  * Topic mastery heat-map (FE-5.4): one coloured tile per chapter, grouped by
  * subject — colour AND label carry the bucket, so it reads in greyscale too.
- * Tap a tile for details and (when custom tests are on) "Practise this chapter".
+ * Tap a tile for details and (when custom tests are on) "Practice this chapter".
  */
 export function MasteryHeatmap({
   subjects, onPractise,
@@ -74,10 +75,10 @@ export function MasteryHeatmap({
               {open.correct} of {open.answers} answers correct ({Math.round(open.accuracy * 100)}%) across {open.questions_attempted} question{open.questions_attempted === 1 ? '' : 's'}.
             </Text>
             {open.last_practised ? (
-              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Last practised {new Date(open.last_practised).toLocaleDateString()}</Text>
+              <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Last practiced {formatDate(open.last_practised)}</Text>
             ) : null}
             {onPractise && open.chapter_id ? (
-              <PrimaryButton label="Practise this chapter" onPress={() => { const id = open.chapter_id!; setOpen(null); onPractise(id); }} />
+              <PrimaryButton label="Practice this chapter" onPress={() => { const id = open.chapter_id!; setOpen(null); onPractise(id); }} />
             ) : null}
           </View>
         ) : null}

@@ -14,6 +14,10 @@ export type HomeUpdate = {
 /** GET /home/updates — empty means HIDE the carousel (no placeholder content). */
 export const getHomeUpdates = () => apiFetch<{ updates: HomeUpdate[]; media: MediaMap }>('/home/updates');
 
+export type HomeMessage = { name: string; quote: string; media_id?: string; is_active: boolean; updated_at: string };
+/** GET /home/message — `message` is null when none is set, and the card is then hidden. */
+export const getHomeMessage = () => apiFetch<{ message: HomeMessage | null; media: MediaMap }>('/home/message');
+
 // ── Brain hacks ─────────────────────────────────────────────────────────────
 export type BrainHack = {
   id: string;
@@ -23,17 +27,21 @@ export type BrainHack = {
   content_format: string;
   cover_media_id?: string;
   read_minutes: number;
+  /** 'article' (a text body) or 'video' (played from video_url). */
+  kind?: 'article' | 'video';
+  video_url?: string;
+  duration_seconds?: number;
   rating_avg: number;
   rating_count: number;
   my_rating?: number;
 };
-export const listBrainHacks = (p: { category?: string; sort?: 'rating'; cursor?: string | null; limit?: number } = {}) =>
+export const listBrainHacks = (p: { category?: string; kind?: 'article' | 'video'; sort?: 'rating'; cursor?: string | null; limit?: number } = {}) =>
   apiFetch<{ brain_hacks: BrainHack[]; next_cursor: string | null; media: MediaMap }>(`/brain-hacks${qs({ ...p, cursor: p.cursor ?? undefined })}`);
 export const getBrainHackCategories = () => apiFetch<{ categories: string[] | { key: string; label: string }[] }>('/brain-hacks/categories');
 export const getBrainHack = (id: string) => apiFetch<{ brain_hack: BrainHack; media: MediaMap }>(`/brain-hacks/${id}`);
 
 // Teacher authoring
-export type BrainHackInput = { title: string; category: string; body: string; content_format?: 'rich_v1'; cover_media_id?: string; read_minutes?: number };
+export type BrainHackInput = { title: string; category: string; body?: string; kind?: 'article' | 'video'; video_url?: string; duration_seconds?: number; content_format?: 'rich_v1'; cover_media_id?: string; read_minutes?: number };
 // Teacher Brain Hacks. The server wraps one hack as `{ brain_hack, media }` — unwrap it here
 // (reading `.id` off the envelope was undefined, which broke "Submit for review" on new hacks).
 export type TeacherBrainHack = BrainHack & { status: 'draft' | 'pending_review' | 'approved' | 'published' | 'rejected'; rejection_reason?: string; created_at?: string };
@@ -58,6 +66,9 @@ export type Deck = {
   course_id: string;
   subject_id?: string;
   chapter_id?: string;
+  subject_name?: string;
+  chapter_name?: string;
+  chapter_order?: number;
   requires_subscription: boolean;
   card_count: number;
   rating_avg: number;
@@ -69,8 +80,17 @@ export type Flashcard = { id: string; deck_id: string; front: string; back: stri
 export type StudyCard = Flashcard & { state: 'due' | 'new' };
 export type ReviewResult = 'again' | 'hard' | 'good' | 'easy';
 
+/** The server sends a student's progress flat (new_cards, due_cards, learned_cards); the app reads it as `progress`. */
+type RawDeck = Deck & { new_cards?: number; due_cards?: number; learned_cards?: number };
+export const withProgress = (d: RawDeck): Deck => ({
+  ...d,
+  progress: d.progress ?? (d.new_cards != null ? { new: d.new_cards, due: d.due_cards ?? 0, learned: d.learned_cards ?? 0 } : undefined),
+});
 export const listDecks = (p: { course_id?: string; subject_id?: string; chapter_id?: string; q?: string; sort?: 'rating'; cursor?: string | null } = {}) =>
-  apiFetch<{ decks: Deck[]; next_cursor: string | null }>(`/flashcards/decks${qs({ ...p, cursor: p.cursor ?? undefined })}`);
+  apiFetch<{ decks: RawDeck[]; next_cursor: string | null }>(`/flashcards/decks${qs({ ...p, cursor: p.cursor ?? undefined })}`).then((r) => ({
+    ...r,
+    decks: (r.decks ?? []).map(withProgress),
+  }));
 /** The deck's spaced-repetition queue: due cards first, then new. */
 export const studyDeck = (id: string, limit = 20) => apiFetch<{ deck: Deck; cards: StudyCard[]; media: MediaMap }>(`/flashcards/decks/${id}/study${qs({ limit })}`);
 /** Every card of a deck in order (no spaced-repetition filtering), for plain revision. Follows the cursor to the end. */

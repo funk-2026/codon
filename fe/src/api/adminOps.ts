@@ -79,6 +79,9 @@ export type AdminHomeUpdate = {
   ends_at?: string | null;
 };
 export type HomeUpdateInput = Partial<{ title: string; body: string; cta_label: string; cta_route: string; order_index: number; is_active: boolean; starts_at: string | null; ends_at: string | null }>;
+export type HomeMessageInput = { name?: string; quote?: string; media_id?: string; is_active?: boolean };
+export const adminGetHomeMessage = () => apiFetch<{ message: import('./discover').HomeMessage | null; media: import('@/src/rich/ast').MediaMap }>('/admin/home-message');
+export const adminSetHomeMessage = (b: HomeMessageInput) => apiFetch<{ message: import('./discover').HomeMessage; media: import('@/src/rich/ast').MediaMap }>('/admin/home-message', { method: 'PUT', body: JSON.stringify(b) });
 export const adminListHomeUpdates = () => apiFetch<{ updates: AdminHomeUpdate[] }>('/admin/home-updates');
 export const adminCreateHomeUpdate = (b: HomeUpdateInput) => apiFetch<AdminHomeUpdate>('/admin/home-updates', { method: 'POST', body: JSON.stringify(b) });
 export const adminUpdateHomeUpdate = (id: string, b: HomeUpdateInput) => apiFetch<AdminHomeUpdate>(`/admin/home-updates/${id}`, { method: 'PATCH', body: JSON.stringify(b) });

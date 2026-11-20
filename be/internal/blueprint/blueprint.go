@@ -25,13 +25,15 @@ type NCERT struct {
 }
 
 type Filters struct {
-	SubjectIDs                []uuid.UUID `json:"subject_ids,omitempty"`
-	ChapterIDs                []uuid.UUID `json:"chapter_ids,omitempty"`
-	TopicIDs                  []uuid.UUID `json:"topic_ids,omitempty"`
-	Difficulty                []string    `json:"difficulty,omitempty"`
-	Status                    []string    `json:"status,omitempty"`
-	BookmarkCollectionIDs     []uuid.UUID `json:"bookmark_collection_ids,omitempty"`
-	TagIDs                    []uuid.UUID `json:"tag_ids,omitempty"`
+	SubjectIDs            []uuid.UUID `json:"subject_ids,omitempty"`
+	ChapterIDs            []uuid.UUID `json:"chapter_ids,omitempty"`
+	TopicIDs              []uuid.UUID `json:"topic_ids,omitempty"`
+	Difficulty            []string    `json:"difficulty,omitempty"`
+	Status                []string    `json:"status,omitempty"`
+	BookmarkCollectionIDs []uuid.UUID `json:"bookmark_collection_ids,omitempty"`
+	TagIDs                []uuid.UUID `json:"tag_ids,omitempty"`
+	// IncludeUntagged keeps questions with no tag at all next to the tagged ones the tag filter picks.
+	IncludeUntagged           bool        `json:"include_untagged,omitempty"`
 	ExcludeTagIDs             []uuid.UUID `json:"exclude_tag_ids,omitempty"`
 	SourceTypes               []string    `json:"source_types,omitempty"`
 	NCERT                     *NCERT      `json:"ncert,omitempty"`
@@ -67,7 +69,7 @@ type Blueprint struct {
 }
 
 var (
-	Statuses   = []string{"unattempted", "incorrect", "correct", "bookmarked"}
+	Statuses   = []string{"unattempted", "incorrect", "correct", "skipped", "bookmarked"}
 	Orders     = []string{"random", "syllabus", "easy_first", "hard_first", "unattempted_first"}
 	Strategies = []string{"random", "weak_first", "unseen_first", "spaced"}
 	Fallbacks  = []string{"fewer", "fail"}

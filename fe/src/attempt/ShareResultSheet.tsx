@@ -16,6 +16,8 @@ export type ShareResultData = {
   score: string;
   correct: number;
   attempted: number;
+  /** e.g. "Rank 12 of 340"; only when the result has one. */
+  rank?: string;
 };
 
 /**
@@ -36,7 +38,7 @@ export function ShareResultSheet({ visible, onClose, data }: { visible: boolean;
   }, [visible]);
 
   const accuracy = data.attempted > 0 ? Math.round((data.correct / data.attempted) * 100) : null;
-  const text = `${data.firstName} scored ${data.score}${data.percent != null ? ` (${data.percent}%)` : ''} on “${data.testTitle}” on Codon${accuracy != null ? ` — ${accuracy}% accuracy` : ''}${streak ? `, ${streak}-day streak` : ''}.`;
+  const text = `${data.firstName} scored ${data.score}${data.percent != null ? ` (${data.percent}%)` : ''} on “${data.testTitle}” on Codon${data.rank ? `, ${data.rank}` : ''}${accuracy != null ? ` — ${accuracy}% accuracy` : ''}${streak ? `, ${streak}-day streak` : ''}.`;
 
   const share = async () => {
     setBusy(true);

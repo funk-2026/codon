@@ -6,6 +6,8 @@ import { EmptyState, SecondaryButton, SkeletonBlock, TextButton, ScreenHeader, S
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useReportReasons } from '@/src/config/AppConfigContext';
 import { useMyReports } from '@/src/queries/discover';
+import { formatDate } from '@/src/format/date';
+import { usePullRefresh } from '@/src/components/PullRefresh';
 
 const STATUS: Record<string, { label: string; tone: 'semantic/warning' | 'semantic/success' | 'text/tertiary' }> = {
   open: { label: 'Under review', tone: 'semantic/warning' },
@@ -16,6 +18,7 @@ const STATUS: Record<string, { label: string; tone: 'semantic/warning' | 'semant
 
 export default function MyReportsRoute() {
   const { color, type, space, radius } = useTheme();
+  const pull = usePullRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reasons = useReportReasons();
@@ -32,7 +35,7 @@ export default function MyReportsRoute() {
   return (
     <Screen>
       <ScreenHeader title="My reports" />
-      <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] + insets.bottom }}>
+      <ScrollView refreshControl={pull.control} contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] + insets.bottom }}>
         {loading ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} height={80} radius={radius.md} />)
         ) : error ? (
@@ -51,7 +54,7 @@ export default function MyReportsRoute() {
                   </View>
                   {r.note ? <Text style={[type['type/body-m'], { color: color('text/secondary') }]} numberOfLines={3}>“{r.note}”</Text> : null}
                   {r.resolution_note ? <Text style={[type['type/body-m'], { color: color('text/primary') }]}>Reply: {r.resolution_note}</Text> : null}
-                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{new Date(r.created_at).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{formatDate(r.created_at)}</Text>
                 </View>
               );
             })}

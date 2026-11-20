@@ -106,7 +106,7 @@ export default function CheckoutRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Confirm &amp; Pay" />
+      <ScreenHeader title="Confirm and pay" />
 
       <View style={{ paddingHorizontal: space.md, flex: 1 }}>
         {loading ? (
@@ -115,7 +115,7 @@ export default function CheckoutRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load plan details"
-            description="Something went wrong fetching the plan you selected."
+            description="Couldn’t load the plan you selected. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
             style={{ marginTop: space.xl }}
           />

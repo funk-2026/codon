@@ -38,6 +38,9 @@ type Deps struct {
 	Extras    *handlers.ExtrasHandler
 	TE        *handlers.TeacherExtrasHandler
 	Exams     *handlers.ExamHandler
+	Reference *handlers.ReferenceHandler
+	QBank     *handlers.QBankHandler
+	Study     *handlers.StudyHandler
 	Extra     []func(api *gin.RouterGroup, d *Deps) // later milestones plug in here
 }
 
@@ -46,10 +49,13 @@ func NewDeps(db *gorm.DB, auth gin.HandlerFunc, sub *services.SubscriptionServic
 	eng := generation.NewEngine(db, sub)
 	an := handlers.NewAnalyticsHandler(db, eng)
 	return &Deps{
-		Extras: handlers.NewExtrasHandler(db, sub, eng, an),
-		TE:     handlers.NewTeacherExtrasHandler(db, services.NewReviewService(db)),
-		Exams:  handlers.NewExamHandler(db, sub),
-		DB:     db, Auth: auth, SubSvc: sub, Scoring: scoring,
+		Extras:    handlers.NewExtrasHandler(db, sub, eng, an),
+		TE:        handlers.NewTeacherExtrasHandler(db, services.NewReviewService(db)),
+		Exams:     handlers.NewExamHandler(db, sub),
+		Reference: handlers.NewReferenceHandler(db),
+		QBank:     handlers.NewQBankHandler(db, sub),
+		Study:     handlers.NewStudyHandler(db),
+		DB:        db, Auth: auth, SubSvc: sub, Scoring: scoring,
 		Tests: handlers.NewTestHandler(db), Attempts: handlers.NewAttemptHandler(db, scoring, sub),
 		Media: handlers.NewMediaHandler(db), TQ: handlers.NewTeacherQuestionHandler(db),
 		Taxonomy: handlers.NewTaxonomyHandler(db), AppConfig: handlers.NewAppConfigHandler(db),
@@ -82,6 +88,8 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		me.PUT("/bookmarks", d.Bookmarks.Put)
 		me.GET("/bookmarks", d.Bookmarks.List)
 		me.GET("/bookmarks/ids", d.Bookmarks.IDs)
+		me.GET("/bookmarks/summary", d.Bookmarks.Summary)
+		me.POST("/bookmarks/questions/:id/check", d.Bookmarks.CheckQuestion)
 		me.DELETE("/bookmarks/:item_type/:item_id", d.Bookmarks.Delete)
 		me.GET("/reports", d.Reports.Mine)
 		me.GET("/video-notes", d.Extras.ListVideoNotes)
@@ -108,12 +116,28 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	api.DELETE("/ratings/:item_type/:item_id", auth, d.Ratings.Delete)
 
 	api.GET("/home/updates", auth, d.Extras.HomeUpdates)
+	api.GET("/home/message", auth, d.Extras.HomeMessage)
+	api.GET("/qbank/overview", auth, d.QBank.Overview)
+	api.GET("/pulse", auth, d.Study.PulseList)
+	api.POST("/pulse/:id/read", auth, d.Study.PulseRead)
+	api.GET("/me/pulse/reads", auth, d.Study.MyPulseReads)
+	api.GET("/me/flashcards/activity", auth, d.Study.MyFlashcardActivity)
+	api.GET("/schema", auth, d.Study.SchemaOverview)
+	api.GET("/schema/topics/:id", auth, d.Study.SchemaTopicDetail)
+	api.PUT("/schema/topics/:id/status", auth, d.Study.SetSchemaStatus)
+	api.GET("/me/schema/completions", auth, d.Study.MySchemaCompletions)
+	api.GET("/reference-docs", auth, d.Reference.List)
+	api.GET("/reference-docs/:id", auth, d.Reference.Get)
+	api.GET("/faculty", auth, d.Reference.Faculty)
 	api.GET("/explore", auth, d.Extras.Explore)
 
 	// ── Custom tests (student; behind the custom_test.enabled flag) ──
-	ct := api.Group("/custom-tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent)).Use(handlers.RequireFlag("custom_test.enabled"))
+	ct := api.Group("/custom-tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin)).Use(handlers.RequireFlag("custom_test.enabled"))
 	{
 		ct.GET("/builder-config", d.Custom.BuilderConfig)
+		ct.POST("/open", d.Custom.OpenByCode)
+		ct.GET("/challenges", d.Custom.Challenges)
+		ct.GET("/:id/board", d.Custom.Board)
 		ct.POST("/share", d.Custom.ShareBlueprint)
 		ct.GET("/shared/:code", d.Custom.GetShared)
 		ct.POST("/count", d.Custom.Count)
@@ -131,7 +155,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	}
 
 	// ── Brain hacks (student read) ──
-	bh := api.Group("/brain-hacks").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	bh := api.Group("/brain-hacks").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		bh.GET("", d.Hacks.StudentList)
 		bh.GET("/categories", d.Hacks.Categories)
@@ -139,7 +163,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	}
 
 	// ── Flashcards (student) ──
-	fc := api.Group("/flashcards").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	fc := api.Group("/flashcards").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		fc.GET("/decks", d.Cards.StudentDecks)
 		fc.GET("/decks/:id/cards", d.Cards.StudentDeckCards)
@@ -149,7 +173,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	}
 
 	// ── Tests (student) ──
-	tests := api.Group("/tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	tests := api.Group("/tests").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		tests.GET("", d.Tests.ListTests)
 		tests.GET("/:id", d.Tests.GetTest)
@@ -161,9 +185,10 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	}
 
 	// ── Attempts (student) ──
-	exams := api.Group("/exams").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	exams := api.Group("/exams").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		exams.GET("", d.Exams.Exams)
+		exams.GET("/grand-analysis", d.Exams.GrandAnalysis)
 	}
 	adminExams := api.Group("/admin/exams").Use(auth).Use(middleware.RequireRole(models.RoleAdmin))
 	{
@@ -173,13 +198,14 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		adminExams.POST("/:id/rescore", d.Exams.RescoreExam)
 	}
 
-	attempts := api.Group("/attempts").Use(auth).Use(middleware.RequireRole(models.RoleStudent))
+	attempts := api.Group("/attempts").Use(auth).Use(middleware.RequireRole(models.RoleStudent, models.RoleAdmin))
 	{
 		attempts.PUT("/:id/answers", d.Attempts.BatchUpsertAnswers)
 		attempts.PUT("/:id/answers/:question_id", d.Attempts.UpsertAnswer)
 		attempts.POST("/:id/answers/:question_id/reveal", d.Attempts.RevealAnswer)
 		attempts.POST("/:id/takeover", d.Attempts.Takeover)
 		attempts.POST("/:id/submit", d.Attempts.SubmitAttempt)
+		attempts.POST("/:id/discard", d.Attempts.DiscardAttempt)
 		attempts.GET("/:id/result", d.Attempts.GetResult)
 		attempts.GET("/:id/review", d.Attempts.GetReview)
 		attempts.GET("/:id/analysis", d.Exams.Analysis)
@@ -198,6 +224,17 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		teacher.POST("/csv-imports/:id/commit", d.Tests.CommitCSVImport)
 		teacher.GET("/csv-imports/:id", d.Tests.GetCSVImport)
 		teacher.GET("/csv-template", d.Tests.CSVTemplate)
+		teacher.GET("/pulse", d.Study.TeacherPulseList)
+		teacher.POST("/pulse", d.Study.TeacherPulseCreate)
+		teacher.PATCH("/pulse/:id", d.Study.TeacherPulseUpdate)
+		teacher.DELETE("/pulse/:id", d.Study.TeacherPulseDelete)
+		teacher.POST("/pulse/:id/move", d.Study.TeacherPulseMove)
+		teacher.POST("/schema/import", d.Study.AdminSchemaImport)
+		teacher.GET("/schema/topics", d.Study.ManageSchemaList)
+		teacher.POST("/schema/topics", d.Study.ManageSchemaCreate)
+		teacher.PATCH("/schema/topics/:id", d.Study.ManageSchemaUpdate)
+		teacher.DELETE("/schema/topics/:id", d.Study.ManageSchemaDelete)
+		teacher.PUT("/schema/topics/:id/years", d.Study.ManageSchemaYears)
 		teacher.POST("/tests/:id/submit-for-review", d.Tests.SubmitForReview)
 		teacher.GET("/tests", d.Tests.ListTeacherTests)
 		teacher.GET("/tests/:id", d.Tests.TeacherGetTest)
@@ -245,6 +282,8 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		teacher.GET("/review-stats", d.TE.ReviewStats)
 		teacher.GET("/series", d.Exams.ListSeries)
 		teacher.POST("/series", d.Exams.CreateSeries)
+		teacher.PATCH("/series/:id", d.Exams.RenameSeries)
+		teacher.DELETE("/series/:id", d.Exams.DeleteSeries)
 		teacher.DELETE("/content/:id", d.TE.DeleteContent)
 		teacher.POST("/tests/:id/clone", d.TE.CloneTest)
 		teacher.POST("/tests/:id/transfer", d.TE.TransferTest)
@@ -264,6 +303,17 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		admin.GET("/tests/:id", d.Tests.AdminGetTest)
 		admin.POST("/tests/:id/approve", d.Tests.AdminApproveTest)
 		admin.POST("/tests/:id/reject", d.Tests.AdminRejectTest)
+		admin.POST("/schema/import", d.Study.AdminSchemaImport)
+		admin.GET("/reference-docs", d.Reference.AdminList)
+		admin.POST("/reference-docs", d.Reference.AdminCreate)
+		admin.PATCH("/reference-docs/:id", d.Reference.AdminUpdate)
+		admin.DELETE("/reference-docs/:id", d.Reference.AdminDelete)
+		admin.GET("/faculty", d.Reference.AdminFaculty)
+		admin.POST("/faculty", d.Reference.AdminAddFaculty)
+		admin.PATCH("/faculty/:id", d.Reference.AdminUpdateFaculty)
+		admin.DELETE("/faculty/:id", d.Reference.AdminDeleteFaculty)
+		admin.GET("/home-message", d.Extras.AdminHomeMessage)
+		admin.PUT("/home-message", d.Extras.AdminSetHomeMessage)
 		admin.GET("/home-updates", d.Extras.AdminListHome)
 		admin.POST("/home-updates", d.Extras.AdminCreateHome)
 		admin.PATCH("/home-updates/:id", d.Extras.AdminUpdateHome)

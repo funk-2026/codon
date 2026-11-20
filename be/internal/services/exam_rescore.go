@@ -12,12 +12,12 @@ import (
 
 // RescoreResult says what recomputing a test against its current answer key changes.
 type RescoreResult struct {
-	Attempts int         `json:"attempts"`         // submitted attempts looked at
-	Changed  int         `json:"changed"`          // attempts whose score changes
-	Users    []uuid.UUID `json:"-"`                // students whose score changes
-	MaxDrop  float64     `json:"max_drop"`         // largest fall in a score
-	MaxRise  float64     `json:"max_rise"`         // largest rise in a score
-	Applied  bool        `json:"applied"`          // false for a preview
+	Attempts int         `json:"attempts"` // submitted attempts looked at
+	Changed  int         `json:"changed"`  // attempts whose score changes
+	Users    []uuid.UUID `json:"-"`        // students whose score changes
+	MaxDrop  float64     `json:"max_drop"` // largest fall in a score
+	MaxRise  float64     `json:"max_rise"` // largest rise in a score
+	Applied  bool        `json:"applied"`  // false for a preview
 	At       time.Time   `json:"at"`
 }
 
@@ -92,10 +92,10 @@ func RescoreTest(ctx context.Context, db *gorm.DB, testID uuid.UUID, apply bool)
 	}
 
 	type change struct {
-		id        uuid.UUID
-		x         *tally
-		mc, mw    float64
-		wasScore  float64
+		id       uuid.UUID
+		x        *tally
+		mc, mw   float64
+		wasScore float64
 	}
 	var changes []change
 	for id, x := range t {

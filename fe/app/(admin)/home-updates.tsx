@@ -11,11 +11,15 @@ import { shadow } from '@/src/theme/elevation';
 
 /** Where a banner's button can take a student. Only student screens are allowed. */
 const DESTINATIONS: { label: string; route: string }[] = [
-  { label: 'Practice', route: ROUTES.student.practice },
-  { label: 'Learn', route: ROUTES.student.learn },
-  { label: 'Support', route: ROUTES.student.support },
+  { label: 'MCQs (QBank)', route: ROUTES.student.practice },
+  { label: 'Video', route: ROUTES.student.learn },
+  { label: 'Tests', route: ROUTES.student.tests },
+  { label: 'Brain Hack', route: ROUTES.student.support },
+  { label: 'Schema', route: ROUTES.student.schema },
+  { label: 'Pulse', route: ROUTES.student.pulse },
+  { label: 'Flashcards', route: ROUTES.student.flashcards },
+  { label: 'Sample board papers', route: ROUTES.student.boardPapers },
   { label: 'Plans', route: ROUTES.student.subscriptionPlans },
-  { label: 'Brain Hacks', route: ROUTES.student.brainHacks },
 ];
 
 type Draft = { id?: string; title: string; body: string; cta_label: string; cta_route: string };

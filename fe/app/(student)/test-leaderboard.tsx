@@ -1,18 +1,20 @@
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Lock, Trophy, WarningCircle } from 'phosphor-react-native';
-import { EmptyState, Screen, ScreenHeader, SkeletonBlock, TextButton } from '@/src/components';
+import { EmptyState, Screen, ScreenHeader, SkeletonBlock, TextButton, SecondaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ApiError } from '@/src/api/client';
 import { getLeaderboard } from '@/src/api/exams';
 import { shadow } from '@/src/theme/elevation';
+import { ROUTES } from '@/src/navigation/routes';
 
 const n = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1));
 
 /** The top ten with your own position. School tests show only your position. Hide your name in Edit profile. */
 export default function TestLeaderboardRoute() {
+  const router = useRouter();
   const { color, type, space, radius } = useTheme();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,7 +33,7 @@ export default function TestLeaderboardRoute() {
         ) : q.isError || !d ? (
           <EmptyState icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />} title="Couldn’t load the leaderboard" description="Check your connection and try again." action={<TextButton label="Retry" onPress={() => void q.refetch()} />} />
         ) : d.locked ? (
-          <EmptyState icon={<Lock size={32} color={color('text/tertiary')} />} title="Ranks are for subscribers" description="Subscribe to see where you stand among everyone who took this test." />
+          <EmptyState icon={<Lock size={32} color={color('text/tertiary')} />} title="Ranks are for subscribers" description="Subscribe to see where you stand among everyone who took this test." action={<SecondaryButton label="View plans" onPress={() => router.push(ROUTES.student.subscriptionPlans)} />} />
         ) : (
           <>
             {d.me ? (

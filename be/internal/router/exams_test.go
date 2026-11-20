@@ -183,3 +183,21 @@ func TestRegisterAndReminders(t *testing.T) {
 		t.Fatalf("the Tests tab lists the live test: %v", list)
 	}
 }
+
+// A Subject-wise or Mini card says what it covers, so the list does not depend on the title.
+func TestExamCardCarriesSubjectAndChapterNames(t *testing.T) {
+	e := newEnv(t)
+	s := &e.w.Student
+	test := e.liveTest(t, 30*time.Minute, 1)
+	e.db.Model(&models.Test{}).Where("id = ?", test.ID).Updates(map[string]interface{}{"subject_id": e.w.Subject.ID, "chapter_id": e.w.Chapter.ID})
+	list := e.mustDo(200, "GET", "/exams", s, nil)
+	var found map[string]interface{}
+	for _, it := range list["tests"].([]interface{}) {
+		if m := it.(map[string]interface{}); m["id"] == test.ID.String() {
+			found = m
+		}
+	}
+	if found == nil || found["subject_name"] != e.w.Subject.Name || found["chapter_name"] != e.w.Chapter.Name {
+		t.Fatalf("the card should carry the subject and chapter names: %v", found)
+	}
+}

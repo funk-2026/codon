@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"codon-backend/internal/media"
 	"codon-backend/internal/middleware"
 	"codon-backend/internal/models"
 	"codon-backend/internal/services"
@@ -202,10 +203,28 @@ func (h *CurriculumHandler) UpdateChapter(c *gin.Context) {
 	if req.OrderIndex != nil {
 		updates["order_index"] = *req.OrderIndex
 	}
+	if req.CoverMediaID != nil {
+		if *req.CoverMediaID == "" {
+			updates["cover_media_id"] = nil
+		} else {
+			mid, perr := uuid.Parse(*req.CoverMediaID)
+			if perr != nil {
+				respondErr(c, http.StatusBadRequest, "invalid_id", "invalid cover_media_id")
+				return
+			}
+			if serr := media.CheckOwned(c.Request.Context(), h.DB, middleware.GetUser(c), mid, "chapter_cover"); serr != nil {
+				respondService(c, serr)
+				return
+			}
+			updates["cover_media_id"] = mid
+		}
+	}
 
-	if err := h.DB.WithContext(c.Request.Context()).Model(&chapter).Updates(updates).Error; err != nil {
-		httpx.Fail(c, err)
-		return
+	if len(updates) > 0 {
+		if err := h.DB.WithContext(c.Request.Context()).Model(&chapter).Updates(updates).Error; err != nil {
+			httpx.Fail(c, err)
+			return
+		}
 	}
 	h.DB.WithContext(c.Request.Context()).First(&chapter, chapter.ID)
 	_ = auditAdmin(h.DB.WithContext(c.Request.Context()), middleware.GetUser(c), "chapter.update", "chapter:"+chapter.ID.String(), nil, updates)
@@ -330,6 +349,8 @@ type updateChapterRequest struct {
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
 	OrderIndex  *int    `json:"order_index"`
+	// CoverMediaID is a chapter_cover upload; an empty string removes the cover.
+	CoverMediaID *string `json:"cover_media_id"`
 }
 
 type curriculumChapterView struct {

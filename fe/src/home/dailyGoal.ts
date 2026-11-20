@@ -4,7 +4,7 @@
  * other attempt; the streak itself comes from the server (`day_streak`).
  */
 
-export const GOAL_OPTIONS = [10, 20, 30, 50] as const;
+export const GOAL_OPTIONS = [10, 20, 30, 50, 100, 200] as const;
 export const DEFAULT_GOAL = 20;
 export const GOAL_KEY = 'daily-question-goal';
 

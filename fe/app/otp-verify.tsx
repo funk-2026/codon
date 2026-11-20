@@ -142,7 +142,7 @@ export default function OtpVerifyRoute() {
       await sendOTP(cleanPhone);
       show('New code sent');
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to resend';
+      const msg = err instanceof ApiError ? err.message : 'Couldn’t resend the code. Try again.';
       setError(msg);
     }
     setResendIn(RESEND_SECONDS);

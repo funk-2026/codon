@@ -5,7 +5,7 @@ import type { Test } from './tests';
 // ── Blueprint (contracts/blueprint-v1) ─────────────────────────────────────
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type QuestionStatus = 'unattempted' | 'incorrect' | 'correct' | 'bookmarked';
+export type QuestionStatus = 'unattempted' | 'incorrect' | 'correct' | 'skipped' | 'bookmarked';
 export type CustomMode = 'exam' | 'tutor';
 export type MarkingPreset = 'neet' | 'no_negative' | 'custom';
 export type OrderKey = 'random' | 'syllabus' | 'easy_first' | 'hard_first' | 'unattempted_first';
@@ -19,6 +19,7 @@ export type BlueprintFilters = {
   status?: QuestionStatus[];
   bookmark_collection_ids?: string[];
   tag_ids?: string[];
+  include_untagged?: boolean;
   exclude_tag_ids?: string[];
   source_types?: string[];
   ncert?: { class?: number; page_from?: number; page_to?: number };
@@ -199,7 +200,7 @@ export const deleteCustomTest = (id: string) => apiFetch<{ message: string }>(`/
 export const regenerateCustomTest = (id: string, idempotencyKey: string = newIdempotencyKey()) =>
   apiFetch<GenerateResult>(`/custom-tests/${id}/regenerate`, { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } }).then(normGenerate);
 
-/** POST /custom-tests/from-attempt/:attempt_id — "Practise my mistakes". */
+/** POST /custom-tests/from-attempt/:attempt_id — "Practice my mistakes". */
 export const customFromAttempt = (
   attemptId: string,
   body: { include?: 'wrong' | 'unattempted' | 'both'; mode?: CustomMode; timing?: Blueprint['timing']; marking?: Blueprint['marking']; title?: string } = {},
@@ -231,3 +232,22 @@ export const shareBlueprint = (blueprint: Blueprint) =>
 export const getShared = (code: string) =>
   apiFetch<{ blueprint: Blueprint; still_valid: boolean; issues: BlueprintIssue[] }>(`/custom-tests/shared/${encodeURIComponent(code)}`)
     .then((r) => ({ ...r, issues: arr(r.issues) }));
+
+// ── Template, code, challenges ──────────────────────────────────────────────
+
+export type TemplateRow = { id: string; title: string; blueprint: Blueprint; ask?: { keys: string[]; state: unknown } | null; created_at: string };
+export const listMyTemplates = () => apiFetch<{ templates: TemplateRow[] }>('/custom-tests/templates').then((r) => arr(r.templates));
+export const saveTemplate = (b: { title: string; blueprint: Blueprint; ask: { keys: string[]; state: unknown } }) =>
+  apiFetch<TemplateRow>('/custom-tests/templates', { method: 'POST', body: JSON.stringify(b) });
+export const removeTemplate = (id: string) => apiFetch<{ message: string }>(`/custom-tests/templates/${id}`, { method: 'DELETE' });
+
+export type OpenedModule = { test_id: string; title: string; questions: number; mine: boolean; code: string };
+/** POST /custom-tests/open: a friend's code (or my own) opens the module so it can be solved. */
+export const openByCode = (code: string) => apiFetch<OpenedModule>('/custom-tests/open', { method: 'POST', body: JSON.stringify({ code }) });
+
+export type Marker = 'white' | 'red' | 'green';
+export type ChallengeRow = { test_id: string; title: string; code: string; at: string; marker: Marker; my_pct?: number; attempts: number };
+export const listChallenges = () => apiFetch<{ items: ChallengeRow[] }>('/custom-tests/challenges').then((r) => arr(r.items));
+
+export type ModuleBoard = { title: string; code: string; total: number; mine: { rank?: number; pct?: number; previous_pct?: number }; top: { rank: number; name: string; pct: number; me: boolean }[] };
+export const getModuleBoard = (testId: string) => apiFetch<ModuleBoard>(`/custom-tests/${testId}/board`).then((r) => ({ ...r, top: arr(r.top) }));

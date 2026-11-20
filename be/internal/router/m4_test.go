@@ -33,6 +33,8 @@ func TestSpacedRepetitionSchedulesAndRanksDueFirst(t *testing.T) {
 	}
 	// answer again correctly (pretend the day passed) → interval doubles
 	e.db.Model(&models.StudentQuestionState{}).Where("user_id = ?", s.ID).UpdateColumn("srs_due_at", time.Now().Add(-time.Hour))
+	// A QBank module is solved once, so the second pass is taken from a practice test of the same questions.
+	e.db.Model(&models.Test{}).Where("id = ?", p.physics.ID).Update("module_type", models.ModulePractice)
 	e.answerAll(s, p.physics.ID.String(), "B")
 	st = models.StudentQuestionState{}
 	e.db.First(&st, "user_id = ?", s.ID)

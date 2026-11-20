@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await saveSession(state.token, updatedUser);
       setState({ ...state, user: updatedUser });
     } catch (e) {
-      console.error('Failed to refresh user', e);
+      console.error('Couldn’t refresh user. Try again.', e);
     }
   }, [state]);
 

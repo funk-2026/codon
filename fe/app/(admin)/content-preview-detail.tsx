@@ -146,7 +146,7 @@ export default function ContentPreviewDetailRoute() {
       show('Approved', 'success');
       goBack();
     } catch (err) {
-      show('Failed to approve', 'error');
+      show('Couldn’t approve. Try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -171,7 +171,7 @@ export default function ContentPreviewDetailRoute() {
       show('Rejected — teacher has been notified.', 'success');
       goBack();
     } catch (err) {
-      show('Failed to reject', 'error');
+      show('Couldn’t reject. Try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -225,7 +225,7 @@ export default function ContentPreviewDetailRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load the preview"
-            description="Something went wrong fetching this item's content."
+            description="Couldn’t load this item. Check your connection and try again."
             action={<TextButton label="Retry" onPress={loadPreview} />}
             style={{ marginTop: space.lg }}
           />

@@ -54,8 +54,13 @@ type ContentItem struct {
 	FileKey              string      `gorm:"type:text;not null" json:"file_key"`
 	// Lecture PDFs (videos): plain notes, and the annotated PDF of what was taught —
 	// students get the annotated one only after watching the lecture.
-	NotesPDFKey     *string       `gorm:"type:text" json:"notes_pdf_key,omitempty"`
-	AnnotatedPDFKey *string       `gorm:"type:text" json:"annotated_pdf_key,omitempty"`
+	NotesPDFKey     *string `gorm:"type:text" json:"notes_pdf_key,omitempty"`
+	AnnotatedPDFKey *string `gorm:"type:text" json:"annotated_pdf_key,omitempty"`
+	// Two more PDFs a lecture can carry: the Fourth Book chapter and Board Exam Questions.
+	FourthBookPDFKey     *string `gorm:"type:text" json:"fourth_book_pdf_key,omitempty"`
+	BoardQuestionsPDFKey *string `gorm:"type:text" json:"board_questions_pdf_key,omitempty"`
+	// DurationSeconds is learned from the first student who plays the lecture.
+	DurationSeconds int           `gorm:"not null;default:0" json:"duration_seconds,omitempty"`
 	VideoStatus     *VideoStatus  `gorm:"type:text" json:"video_status,omitempty"`
 	HLSPlaylistURL  *string       `gorm:"type:text" json:"hls_playlist_url,omitempty"`
 	Status          ContentStatus `gorm:"type:text;not null;default:'draft'" json:"status"`
@@ -71,7 +76,7 @@ type ContentItem struct {
 	RatingAvg   float64   `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
 	RatingCount int       `gorm:"not null;default:0" json:"rating_count"`
 	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type WellnessContent struct {
@@ -141,23 +146,27 @@ type MediaRef struct {
 }
 
 type BrainHack struct {
-	ID              uuid.UUID     `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	Title           string        `gorm:"type:text;not null" json:"title"`
-	Category        string        `gorm:"type:text;not null" json:"category"`
-	Body            string        `gorm:"type:text;not null" json:"body"`
-	ContentFormat   string        `gorm:"type:text;not null;default:'rich_v1'" json:"content_format"`
-	CoverMediaID    *uuid.UUID    `gorm:"type:uuid" json:"cover_media_id,omitempty"`
-	ReadMinutes     int           `gorm:"not null;default:2" json:"read_minutes"`
+	ID            uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	Title         string     `gorm:"type:text;not null" json:"title"`
+	Category      string     `gorm:"type:text;not null" json:"category"`
+	Body          string     `gorm:"type:text;not null" json:"body"`
+	ContentFormat string     `gorm:"type:text;not null;default:'rich_v1'" json:"content_format"`
+	CoverMediaID  *uuid.UUID `gorm:"type:uuid" json:"cover_media_id,omitempty"`
+	ReadMinutes   int        `gorm:"not null;default:2" json:"read_minutes"`
+	// Kind is "article" (a text body) or "video" (a short video played from VideoURL).
+	Kind            string        `gorm:"type:text;not null;default:'article';index" json:"kind"`
+	VideoURL        string        `gorm:"type:text;not null;default:''" json:"video_url,omitempty"`
+	DurationSeconds int           `gorm:"not null;default:0" json:"duration_seconds,omitempty"`
 	AuthorID        uuid.UUID     `gorm:"type:uuid;not null;index" json:"author_id"`
 	Status          ContentStatus `gorm:"type:text;not null;default:'draft';index" json:"status"`
 	ReviewedBy      *uuid.UUID    `gorm:"type:uuid" json:"reviewed_by,omitempty"`
 	ReviewedAt      *time.Time    `json:"reviewed_at,omitempty"`
 	RejectionReason *string       `gorm:"type:text" json:"rejection_reason,omitempty"`
 	ReviewMeta
-	RatingAvg       float64       `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
-	RatingCount     int           `gorm:"not null;default:0" json:"rating_count"`
-	CreatedAt       time.Time     `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
+	RatingAvg   float64   `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
+	RatingCount int       `gorm:"not null;default:0" json:"rating_count"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type FlashcardDeck struct {
@@ -174,11 +183,11 @@ type FlashcardDeck struct {
 	ReviewedBy           *uuid.UUID    `gorm:"type:uuid" json:"reviewed_by,omitempty"`
 	ReviewedAt           *time.Time    `json:"reviewed_at,omitempty"`
 	ReviewMeta
-	CardCount            int           `gorm:"not null;default:0" json:"card_count"`
-	RatingAvg            float64       `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
-	RatingCount          int           `gorm:"not null;default:0" json:"rating_count"`
-	CreatedAt            time.Time     `json:"created_at"`
-	UpdatedAt            time.Time     `json:"updated_at"`
+	CardCount   int       `gorm:"not null;default:0" json:"card_count"`
+	RatingAvg   float64   `gorm:"type:numeric(3,2);not null;default:0" json:"rating_avg"`
+	RatingCount int       `gorm:"not null;default:0" json:"rating_count"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type Flashcard struct {
@@ -225,4 +234,15 @@ type HomeUpdate struct {
 	EndsAt     *time.Time `json:"ends_at,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+// HomeMessage is the single "A message from ..." card on the student Home: a name, a short quote and an optional photo.
+// There is one row (slot "main"); admins edit it, students only read it.
+type HomeMessage struct {
+	Slot      string     `gorm:"type:text;primaryKey" json:"-"`
+	Name      string     `gorm:"type:text;not null" json:"name"`
+	Quote     string     `gorm:"type:text;not null" json:"quote"`
+	MediaID   *uuid.UUID `gorm:"type:uuid" json:"media_id,omitempty"`
+	IsActive  bool       `gorm:"not null" json:"is_active"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }

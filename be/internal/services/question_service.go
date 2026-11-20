@@ -57,6 +57,9 @@ type QuestionInput struct {
 	Difficulty     *string // "" clears
 	NCERTClass     *int
 	NCERTPage      *int
+	RefBook        *string // "" clears
+	RefEdition     *string
+	RefPages       *string
 	SourceType     *string
 	SourceYear     *int
 	SourceLabel    *string
@@ -321,6 +324,20 @@ func applyScalars(q *models.Question, in QuestionInput) error {
 		}
 		q.NCERTPage = in.NCERTPage
 	}
+	for dst, src := range map[**string]*string{&q.RefBook: in.RefBook, &q.RefEdition: in.RefEdition, &q.RefPages: in.RefPages} {
+		if src == nil {
+			continue
+		}
+		v := strings.TrimSpace(*src)
+		if len([]rune(v)) > 120 {
+			return Coded(http.StatusBadRequest, "invalid_reference", "a reference field must be at most 120 characters")
+		}
+		if v == "" {
+			*dst = nil
+		} else {
+			*dst = &v
+		}
+	}
 	if in.SourceType != nil {
 		if err := validate.EnumErr("source_type", *in.SourceType, validate.SourceTypes); err != nil {
 			return Coded(http.StatusBadRequest, "invalid_source_type", err.Error())
@@ -563,6 +580,10 @@ func (s *QuestionService) CheckPublishGate(ctx context.Context, test *models.Tes
 	}
 	if len(qs) == 0 {
 		return Invalid("incomplete_questions", "add at least one question before submitting", map[string]interface{}{"missing": []MissingQuestion{}})
+	}
+	// A QBank module is one chapter's test; without a chapter it can never appear in the student's QBank.
+	if test.ModuleType == models.ModuleQBank && test.Origin == models.OriginAuthored && test.ChapterID == nil {
+		return Invalid("chapter_required", "choose the chapter this Q Bank set belongs to before submitting", nil)
 	}
 	var missing []MissingQuestion
 	if test.ModuleType != models.ModuleTestSeries {

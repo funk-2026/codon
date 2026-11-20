@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   interpolate,
   interpolateColor,
@@ -28,15 +28,21 @@ type Props = {
   /** Text shown while dragging toward each side, e.g. { left: 'Again', right: 'Good' }. */
   swipeHints?: { left: string; right: string };
   deckTitle: string;
+  /** A new card fades in. Off in the carousel, where cards slide into view instead. */
+  animateIn?: boolean;
 };
 
 const THRESHOLD = 90;
+const EXIT_MS = 200;
 
 /** A card that flips in 3D on tap and can be dragged left or right. Both faces stay mounted so content never reloads. */
-export function FlipCard({ front, back, format, media, flipped, onFlip, onSwipe, swipeHints, deckTitle }: Props) {
+export function FlipCard({ front, back, format, media, flipped, onFlip, onSwipe, swipeHints, deckTitle, animateIn = true }: Props) {
   const { color, type, space, radius } = useTheme();
   const spin = useSharedValue(0);
   const dx = useSharedValue(0);
+  // A new card eases in instead of popping in.
+  const appear = useSharedValue(animateIn ? 0 : 1);
+  const { width: screenW } = useWindowDimensions();
   // Resolve theme colours here, on the JS thread: animation worklets run on the UI thread and can't call color().
   const dangerInk = color('semantic/danger');
   const successInk = color('semantic/success');
@@ -44,6 +50,9 @@ export function FlipCard({ front, back, format, media, flipped, onFlip, onSwipe,
   useEffect(() => {
     spin.value = withTiming(flipped ? 1 : 0, { duration: 320 });
   }, [flipped, spin]);
+  useEffect(() => {
+    if (animateIn) appear.value = withTiming(1, { duration: 240 });
+  }, [appear, animateIn]);
 
   const pan = Gesture.Pan()
     .enabled(!!onSwipe)
@@ -55,8 +64,10 @@ export function FlipCard({ front, back, format, media, flipped, onFlip, onSwipe,
     .onEnd((e) => {
       if (onSwipe && Math.abs(e.translationX) > THRESHOLD) {
         const dir: SwipeDir = e.translationX < 0 ? 'left' : 'right';
-        dx.value = 0;
-        runOnJS(onSwipe)(dir);
+        // Fly off the side first, then hand over to the next card.
+        dx.value = withTiming(dir === 'left' ? -screenW : screenW, { duration: EXIT_MS }, (finished) => {
+          if (finished) runOnJS(onSwipe)(dir);
+        });
       } else {
         dx.value = withTiming(0, { duration: 180 });
       }
@@ -67,7 +78,13 @@ export function FlipCard({ front, back, format, media, flipped, onFlip, onSwipe,
   const gesture = Gesture.Race(pan, tapGesture);
 
   const wrap = useAnimatedStyle(() => ({
-    transform: [{ translateX: dx.value }, { rotateZ: `${interpolate(dx.value, [-200, 200], [-6, 6])}deg` }],
+    opacity: interpolate(appear.value, [0, 1], [0, 1]),
+    transform: [
+      { translateX: dx.value },
+      { translateY: interpolate(appear.value, [0, 1], [14, 0]) },
+      { scale: interpolate(appear.value, [0, 1], [0.97, 1]) },
+      { rotateZ: `${interpolate(dx.value, [-200, 200], [-6, 6])}deg` },
+    ],
   }));
   const frontStyle = useAnimatedStyle(() => ({
     transform: [{ perspective: 1200 }, { rotateY: `${interpolate(spin.value, [0, 1], [0, 180])}deg` }],

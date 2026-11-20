@@ -137,7 +137,7 @@ export default function CsvImportReportRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn’t load the results"
-            description="Something went wrong checking on your file."
+            description="Couldn’t load your file. Check your connection and try again."
             action={<TextButton label="Retry" onPress={() => setTick((t) => t + 1)} />}
           />
         ) : failed ? (

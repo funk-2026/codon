@@ -11,6 +11,7 @@ import { useCursorList } from '@/src/queries/useCursorList';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
+import { formatDate } from '@/src/format/date';
 
 type Status = 'created' | 'captured' | 'failed' | 'refunded';
 type Filter = 'all' | Status;
@@ -89,7 +90,7 @@ export function PaymentsView() {
             <EmptyState
               icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
               title="Couldn't load payments"
-              description="Something went wrong fetching payment records."
+              description="Couldn’t load payment records. Check your connection and try again."
               action={<TextButton label="Retry" onPress={list.load} />}
             />
           ) : (
@@ -125,7 +126,7 @@ export function PaymentsView() {
                     <View style={{ flex: 1 }}>
                       <Text style={[type['type/h3'], { color: color('text/primary') }]} numberOfLines={1}>{p.user?.name || 'Unknown user'}</Text>
                       <Text style={[type['type/caption'], { color: color('text/tertiary'), marginTop: 2 }]} numberOfLines={1}>
-                        {p.subscription?.plan?.name || 'Unknown plan'} · {rupees(p.amount_paise)} · {new Date(p.created_at).toLocaleDateString()}
+                        {p.subscription?.plan?.name || 'Unknown plan'} · {rupees(p.amount_paise)} · {formatDate(p.created_at)}
                       </Text>
                     </View>
                     <Text style={[type['type/caption'], { color: color(TOKEN[p.status] ?? 'text/tertiary'), textTransform: 'capitalize', marginRight: space.xs }]}>{p.status}</Text>

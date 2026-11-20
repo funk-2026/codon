@@ -28,7 +28,7 @@ export function AppConfigProvider({ children }: { children: React.ReactNode }) {
       setConfig(await getAppConfig());
       setStatus('ready');
     } catch (e) {
-      console.error('Failed to load app config', e);
+      console.error('Couldn’t load app config. Try again.', e);
       setStatus((s) => (s === 'ready' ? s : 'error')); // keep the last good config
     }
   }, []);

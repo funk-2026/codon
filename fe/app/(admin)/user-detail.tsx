@@ -13,16 +13,17 @@ import { adminListAllContent, adminListAllTests, adminListKYC, adminListSubscrip
 import { allPages } from '@/src/api/paginate';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
+import { formatDate } from '@/src/format/date';
 
 type Role = 'student' | 'teacher' | 'admin';
 const ROLES: Role[] = ['student', 'teacher', 'admin'];
 const ROLE_TEXT: Record<Role, string> = {
-  student: 'Learns and practises. This is how everyone starts.',
+  student: 'Learns and practices. This is how everyone starts.',
   teacher: 'Creates tests, lessons, Brain Hacks and flashcards, and submits them for review.',
   admin: 'Full control: approves content, manages users, payments and settings.',
 };
 
-const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const when = (iso?: string | null) => (iso ? formatDate(iso) : '—');
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString('en-IN')}`;
 
 /**
@@ -106,7 +107,7 @@ export default function UserDetailRoute() {
       void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       show('Role updated', 'success');
     } catch {
-      show('Failed to update role', 'error');
+      show('Couldn’t update role. Try again.', 'error');
     } finally {
       setBusy(false);
       setPendingRole(null);
@@ -121,7 +122,7 @@ export default function UserDetailRoute() {
       await updateTeacherPermissions(user.id, value);
     } catch {
       queryClient.setQueryData(['admin', 'user', id], user);
-      show('Failed to update permission', 'error');
+      show('Couldn’t update permission. Try again.', 'error');
     } finally {
       setPermBusy(false);
     }
@@ -137,7 +138,7 @@ export default function UserDetailRoute() {
       if (!record) return show('No KYC record found for this user', 'error');
       router.push({ pathname: ROUTES.admin.kycReviewDetail, params: { id: record.id, from: 'user-detail' } });
     } catch {
-      show('Failed to load KYC record', 'error');
+      show('Couldn’t load the KYC record. Try again.', 'error');
     } finally {
       setKycBusy(false);
     }
@@ -161,7 +162,7 @@ export default function UserDetailRoute() {
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
           title="Couldn't load this user"
-          description="Something went wrong fetching this user's details."
+          description="Couldn’t load this user. Check your connection and try again."
           action={<TextButton label="Retry" onPress={() => void userQuery.refetch()} />}
         />
       </Screen>

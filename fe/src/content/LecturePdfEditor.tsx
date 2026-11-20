@@ -5,12 +5,20 @@ import { TextButton, useToast } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { pickAndUploadPdf } from './lecturePdf';
 
-export type PdfKind = 'notes' | 'annotated';
+export type PdfKind = 'annotated' | 'notes' | 'fourth_book' | 'board_questions';
+export const PDF_KINDS: PdfKind[] = ['annotated', 'notes', 'fourth_book', 'board_questions'];
+/** The request field each type is saved in. */
+export const PDF_FIELD: Record<PdfKind, 'annotated_pdf_key' | 'notes_pdf_key' | 'fourth_book_pdf_key' | 'board_questions_pdf_key'> = {
+  annotated: 'annotated_pdf_key', notes: 'notes_pdf_key', fourth_book: 'fourth_book_pdf_key', board_questions: 'board_questions_pdf_key',
+};
+export const EMPTY_PDF_SLOTS: Record<PdfKind, PdfSlot> = { annotated: { present: false }, notes: { present: false }, fourth_book: { present: false }, board_questions: { present: false } };
 export type PdfSlot = { present: boolean; name?: string };
 
 const META: Record<PdfKind, { title: string; hint: string }> = {
-  notes: { title: 'Notes PDF', hint: 'The lecture notes — students can download it any time.' },
-  annotated: { title: 'Annotated PDF', hint: 'What you wrote while teaching — unlocks for a student after they watch the lecture.' },
+  annotated: { title: 'Annotated PDF', hint: 'What you wrote while teaching. Unlocks for a student after they watch the lecture.' },
+  notes: { title: 'Unannotated PDF', hint: 'The clean lecture notes. Students can open them any time.' },
+  fourth_book: { title: 'Fourth Book', hint: 'The matching chapter from the Fourth Book.' },
+  board_questions: { title: 'Board Exam Questions', hint: 'Board exam questions on this chapter.' },
 };
 
 /**
@@ -50,7 +58,7 @@ export function LecturePdfEditor({
 
   return (
     <View style={{ gap: space.sm }}>
-      {(['notes', 'annotated'] as PdfKind[]).map((kind) => {
+      {PDF_KINDS.map((kind) => {
         const slot = slots[kind];
         const uploading = busy?.kind === kind;
         return (

@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { InputField, PrimaryButton, SelectField, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
+import { InputField, PrimaryButton, SegmentedControl, SelectField, TextButton, useToast, ScreenHeader, Screen } from '@/src/components';
+import { formatDuration, parseDuration } from '@/src/brainhack/duration';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { RichField, plainText, type MediaMap, type MediaView } from '@/src/rich';
 import { ApiError } from '@/src/api/client';
 import { createBrainHackApi, getBrainHackCategories, getTeacherBrainHack, submitBrainHack, updateBrainHackApi } from '@/src/api/discover';
 import { ROUTES } from '@/src/navigation/routes';
 
-const DEFAULT_CATS = ['Focus', 'Memory', 'Exam Day'];
+const DEFAULT_CATS = ['Speed Reading', 'Fourth Book', 'Sleep', 'Breathing'];
 const MAX_BODY = 4000;
 
 /** Reading time at ~200 words/minute, minimum 1. */
@@ -24,7 +25,11 @@ export default function CreateBrainHackRoute() {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string | undefined>();
   const [cats, setCats] = useState<string[]>(DEFAULT_CATS);
+  const [newCat, setNewCat] = useState('');
   const [body, setBody] = useState('');
+  const [kind, setKind] = useState<'article' | 'video'>('article');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [length, setLength] = useState('');
   const [media, setMedia] = useState<MediaMap>({});
   const [savedId, setSavedId] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | 'draft' | 'submit'>(null);
@@ -41,6 +46,9 @@ export default function CreateBrainHackRoute() {
         setTitle(h.title);
         setCategory(h.category);
         setBody(h.body);
+        setKind(h.kind === 'video' ? 'video' : 'article');
+        setVideoUrl(h.video_url ?? '');
+        setLength(formatDuration(h.duration_seconds));
         setMedia(r.media);
         setSavedId(h.id);
         setCats((c) => (c.includes(h.category) ? c : [...c, h.category]));
@@ -56,17 +64,21 @@ export default function CreateBrainHackRoute() {
 
   const errors = useMemo(() => ({
     title: title.trim().length < 3 ? 'Give it a title (at least 3 characters).' : title.length > 120 ? 'Keep the title under 120 characters.' : null,
-    category: category ? null : 'Pick a category.',
-    body: plainText(body, 'rich_v1').trim().length < 20 && !/!\[/.test(body) ? 'Write the tip (at least a couple of sentences).' : body.length > MAX_BODY ? 'Too long.' : null,
-  }), [title, category, body]);
-  const valid = !errors.title && !errors.category && !errors.body;
+    category: (newCat.trim() || category) ? (newCat.trim().length > 30 ? 'Keep a new category under 30 characters.' : null) : 'Pick a category or type a new one.',
+    body: kind === 'video' ? null : plainText(body, 'rich_v1').trim().length < 20 && !/!\[/.test(body) ? 'Write the tip (at least a couple of sentences).' : body.length > MAX_BODY ? 'Too long.' : null,
+    video: kind === 'article' ? null : !/^https:\/\/\S+$/.test(videoUrl.trim()) ? 'Paste the video link. It must start with https://' : null,
+    length: kind === 'article' || !length.trim() ? null : parseDuration(length) == null ? 'Use minutes and seconds, like 2:30.' : null,
+  }), [title, category, newCat, body, kind, videoUrl, length]);
+  const valid = !errors.title && !errors.category && !errors.body && !errors.video && !errors.length;
 
   const save = async (submit: boolean) => {
     setTouched(true);
     if (!valid) return show('Fix the highlighted fields first.', 'error');
     setBusy(submit ? 'submit' : 'draft');
     try {
-      const payload = { title: title.trim(), category: category!, body: body.trim(), read_minutes: readMinutes(body) };
+      const payload = kind === 'video'
+        ? { title: title.trim(), category: (newCat.trim() || category)!, kind: 'video' as const, video_url: videoUrl.trim(), duration_seconds: parseDuration(length) ?? 0 }
+        : { title: title.trim(), category: (newCat.trim() || category)!, kind: 'article' as const, body: body.trim(), read_minutes: readMinutes(body) };
       let id = savedId;
       if (id) await updateBrainHackApi(id, payload);
       else id = (await createBrainHackApi(payload)).id;
@@ -95,13 +107,22 @@ export default function CreateBrainHackRoute() {
 </>} />
 
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg, paddingBottom: 120 + insets.bottom }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <SegmentedControl options={[{ key: 'article' as const, label: 'Article' }, { key: 'video' as const, label: 'Video' }]} value={kind} onChange={setKind} />
         <InputField label="Title" value={title} onChangeText={setTitle} error={touched ? errors.title ?? undefined : undefined} />
-        <SelectField label="Category" value={category} options={cats.map((c) => ({ value: c, label: c }))} onChange={setCategory} error={touched ? errors.category : null} />
-        <RichField
-          label="The tip" required value={body} onChange={setBody} media={media} onMedia={(v: MediaView) => setMedia((m) => ({ ...m, [v.id]: v }))}
-          purpose="brain_hack_image" maxChars={MAX_BODY} minLines={8} placeholder="Explain the tip in plain, friendly language. Add a picture if it helps." error={touched ? errors.body : null} maxImages={3}
-        />
-        <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>About {readMinutes(body)} min read · goes to an admin for review before students see it.</Text>
+        <SelectField label="Category" value={newCat.trim() ? undefined : category} options={cats.map((c) => ({ value: c, label: c }))} onChange={(v) => { setCategory(v); setNewCat(''); }} error={touched ? errors.category : null} />
+        <InputField label="Or a new category" value={newCat} onChangeText={setNewCat} maxLength={30} helperText="It appears for students once a Brain Hack in it is published." />
+        {kind === 'article' ? (
+          <RichField
+            label="The tip" required value={body} onChange={setBody} media={media} onMedia={(v: MediaView) => setMedia((m) => ({ ...m, [v.id]: v }))}
+            purpose="brain_hack_image" maxChars={MAX_BODY} minLines={8} placeholder="Explain the tip in plain, friendly language. Add a picture if it helps." error={touched ? errors.body : null} maxImages={3}
+          />
+        ) : (
+          <>
+            <InputField label="Video link" value={videoUrl} onChangeText={setVideoUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://" error={touched ? errors.video ?? undefined : undefined} helperText="A link to the video file or stream." />
+            <InputField label="Length (optional)" value={length} onChangeText={setLength} placeholder="2:30" keyboardType="numbers-and-punctuation" error={touched ? errors.length ?? undefined : undefined} />
+          </>
+        )}
+        <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{kind === 'article' ? `About ${readMinutes(body)} min read · ` : ''}Goes to an admin for review before students see it.</Text>
       </ScrollView>
 
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: color('bg/surface'), borderTopWidth: 1, borderTopColor: color('border/subtle'), padding: space.md, paddingBottom: space.md + insets.bottom }}>

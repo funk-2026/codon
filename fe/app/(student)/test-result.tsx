@@ -22,6 +22,12 @@ import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 import { useAttemptResult } from '@/src/queries/attempts';
 import { rankText } from '@/src/exam/logic';
+import { QBankResult } from '@/src/qbank/QBankResult';
+import { CustomResult } from '@/src/custom/CustomResult';
+import { deleteCustomTest } from '@/src/api/customTests';
+import { ConfirmDialog } from '@/src/components';
+import { shortDate } from '@/src/qbank/logic';
+import { formatDateTime } from '@/src/format/date';
 
 function band(p: number): { color: 'semantic/success' | 'semantic/warning' | 'semantic/danger'; headline: string } {
   if (p >= 85) return { color: 'semantic/success', headline: 'Excellent work.' };
@@ -38,9 +44,12 @@ export default function TestResultRoute() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const customEnabled = useFlag('custom_test.enabled');
-  const { id, expired } = useLocalSearchParams<{ id: string; fromHistory?: string; expired?: string }>();
+  const { id, expired, fromHistory } = useLocalSearchParams<{ id: string; fromHistory?: string; expired?: string }>();
 
   const resultQuery = useAttemptResult(id, expired === '1');
+  // Opened from a list: a plain back. Just finished: pop to the hub instead of pushing a copy of it.
+  const leave = (tab: typeof ROUTES.student.tests | typeof ROUTES.student.practice) =>
+    fromHistory === '1' && router.canGoBack() ? router.back() : router.dismissTo(tab);
   const loading = resultQuery.isPending;
   const loadError = resultQuery.isError;
   // Still retrying a not-yet-finalised result after a deadline.
@@ -51,6 +60,7 @@ export default function TestResultRoute() {
   const load = () => void resultQuery.refetch();
   const [mistakesOpen, setMistakesOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const { user } = useAuth();
   const [include, setInclude] = useState<'wrong' | 'unattempted' | 'both'>('both');
   const [building, setBuilding] = useState(false);
@@ -126,8 +136,8 @@ export default function TestResultRoute() {
         <EmptyState
           icon={<Timer size={36} color={color('accent/default')} />}
           title="Submitted. Results are not out yet"
-          description={`${attempt.test?.title ?? 'Your test'} is a live event. Scores, ranks and answers open${at ? ` on ${at.toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ' later'}. We will notify you.`}
-          action={<PrimaryButton label="Back to Tests" onPress={() => router.replace(ROUTES.student.tests)} />}
+          description={`${attempt.test?.title ?? 'Your test'} is a live event. Scores, ranks and answers open${at ? ` on ${formatDateTime(at)}` : ' later'}. We will notify you.`}
+          action={<PrimaryButton label="Back to Tests" onPress={() => leave(ROUTES.student.tests)} />}
           style={{ flex: 1, justifyContent: 'center' }}
         />
       </Screen>
@@ -140,9 +150,56 @@ export default function TestResultRoute() {
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
           title="Couldn’t load your result"
-          description="Something went wrong fetching this test result. Check your connection and try again."
+          description="Couldn’t load this test result. Check your connection and try again."
           action={<TextButton label="Retry" onPress={load} />}
           style={{ flex: 1, justifyContent: 'center' }}
+        />
+      </Screen>
+    );
+  }
+
+  // A custom module's result is the percentage only: no rank, percentile or leaderboard (those live in Challenges).
+  const moduleCode = (attempt.test as { share_code?: string } | undefined)?.share_code;
+  if (isCustom && moduleCode) {
+    const total = CORRECT + INCORRECT + UNATTEMPTED;
+    return (
+      <Screen>
+        <CustomResult
+          title={attempt.test?.title ?? 'Custom module'}
+          correct={CORRECT}
+          total={total}
+          percent={total > 0 ? Math.round((CORRECT * 100) / total) : 0}
+          code={moduleCode}
+          onReview={() => router.push({ pathname: ROUTES.student.testReview, params: { id } })}
+          onDiscard={() => setDiscardOpen(true)}
+          onBack={() => router.dismissTo({ pathname: ROUTES.student.customStart, params: { id: attempt.test_id } })}
+        />
+        <ConfirmDialog visible={discardOpen} title="Discard this module?" message="If you discard this custom module, you will not be able to attempt it again in the future." confirmLabel="Discard" cancelLabel="Keep it" tone="danger" onConfirm={() => void deleteCustomTest(attempt.test_id).then(() => router.dismissTo({ pathname: ROUTES.student.practice, params: { kind: 'custom' } })).catch(() => show('Couldn’t discard it. Try again.', 'error'))} onCancel={() => setDiscardOpen(false)} />
+      </Screen>
+    );
+  }
+
+  // A solved QBank module gets its own result: modules solved, peer comparison, the bar, REVIEW and the bookmarks count.
+  const qb = resultQuery.data?.qbank;
+  if (module.key === 'qbank' && attempt.test?.origin === 'authored' && qb) {
+    return (
+      <Screen>
+        <QBankResult
+          title={attempt.test?.chapter?.name ?? attempt.test?.title ?? 'QBank'}
+          subject={attempt.test?.subject?.name}
+          completedOn={attempt.submitted_at ? shortDate(attempt.submitted_at) : undefined}
+          mcqs={CORRECT + INCORRECT + UNATTEMPTED}
+          correct={CORRECT}
+          wrong={INCORRECT}
+          skipped={UNATTEMPTED}
+          percent={PERCENT}
+          betterThan={qb.better_than_pct}
+          solved={qb.solved}
+          total={qb.total}
+          bookmarks={qb.bookmarks}
+          onReview={() => router.push({ pathname: ROUTES.student.testReview, params: { id } })}
+          onBack={() => leave(ROUTES.student.practice)}
+          onBookmarks={() => router.push(ROUTES.student.bookmarks)}
         />
       </Screen>
     );
@@ -156,10 +213,10 @@ export default function TestResultRoute() {
       <ScrollView contentContainerStyle={{ paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
         <HeaderBand>
           <Pressable
-            onPress={() => router.replace(ROUTES.student.practice)}
+            onPress={() => leave(module.key === 'test_series' ? ROUTES.student.tests : ROUTES.student.practice)}
             hitSlop={space.xs}
             accessibilityRole="button"
-            accessibilityLabel="Back to Practice"
+            accessibilityLabel="Back"
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, justifyContent: 'center' })}
           >
             <CaretLeft size={24} color={color('header/text')} />
@@ -191,6 +248,15 @@ export default function TestResultRoute() {
           <View style={{ backgroundColor: color('semantic/warning-tint'), borderRadius: radius.md, padding: space.md, flexDirection: 'row', gap: space.sm, alignItems: 'center' }}>
             <Timer size={20} weight="fill" color={color('semantic/warning')} />
             <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>Time’s up — your answers so far were submitted automatically.</Text>
+          </View>
+        ) : null}
+
+        {/* Rank, score and percentile are three separate numbers, never one blended figure */}
+        {cohort && !cohort.locked && cohort.rank != null ? (
+          <View style={[styles.row, { gap: space.xs, marginTop: space.md }]}>
+            <BreakTile label="Rank" value={`${cohort.rank}/${cohort.total}`} ink={color('text/primary')} />
+            <BreakTile label="Score" value={hasMarks ? `${fmtScore(SCORE)}/${fmtScore(MAX)}` : fmtScore(SCORE)} ink={color('text/primary')} />
+            <BreakTile label="Percentile" value={cohort.percentile != null ? `${Math.round(cohort.percentile)}` : '—'} ink={color('accent/default')} />
           </View>
         ) : null}
 
@@ -273,22 +339,22 @@ export default function TestResultRoute() {
           />
           {module.key === 'test_series' ? (
             <>
-              <SecondaryButton label="Detailed analysis" onPress={() => router.push({ pathname: ROUTES.student.testAnalysis, params: { id } })} />
+              <SecondaryButton label="See how you compare with others" onPress={() => router.push({ pathname: ROUTES.student.testAnalysis, params: { id } })} />
               <SecondaryButton label="Leaderboard" onPress={() => router.push({ pathname: ROUTES.student.testLeaderboard, params: { id: attempt.test_id } })} />
             </>
           ) : null}
           {canPractiseMistakes ? (
-            <SecondaryButton label="Practise my mistakes" onPress={() => setMistakesOpen(true)} />
+            <SecondaryButton label="Practice my mistakes" onPress={() => setMistakesOpen(true)} />
           ) : null}
           {module.canRetake ? (
             <SecondaryButton
-              label={isCustom ? 'Retake these questions' : module.key === 'test_series' ? 'Practise this test again' : 'Retake Test'}
+              label={isCustom ? 'Retake these questions' : module.key === 'test_series' ? 'Practice this test again' : 'Retake test'}
               onPress={() => router.push({ pathname: ROUTES.student.testPreStart, params: { id: attempt.test_id } })}
             />
           ) : null}
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: space.lg }}>
             <TextButton label="Share result" onPress={() => setShareOpen(true)} />
-            <TextButton label={module.key === 'test_series' ? 'Back to Tests' : 'Back to Practice'} onPress={() => router.replace(module.key === 'test_series' ? ROUTES.student.tests : ROUTES.student.practice)} />
+            <TextButton label={module.key === 'test_series' ? 'Back to Tests' : 'Back to Practice'} onPress={() => leave(module.key === 'test_series' ? ROUTES.student.tests : ROUTES.student.practice)} />
           </View>
         </View>
         </View>
@@ -304,9 +370,10 @@ export default function TestResultRoute() {
           score: hasMarks ? `${SCORE}/${MAX}` : `${CORRECT}/${CORRECT + INCORRECT + UNATTEMPTED}`,
           correct: CORRECT,
           attempted: CORRECT + INCORRECT,
+          rank: cohort && !cohort.locked && cohort.rank != null && !cohort.estimated ? `Rank ${cohort.rank} of ${cohort.total}` : undefined,
         }}
       />
-      <BottomSheet visible={mistakesOpen} onClose={() => setMistakesOpen(false)} title="Practise my mistakes" dismissable={!building}>
+      <BottomSheet visible={mistakesOpen} onClose={() => setMistakesOpen(false)} title="Practice my mistakes" dismissable={!building}>
         <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
           We’ll build a new private test from the questions you got wrong or skipped.
         </Text>
@@ -372,7 +439,7 @@ function BreakdownSection({ title, rows, limit }: { title: string; rows?: Breakd
   );
 }
 
-function BreakTile({ label, value, ink }: { label: string; value: number; ink: string }) {
+function BreakTile({ label, value, ink }: { label: string; value: number | string; ink: string }) {
   const { color, type, radius } = useTheme();
   return (
     <View accessible accessibilityLabel={`${label}: ${value}`} style={{ flex: 1, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: 12, alignItems: 'center' }}>

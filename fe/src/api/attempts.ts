@@ -24,6 +24,8 @@ export type StudentAttempt = {
   expires_at?: string;
   attempt_no?: number;
   auto_submitted?: boolean;
+  /** The attempt that counts for rank (first one, or the first in a live window). */
+  official?: boolean;
 };
 
 export type AttemptAnswer = {
@@ -51,8 +53,15 @@ export type StartAttemptResponse = {
 };
 
 /** POST /api/v1/tests/:id/attempts — starts or resumes. 409 `attempt_expired` if it ran out. */
+// A custom module is solved once from its Start screen. A second solve sends the module's code, remembered here
+// when the student typed it in Challenges.
+const customCodes = new Map<string, string>();
+export const rememberCustomCode = (testId: string, code: string) => customCodes.set(testId, code);
+
 export function startAttempt(testId: string): Promise<StartAttemptResponse> {
-  return apiFetch<StartAttemptResponse>(`/tests/${testId}/attempts`, { method: 'POST' });
+  const code = customCodes.get(testId);
+  customCodes.delete(testId);
+  return apiFetch<StartAttemptResponse>(`/tests/${testId}/attempts`, { method: 'POST', ...(code ? { headers: { 'X-Custom-Code': code } } : {}) });
 }
 
 /**
@@ -98,6 +107,12 @@ export type RevealResponse = {
   marks: number;
   content_format: RichFormat | string;
   media: MediaMap;
+  ref_book?: string;
+  ref_edition?: string;
+  ref_pages?: string;
+  /** Percent of students who chose each option; absent until enough have answered. */
+  option_shares?: Record<string, number>;
+  percent_correct?: number;
 };
 
 /** POST /api/v1/attempts/:id/answers/:qid/reveal — tutor mode only; locks the answer. */
@@ -154,6 +169,8 @@ export type AttemptResultResponse = {
     /** The test shows rank to subscribers only. */
     locked?: boolean;
   };
+  /** QBank modules only: progress in the subject, bookmarks saved from this module, and the share of peers beaten (once enough peers). */
+  qbank?: { solved: number; total: number; bookmarks: number; peers?: number; better_than_pct?: number };
   /** A live test keeps the score back until results open. */
   pending?: boolean;
   results_at?: string;
@@ -198,6 +215,11 @@ export type ReviewItem = {
     difficulty?: 'easy' | 'medium' | 'hard';
     ncert_class?: number;
     ncert_page?: number;
+    /** The tag chip under the question, and the References block under the explanation. */
+    tags?: string[];
+    ref_book?: string;
+    ref_edition?: string;
+    ref_pages?: string;
   };
   bookmarked: boolean;
   reported_by_me: boolean;
@@ -218,10 +240,13 @@ export type AttemptReviewResponse = {
 /** GET /api/v1/attempts/:id/review — pass `limit` to paginate (cursor = last position). */
 export function getAttemptReview(
   attemptId: string,
-  opts: { filter?: ReviewFilter; limit?: number; cursor?: string | null } = {},
+  opts: { filter?: ReviewFilter; limit?: number; cursor?: string | null; subject_id?: string } = {},
 ): Promise<AttemptReviewResponse> {
   return apiFetch<AttemptReviewResponse>(
-    `/attempts/${attemptId}/review${qs({ filter: opts.filter, limit: opts.limit, cursor: opts.cursor ?? undefined })}`,
+    `/attempts/${attemptId}/review${qs({ filter: opts.filter, limit: opts.limit, cursor: opts.cursor ?? undefined, subject_id: opts.subject_id })}`,
     { method: 'GET' },
   ).then((r) => ({ ...r, review: arr(r.review), media: r.media ?? {} }));
 }
+
+/** POST /attempts/:id/discard — throws away an attempt that is still in progress (not a live exam's official attempt). */
+export const discardAttempt = (attemptId: string) => apiFetch<{ discarded: boolean }>(`/attempts/${attemptId}/discard`, { method: 'POST' });

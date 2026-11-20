@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { X, GridFour, WarningCircle, FlagPennant, FlagBanner, Lock, Timer } from 'phosphor-react-native';
+import { X, GridFour, WarningCircle, FlagPennant, FlagBanner, Lock, Timer, ShareNetwork } from 'phosphor-react-native';
 import {
   BottomSheet, EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
@@ -11,7 +11,11 @@ import { MediaPrefetcher } from '@/src/rich/MediaPrefetcher';
 import { prefetchOrder } from '@/src/rich/prefetch';
 import { BookmarkButton } from '@/src/bookmarks/BookmarkButton';
 import { ReportSheet } from '@/src/social/ReportSheet';
-import { submitAttempt, type Option } from '@/src/api/attempts';
+import { QuestionTagRow, ReferencesBlock, shareQuestion } from '@/src/question/QuestionMeta';
+import { questionShareText, timerLabel } from '@/src/question/logic';
+import { useQuestionCountdown } from '@/src/attempt/useQuestionCountdown';
+import { plainText } from '@/src/rich';
+import { discardAttempt, submitAttempt, type Option } from '@/src/api/attempts';
 import { ApiError } from '@/src/api/client';
 import { useAttemptSession } from '@/src/attempt/useAttemptSession';
 import { useAttemptTimer } from '@/src/attempt/useAttemptTimer';
@@ -50,6 +54,9 @@ export default function TestQuestionRoute() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const submitLock = useRef(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -121,7 +128,8 @@ export default function TestQuestionRoute() {
 
   const finish = useCallback(
     async (opts: { force?: boolean; expired?: boolean } = {}) => {
-      if (!attempt) return;
+      if (!attempt || submitLock.current) return; // a second tap can never send a second submission
+      submitLock.current = true;
       setSubmitting(true);
       setSubmitError(null);
       try {
@@ -129,6 +137,7 @@ export default function TestQuestionRoute() {
         const saved = await sync.flushNow();
         if (!saved && !opts.force) {
           setSubmitError(`${sync.pending || 'Some'} answer${sync.pending === 1 ? '' : 's'} haven't saved yet — check your connection.`);
+          submitLock.current = false;
           setSubmitting(false);
           return;
         }
@@ -146,6 +155,7 @@ export default function TestQuestionRoute() {
           return;
         }
         setSubmitError('Couldn’t submit. Check your connection and try again.');
+        submitLock.current = false;
         setSubmitting(false);
       }
     },
@@ -212,6 +222,14 @@ export default function TestQuestionRoute() {
       setBusyTakeover(false);
     }
   };
+
+  // Regular mode (QBank and Custom Module Regular): 2 minutes per question, restarting on each and running while the
+  // answer is read. A Custom Module moves on by itself when it runs out; QBank only says so.
+  const isCustom = attempt?.test?.module_type === 'custom';
+  const qLeft = useQuestionCountdown(q?.id, 120, tutor && !!q && !locked, () => {
+    if (isCustom && current < total - 1) go(current + 1);
+    else show('Time’s up for this question.', 'error');
+  });
 
   const optionState = (letter: Option): OptionState => {
     const selected = a?.selected === letter;
@@ -289,11 +307,13 @@ export default function TestQuestionRoute() {
       ) : S.phase === 'error' || S.phase === 'expired' ? (
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
-          title="Couldn’t load this test"
+          title={S.error instanceof ApiError && ['already_submitted', 'already_solved'].includes(String(S.error.code)) ? 'Already solved' : 'Couldn’t load this test'}
           description={
-            S.error instanceof ApiError && S.error.status === 403
+            S.error instanceof ApiError && ['already_submitted', 'already_solved', 'not_started', 'late_entry_closed'].includes(String(S.error.code))
+              ? S.error.message
+              : S.error instanceof ApiError && S.error.status === 403
               ? 'This test needs an active subscription.'
-              : 'Something went wrong loading your questions. Check your connection and try again.'
+              : 'Couldn’t load your questions. Check your connection and try again.'
           }
           action={<TextButton label="Retry" onPress={S.reload} />}
           style={{ flex: 1, justifyContent: 'center' }}
@@ -371,6 +391,23 @@ export default function TestQuestionRoute() {
                 </Text>
               </Pressable>
               <View style={{ flex: 1 }} />
+              {tutor && qLeft != null ? (
+                <View accessible accessibilityLabel={`Time left on this question ${timerLabel(qLeft)}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: space.xs }}>
+                  <Timer size={16} color={qLeft <= 15 ? color('semantic/danger') : color('text/secondary')} />
+                  <Text style={[type['type/body-m-medium'], { color: qLeft <= 15 ? color('semantic/danger') : color('text/secondary') }]}>{timerLabel(qLeft)}</Text>
+                </View>
+              ) : null}
+              {checked ? (
+                <Pressable
+                  onPress={() => void shareQuestion(questionShareText({ text: plainText(q.question_text, q.content_format), a: plainText(q.option_a, q.content_format), b: plainText(q.option_b, q.content_format), c: plainText(q.option_c, q.content_format), d: plainText(q.option_d, q.content_format) }))}
+                  hitSlop={space.xs}
+                  accessibilityRole="button"
+                  accessibilityLabel="Share this question"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' })}
+                >
+                  <ShareNetwork size={22} color={color('text/secondary')} />
+                </Pressable>
+              ) : null}
               <BookmarkButton questionId={q.id} />
               <Pressable
                 onPress={() => setReportOpen(true)}
@@ -387,6 +424,7 @@ export default function TestQuestionRoute() {
               <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space['2xs'] }]}>QUESTION {current + 1}</Text>
               {q.section ? <Text style={[type['type/overline'], { color: color('accent/default'), marginBottom: space.xs }]}>{q.section.toUpperCase()}</Text> : null}
             <RichContent value={q.question_text} format={q.content_format} media={media} variant="stem" />
+            <QuestionTagRow tags={q.tags} questionId={q.id} />
             </View>
 
             <View style={{ gap: space.sm, marginTop: space.lg }} accessibilityRole="radiogroup">
@@ -399,6 +437,7 @@ export default function TestQuestionRoute() {
                   media={media}
                   state={optionState(letter)}
                   disabled={locked || checked}
+                  share={reveal?.option_shares?.[letter]}
                   onPress={() => S.select(q.id, letter)}
                   onLongPress={() => S.toggleStrike(q.id, letter)}
                   longPressLabel={S.struck[q.id]?.includes(letter) ? `Restore option ${letter}` : `Cross out option ${letter}`}
@@ -411,7 +450,7 @@ export default function TestQuestionRoute() {
               </Text>
             ) : null}
 
-            {a?.selected && !checked && !locked && !isExam ? (
+            {a?.selected && !checked && !locked ? (
               <View style={{ marginTop: space.md, gap: space.xs }}>
                 <Text style={[type['type/caption'], { color: color('text/secondary') }]}>How sure are you? (optional)</Text>
                 <ChipGroup
@@ -449,6 +488,8 @@ export default function TestQuestionRoute() {
                 ) : (
                   <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>No explanation for this question.</Text>
                 )}
+                {reveal.percent_correct != null ? <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>{reveal.percent_correct}% of the people got this right</Text> : null}
+                <ReferencesBlock book={reveal.ref_book} edition={reveal.ref_edition} pages={reveal.ref_pages} />
               </View>
             ) : null}
           </ScrollView>
@@ -529,7 +570,10 @@ export default function TestQuestionRoute() {
                   if (n >= 0) go(n);
                 }}
               />
-              <PrimaryButton label="Submit Test" onPress={() => { setPaletteOpen(false); setSubmitOpen(true); }} />
+              <PrimaryButton label="Submit test" onPress={() => { setPaletteOpen(false); setSubmitOpen(true); }} />
+              {!(attempt?.test?.delivery === 'live' && attempt?.official) ? (
+                <TextButton label="Discard test" onPress={() => { setPaletteOpen(false); setDiscardOpen(true); }} />
+              ) : null}
             </View>
           </BottomSheet>
 
@@ -566,10 +610,36 @@ export default function TestQuestionRoute() {
         </>
       )}
 
+      <BottomSheet visible={discardOpen} onClose={() => setDiscardOpen(false)} title="Discard this test?" dismissable={!discarding}>
+        <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+          Your answers are thrown away and nothing is saved. You can start the test again from the beginning.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.lg }}>
+          <SecondaryButton
+            label="Discard"
+            loading={discarding}
+            onPress={async () => {
+              if (!attempt) return;
+              setDiscarding(true);
+              try {
+                await discardAttempt(attempt.id);
+                void queryClient.invalidateQueries({ queryKey: keys.attempts });
+                setDiscardOpen(false);
+                router.dismissTo(ROUTES.student.practice);
+              } catch {
+                setDiscarding(false);
+                setDiscardOpen(false);
+              }
+            }}
+          />
+          <PrimaryButton label="Keep going" onPress={() => setDiscardOpen(false)} />
+        </View>
+      </BottomSheet>
+
       {/* Exit confirmation */}
       <BottomSheet visible={exitOpen} onClose={() => setExitOpen(false)} title="Exit test?">
         <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
-          Your answers are saved — you can resume anytime from Practice.
+          Your answers are saved — you can resume anytime. {attempt?.test?.module_type === 'custom' ? 'The Start screen will say Resume.' : 'Find it again in Practice.'}
           {left != null ? ' The clock keeps running while you’re away.' : ''}
         </Text>
         <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.lg }}>
@@ -577,7 +647,9 @@ export default function TestQuestionRoute() {
             label="Exit"
             onPress={() => {
               void sync.flushNow();
-              router.replace(ROUTES.student.practice);
+              // Back in the middle of a custom module pauses it: the Start screen then reads Resume.
+              if (attempt?.test?.module_type === 'custom' && attempt.test_id) router.dismissTo({ pathname: ROUTES.student.customStart, params: { id: attempt.test_id } });
+              else router.dismissTo(ROUTES.student.practice);
             }}
           />
           <PrimaryButton label="Stay" onPress={() => setExitOpen(false)} />

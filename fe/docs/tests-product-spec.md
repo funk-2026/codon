@@ -347,3 +347,40 @@ JEE (a future exam style), camera or microphone proctoring, adaptive tests, mult
 - Shuffling, other languages, an OMR view, pricing and bundles for a series, parent report, rank predictor, share card.
 - Per-section timers and per-section question counts as enforced rules (the style only warns).
 - Load testing and a dry run before the first live test. Do not run a live exam without them.
+
+## 18. Tests tab: one behaviour for all three kinds (2026-11-20)
+
+A review of Grand Test, Mini Test and Subject-wise found that Grand Test had features the other two lacked, and that
+the list filtered live tests by year. This is what was decided and built.
+
+**Built**
+- The three tabs behave the same. Every tab has Live & upcoming, Library and Attempted (the Mini and Subject-wise
+  second view used to be called "Past Tests").
+- "Next up" (live view), "Waiting for results" (Attempted) and "Your series" (Library) now show on every tab, worked
+  out from that tab's own tests. A series of chapter tests used to be invisible.
+- A card's first line says what it covers: the subject for Subject-wise, "Subject · Chapter" for a chapter test,
+  "Previous-year paper · 2024" for a paper, "Grand Test" for a full mock. The list API now sends `subject_name` and
+  `chapter_name`. Attempted rows also show the type and the series.
+- Mini and Subject-wise Library is grouped by subject (then chapter), not by month. It is a library, not a calendar.
+- Live & upcoming and Attempted list every year, with the year in each month heading. A live test in January 2027 is
+  no longer hidden because the year filter says 2026.
+- The year chips appear only for the Grand Test Library, where previous-year papers are browsed by year. The years
+  come from the papers themselves, not a fixed 2025 to 2027 list.
+- The header holds the title, Search and Notifications only. "Results (n)" moved to the bottom of Attempted as "See
+  all my results (n)". "My Grand Test analysis" sits at the top of Grand Test, Attempted only.
+- Copy: the spec label "PREVIOUS YEAR / YEAR SELECTOR" is gone; month headings read "November 2026 · this month";
+  the subtitle reads "Practice and exam tests" (Mini and Subject-wise tests can be untimed).
+
+**Decisions (please confirm)**
+- Performance analysis stays Grand Test only. The trend needs the same exam shape each time; a chapter test is
+  different every time, so a trend line would mislead. Mini and Subject-wise show their score and date in Attempted
+  and a normal result screen. If students ask for it, the simplest version is a per-subject accuracy trend built
+  from the Subject-wise tests, not a score trend.
+- Percentile stays on Grand Test and subjects; chapters show percentage only (unchanged).
+- The Library for Mini and Subject-wise is not paged. If a course ends up with hundreds of chapter tests, add a
+  subject filter row before adding paging.
+
+**Not built**
+- Analysis for Mini and Subject-wise (see above).
+- A "continue where you left off" shortcut on the Tests tab for an unfinished Mini test. Home already has Continue
+  solving, so this was left out to avoid a third place.

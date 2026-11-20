@@ -142,7 +142,7 @@ func (h *TestHandler) GetTest(c *gin.Context) {
 	if err := h.DB.WithContext(c.Request.Context()).
 		Where("id = ? AND status = ? AND archived_at IS NULL", id, models.StatusPublished).
 		Preload("Course").
-		First(&test).Error; err != nil || !visibleToUser(&test, user.ID) {
+		First(&test).Error; err != nil || !visibleOrOpened(h.DB, &test, user.ID) {
 		respondErr(c, http.StatusNotFound, "test_not_found", "test not found")
 		return
 	}
@@ -198,7 +198,7 @@ func (h *TestHandler) GetQuestions(c *gin.Context) {
 		return
 	}
 	var test models.Test
-	if err := h.DB.WithContext(ctx).First(&test, "id = ?", testID).Error; err != nil || !visibleToUser(&test, user.ID) {
+	if err := h.DB.WithContext(ctx).First(&test, "id = ?", testID).Error; err != nil || !visibleOrOpened(h.DB, &test, user.ID) {
 		respondErr(c, http.StatusNotFound, "test_not_found", "test not found")
 		return
 	}
@@ -222,7 +222,13 @@ func (h *TestHandler) GetQuestions(c *gin.Context) {
 		OrderIndex    int       `json:"order_index"`
 		Position      int       `json:"position"`
 		Section       *string   `json:"section,omitempty"`
+		Tags          []string  `json:"tags,omitempty"`
 	}
+	qids := make([]uuid.UUID, len(questions))
+	for i, q := range questions {
+		qids[i] = q.ID
+	}
+	tagsBy := tagNames(h.DB, ctx, qids)
 
 	mc := media.NewCollector()
 	resp := make([]QuestionView, len(questions))
@@ -230,7 +236,7 @@ func (h *TestHandler) GetQuestions(c *gin.Context) {
 		resp[i] = QuestionView{
 			ID: q.ID, TestID: testID, ContentFormat: q.ContentFormat, QuestionText: q.QuestionText,
 			OptionA: q.OptionA, OptionB: q.OptionB, OptionC: q.OptionC, OptionD: q.OptionD,
-			OrderIndex: q.Position, Position: q.Position, Section: q.Section,
+			OrderIndex: q.Position, Position: q.Position, Section: q.Section, Tags: tagsBy[q.ID],
 		}
 		mc.Add(q.ContentFormat, &resp[i].QuestionText, &resp[i].OptionA, &resp[i].OptionB, &resp[i].OptionC, &resp[i].OptionD)
 	}
@@ -1173,6 +1179,9 @@ type questionRequest struct {
 	Difficulty     *string   `json:"difficulty" enums:"easy,medium,hard"`
 	NCERTClass     *int      `json:"ncert_class"`
 	NCERTPage      *int      `json:"ncert_page"`
+	RefBook        *string   `json:"ref_book"`
+	RefEdition     *string   `json:"ref_edition"`
+	RefPages       *string   `json:"ref_pages"`
 	SourceType     *string   `json:"source_type" enums:"qbank,practice,test_series,pyq,other"`
 	SourceYear     *int      `json:"source_year"`
 	SourceLabel    *string   `json:"source_label"`
@@ -1199,7 +1208,7 @@ func (r questionRequest) toInput() (services.QuestionInput, error) {
 	in := services.QuestionInput{
 		QuestionText: r.QuestionText, OptionA: r.OptionA, OptionB: r.OptionB, OptionC: r.OptionC, OptionD: r.OptionD,
 		CorrectOption: r.CorrectOption, Explanation: r.Explanation, ContentFormat: r.ContentFormat,
-		Difficulty: r.Difficulty, NCERTClass: r.NCERTClass, NCERTPage: r.NCERTPage, SourceType: r.SourceType,
+		Difficulty: r.Difficulty, NCERTClass: r.NCERTClass, NCERTPage: r.NCERTPage, RefBook: r.RefBook, RefEdition: r.RefEdition, RefPages: r.RefPages, SourceType: r.SourceType,
 		SourceYear: r.SourceYear, SourceLabel: r.SourceLabel, CustomEligible: r.CustomEligible, Tags: r.Tags, Section: r.Section,
 	}
 	var err error

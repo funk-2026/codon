@@ -436,7 +436,7 @@ func (h *CustomTestHandler) FromAttempt(c *gin.Context) {
 // ── Builder config ────────────────────────────────────────────────────────────
 
 var difficultyLabels = []gin.H{{"key": "easy", "label": "Easy"}, {"key": "medium", "label": "Medium"}, {"key": "hard", "label": "Hard"}}
-var statusLabels = []gin.H{{"key": "unattempted", "label": "Unattempted"}, {"key": "incorrect", "label": "Incorrect"}, {"key": "correct", "label": "Correct"}, {"key": "bookmarked", "label": "Bookmarked"}}
+var statusLabels = []gin.H{{"key": "unattempted", "label": "Unattempted"}, {"key": "incorrect", "label": "Incorrect"}, {"key": "correct", "label": "Correct"}, {"key": "skipped", "label": "Skipped"}, {"key": "bookmarked", "label": "Bookmarked"}}
 var sourceLabels = map[string]string{"qbank": "Q Bank", "practice": "Practice", "pyq": "Previous year", "test_series": "Test Series", "other": "Other"}
 
 // BuilderConfig godoc
@@ -597,6 +597,7 @@ func (h *CustomTestHandler) InvalidateConfig() {
 type templateRequest struct {
 	Title     *string          `json:"title"`
 	Blueprint *json.RawMessage `json:"blueprint"`
+	Ask       *json.RawMessage `json:"ask"`
 }
 
 func (h *CustomTestHandler) validateTemplate(c *gin.Context, raw json.RawMessage) (blueprint.Blueprint, bool) {
@@ -651,6 +652,9 @@ func (h *CustomTestHandler) CreateTemplate(c *gin.Context) {
 		return
 	}
 	t := models.CustomTestTemplate{UserID: user.ID, Title: *req.Title, Blueprint: bp.JSON()}
+	if req.Ask != nil {
+		t.Ask = models.JSONB(*req.Ask)
+	}
 	if err := h.DB.Create(&t).Error; err != nil {
 		httpx.Fail(c, err)
 		return
@@ -693,6 +697,9 @@ func (h *CustomTestHandler) UpdateTemplate(c *gin.Context) {
 			return
 		}
 		up["blueprint"] = models.JSONB(bp.JSON())
+	}
+	if req.Ask != nil {
+		up["ask"] = models.JSONB(*req.Ask)
 	}
 	if err := h.DB.Model(&t).Updates(up).Error; err != nil {
 		httpx.Fail(c, err)
