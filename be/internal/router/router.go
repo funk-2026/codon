@@ -40,6 +40,7 @@ type Deps struct {
 	Exams     *handlers.ExamHandler
 	Reference *handlers.ReferenceHandler
 	QBank     *handlers.QBankHandler
+	Study     *handlers.StudyHandler
 	Extra     []func(api *gin.RouterGroup, d *Deps) // later milestones plug in here
 }
 
@@ -53,6 +54,7 @@ func NewDeps(db *gorm.DB, auth gin.HandlerFunc, sub *services.SubscriptionServic
 		Exams:     handlers.NewExamHandler(db, sub),
 		Reference: handlers.NewReferenceHandler(db),
 		QBank:     handlers.NewQBankHandler(db, sub),
+		Study:     handlers.NewStudyHandler(db),
 		DB:        db, Auth: auth, SubSvc: sub, Scoring: scoring,
 		Tests: handlers.NewTestHandler(db), Attempts: handlers.NewAttemptHandler(db, scoring, sub),
 		Media: handlers.NewMediaHandler(db), TQ: handlers.NewTeacherQuestionHandler(db),
@@ -116,6 +118,14 @@ func Register(api *gin.RouterGroup, d *Deps) {
 	api.GET("/home/updates", auth, d.Extras.HomeUpdates)
 	api.GET("/home/message", auth, d.Extras.HomeMessage)
 	api.GET("/qbank/overview", auth, d.QBank.Overview)
+	api.GET("/pulse", auth, d.Study.PulseList)
+	api.POST("/pulse/:id/read", auth, d.Study.PulseRead)
+	api.GET("/me/pulse/reads", auth, d.Study.MyPulseReads)
+	api.GET("/me/flashcards/activity", auth, d.Study.MyFlashcardActivity)
+	api.GET("/schema", auth, d.Study.SchemaOverview)
+	api.GET("/schema/topics/:id", auth, d.Study.SchemaTopicDetail)
+	api.PUT("/schema/topics/:id/status", auth, d.Study.SetSchemaStatus)
+	api.GET("/me/schema/completions", auth, d.Study.MySchemaCompletions)
 	api.GET("/reference-docs", auth, d.Reference.List)
 	api.GET("/reference-docs/:id", auth, d.Reference.Get)
 	api.GET("/faculty", auth, d.Reference.Faculty)
@@ -210,6 +220,10 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		teacher.POST("/csv-imports/:id/commit", d.Tests.CommitCSVImport)
 		teacher.GET("/csv-imports/:id", d.Tests.GetCSVImport)
 		teacher.GET("/csv-template", d.Tests.CSVTemplate)
+		teacher.GET("/pulse", d.Study.TeacherPulseList)
+		teacher.POST("/pulse", d.Study.TeacherPulseCreate)
+		teacher.PATCH("/pulse/:id", d.Study.TeacherPulseUpdate)
+		teacher.DELETE("/pulse/:id", d.Study.TeacherPulseDelete)
 		teacher.POST("/tests/:id/submit-for-review", d.Tests.SubmitForReview)
 		teacher.GET("/tests", d.Tests.ListTeacherTests)
 		teacher.GET("/tests/:id", d.Tests.TeacherGetTest)
@@ -276,6 +290,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		admin.GET("/tests/:id", d.Tests.AdminGetTest)
 		admin.POST("/tests/:id/approve", d.Tests.AdminApproveTest)
 		admin.POST("/tests/:id/reject", d.Tests.AdminRejectTest)
+		admin.POST("/schema/import", d.Study.AdminSchemaImport)
 		admin.GET("/reference-docs", d.Reference.AdminList)
 		admin.POST("/reference-docs", d.Reference.AdminCreate)
 		admin.PATCH("/reference-docs/:id", d.Reference.AdminUpdate)

@@ -12,7 +12,12 @@ export const ANALYSIS_AREAS = [
   { key: 'tests', label: 'Test series' },
   { key: 'video', label: 'Video lectures' },
 ] as const;
-export type AnalysisArea = (typeof ANALYSIS_AREAS)[number]['key'];
+/** Pulse and Flashcards have their own blue analysis entries; they are not on the Home card. */
+export const EXTRA_AREAS = [
+  { key: 'pulse', label: 'Pulse' },
+  { key: 'flashcards', label: 'Flashcards' },
+] as const;
+export type AnalysisArea = (typeof ANALYSIS_AREAS)[number]['key'] | (typeof EXTRA_AREAS)[number]['key'];
 
 /** "See detailed analysis": one card that opens in place to four areas, each its own graph. */
 export function DetailedAnalysisCard() {

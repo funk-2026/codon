@@ -145,6 +145,9 @@ export default function TeacherContentRoute() {
           chips={{ options: STATUS_CHIPS, value: status, onChange: (k) => setStatus(k as ItemStatus | 'all') }}
         />
       </View>
+      <View style={{ paddingHorizontal: space.md, marginTop: space.xs, alignItems: 'flex-start' }}>
+        <TextButton label="Pulse items (one-minute revision)" onPress={() => router.push(ROUTES.teacher.pulseItems)} />
+      </View>
       <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
         <ManageAllBanner />
       </View>

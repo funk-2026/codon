@@ -66,6 +66,9 @@ export type Deck = {
   course_id: string;
   subject_id?: string;
   chapter_id?: string;
+  subject_name?: string;
+  chapter_name?: string;
+  chapter_order?: number;
   requires_subscription: boolean;
   card_count: number;
   rating_avg: number;

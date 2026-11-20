@@ -9,7 +9,7 @@ import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
-const UNIT: Record<AnalysisArea, string> = { schema: 'topics', qbank: 'modules solved', tests: 'tests taken', video: 'lectures completed' };
+const UNIT: Record<AnalysisArea, string> = { schema: 'topics', qbank: 'modules solved', tests: 'tests taken', video: 'lectures completed', pulse: 'items read', flashcards: 'cards reviewed' };
 
 function Mini({ area, label }: { area: AnalysisArea; label: string }) {
   const { color, type, space, radius } = useTheme();

@@ -115,7 +115,7 @@ func ResetContent(ctx context.Context, db *gorm.DB, userID uuid.UUID, scope stri
 			c, err = archiveAndDelete(tx, userID, scope, "student_question_states", "user_id = ?", userID)
 			removed = a + b + c
 		case ResetPulse:
-			// Pulse has no stored study data yet; the reset is still recorded so the cooldown applies from now.
+			removed, err = archiveAndDelete(tx, userID, scope, "pulse_reads", "user_id = ?", userID)
 		}
 		if err != nil {
 			return err

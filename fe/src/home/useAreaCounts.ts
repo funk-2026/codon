@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listVideoCompletions } from '@/src/api/content';
+import { listFlashcardActivity, listPulseReads, listSchemaCompletions, type DoneRow } from '@/src/api/study';
 import { useAttempts } from '@/src/queries/attempts';
 import { lastDays, type ChartPoint } from './chart';
 import { dayKey } from './monthCalendar';
@@ -11,11 +12,17 @@ export type DayItem = { id: string; title: string; where: string; pct?: number }
 
 /**
  * Per-day counts for one area from the student's submitted tests. A module counts once per day it was submitted,
- * so a retake the same day does not add a second. Schema and Video have no events yet: `supported` is false.
+ * so a retake the same day does not add a second. Schema, Pulse and Flashcards come from their own per-student records.
  */
 export function useAreaCounts(area: AnalysisArea, daysBack = 14) {
   const attempts = useAttempts();
   const videos = useQuery({ queryKey: ['video-completions'], queryFn: listVideoCompletions, enabled: area === 'video' });
+  const done = useQuery({
+    queryKey: ['area-done', area],
+    queryFn: (): Promise<DoneRow[]> => (area === 'schema' ? listSchemaCompletions() : area === 'pulse' ? listPulseReads() : listFlashcardActivity()),
+    enabled: area === 'schema' || area === 'pulse' || area === 'flashcards',
+  });
+  const isDone = area === 'schema' || area === 'pulse' || area === 'flashcards';
   const mod = MODULE_OF[area];
   const days = useMemo(() => lastDays(daysBack), [daysBack]);
   const byDay = useMemo(() => {
@@ -42,15 +49,25 @@ export function useAreaCounts(area: AnalysisArea, daysBack = 14) {
         m.set(k, list);
       }
     }
+    // Schema topics (Confident that day), Pulse items read, and Flashcards last reviewed: one entry per item per day.
+    if (isDone) {
+      for (const r of done.data ?? []) {
+        const k = dayKey(new Date(r.at));
+        const list = m.get(k) ?? [];
+        if (!list.some((x) => x.id === r.id)) list.push({ id: r.id, title: r.name, where: [r.subject, r.chapter].filter(Boolean).join(' › ') });
+        m.set(k, list);
+      }
+    }
     return m;
-  }, [attempts.data, videos.data, mod, area]);
+  }, [attempts.data, videos.data, done.data, mod, area, isDone]);
   const points: ChartPoint[] = days.map((d) => ({ label: d.label, value: byDay.get(d.key)?.length ?? 0 }));
   const total = points.reduce((n, p) => n + p.value, 0);
   const isVideo = area === 'video';
+  const src = isDone ? done : isVideo ? videos : attempts;
   return {
-    supported: !!mod || isVideo, days, byDay, points, total,
-    isPending: isVideo ? videos.isPending : attempts.isPending,
-    isError: isVideo ? videos.isError : attempts.isError,
-    refetch: isVideo ? videos.refetch : attempts.refetch,
+    supported: !!mod || isVideo || isDone, days, byDay, points, total,
+    isPending: src.isPending,
+    isError: src.isError,
+    refetch: src.refetch,
   };
 }
