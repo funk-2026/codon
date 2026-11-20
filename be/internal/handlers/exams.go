@@ -107,6 +107,7 @@ type examCard struct {
 	Delivery             string         `json:"delivery"`
 	Phase                string         `json:"phase"`
 	OpensAt              *time.Time     `json:"opens_at,omitempty"`
+	CreatedAt            time.Time      `json:"created_at"`
 	LastStartAt          *time.Time     `json:"last_start_at,omitempty"`
 	EndsAt               *time.Time     `json:"ends_at,omitempty"`
 	ResultsAt            *time.Time     `json:"results_at,omitempty"`
@@ -181,7 +182,7 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 		}
 		card := examCard{
 			ID: t.ID, Title: t.Title, Kind: t.Kind, ExamStyle: t.ExamStyle, Delivery: t.Delivery, Phase: services.PhaseOf(t, now),
-			OpensAt: t.OpensAt, ResultsAt: t.ResultsAt, ResultsReleased: services.ResultsReleased(t, now), LateEntryMinutes: t.LateEntryMinutes,
+			OpensAt: t.OpensAt, CreatedAt: t.CreatedAt, ResultsAt: t.ResultsAt, ResultsReleased: services.ResultsReleased(t, now), LateEntryMinutes: t.LateEntryMinutes,
 			DurationMinutes: t.DurationMinutes, TotalQuestions: t.TotalQuestions, RequiresSubscription: t.RequiresSubscription,
 			CourseID: t.CourseID, ExamYear: t.ExamYear, Registered: registered[t.ID],
 		}

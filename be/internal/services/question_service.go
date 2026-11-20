@@ -581,6 +581,10 @@ func (s *QuestionService) CheckPublishGate(ctx context.Context, test *models.Tes
 	if len(qs) == 0 {
 		return Invalid("incomplete_questions", "add at least one question before submitting", map[string]interface{}{"missing": []MissingQuestion{}})
 	}
+	// A QBank module is one chapter's test; without a chapter it can never appear in the student's QBank.
+	if test.ModuleType == models.ModuleQBank && test.Origin == models.OriginAuthored && test.ChapterID == nil {
+		return Invalid("chapter_required", "choose the chapter this Q Bank set belongs to before submitting", nil)
+	}
 	var missing []MissingQuestion
 	if test.ModuleType != models.ModuleTestSeries {
 		for _, q := range qs {

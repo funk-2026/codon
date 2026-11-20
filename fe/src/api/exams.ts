@@ -13,6 +13,8 @@ export type ExamCard = {
   delivery: ExamDelivery;
   phase: ExamPhase;
   opens_at?: string;
+  /** When the test was created; files an anytime test under a month when it has no live date. */
+  created_at?: string;
   last_start_at?: string;
   ends_at?: string;
   results_at?: string;

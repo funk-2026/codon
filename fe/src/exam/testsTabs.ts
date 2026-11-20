@@ -28,10 +28,12 @@ export function viewOf(c: ExamCard): TestView {
   return 'library';
 }
 
-/** The date a card is filed under: its live start, otherwise when I submitted it. */
+/** The date a card is filed under: its live start, my submission, a previous-year paper's exam year, then when it was added. */
 export function cardTime(c: ExamCard): number | null {
   const iso = c.opens_at ?? c.my_attempt?.submitted_at;
-  return iso ? new Date(iso).getTime() : null;
+  if (iso) return new Date(iso).getTime();
+  if (c.exam_year) return new Date(c.exam_year, 5, 1).getTime();
+  return c.created_at ? new Date(c.created_at).getTime() : null;
 }
 
 export type MonthGroup = { key: string; title: string; cards: ExamCard[] };
