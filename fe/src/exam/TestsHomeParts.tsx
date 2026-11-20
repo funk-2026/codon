@@ -6,6 +6,7 @@ import { shadow } from '@/src/theme/elevation';
 import { useHasSubscription } from '@/src/queries/curriculum';
 import type { ExamCard } from '@/src/api/exams';
 import { formatCountdown, KIND_LABEL, type NextUp, type SeriesProgress } from './logic';
+import { historyLine } from './testsTabs';
 
 const when = (iso?: string) =>
   iso ? new Date(iso).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
@@ -94,6 +95,25 @@ export function SeriesCard({ series, onOpen }: { series: SeriesProgress; onOpen:
       <Text style={[type['type/caption'], { color: color('text/secondary') }]}>
         {series.done} of {series.total} done{series.next ? ` · Next: ${series.next.title}` : ''}
       </Text>
+    </Pressable>
+  );
+}
+
+/** A row of attempted history: test name, the saved percentage and the day. Opens the saved result. */
+export function AttemptedRow({ card, onOpen }: { card: ExamCard; onOpen: () => void }) {
+  const { color, type, space, radius } = useTheme();
+  return (
+    <Pressable
+      onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityLabel={`${card.title}. ${historyLine(card)}. Open result`}
+      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, opacity: pressed ? 0.95 : 1 }, shadow()]}
+    >
+      <View style={{ flex: 1 }}>
+        <Text numberOfLines={2} style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{card.title}</Text>
+        <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>{historyLine(card)}</Text>
+      </View>
+      <CaretRight size={16} color={color('text/tertiary')} />
     </Pressable>
   );
 }

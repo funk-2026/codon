@@ -97,6 +97,9 @@ type examMyAttempt struct {
 	Status      string     `json:"status"`
 	Official    bool       `json:"official"`
 	SubmittedAt *time.Time `json:"submitted_at,omitempty"`
+	// Score and TotalMarks are only sent once results are released.
+	Score      *float64 `json:"score,omitempty"`
+	TotalMarks *float64 `json:"total_marks,omitempty"`
 }
 
 type examCard struct {
@@ -163,14 +166,14 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 			registered[r.TestID] = true
 		}
 		var atts []models.StudentAttempt
-		h.DB.WithContext(ctx).Select("id", "test_id", "status", "official", "submitted_at", "started_at").
+		h.DB.WithContext(ctx).Select("id", "test_id", "status", "official", "submitted_at", "started_at", "score", "total_marks").
 			Where("user_id = ? AND test_id IN ?", user.ID, ids).Order("started_at ASC").Find(&atts)
 		for _, a := range atts { // later attempts replace earlier ones, but the official one and an unfinished one win
 			cur, has := mine[a.TestID]
 			if has && (cur.Official || cur.Status == string(models.AttemptInProgress)) && !(a.Status == models.AttemptInProgress) {
 				continue
 			}
-			mine[a.TestID] = examMyAttempt{ID: a.ID, Status: string(a.Status), Official: a.Official, SubmittedAt: a.SubmittedAt}
+			mine[a.TestID] = examMyAttempt{ID: a.ID, Status: string(a.Status), Official: a.Official, SubmittedAt: a.SubmittedAt, Score: a.Score, TotalMarks: a.TotalMarks}
 		}
 	}
 	now := time.Now()
@@ -203,6 +206,9 @@ func (h *ExamHandler) Exams(c *gin.Context) {
 		}
 		if a, ok := mine[t.ID]; ok {
 			aa := a
+			if !card.ResultsReleased {
+				aa.Score, aa.TotalMarks = nil, nil
+			}
 			card.MyAttempt = &aa
 		}
 		cards = append(cards, card)
@@ -323,6 +329,9 @@ type sectionStat struct {
 	Seconds  int      `json:"seconds"`
 	Avg      *float64 `json:"cohort_avg,omitempty"`
 	Top      *float64 `json:"cohort_top,omitempty"`
+	// Top100 is the average marks of the 100 highest scorers in this section, and Max the most the section could give.
+	Top100 *float64 `json:"top100_avg,omitempty"`
+	Max    float64  `json:"max_marks"`
 }
 
 // Analysis breaks a finished attempt down by section: correct, wrong, skipped, marks, marks lost to negative
@@ -376,6 +385,29 @@ func (h *ExamHandler) Analysis(c *gin.Context) {
 			if p.Name == secs[i].Name {
 				avg, top := p.Avg, p.Top
 				secs[i].Avg, secs[i].Top = &avg, &top
+			}
+		}
+	}
+	var top []struct {
+		Name string
+		Avg  float64
+	}
+	h.DB.WithContext(ctx).Raw(`
+		WITH coh AS (
+			SELECT a.id FROM student_attempts a JOIN users u ON u.id = a.user_id
+			WHERE a.test_id = ? AND a.status = 'submitted' AND a.official AND a.score IS NOT NULL AND u.role = 'student' AND (? <> 'live' OR a.source = 'live')
+			ORDER BY a.score DESC LIMIT 100),
+		per AS (
+			SELECT aa.attempt_id, COALESCE(NULLIF(q.section, ''), s.name, 'General') AS name, SUM(aa.marks_awarded) AS m
+			FROM attempt_answers aa JOIN questions q ON q.id = aa.question_id LEFT JOIN subjects s ON s.id = q.subject_id
+			WHERE aa.attempt_id IN (SELECT id FROM coh) GROUP BY 1, 2)
+		SELECT name, AVG(m)::float8 AS avg FROM per GROUP BY name`, a.TestID, a.Test.Delivery).Scan(&top)
+	for i := range secs {
+		secs[i].Max = float64(secs[i].Total) * a.Test.MarksPerCorrect
+		for _, p := range top {
+			if p.Name == secs[i].Name {
+				v := p.Avg
+				secs[i].Top100 = &v
 			}
 		}
 	}

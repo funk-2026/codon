@@ -15,7 +15,7 @@ import { QuestionTagRow, ReferencesBlock, shareQuestion } from '@/src/question/Q
 import { questionShareText, timerLabel } from '@/src/question/logic';
 import { useQuestionCountdown } from '@/src/attempt/useQuestionCountdown';
 import { plainText } from '@/src/rich';
-import { submitAttempt, type Option } from '@/src/api/attempts';
+import { discardAttempt, submitAttempt, type Option } from '@/src/api/attempts';
 import { ApiError } from '@/src/api/client';
 import { useAttemptSession } from '@/src/attempt/useAttemptSession';
 import { useAttemptTimer } from '@/src/attempt/useAttemptTimer';
@@ -54,6 +54,9 @@ export default function TestQuestionRoute() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const submitLock = useRef(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -125,7 +128,8 @@ export default function TestQuestionRoute() {
 
   const finish = useCallback(
     async (opts: { force?: boolean; expired?: boolean } = {}) => {
-      if (!attempt) return;
+      if (!attempt || submitLock.current) return; // a second tap can never send a second submission
+      submitLock.current = true;
       setSubmitting(true);
       setSubmitError(null);
       try {
@@ -133,6 +137,7 @@ export default function TestQuestionRoute() {
         const saved = await sync.flushNow();
         if (!saved && !opts.force) {
           setSubmitError(`${sync.pending || 'Some'} answer${sync.pending === 1 ? '' : 's'} haven't saved yet — check your connection.`);
+          submitLock.current = false;
           setSubmitting(false);
           return;
         }
@@ -150,6 +155,7 @@ export default function TestQuestionRoute() {
           return;
         }
         setSubmitError('Couldn’t submit. Check your connection and try again.');
+        submitLock.current = false;
         setSubmitting(false);
       }
     },
@@ -565,6 +571,9 @@ export default function TestQuestionRoute() {
                 }}
               />
               <PrimaryButton label="Submit Test" onPress={() => { setPaletteOpen(false); setSubmitOpen(true); }} />
+              {!(attempt?.test?.delivery === 'live' && attempt?.official) ? (
+                <TextButton label="Discard Test" onPress={() => { setPaletteOpen(false); setDiscardOpen(true); }} />
+              ) : null}
             </View>
           </BottomSheet>
 
@@ -600,6 +609,32 @@ export default function TestQuestionRoute() {
           />
         </>
       )}
+
+      <BottomSheet visible={discardOpen} onClose={() => setDiscardOpen(false)} title="Discard this test?" dismissable={!discarding}>
+        <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
+          Your answers are thrown away and nothing is saved. You can start the test again from the beginning.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.lg }}>
+          <SecondaryButton
+            label="Discard"
+            loading={discarding}
+            onPress={async () => {
+              if (!attempt) return;
+              setDiscarding(true);
+              try {
+                await discardAttempt(attempt.id);
+                void queryClient.invalidateQueries({ queryKey: keys.attempts });
+                setDiscardOpen(false);
+                router.replace(ROUTES.student.practice);
+              } catch {
+                setDiscarding(false);
+                setDiscardOpen(false);
+              }
+            }}
+          />
+          <PrimaryButton label="Keep going" onPress={() => setDiscardOpen(false)} />
+        </View>
+      </BottomSheet>
 
       {/* Exit confirmation */}
       <BottomSheet visible={exitOpen} onClose={() => setExitOpen(false)} title="Exit test?">

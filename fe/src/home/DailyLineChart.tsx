@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Text, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '@/src/theme/ThemeProvider';
-import { niceMax, xAt, yAt, type ChartPoint } from './chart';
+import { coveredRuns, niceMax, xAt, yAt, type ChartPoint } from './chart';
 
 const H = 200;
 const PAD = { l: 30, r: 14, t: 14, b: 26 };
@@ -27,10 +27,8 @@ export function DailyLineChart({ points, selected, onSelect, unit }: { points: C
         {ticks.map((t) => (
           <SvgText key={`t${t}`} x={PAD.l - 6} y={yAt(t, max, PAD.t, bottom) + 4} fontSize={10} fill={color('text/tertiary')} textAnchor="end">{t}</SvgText>
         ))}
-        {points.length > 1 ? <Polyline points={xs.map((x, i) => `${x},${ys[i]}`).join(' ')} fill="none" stroke={color('accent/default')} strokeWidth={2} /> : null}
-        {points.map((p, i) => (
-          <Circle key={i} cx={xs[i]} cy={ys[i]} r={selected === i ? 7 : 4} fill={selected === i ? color('accent/default') : color('bg/surface')} stroke={color('accent/default')} strokeWidth={2} />
-        ))}
+        {coveredRuns(points).filter((r) => r.length > 1).map((r) => <Polyline key={r[0]} points={r.map((i) => `${xs[i]},${ys[i]}`).join(' ')} fill="none" stroke={color('accent/default')} strokeWidth={2} />)}
+        {points.map((p, i) => (p.missing ? null : <Circle key={i} cx={xs[i]} cy={ys[i]} r={selected === i ? 7 : 4} fill={selected === i ? color('accent/default') : color('bg/surface')} stroke={color('accent/default')} strokeWidth={2} />))}
         {/* wide, invisible targets so a finger can hit a point */}
         {points.map((p, i) => (
           <Circle key={`hit${i}`} cx={xs[i]} cy={ys[i]} r={18} fill="transparent" onPress={() => onSelect(i)} />

@@ -202,6 +202,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 		attempts.POST("/:id/answers/:question_id/reveal", d.Attempts.RevealAnswer)
 		attempts.POST("/:id/takeover", d.Attempts.Takeover)
 		attempts.POST("/:id/submit", d.Attempts.SubmitAttempt)
+		attempts.POST("/:id/discard", d.Attempts.DiscardAttempt)
 		attempts.GET("/:id/result", d.Attempts.GetResult)
 		attempts.GET("/:id/review", d.Attempts.GetReview)
 		attempts.GET("/:id/analysis", d.Exams.Analysis)

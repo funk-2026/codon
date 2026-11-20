@@ -36,7 +36,7 @@ export function cardTime(c: ExamCard): number | null {
   return c.created_at ? new Date(c.created_at).getTime() : null;
 }
 
-export type MonthGroup = { key: string; title: string; cards: ExamCard[] };
+export type MonthGroup = { key: string; title: string; cards: ExamCard[]; current?: boolean };
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** Counts of each tab's attempted tests, for badges. */
@@ -46,7 +46,7 @@ export const countTab = (cards: ExamCard[], tab: TestTab, view: TestView) => car
  * Cards of one tab and view, grouped by month for the chosen year. Upcoming tests list the soonest month first;
  * the rest list the newest month first. Tests with no date at all sit in an "Undated" group so nothing is hidden.
  */
-export function monthGroups(cards: ExamCard[], tab: TestTab, view: TestView, year: number): MonthGroup[] {
+export function monthGroups(cards: ExamCard[], tab: TestTab, view: TestView, year: number, now: Date = new Date()): MonthGroup[] {
   const list = cards.filter((c) => tabOf(c) === tab && viewOf(c) === view);
   const byMonth = new Map<number, ExamCard[]>();
   const undated: ExamCard[] = [];
@@ -65,6 +65,7 @@ export function monthGroups(cards: ExamCard[], tab: TestTab, view: TestView, yea
   const out: MonthGroup[] = months.map((m) => ({
     key: `${year}-${m}`,
     title: `${MONTHS[m]} ${year}`,
+    current: now.getFullYear() === year && now.getMonth() === m,
     cards: (byMonth.get(m) ?? []).sort((a, b) => ((cardTime(a) ?? 0) - (cardTime(b) ?? 0)) * (asc ? 1 : -1)),
   }));
   if (undated.length) out.push({ key: 'undated', title: 'Undated', cards: undated.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true })) });
@@ -76,24 +77,42 @@ export const analysisUnlocked = (attempts: number, min = 2) => attempts >= min;
 export type TrendWindow = 'all' | 'last20';
 export const windowed = (a: GrandAttempt[], w: TrendWindow) => (w === 'last20' ? a.slice(-20) : a);
 
+export type Metric = 'percentage' | 'percentile';
+export type Order = 'strongest' | 'weakest';
 export type SubjectStat = { name: string; percent: number; correct: number; total: number; percentile?: number };
-/** Each subject across the chosen attempts: percentage correct of all its questions, strongest first. Percentile is the average of the test percentiles. */
+
+/** Each subject across the chosen attempts: percentage is correct over all its questions; percentile is the average of my percentile in that subject, when known. */
 export function subjectStats(attempts: GrandAttempt[]): SubjectStat[] {
-  const m = new Map<string, { correct: number; total: number }>();
+  const m = new Map<string, { correct: number; total: number; pct: number[] }>();
   for (const a of attempts) {
     for (const s of a.subjects) {
-      const cur = m.get(s.name) ?? { correct: 0, total: 0 };
-      m.set(s.name, { correct: cur.correct + s.correct, total: cur.total + s.total });
+      const cur = m.get(s.name) ?? { correct: 0, total: 0, pct: [] };
+      if (s.percentile != null) cur.pct.push(s.percentile);
+      m.set(s.name, { correct: cur.correct + s.correct, total: cur.total + s.total, pct: cur.pct });
     }
   }
-  const pcts = attempts.map((a) => a.percentile).filter((p): p is number => p != null);
-  const percentile = pcts.length ? Math.round(pcts.reduce((x, y) => x + y, 0) / pcts.length) : undefined;
-  return [...m.entries()]
-    .map(([name, v]) => ({ name, correct: v.correct, total: v.total, percent: v.total ? Math.round((v.correct * 100) / v.total) : 0, percentile }))
-    .sort((a, b) => b.percent - a.percent || a.name.localeCompare(b.name));
+  return [...m.entries()].map(([name, v]) => ({
+    name, correct: v.correct, total: v.total,
+    percent: v.total ? Math.round((v.correct * 100) / v.total) : 0,
+    percentile: v.pct.length ? Math.round(v.pct.reduce((x, y) => x + y, 0) / v.pct.length) : undefined,
+  }));
 }
 
-/** Chapters of one subject across the chosen attempts, weakest first so the work to do is on top. */
+/** Orders by the chosen metric. A subject with no percentile sorts last when ordering by percentile, so nothing is invented for it. */
+export function orderStats<T extends SubjectStat>(rows: T[], order: Order, metric: Metric): T[] {
+  const val = (r: T) => (metric === 'percentile' ? r.percentile : r.percent);
+  const dir = order === 'strongest' ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const x = val(a);
+    const y = val(b);
+    if (x == null && y == null) return a.name.localeCompare(b.name);
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return (x - y) * dir || a.name.localeCompare(b.name);
+  });
+}
+
+/** Chapters of one subject across the chosen attempts. Chapters only have a percentage. */
 export function chapterStats(attempts: GrandAttempt[], subject: string): SubjectStat[] {
   const m = new Map<string, { correct: number; total: number }>();
   for (const a of attempts) {
@@ -103,7 +122,19 @@ export function chapterStats(attempts: GrandAttempt[], subject: string): Subject
       m.set(c.name, { correct: cur.correct + c.correct, total: cur.total + c.total });
     }
   }
-  return [...m.entries()]
-    .map(([name, v]) => ({ name, correct: v.correct, total: v.total, percent: v.total ? Math.round((v.correct * 100) / v.total) : 0 }))
-    .sort((a, b) => a.percent - b.percent || a.name.localeCompare(b.name));
+  return [...m.entries()].map(([name, v]) => ({ name, correct: v.correct, total: v.total, percent: v.total ? Math.round((v.correct * 100) / v.total) : 0 }));
+}
+
+/** The value of one point on the trend. A test with no percentile (too few students) has none, and is left off the percentile line. */
+export const trendValue = (a: GrandAttempt, metric: Metric): number | null => (metric === 'percentile' ? (a.percentile != null ? Math.round(a.percentile) : null) : Math.round(a.percent));
+
+/** "72% · 18 Nov 2026" for an attempted test: the saved percentage and the day it was attempted. Without marks, just the day. */
+export function historyLine(c: ExamCard): string {
+  const a = c.my_attempt;
+  if (!a) return '';
+  const d = a.submitted_at ? new Date(a.submitted_at) : null;
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = d ? `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}` : '';
+  const pct = a.score != null && a.total_marks ? `${Math.max(0, Math.round((a.score * 100) / a.total_marks))}%` : c.results_released ? '' : 'Result pending';
+  return [pct, day].filter(Boolean).join(' · ');
 }

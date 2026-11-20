@@ -9,6 +9,7 @@ import { ApiError } from '@/src/api/client';
 import { getAnalysis, type SectionStat } from '@/src/api/exams';
 import { formatClock } from '@/src/attempt/logic';
 import { shadow } from '@/src/theme/elevation';
+import { RadarChart } from '@/src/exam/RadarChart';
 import { ROUTES } from '@/src/navigation/routes';
 
 const n = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1));
@@ -27,7 +28,7 @@ export default function TestAnalysisRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Analysis" />
+      <ScreenHeader title="How you compare" />
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
         {q.isPending ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} height={120} radius={radius.lg} />)
@@ -53,6 +54,13 @@ export default function TestAnalysisRoute() {
                 </Text>
               ) : null}
             </View>
+
+            {q.data.sections.filter((s) => s.top100_avg != null && (s.max_marks ?? 0) > 0).length >= 3 ? (
+              <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, gap: space.xs }, shadow()]}>
+                <Text style={[type['type/h3'], { color: color('text/primary') }]}>You and the top 100</Text>
+                <RadarChart axes={q.data.sections.filter((s) => s.top100_avg != null && (s.max_marks ?? 0) > 0).map((s) => ({ label: s.name, mine: (s.marks / (s.max_marks as number)) * 100, top: ((s.top100_avg as number) / (s.max_marks as number)) * 100 }))} />
+              </View>
+            ) : null}
 
             {q.data.sections.map((s) => <SectionCard key={s.name} s={s} />)}
 

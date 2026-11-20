@@ -6,6 +6,7 @@ import { EmptyState, Screen, ScreenHeader, SkeletonBlock, ErrorBanner } from '@/
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { useAreaCounts } from '@/src/home/useAreaCounts';
+import { useMe } from '@/src/queries/profile';
 import { DailyLineChart } from '@/src/home/DailyLineChart';
 import { ANALYSIS_AREAS, EXTRA_AREAS, type AnalysisArea } from '@/src/home/DetailedAnalysisCard';
 import { ROUTES } from '@/src/navigation/routes';
@@ -25,10 +26,12 @@ export default function AnalyticsRoute() {
   const { area: raw } = useLocalSearchParams<{ area?: string }>();
   const area: AnalysisArea = ALL_AREAS.some((a) => a.key === raw) ? (raw as AnalysisArea) : 'qbank';
   const title = ALL_AREAS.find((a) => a.key === area)!.label;
-  const data = useAreaCounts(area);
+  const me = useMe();
+  const data = useAreaCounts(area, DAYS, me.data?.user?.created_at);
   useRefetchOnFocus(data.refetch);
   const [selected, setSelected] = useState<number | null>(null);
-  const { points, total, byDay, days } = data;
+  const { points, total: counted, byDay, days } = data;
+  const total = counted;
   const mod = data.supported;
 
   const openRow = (id: string) => {
@@ -70,8 +73,8 @@ export default function AnalyticsRoute() {
             <View style={{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, gap: space.xs }}>
               {picked ? (
                 <>
-                  <Text style={[type['type/h3'], { color: color('text/primary') }]}>{picked.key}: {rows.length} {UNIT[area]}</Text>
-                  {rows.length === 0 ? <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Nothing finished that day.</Text> : rows.map((r) => (
+                  <Text style={[type['type/h3'], { color: color('text/primary') }]}>{picked.key}: {points[selected as number]?.missing ? 'unavailable' : `${rows.length} ${UNIT[area]}`}</Text>
+                  {points[selected as number]?.missing ? <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>This day is before you joined, so nothing was measured.</Text> : rows.length === 0 ? <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>Nothing finished that day.</Text> : rows.map((r) => (
                     <Pressable key={r.id} onPress={() => openRow(r.id)} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
                       <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{r.title}{r.pct != null ? ` · ${r.pct}%` : ''}</Text>
                       {r.where ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{r.where}</Text> : null}

@@ -24,6 +24,8 @@ export type StudentAttempt = {
   expires_at?: string;
   attempt_no?: number;
   auto_submitted?: boolean;
+  /** The attempt that counts for rank (first one, or the first in a live window). */
+  official?: boolean;
 };
 
 export type AttemptAnswer = {
@@ -229,10 +231,13 @@ export type AttemptReviewResponse = {
 /** GET /api/v1/attempts/:id/review — pass `limit` to paginate (cursor = last position). */
 export function getAttemptReview(
   attemptId: string,
-  opts: { filter?: ReviewFilter; limit?: number; cursor?: string | null } = {},
+  opts: { filter?: ReviewFilter; limit?: number; cursor?: string | null; subject_id?: string } = {},
 ): Promise<AttemptReviewResponse> {
   return apiFetch<AttemptReviewResponse>(
-    `/attempts/${attemptId}/review${qs({ filter: opts.filter, limit: opts.limit, cursor: opts.cursor ?? undefined })}`,
+    `/attempts/${attemptId}/review${qs({ filter: opts.filter, limit: opts.limit, cursor: opts.cursor ?? undefined, subject_id: opts.subject_id })}`,
     { method: 'GET' },
   ).then((r) => ({ ...r, review: arr(r.review), media: r.media ?? {} }));
 }
+
+/** POST /attempts/:id/discard — throws away an attempt that is still in progress (not a live exam's official attempt). */
+export const discardAttempt = (attemptId: string) => apiFetch<{ discarded: boolean }>(`/attempts/${attemptId}/discard`, { method: 'POST' });

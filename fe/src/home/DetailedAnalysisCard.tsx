@@ -46,7 +46,7 @@ export function DetailedAnalysisCard() {
           {ANALYSIS_AREAS.map((a) => (
             <Pressable
               key={a.key}
-              onPress={() => router.push({ pathname: ROUTES.student.analytics, params: { area: a.key } })}
+              onPress={() => (a.key === 'tests' ? router.push(ROUTES.student.grandAnalysis) : router.push({ pathname: ROUTES.student.analytics, params: { area: a.key } }))}
               accessibilityRole="button"
               style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: color('accent/tint'), opacity: pressed ? 0.85 : 1 })}
             >

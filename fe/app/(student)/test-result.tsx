@@ -197,6 +197,15 @@ export default function TestResultRoute() {
           </View>
         ) : null}
 
+        {/* Rank, score and percentile are three separate numbers, never one blended figure */}
+        {cohort && !cohort.locked && cohort.rank != null ? (
+          <View style={[styles.row, { gap: space.xs, marginTop: space.md }]}>
+            <BreakTile label="Rank" value={`${cohort.rank}/${cohort.total}`} ink={color('text/primary')} />
+            <BreakTile label="Score" value={hasMarks ? `${fmtScore(SCORE)}/${fmtScore(MAX)}` : fmtScore(SCORE)} ink={color('text/primary')} />
+            <BreakTile label="Percentile" value={cohort.percentile != null ? `${Math.round(cohort.percentile)}` : '—'} ink={color('accent/default')} />
+          </View>
+        ) : null}
+
         {/* Counts */}
         <View style={[styles.row, { gap: space.xs, marginTop: space.md }]}>
           <BreakTile label="Correct" value={CORRECT} ink={color('semantic/success')} />
@@ -276,7 +285,7 @@ export default function TestResultRoute() {
           />
           {module.key === 'test_series' ? (
             <>
-              <SecondaryButton label="Detailed analysis" onPress={() => router.push({ pathname: ROUTES.student.testAnalysis, params: { id } })} />
+              <SecondaryButton label="See how you compare with others" onPress={() => router.push({ pathname: ROUTES.student.testAnalysis, params: { id } })} />
               <SecondaryButton label="Leaderboard" onPress={() => router.push({ pathname: ROUTES.student.testLeaderboard, params: { id: attempt.test_id } })} />
             </>
           ) : null}
@@ -307,6 +316,7 @@ export default function TestResultRoute() {
           score: hasMarks ? `${SCORE}/${MAX}` : `${CORRECT}/${CORRECT + INCORRECT + UNATTEMPTED}`,
           correct: CORRECT,
           attempted: CORRECT + INCORRECT,
+          rank: cohort && !cohort.locked && cohort.rank != null && !cohort.estimated ? `Rank ${cohort.rank} of ${cohort.total}` : undefined,
         }}
       />
       <BottomSheet visible={mistakesOpen} onClose={() => setMistakesOpen(false)} title="Practise my mistakes" dismissable={!building}>
@@ -375,7 +385,7 @@ function BreakdownSection({ title, rows, limit }: { title: string; rows?: Breakd
   );
 }
 
-function BreakTile({ label, value, ink }: { label: string; value: number; ink: string }) {
+function BreakTile({ label, value, ink }: { label: string; value: number | string; ink: string }) {
   const { color, type, radius } = useTheme();
   return (
     <View accessible accessibilityLabel={`${label}: ${value}`} style={{ flex: 1, backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: 12, alignItems: 'center' }}>

@@ -21,6 +21,8 @@ type grandPart struct {
 	Correct   int     `json:"correct"`
 	Marks     float64 `json:"marks"`
 	Percent   float64 `json:"percent"` // correct ÷ total
+	// Percentile is my place among the students who took the test, in this subject (subjects only; needs enough students).
+	Percentile *float64 `json:"percentile,omitempty"`
 }
 
 type grandAttempt struct {
@@ -98,6 +100,34 @@ func (h *ExamHandler) GrandAnalysis(c *gin.Context) {
 		}
 		row.Subjects = append(row.Subjects, parts("", "LEFT JOIN subjects s ON s.id = q.subject_id", "COALESCE(s.name, 'Unspecified')", "''")...)
 		row.Chapters = append(row.Chapters, parts("", "LEFT JOIN chapters ch ON ch.id = q.chapter_id LEFT JOIN subjects s ON s.id = q.subject_id", "COALESCE(ch.name, 'Unspecified')", "COALESCE(s.name, 'Unspecified')")...)
+		if row.Percentile != nil {
+			var per []struct {
+				Name string
+				M    float64
+			}
+			h.DB.WithContext(ctx).Raw(`
+				SELECT COALESCE(s.name, 'Unspecified') AS name, SUM(aa.marks_awarded)::float8 AS m
+				FROM student_attempts a JOIN users u ON u.id = a.user_id
+				JOIN attempt_answers aa ON aa.attempt_id = a.id JOIN questions q ON q.id = aa.question_id LEFT JOIN subjects s ON s.id = q.subject_id
+				WHERE a.test_id = ? AND a.status = 'submitted' AND a.official AND a.score IS NOT NULL AND u.role = 'student' AND (? <> 'live' OR a.source = 'live')
+				GROUP BY a.id, 1`, t.ID, t.Delivery).Scan(&per)
+			for j := range row.Subjects {
+				var n, better float64
+				for _, p := range per {
+					if p.Name != row.Subjects[j].Name {
+						continue
+					}
+					n++
+					if p.M > row.Subjects[j].Marks {
+						better++
+					}
+				}
+				if n > 0 {
+					v := (n - (better + 1)) * 100 / n
+					row.Subjects[j].Percentile = &v
+				}
+			}
+		}
 		out = append(out, row)
 	}
 	// Oldest first for the trend line.

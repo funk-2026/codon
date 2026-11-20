@@ -8,7 +8,7 @@ import { BottomSheet, CollapsingHeader, EmptyState, SegmentedControl, SkeletonBl
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { listExams, registerForExam, unregisterFromExam, type ExamCard } from '@/src/api/exams';
-import { CompactTestCard, NextUpCard, SeriesCard } from '@/src/exam/TestsHomeParts';
+import { AttemptedRow, CompactTestCard, NextUpCard, SeriesCard } from '@/src/exam/TestsHomeParts';
 import { buildTestsHome, clockOffset, formatCountdown, withPhaseAt, type SeriesProgress } from '@/src/exam/logic';
 import { useServerNow } from '@/src/exam/useServerNow';
 import { DEFAULT_YEAR, monthGroups, TEST_TABS, TEST_VIEWS, YEARS, countTab, type TestTab, type TestView } from '@/src/exam/testsTabs';
@@ -184,6 +184,21 @@ export default function TestsTab() {
               </View>
             ) : null}
 
+            {groups.length === 0 ? (
+              <Text style={[type['type/body-m'], { color: color('text/tertiary'), paddingHorizontal: space.md }]}>
+                {view === 'attempted' ? `You have not attempted any ${TEST_TABS.find((t) => t.key === tab)?.label} in ${year} yet.` : view === 'live' ? `No live or upcoming tests in ${year}.` : `No tests in ${year}.`}
+              </Text>
+            ) : (
+              groups.map((g) => (
+                <View key={g.key} style={{ gap: space.sm }}>
+                  {label(`${g.title.toUpperCase()}${g.current ? ' (CURRENT MONTH)' : ''}`)}
+                  <View style={{ paddingHorizontal: space.md, gap: space.sm }}>
+                    {g.cards.map((c) => (view === 'attempted' ? <AttemptedRow key={c.id} card={c} onOpen={() => open(c)} /> : <CompactTestCard key={c.id} card={c} width={width - space.md * 2} onOpen={() => open(c)} />))}
+                  </View>
+                </View>
+              ))
+            )}
+            {label('PREVIOUS YEAR / YEAR SELECTOR')}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
               {YEARS.map((y) => {
                 const on = y === year;
@@ -195,20 +210,6 @@ export default function TestsTab() {
               })}
             </ScrollView>
 
-            {groups.length === 0 ? (
-              <Text style={[type['type/body-m'], { color: color('text/tertiary'), paddingHorizontal: space.md }]}>
-                {view === 'attempted' ? `You have not attempted any ${TEST_TABS.find((t) => t.key === tab)?.label} in ${year} yet.` : view === 'live' ? `No live or upcoming tests in ${year}.` : `No tests in ${year}.`}
-              </Text>
-            ) : (
-              groups.map((g) => (
-                <View key={g.key} style={{ gap: space.sm }}>
-                  {label(g.title.toUpperCase())}
-                  <View style={{ paddingHorizontal: space.md, gap: space.sm }}>
-                    {g.cards.map((c) => <CompactTestCard key={c.id} card={c} width={width - space.md * 2} onOpen={() => open(c)} />)}
-                  </View>
-                </View>
-              ))
-            )}
           </>
         )}
       </Animated.ScrollView>

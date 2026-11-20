@@ -43,3 +43,21 @@ func TestAdminAuthoringReachesStudentsAndAdminCanPreview(t *testing.T) {
 		t.Fatalf("deck carries its subject and chapter to the student: %v", list)
 	}
 }
+
+func TestDiscardAttempt(t *testing.T) {
+	e := newEnv(t)
+	s := &e.w.Student
+	tst := e.w.Test(t, "practice", 1, true)
+	att := e.mustDo(200, "POST", "/tests/"+tst.ID.String()+"/attempts", s, nil)
+	id := str(att, "attempt", "id")
+	e.mustDo(200, "POST", "/attempts/"+id+"/discard", s, nil)
+	if code, _ := e.do("POST", "/attempts/"+id+"/discard", s, nil); code != 404 {
+		t.Fatalf("already gone: %d", code)
+	}
+	// the test can be started afresh
+	att2 := e.mustDo(200, "POST", "/tests/"+tst.ID.String()+"/attempts", s, nil)
+	e.mustDo(200, "POST", "/attempts/"+str(att2, "attempt", "id")+"/submit", s, nil)
+	if code, body := e.do("POST", "/attempts/"+str(att2, "attempt", "id")+"/discard", s, nil); code != 409 {
+		t.Fatalf("a submitted attempt can't be discarded: %d %v", code, body)
+	}
+}

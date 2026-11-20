@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { CaretLeft, Check, FlagBanner, FlagPennant, Funnel, NotePencil, ShareNetwork, Timer, Users, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, PrimaryButton, SkeletonBlock, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
+import { CaretLeft, Check, FlagBanner, FlagPennant, Funnel, NotePencil, ShareNetwork, Timer, Users, WarningCircle, BookmarkSimple } from 'phosphor-react-native';
+import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { RichContent, OptionCard, type MediaMap, type OptionState } from '@/src/rich';
 import { BookmarkButton } from '@/src/bookmarks/BookmarkButton';
@@ -21,10 +21,11 @@ import { kvGet, kvSet } from '@/src/storage/kv';
 const REVIEW_LIMIT_SECONDS = 120;
 const REVIEW_LIMIT_KEY = 'review-2min-limit';
 import { useScreenProtection } from '@/src/security/useScreenProtection';
+import { useAttemptResult } from '@/src/queries/attempts';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 import { shadow } from '@/src/theme/elevation';
 
-const PAGE = 50;
+const PAGE = 200;
 
 type Status = 'correct' | 'incorrect' | 'unattempted';
 const statusOf = (r: ReviewItem): Status => (r.selected_option == null ? 'unattempted' : r.is_correct ? 'correct' : 'incorrect');
@@ -53,11 +54,18 @@ export default function TestReviewRoute() {
   const { show } = useToast();
   const insets = useSafeAreaInsets();
   const { id, position } = useLocalSearchParams<{ id?: string; position?: string }>();
+  // Tests review in ranges of twenty; QBank, Custom Module and the rest in ranges of ten.
+  const moduleType = useAttemptResult(id, false).data?.attempt?.test?.module_type;
+  const RANGE = moduleType === 'test_series' ? 20 : 10;
   // Opened at a specific question (e.g. "slowest questions" on the result screen) — first load only.
   const startAt = useRef(position ? Number(position) : null);
 
   useScreenProtection();
   const [filter, setFilter] = useState<ReviewFilter>('all');
+  const [subject, setSubject] = useState<string | undefined>();
+  const [draftSubject, setDraftSubject] = useState<string | undefined>();
+  const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
+  const [listOpen, setListOpen] = useState(false);
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [media, setMedia] = useState<MediaMap>({});
   const [cursor, setCursor] = useState<string | null>(null);
@@ -79,7 +87,7 @@ export default function TestReviewRoute() {
   const reqSeq = useRef(0);
 
   const load = useCallback(
-    async (f: ReviewFilter) => {
+    async (f: ReviewFilter, sub?: string) => {
       if (!id) return;
       const seq = ++reqSeq.current;
       setLoading(true);
@@ -88,9 +96,15 @@ export default function TestReviewRoute() {
         const target = startAt.current;
         // load far enough to include the requested question (server caps a page at 200)
         const limit = target && f === 'all' ? Math.min(200, Math.max(PAGE, target)) : PAGE;
-        const res = await getAttemptReview(id, { filter: f, limit });
+        const res = await getAttemptReview(id, { filter: f, limit, subject_id: sub });
         if (seq !== reqSeq.current) return; // a newer filter tap won
         setItems(res.review);
+        if (f === 'all' && !sub) {
+          const m = new Map<string, string>();
+          for (const r of res.review) if (r.question_meta.subject_id && r.question_meta.subject) m.set(r.question_meta.subject_id, r.question_meta.subject);
+          const order = ['Biology', 'Chemistry', 'Physics'];
+          setSubjects([...m.entries()].map(([sid, name]) => ({ id: sid, name })).sort((a, b) => (order.indexOf(a.name) < 0 ? 9 : order.indexOf(a.name)) - (order.indexOf(b.name) < 0 ? 9 : order.indexOf(b.name))));
+        }
         setMedia(res.media ?? {});
         setCursor(res.next_cursor);
         const at = target ? res.review.findIndex((r) => r.position === target) : -1;
@@ -109,15 +123,15 @@ export default function TestReviewRoute() {
   );
 
   useEffect(() => {
-    void load(filter);
-  }, [filter, load]);
+    void load(filter, subject);
+  }, [filter, subject, load]);
 
   const loadMore = useCallback(async () => {
     if (!id || !cursor || loadingMore) return;
     const seq = reqSeq.current;
     setLoadingMore(true);
     try {
-      const res = await getAttemptReview(id, { filter, limit: PAGE, cursor });
+      const res = await getAttemptReview(id, { filter, limit: PAGE, cursor, subject_id: subject });
       if (seq !== reqSeq.current) return; // filter changed mid-request — this page belongs to the old list
       setItems((prev) => [...prev, ...res.review]);
       setMedia((m) => ({ ...m, ...(res.media ?? {}) }));
@@ -127,7 +141,7 @@ export default function TestReviewRoute() {
     } finally {
       setLoadingMore(false);
     }
-  }, [id, cursor, filter, loadingMore]);
+  }, [id, cursor, filter, subject, loadingMore]);
 
   // prefetch the next page when the reader gets within 5 questions of the end
   useEffect(() => {
@@ -173,12 +187,12 @@ export default function TestReviewRoute() {
             <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{showAnswers ? 'Hide answers' : 'Show answers'}</Text>
             <Switch value={showAnswers} onValueChange={setShowAnswers} accessibilityLabel="Show answers" trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />
             <Pressable
-              onPress={() => { setDraftFilter(filter); setFilterOpen(true); }}
+              onPress={() => { setDraftFilter(filter); setDraftSubject(subject); setFilterOpen(true); }}
               accessibilityRole="button"
-              accessibilityLabel={filter === 'all' ? 'Filter' : 'Filter, one applied'}
+              accessibilityLabel={filter === 'all' && !subject ? 'Filter' : 'Filter, applied'}
               style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Funnel size={24} weight={filter === 'all' ? 'regular' : 'fill'} color={filter === 'all' ? color('text/primary') : color('accent/default')} />
+              <Funnel size={24} weight={filter === 'all' && !subject ? 'regular' : 'fill'} color={filter === 'all' && !subject ? color('text/primary') : color('accent/default')} />
             </Pressable>
           </View>
         }
@@ -192,6 +206,11 @@ export default function TestReviewRoute() {
             </View>
           </>
         ) : <View style={{ flex: 1 }} />}
+        {items.length > 0 ? (
+          <Pressable onPress={() => setListOpen(true)} accessibilityRole="button" accessibilityLabel="Open the list of questions" style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: space.sm, borderRadius: radius.pill, backgroundColor: color('bg/sunken') }}>
+            <Text style={[type['type/caption'], { color: color('text/primary') }]}>List</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={toggleLimit}
           accessibilityRole="button"
@@ -208,6 +227,20 @@ export default function TestReviewRoute() {
   return (
     <Screen>
       {TopBar}
+      {items.length > RANGE ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.xs }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+          {Array.from({ length: Math.ceil(items.length / RANGE) }, (_, r) => {
+            const from = r * RANGE + 1;
+            const to = Math.min(items.length, (r + 1) * RANGE);
+            const on = Math.floor(current / RANGE) === r;
+            return (
+              <Pressable key={r} onPress={() => go(r * RANGE)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ minHeight: 36, paddingHorizontal: space.md, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}>
+                <Text style={[type['type/caption'], { color: on ? color('accent/default') : color('text/secondary') }]}>{from}-{to}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
 
       {loading ? (
         <View style={{ flex: 1, paddingHorizontal: space.md, paddingTop: space.lg }}>
@@ -297,8 +330,46 @@ export default function TestReviewRoute() {
                   </Pressable>
                 );
               })}
-              <View style={{ marginTop: space.sm }}><PrimaryButton label="Apply" onPress={() => { setFilter(draftFilter); setFilterOpen(false); }} /></View>
+              {subjects.length > 1 ? (
+                <>
+                  <Text style={[type['type/overline'], { color: color('text/tertiary'), marginTop: space.sm }]}>SUBJECTS</Text>
+                  {[{ id: undefined as string | undefined, name: 'All' }, ...subjects].map((sj) => {
+                    const on = draftSubject === sj.id;
+                    return (
+                      <Pressable key={sj.id ?? 'all'} onPress={() => setDraftSubject(sj.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                        <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: on ? color('accent/default') : color('border/strong'), alignItems: 'center', justifyContent: 'center' }}>
+                          {on ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color('accent/default') }} /> : null}
+                        </View>
+                        <Text style={[type['type/body-l'], { color: color('text/primary') }]}>{sj.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </>
+              ) : null}
+              <View style={{ marginTop: space.sm, flexDirection: 'row', gap: space.sm }}>
+                <View style={{ flex: 1 }}><SecondaryButton label="Reset" onPress={() => { setDraftFilter('all'); setDraftSubject(undefined); }} /></View>
+                <View style={{ flex: 2 }}><PrimaryButton label="Apply" onPress={() => { setFilter(draftFilter); setSubject(draftSubject); setFilterOpen(false); }} /></View>
+              </View>
             </View>
+          </BottomSheet>
+
+          <BottomSheet visible={listOpen} onClose={() => setListOpen(false)} title={`Questions ${Math.floor(current / RANGE) * RANGE + 1}-${Math.min(items.length, (Math.floor(current / RANGE) + 1) * RANGE)}`} maxHeightPct={0.85}>
+            <ScrollView style={{ maxHeight: 480 }}>
+              {items.slice(Math.floor(current / RANGE) * RANGE, (Math.floor(current / RANGE) + 1) * RANGE).map((it, k) => {
+                const idx = Math.floor(current / RANGE) * RANGE + k;
+                const tone = it.selected_option == null ? color('text/tertiary') : it.is_correct ? color('semantic/success') : color('semantic/danger');
+                return (
+                  <Pressable key={it.question_id} onPress={() => { go(idx); setListOpen(false); }} accessibilityRole="button" style={{ minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: space.sm, borderBottomWidth: 1, borderBottomColor: color('border/subtle') }}>
+                    <Text style={[type['type/body-m-medium'], { color: tone, width: 28 }]}>{idx + 1}.</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={2} style={[type['type/body-m'], { color: color('text/primary') }]}>{plainText(it.question_text, it.content_format as string)}</Text>
+                      <Text style={[type['type/caption'], { color: tone }]}>{it.question_meta.subject ? `${it.question_meta.subject} · ` : ''}{it.selected_option == null ? 'Skipped' : it.is_correct ? 'Correct' : 'Wrong'}</Text>
+                    </View>
+                    {it.bookmarked ? <BookmarkSimple size={18} color={color('accent/default')} weight="fill" /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </BottomSheet>
 
           <ReportSheet

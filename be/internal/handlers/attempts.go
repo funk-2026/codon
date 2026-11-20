@@ -483,6 +483,9 @@ func (h *AttemptHandler) GetReview(c *gin.Context) {
 		Joins("LEFT JOIN chapters ch ON ch.id = q.chapter_id").
 		Where("aa.attempt_id = ?", attemptID)
 
+	if sid := c.Query("subject_id"); sid != "" {
+		q = q.Where("q.subject_id = ?", sid)
+	}
 	switch c.DefaultQuery("filter", "all") {
 	case "correct":
 		q = q.Where("aa.is_correct IS TRUE")
@@ -643,4 +646,35 @@ func (h *AttemptHandler) Takeover(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, messageResponse{Message: "attempt moved to this device"})
+}
+
+// DiscardAttempt throws away an attempt that is still in progress: its answers go and the test is as if never started.
+// An official attempt inside a live exam window cannot be discarded; the student submits or lets the clock end it.
+func (h *AttemptHandler) DiscardAttempt(c *gin.Context) {
+	user := middleware.GetUser(c)
+	ctx := c.Request.Context()
+	var a models.StudentAttempt
+	if h.DB.WithContext(ctx).Preload("Test").Where("id = ? AND user_id = ?", c.Param("id"), user.ID).First(&a).Error != nil {
+		respondErr(c, http.StatusNotFound, "not_found", "attempt not found")
+		return
+	}
+	if a.Status != models.AttemptInProgress {
+		respondErr(c, http.StatusConflict, "not_in_progress", "only an attempt in progress can be discarded")
+		return
+	}
+	if a.Test.Delivery == "live" && a.Official {
+		respondErr(c, http.StatusConflict, "live_attempt", "a live exam attempt can't be discarded. Submit it instead")
+		return
+	}
+	err := h.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("attempt_id = ?", a.ID).Delete(&models.AttemptAnswer{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.StudentAttempt{}, "id = ?", a.ID).Error
+	})
+	if err != nil {
+		respondErr(c, http.StatusInternalServerError, "internal", "could not discard")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"discarded": true})
 }

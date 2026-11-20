@@ -28,7 +28,7 @@ export type ExamCard = {
   author_name?: string;
   series?: { id: string; title: string };
   registered: boolean;
-  my_attempt?: { id: string; status: string; official: boolean; submitted_at?: string };
+  my_attempt?: { id: string; status: string; official: boolean; submitted_at?: string; score?: number; total_marks?: number };
 };
 
 /** GET /exams — published tests, each with where it stands for this student. */
@@ -60,6 +60,8 @@ export type SectionStat = {
   seconds: number;
   cohort_avg?: number;
   cohort_top?: number;
+  top100_avg?: number;
+  max_marks?: number;
 };
 export type AttemptAnalysis = {
   sections: SectionStat[];
@@ -107,7 +109,7 @@ export const adminRescoreExam = (id: string, dryRun: boolean) =>
   apiFetch<RescoreResult>(`/admin/exams/${id}/rescore`, { method: 'POST', body: JSON.stringify({ dry_run: dryRun }) });
 
 // ── Grand Test performance analysis ─────────────────────────────────────────
-export type GrandPart = { name: string; subject?: string; total: number; attempted: number; correct: number; marks: number; percent: number };
+export type GrandPart = { name: string; subject?: string; total: number; attempted: number; correct: number; marks: number; percent: number; percentile?: number };
 export type GrandAttempt = {
   attempt_id: string;
   test_id: string;

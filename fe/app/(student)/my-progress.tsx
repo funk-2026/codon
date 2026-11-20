@@ -18,7 +18,7 @@ function Mini({ area, label }: { area: AnalysisArea; label: string }) {
   useRefetchOnFocus(d.refetch);
   return (
     <Pressable
-      onPress={() => router.push({ pathname: ROUTES.student.analytics, params: { area } })}
+      onPress={() => (area === 'tests' ? router.push(ROUTES.student.grandAnalysis) : router.push({ pathname: ROUTES.student.analytics, params: { area } }))}
       accessibilityRole="button"
       accessibilityLabel={`${label}. ${d.supported ? `${d.total} ${UNIT[area]} in the last 14 days` : 'No data yet'}. Open`}
       style={({ pressed }) => [{ flex: 1, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, gap: space.xs, opacity: pressed ? 0.94 : 1 }, shadow()]}
