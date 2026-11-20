@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Check, FlagBanner, FlagPennant, GridFour, NotePencil, Timer, Users, WarningCircle } from 'phosphor-react-native';
-import { BottomSheet, EmptyState, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
+import { CaretLeft, Check, FlagBanner, FlagPennant, Funnel, NotePencil, ShareNetwork, Timer, Users, WarningCircle } from 'phosphor-react-native';
+import { BottomSheet, EmptyState, PrimaryButton, SkeletonBlock, TextButton, useToast, Screen, ScreenHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { RichContent, OptionCard, type MediaMap, type OptionState } from '@/src/rich';
 import { BookmarkButton } from '@/src/bookmarks/BookmarkButton';
 import { ReportSheet } from '@/src/social/ReportSheet';
+import { QuestionTagRow, ReferencesBlock, shareQuestion } from '@/src/question/QuestionMeta';
+import { questionShareText } from '@/src/question/logic';
+import { plainText } from '@/src/rich';
 import { NoteSheet } from '@/src/social/NoteSheet';
 import { ExplanationThumbs } from '@/src/social/RatingControl';
 import { getAttemptReview, type ReviewFilter, type ReviewItem } from '@/src/api/attempts';
@@ -28,11 +31,10 @@ const statusOf = (r: ReviewItem): Status => (r.selected_option == null ? 'unatte
 
 const FILTERS: { id: ReviewFilter; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'wrong', label: 'Incorrect' },
-  { id: 'correct', label: 'Correct' },
-  { id: 'unattempted', label: 'Unattempted' },
-  { id: 'marked', label: 'Marked' },
   { id: 'bookmarked', label: 'Bookmarked' },
+  { id: 'correct', label: 'Correct' },
+  { id: 'wrong', label: 'Wrong' },
+  { id: 'unattempted', label: 'Skipped' },
 ];
 
 const EMPTY_TEXT: Record<ReviewFilter, string> = {
@@ -64,7 +66,10 @@ export default function TestReviewRoute() {
   const [loadError, setLoadError] = useState(false);
   const [pendingResults, setPendingResults] = useState(false);
   const [current, setCurrent] = useState(0);
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  // Show or hide the answers while reviewing (starts on). The same switch is flipped by a double tap on the card.
+  const [showAnswers, setShowAnswers] = useState(true);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draftFilter, setDraftFilter] = useState<ReviewFilter>('all');
   const [reportOpen, setReportOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   // local overrides so a saved note / rating / report shows without refetching
@@ -158,78 +163,51 @@ export default function TestReviewRoute() {
     }
   });
 
-  const counts = useMemo(() => {
-    let c = 0, w = 0, u = 0;
-    for (const r of items) {
-      const s = statusOf(r);
-      if (s === 'correct') c++; else if (s === 'incorrect') w++; else u++;
-    }
-    return { c, w, u };
-  }, [items]);
-
   const TopBar = (
     <View>
       <ScreenHeader
         size="small"
-        title={items.length > 0 && q ? `Question ${q.position} · ${current + 1}${cursor ? '+' : ''} shown` : 'Review'}
+        title="Review"
         right={
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
+            <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{showAnswers ? 'Hide answers' : 'Show answers'}</Text>
+            <Switch value={showAnswers} onValueChange={setShowAnswers} accessibilityLabel="Show answers" trackColor={{ false: color('border/strong'), true: color('accent/default') }} thumbColor={color('bg/surface')} />
+            <Pressable
+              onPress={() => { setDraftFilter(filter); setFilterOpen(true); }}
+              accessibilityRole="button"
+              accessibilityLabel={filter === 'all' ? 'Filter' : 'Filter, one applied'}
+              style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Funnel size={24} weight={filter === 'all' ? 'regular' : 'fill'} color={filter === 'all' ? color('text/primary') : color('accent/default')} />
+            </Pressable>
+          </View>
+        }
+      />
+      <View style={{ paddingHorizontal: space.md, flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+        {items.length > 0 ? (
+          <>
+            <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Question {current + 1}{cursor ? '+' : ''} of {items.length}{cursor ? '+' : ''}</Text>
+            <View style={{ flex: 1, height: 3, backgroundColor: color('bg/sunken'), borderRadius: 2 }}>
+              <View style={{ width: `${((current + 1) / items.length) * 100}%`, height: 3, backgroundColor: color('accent/default'), borderRadius: 2 }} />
+            </View>
+          </>
+        ) : <View style={{ flex: 1 }} />}
         <Pressable
           onPress={toggleLimit}
           accessibilityRole="button"
           accessibilityLabel={reviewLeft != null ? `${formatClock(reviewLeft)} left for this question. Tap to turn the 2-minute limit off` : 'Turn on the 2-minute limit per question'}
-          style={{
-            flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, minWidth: 64, justifyContent: 'center', paddingHorizontal: space.sm, borderRadius: radius.pill,
-            backgroundColor: reviewLeft != null && reviewLeft <= 30 ? color('semantic/warning-tint') : color('bg/sunken'),
-          }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, minWidth: 64, justifyContent: 'center', paddingHorizontal: space.sm, borderRadius: radius.pill, backgroundColor: reviewLeft != null && reviewLeft <= 30 ? color('semantic/warning-tint') : color('bg/sunken') }}
         >
           <Timer size={14} color={reviewLeft != null && reviewLeft <= 30 ? color('semantic/warning') : color('text/secondary')} />
-          <Text style={[type['type/caption'], { color: reviewLeft != null && reviewLeft <= 30 ? color('semantic/warning') : color('text/primary') }]}>
-            {reviewLeft != null ? formatClock(reviewLeft) : '2-min off'}
-          </Text>
+          <Text style={[type['type/caption'], { color: reviewLeft != null && reviewLeft <= 30 ? color('semantic/warning') : color('text/primary') }]}>{reviewLeft != null ? formatClock(reviewLeft) : '2-min off'}</Text>
         </Pressable>
-        }
-      />
-      <View style={{ paddingHorizontal: space.md }}>
-      {items.length > 0 ? (
-        <View style={{ height: 3, backgroundColor: color('bg/sunken'), borderRadius: 2, marginTop: space.xs }}>
-          <View style={{ width: `${((current + 1) / items.length) * 100}%`, height: 3, backgroundColor: color('accent/default'), borderRadius: 2 }} />
-        </View>
-      ) : null}
       </View>
     </View>
-  );
-
-  const Chips = (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={{ marginTop: space.md, maxHeight: 48, flexGrow: 0, flexShrink: 0 }}
-      contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs, alignItems: 'center' }}
-    >
-      {FILTERS.map((c) => {
-        const active = filter === c.id;
-        return (
-          <Pressable
-            key={c.id}
-            onPress={() => setFilter(c.id)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
-            style={{
-              backgroundColor: active ? color('accent/default') : color('bg/sunken'),
-              borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 36, justifyContent: 'center',
-            }}
-          >
-            <Text style={[type['type/caption'], { color: active ? color('accent/on-accent') : color('text/secondary') }]}>{c.label}</Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
   );
 
   return (
     <Screen>
       {TopBar}
-      {Chips}
 
       {loading ? (
         <View style={{ flex: 1, paddingHorizontal: space.md, paddingTop: space.lg }}>
@@ -272,8 +250,8 @@ export default function TestReviewRoute() {
               q={q}
               media={media}
               note={q.question_id in notes ? notes[q.question_id] : q.my_note ?? null}
-              reported={reported[q.question_id] ?? q.reported_by_me}
-              onReport={() => setReportOpen(true)}
+              showAnswers={showAnswers}
+              onToggleAnswers={() => setShowAnswers((v) => !v)}
               onNote={() => setNoteOpen(true)}
             />
           </ScrollView>
@@ -284,50 +262,43 @@ export default function TestReviewRoute() {
               { backgroundColor: color('bg/surface'), borderTopColor: color('border/subtle'), borderTopWidth: 1, paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.sm + insets.bottom },
             ]}
           >
-            {current > 0 ? <SecondaryButton label="Previous" onPress={() => go(current - 1)} /> : <View style={{ width: 100 }} />}
-            <Pressable
-              onPress={() => setPaletteOpen(true)}
-              hitSlop={space.xs}
-              accessibilityRole="button"
-              accessibilityLabel="Review palette"
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' })}
-            >
-              <GridFour size={26} color={color('text/primary')} />
+            <Pressable onPress={() => setReportOpen(true)} disabled={reported[q.question_id] ?? q.reported_by_me} accessibilityRole="button" accessibilityLabel={(reported[q.question_id] ?? q.reported_by_me) ? 'You reported this question' : 'Report a problem with this question'} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: (reported[q.question_id] ?? q.reported_by_me) ? 0.5 : 1 }}>
+              <FlagBanner size={22} weight={(reported[q.question_id] ?? q.reported_by_me) ? 'fill' : 'regular'} color={color('text/secondary')} />
             </Pressable>
+            <Pressable
+              onPress={() => void shareQuestion(questionShareText({ text: plainText(q.question_text, q.content_format), a: plainText(q.option_a, q.content_format), b: plainText(q.option_b, q.content_format), c: plainText(q.option_c, q.content_format), d: plainText(q.option_d, q.content_format) }))}
+              accessibilityRole="button"
+              accessibilityLabel="Share this question"
+              style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <ShareNetwork size={22} color={color('text/secondary')} />
+            </Pressable>
+            <BookmarkButton questionId={q.question_id} />
+            <View style={{ flex: 1 }} />
+            {current > 0 ? (
+              <Pressable onPress={() => go(current - 1)} accessibilityRole="button" accessibilityLabel="Previous question" style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                <CaretLeft size={22} color={color('text/primary')} />
+              </Pressable>
+            ) : null}
             <PrimaryButton label={atEnd ? 'Done' : 'Next'} onPress={() => (atEnd ? goBack() : go(Math.min(current + 1, items.length - 1)))} loading={loadingMore && current >= items.length - 1} />
           </View>
 
-          <BottomSheet visible={paletteOpen} onClose={() => setPaletteOpen(false)} title="Review Palette">
-            <View style={[styles.legendRow, { gap: space.md }]}>
-              <LegendDot label={`Correct (${counts.c})`} fill={color('semantic/success')} />
-              <LegendDot label={`Incorrect (${counts.w})`} fill={color('semantic/danger')} />
-              <LegendDot label={`Unattempted (${counts.u})`} fill={color('bg/sunken')} border={color('border/strong')} />
-            </View>
-            <View style={[styles.paletteGrid, { marginTop: space.md, gap: space.sm }]}>
-              {items.map((item, i) => {
-                const st = statusOf(item);
-                const isCurrent = i === current;
+          <BottomSheet visible={filterOpen} onClose={() => setFilterOpen(false)} title="Filter">
+            <View style={{ gap: space.xs }}>
+              <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>ANSWERS</Text>
+              {FILTERS.map((f) => {
+                const on = draftFilter === f.id;
                 return (
-                  <Pressable
-                    key={item.question_id}
-                    onPress={() => { setPaletteOpen(false); go(i); }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Question ${item.position}, ${st}${isCurrent ? ', current' : ''}`}
-                    style={{
-                      width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: st === 'correct' ? color('semantic/success') : st === 'incorrect' ? color('semantic/danger') : color('bg/sunken'),
-                      borderWidth: isCurrent ? 2 : 1,
-                      borderColor: isCurrent ? color('text/primary') : color('border/strong'),
-                    }}
-                  >
-                    <Text style={[type['type/body-m-medium'], { color: st === 'unattempted' ? color('text/secondary') : color('text/inverse') }]}>{item.position}</Text>
+                  <Pressable key={f.id} onPress={() => setDraftFilter(f.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                    <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: on ? color('accent/default') : color('border/strong'), alignItems: 'center', justifyContent: 'center' }}>
+                      {on ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color('accent/default') }} /> : null}
+                    </View>
+                    <Text style={[type['type/body-l'], { color: color('text/primary') }]}>{f.label}</Text>
                   </Pressable>
                 );
               })}
+              <View style={{ marginTop: space.sm }}><PrimaryButton label="Apply" onPress={() => { setFilter(draftFilter); setFilterOpen(false); }} /></View>
             </View>
-            {cursor ? (
-              <TextButton label={loadingMore ? 'Loading…' : 'Load more'} onPress={() => void loadMore()} />
-            ) : null}
           </BottomSheet>
 
           <ReportSheet
@@ -352,9 +323,18 @@ export default function TestReviewRoute() {
 }
 
 function ReviewCard({
-  q, media, note, reported, onReport, onNote,
-}: { q: ReviewItem; media: MediaMap; note: string | null; reported: boolean; onReport: () => void; onNote: () => void }) {
+  q, media, note, showAnswers, onToggleAnswers, onNote,
+}: { q: ReviewItem; media: MediaMap; note: string | null; showAnswers: boolean; onToggleAnswers: () => void; onNote: () => void }) {
   const { color, type, space, radius } = useTheme();
+  // A double tap on the card flips Show / Hide answers, the same as the switch at the top.
+  const [lastTap, setLastTap] = useState(0);
+  const onTap = () => {
+    const now = Date.now();
+    if (now - lastTap < 350) {
+      onToggleAnswers();
+      setLastTap(0);
+    } else setLastTap(now);
+  };
   const st = statusOf(q);
   const badge = {
     correct: { text: 'Correct', bg: color('semantic/success'), fg: color('text/inverse') },
@@ -363,6 +343,7 @@ function ReviewCard({
   }[st];
 
   const stateOf = (letter: string): OptionState => {
+    if (!showAnswers) return 'idle';
     if (letter === q.correct_option) return q.selected_option === letter ? 'correct' : 'missed';
     return q.selected_option === letter ? 'wrong' : 'idle';
   };
@@ -370,7 +351,7 @@ function ReviewCard({
   const meta = [q.question_meta.subject, q.question_meta.chapter, q.question_meta.difficulty].filter(Boolean) as string[];
 
   return (
-    <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }, shadow()]}>
+    <Pressable onPress={onTap} accessible={false} style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.lg }, shadow()]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: space.sm }}>
         <Text style={[type['type/overline'], { color: color('text/tertiary'), flex: 1 }]}>QUESTION {q.position}</Text>
         {q.marked_for_review ? (
@@ -378,9 +359,11 @@ function ReviewCard({
             <FlagPennant size={18} weight="fill" color={color('semantic/warning')} />
           </View>
         ) : null}
-        <View style={{ backgroundColor: badge.bg, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2, marginLeft: space.xs }}>
-          <Text style={[type['type/caption'], { color: badge.fg }]}>{badge.text}</Text>
-        </View>
+        {showAnswers ? (
+          <View style={{ backgroundColor: badge.bg, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2, marginLeft: space.xs }}>
+            <Text style={[type['type/caption'], { color: badge.fg }]}>{badge.text}</Text>
+          </View>
+        ) : null}
       </View>
 
       {meta.length > 0 ? (
@@ -388,12 +371,13 @@ function ReviewCard({
       ) : null}
 
       <RichContent value={q.question_text} format={q.content_format} media={media} variant="stem" />
+      <QuestionTagRow tags={q.question_meta.tags} questionId={q.question_id} />
 
       <View style={{ gap: space.sm, marginTop: space.md }}>
         {opts.map(([letter, val]) => (
           <View key={letter}>
             <OptionCard letter={letter} value={val} format={q.content_format} media={media} state={stateOf(letter)} />
-            {q.option_shares ? (
+            {showAnswers && q.option_shares ? (
               <Text style={[type['type/caption'], { color: color('text/tertiary'), textAlign: 'right', marginTop: 2 }]} accessibilityLabel={`${q.option_shares[letter] ?? 0} percent of students chose option ${letter}`}>
                 {q.option_shares[letter] ?? 0}% chose this
               </Text>
@@ -408,7 +392,7 @@ function ReviewCard({
           <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>You spent {formatClock(q.time_spent_seconds)}</Text>
         ) : null}
         {q.confidence ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Confidence: {q.confidence}</Text> : null}
-        {q.cohort_correct_pct != null ? (
+        {showAnswers && q.cohort_correct_pct != null ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Users size={14} color={color('text/tertiary')} />
             <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{Math.round(q.cohort_correct_pct)}% of students got this right</Text>
@@ -416,16 +400,20 @@ function ReviewCard({
         ) : null}
       </View>
 
-      {q.explanation ? (
+      {showAnswers && q.explanation ? (
         <View style={{ backgroundColor: color('bg/sunken'), borderRadius: radius.md, padding: space.md, marginTop: space.md }}>
           <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: 6 }]}>EXPLANATION</Text>
           <RichContent value={q.explanation} format={q.content_format} media={media} variant="explanation" />
         </View>
       ) : null}
 
-      <View style={{ marginTop: space.md }}>
-        <ExplanationThumbs questionId={q.question_id} value={q.my_rating ?? null} />
-      </View>
+      {showAnswers ? <ReferencesBlock book={q.question_meta.ref_book} edition={q.question_meta.ref_edition} pages={q.question_meta.ref_pages} /> : null}
+
+      {showAnswers ? (
+        <View style={{ marginTop: space.md }}>
+          <ExplanationThumbs questionId={q.question_id} value={q.my_rating ?? null} />
+        </View>
+      ) : null}
 
       {note ? (
         <Pressable onPress={onNote} accessibilityRole="button" accessibilityLabel="Edit my note" style={{ backgroundColor: color('accent/tint'), borderRadius: radius.md, padding: space.md, marginTop: space.md }}>
@@ -434,38 +422,16 @@ function ReviewCard({
         </Pressable>
       ) : null}
 
-      {/* Actions */}
+      {/* The note stays on the card; report, share and bookmark live in the bottom bar. */}
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: space.sm }}>
-        <BookmarkButton questionId={q.question_id} />
-        <Pressable onPress={onNote} accessibilityRole="button" accessibilityLabel={note ? 'Edit my note' : 'Add a note'} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={onNote} accessibilityRole="button" accessibilityLabel={note ? 'Edit my note' : 'Add a note'} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: space.xs }}>
           <NotePencil size={22} weight={note ? 'fill' : 'regular'} color={note ? color('accent/default') : color('text/primary')} />
-        </Pressable>
-        <View style={{ flex: 1 }} />
-        <Pressable
-          onPress={onReport}
-          disabled={reported}
-          accessibilityRole="button"
-          accessibilityLabel={reported ? 'You reported this question' : 'Report a problem with this question'}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: space.xs, opacity: reported ? 0.6 : 1 }}
-        >
-          <FlagBanner size={20} weight={reported ? 'fill' : 'regular'} color={color('text/secondary')} />
-          <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{reported ? 'Reported' : 'Report'}</Text>
+          <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{note ? 'Edit note' : 'Add a note'}</Text>
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 }
-
-function LegendDot({ label, fill, border }: { label: string; fill: string; border?: string }) {
-  const { color, type } = useTheme();
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: fill, borderWidth: 1, borderColor: border ?? fill }} />
-      <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{label}</Text>
-    </View>
-  );
-}
-
 
 const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

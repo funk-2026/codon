@@ -98,6 +98,12 @@ export type RevealResponse = {
   marks: number;
   content_format: RichFormat | string;
   media: MediaMap;
+  ref_book?: string;
+  ref_edition?: string;
+  ref_pages?: string;
+  /** Percent of students who chose each option; absent until enough have answered. */
+  option_shares?: Record<string, number>;
+  percent_correct?: number;
 };
 
 /** POST /api/v1/attempts/:id/answers/:qid/reveal — tutor mode only; locks the answer. */
@@ -198,6 +204,11 @@ export type ReviewItem = {
     difficulty?: 'easy' | 'medium' | 'hard';
     ncert_class?: number;
     ncert_page?: number;
+    /** The tag chip under the question, and the References block under the explanation. */
+    tags?: string[];
+    ref_book?: string;
+    ref_edition?: string;
+    ref_pages?: string;
   };
   bookmarked: boolean;
   reported_by_me: boolean;

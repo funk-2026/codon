@@ -87,6 +87,7 @@ export function toRequest(d: FormDraft): CreateQuestionRequest {
   if (d.difficulty) r.difficulty = d.difficulty;
   const c = num(d.ncert_class); if (c != null) r.ncert_class = c;
   const p = num(d.ncert_page); if (p != null) r.ncert_page = p;
+  r.ref_book = d.ref_book?.trim() ?? ''; r.ref_edition = d.ref_edition?.trim() ?? ''; r.ref_pages = d.ref_pages?.trim() ?? '';
   if (d.source_type) r.source_type = d.source_type;
   const y = num(d.source_year); if (y != null) r.source_year = y;
   if (d.source_label?.trim()) r.source_label = d.source_label.trim();
@@ -101,6 +102,7 @@ export function fromQuestion(q: AuthoredQuestion): FormDraft {
     subject_id: q.subject_id, chapter_id: q.chapter_id, topic_id: q.topic_id,
     difficulty: q.difficulty ?? '',
     ncert_class: q.ncert_class != null ? String(q.ncert_class) : '', ncert_page: q.ncert_page != null ? String(q.ncert_page) : '',
+    ref_book: q.ref_book ?? '', ref_edition: q.ref_edition ?? '', ref_pages: q.ref_pages ?? '',
     source_type: q.source_type ?? 'qbank', source_year: q.source_year != null ? String(q.source_year) : '', source_label: q.source_label ?? '', section: q.section ?? '',
     custom_eligible: q.custom_eligible ?? true,
     tags: (q.tags ?? []).map((t: any) => t.label ?? t.name ?? String(t)),
@@ -113,7 +115,7 @@ export function isDirty(a: FormDraft, b: FormDraft): boolean {
 }
 
 /** Fields (besides content) a teacher may change on a LIVE question without a review round-trip. */
-export const METADATA_ONLY_KEYS = ['subject_id', 'chapter_id', 'topic_id', 'difficulty', 'ncert_class', 'ncert_page', 'source_type', 'source_year', 'source_label', 'section', 'custom_eligible', 'tags'] as const;
+export const METADATA_ONLY_KEYS = ['subject_id', 'chapter_id', 'topic_id', 'difficulty', 'ncert_class', 'ncert_page', 'ref_book', 'ref_edition', 'ref_pages', 'source_type', 'source_year', 'source_label', 'section', 'custom_eligible', 'tags'] as const;
 
 export function contentChanged(a: FormDraft, b: FormDraft): boolean {
   return (['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation'] as const).some((k) => a[k] !== b[k]);

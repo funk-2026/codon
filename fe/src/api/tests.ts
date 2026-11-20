@@ -100,6 +100,8 @@ export type Question = {
   option_d: string;
   order_index: number;
   position: number;
+  /** Tag chip under the question, like "ImageBased". */
+  tags?: string[];
 };
 
 export type GetQuestionsResponse = {
@@ -132,6 +134,9 @@ export type AuthoredQuestion = Omit<Question, 'position'> & {
   difficulty?: Difficulty;
   ncert_class?: number;
   ncert_page?: number;
+  ref_book?: string;
+  ref_edition?: string;
+  ref_pages?: string;
   source_type?: string;
   source_year?: number;
   source_label?: string;

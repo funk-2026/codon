@@ -19,6 +19,8 @@ export type OptionCardProps = {
   /** Screen-reader name for the long-press action (e.g. "Cross out option B"). */
   longPressLabel?: string;
   disabled?: boolean;
+  /** Percent of students who chose this option, shown on the right once the answer is revealed. */
+  share?: number;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -28,7 +30,7 @@ export type OptionCardProps = {
  * grows with its content (no fixed height, no clipping). State is conveyed by
  * an icon + label as well as colour, so it survives colour-blindness/greyscale.
  */
-export function OptionCard({ letter, value, format, media, state = 'idle', onPress, onLongPress, longPressLabel, disabled, style, testID }: OptionCardProps) {
+export function OptionCard({ letter, value, format, media, state = 'idle', onPress, onLongPress, longPressLabel, disabled, share, style, testID }: OptionCardProps) {
   const { color, type, space, radius } = useTheme();
 
   const palette = {
@@ -41,7 +43,7 @@ export function OptionCard({ letter, value, format, media, state = 'idle', onPre
   }[state];
 
   const stateLabel = { idle: '', selected: 'selected', correct: 'correct answer', wrong: 'your answer, incorrect', missed: 'correct answer', struck: 'crossed out' }[state];
-  const a11y = `Option ${letter}. ${plainText(value, format) || 'image'}${stateLabel ? `. ${stateLabel}` : ''}`;
+  const a11y = `Option ${letter}. ${plainText(value, format) || 'image'}${stateLabel ? `. ${stateLabel}` : ''}${share != null ? `. ${share} percent chose this` : ''}`;
 
   return (
     <Pressable
@@ -93,6 +95,7 @@ export function OptionCard({ letter, value, format, media, state = 'idle', onPre
           color={state === 'struck' ? color('text/tertiary') : undefined}
         />
       </View>
+      {share != null ? <Text style={[type['type/caption'], { color: palette.badgeBg === color('bg/sunken') ? color('text/tertiary') : palette.border, alignSelf: 'center' }]}>{share}%</Text> : null}
     </Pressable>
   );
 }

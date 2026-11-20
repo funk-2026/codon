@@ -19,6 +19,9 @@ export type QuestionDraft = {
   difficulty?: 'easy' | 'medium' | 'hard' | '';
   ncert_class?: string;
   ncert_page?: string;
+  ref_book?: string;
+  ref_edition?: string;
+  ref_pages?: string;
   source_type?: string;
   source_year?: string;
   source_label?: string;

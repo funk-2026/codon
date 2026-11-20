@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { X, GridFour, WarningCircle, FlagPennant, FlagBanner, Lock, Timer } from 'phosphor-react-native';
+import { X, GridFour, WarningCircle, FlagPennant, FlagBanner, Lock, Timer, ShareNetwork } from 'phosphor-react-native';
 import {
   BottomSheet, EmptyState, ErrorBanner, PrimaryButton, SecondaryButton, SkeletonBlock, TextButton, useToast, Screen } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
@@ -11,6 +11,10 @@ import { MediaPrefetcher } from '@/src/rich/MediaPrefetcher';
 import { prefetchOrder } from '@/src/rich/prefetch';
 import { BookmarkButton } from '@/src/bookmarks/BookmarkButton';
 import { ReportSheet } from '@/src/social/ReportSheet';
+import { QuestionTagRow, ReferencesBlock, shareQuestion } from '@/src/question/QuestionMeta';
+import { questionShareText, timerLabel } from '@/src/question/logic';
+import { useQuestionCountdown } from '@/src/attempt/useQuestionCountdown';
+import { plainText } from '@/src/rich';
 import { submitAttempt, type Option } from '@/src/api/attempts';
 import { ApiError } from '@/src/api/client';
 import { useAttemptSession } from '@/src/attempt/useAttemptSession';
@@ -213,6 +217,14 @@ export default function TestQuestionRoute() {
     }
   };
 
+  // Regular mode (QBank and Custom Module Regular): 2 minutes per question, restarting on each and running while the
+  // answer is read. A Custom Module moves on by itself when it runs out; QBank only says so.
+  const isCustom = attempt?.test?.module_type === 'custom';
+  const qLeft = useQuestionCountdown(q?.id, 120, tutor && !!q && !locked, () => {
+    if (isCustom && current < total - 1) go(current + 1);
+    else show('Time’s up for this question.', 'error');
+  });
+
   const optionState = (letter: Option): OptionState => {
     const selected = a?.selected === letter;
     if (reveal) {
@@ -373,6 +385,23 @@ export default function TestQuestionRoute() {
                 </Text>
               </Pressable>
               <View style={{ flex: 1 }} />
+              {tutor && qLeft != null ? (
+                <View accessible accessibilityLabel={`Time left on this question ${timerLabel(qLeft)}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: space.xs }}>
+                  <Timer size={16} color={qLeft <= 15 ? color('semantic/danger') : color('text/secondary')} />
+                  <Text style={[type['type/body-m-medium'], { color: qLeft <= 15 ? color('semantic/danger') : color('text/secondary') }]}>{timerLabel(qLeft)}</Text>
+                </View>
+              ) : null}
+              {checked ? (
+                <Pressable
+                  onPress={() => void shareQuestion(questionShareText({ text: plainText(q.question_text, q.content_format), a: plainText(q.option_a, q.content_format), b: plainText(q.option_b, q.content_format), c: plainText(q.option_c, q.content_format), d: plainText(q.option_d, q.content_format) }))}
+                  hitSlop={space.xs}
+                  accessibilityRole="button"
+                  accessibilityLabel="Share this question"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' })}
+                >
+                  <ShareNetwork size={22} color={color('text/secondary')} />
+                </Pressable>
+              ) : null}
               <BookmarkButton questionId={q.id} />
               <Pressable
                 onPress={() => setReportOpen(true)}
@@ -389,6 +418,7 @@ export default function TestQuestionRoute() {
               <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space['2xs'] }]}>QUESTION {current + 1}</Text>
               {q.section ? <Text style={[type['type/overline'], { color: color('accent/default'), marginBottom: space.xs }]}>{q.section.toUpperCase()}</Text> : null}
             <RichContent value={q.question_text} format={q.content_format} media={media} variant="stem" />
+            <QuestionTagRow tags={q.tags} questionId={q.id} />
             </View>
 
             <View style={{ gap: space.sm, marginTop: space.lg }} accessibilityRole="radiogroup">
@@ -401,6 +431,7 @@ export default function TestQuestionRoute() {
                   media={media}
                   state={optionState(letter)}
                   disabled={locked || checked}
+                  share={reveal?.option_shares?.[letter]}
                   onPress={() => S.select(q.id, letter)}
                   onLongPress={() => S.toggleStrike(q.id, letter)}
                   longPressLabel={S.struck[q.id]?.includes(letter) ? `Restore option ${letter}` : `Cross out option ${letter}`}
@@ -451,6 +482,8 @@ export default function TestQuestionRoute() {
                 ) : (
                   <Text style={[type['type/body-m'], { color: color('text/tertiary') }]}>No explanation for this question.</Text>
                 )}
+                {reveal.percent_correct != null ? <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>{reveal.percent_correct}% of the people got this right</Text> : null}
+                <ReferencesBlock book={reveal.ref_book} edition={reveal.ref_edition} pages={reveal.ref_pages} />
               </View>
             ) : null}
           </ScrollView>

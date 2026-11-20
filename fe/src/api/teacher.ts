@@ -91,6 +91,10 @@ export type CreateQuestionRequest = {
   difficulty?: 'easy' | 'medium' | 'hard';
   ncert_class?: number;
   ncert_page?: number;
+  /** Book, edition and pages that explain the answer: the References block students see. "" clears. */
+  ref_book?: string;
+  ref_edition?: string;
+  ref_pages?: string;
   source_type?: string;
   source_year?: number;
   source_label?: string;

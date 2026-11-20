@@ -266,6 +266,11 @@ func (h *AttemptHandler) RevealAnswer(c *gin.Context) {
 		"question_id": res.QuestionID, "correct_option": res.CorrectOption, "explanation": res.Explanation,
 		"is_correct": res.IsCorrect, "marks": res.Marks,
 		"content_format": res.Question.ContentFormat,
+		"ref_book":       res.Question.RefBook, "ref_edition": res.Question.RefEdition, "ref_pages": res.Question.RefPages,
+	}
+	if shares := optionShares(h.DB, c.Request.Context(), []uuid.UUID{res.QuestionID})[res.QuestionID]; shares != nil {
+		resp["option_shares"] = shares
+		resp["percent_correct"] = shares[res.CorrectOption]
 	}
 	mc := media.NewCollector()
 	mc.Add(res.Question.ContentFormat, res.Explanation)

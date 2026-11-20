@@ -35,6 +35,10 @@ export type BookmarkedQuestion = {
   subject_id?: string;
   chapter_id?: string;
   difficulty?: string;
+  tags?: string[];
+  ref_book?: string;
+  ref_edition?: string;
+  ref_pages?: string;
 };
 
 export type BookmarkRow = Bookmark & {
@@ -63,6 +67,10 @@ export const getBookmarkIds = (type: BookmarkItemType = 'question') =>
 
 export type BookmarkListParams = {
   collection_id?: string;
+  /** Comma-separated ids: several bookmark types, subjects or chapters at once. */
+  collection_ids?: string;
+  subject_ids?: string;
+  chapter_ids?: string;
   item_type?: BookmarkItemType;
   subject_id?: string;
   chapter_id?: string;
@@ -74,3 +82,28 @@ export type BookmarkListParams = {
 /** GET /me/bookmarks */
 export const listBookmarks = (p: BookmarkListParams = {}) =>
   apiFetch<Paginated<BookmarkRow> & { media?: MediaMap }>(`/me/bookmarks${qs({ ...p, cursor: p.cursor ?? undefined })}`);
+
+export type BookmarkSummary = {
+  total: number;
+  by_collection: { collection_id: string; count: number }[];
+  by_subject: { subject_id: string; name: string; count: number }[];
+};
+/** GET /me/bookmarks/summary: totals per bookmark type and per subject (Biology, Chemistry, Physics order). */
+export const getBookmarkSummary = (item_type: 'question' | 'flashcard' = 'question') => apiFetch<BookmarkSummary>(`/me/bookmarks/summary${qs({ item_type })}`);
+
+export type BookmarkCheck = {
+  is_correct: boolean;
+  correct_option: 'A' | 'B' | 'C' | 'D';
+  explanation?: string | null;
+  content_format: string;
+  media: MediaMap;
+  tags?: string[];
+  ref_book?: string;
+  ref_edition?: string;
+  ref_pages?: string;
+  option_shares?: Record<string, number>;
+  percent_correct?: number;
+};
+/** POST /me/bookmarks/questions/:id/check: answer a bookmarked question again. Nothing is saved. An empty option means no answer. */
+export const checkBookmarkedQuestion = (id: string, option: '' | 'A' | 'B' | 'C' | 'D') =>
+  apiFetch<BookmarkCheck>(`/me/bookmarks/questions/${id}/check`, { method: 'POST', body: JSON.stringify({ option }) });

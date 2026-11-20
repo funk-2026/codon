@@ -17,6 +17,7 @@ export const ROUTES = {
     aboutMmm: '/(student)/about-mmm',
     analytics: '/(student)/analytics',
     bookmarks: '/(student)/bookmarks',
+    bookmarkSolve: '/(student)/bookmark-solve',
     boardPaperList: '/(student)/board-paper-list',
     boardPapers: '/(student)/board-papers',
     brainHackVideo: '/(student)/brain-hack-video',
