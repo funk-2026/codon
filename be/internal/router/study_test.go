@@ -123,3 +123,42 @@ func TestSchemaAndPulseManagement(t *testing.T) {
 		t.Fatalf("order after move: %v", items)
 	}
 }
+
+func TestPulseAndDeckBookmarks(t *testing.T) {
+	e := newEnv(t)
+	s, tr := &e.w.Student, &e.w.Teacher
+	item := e.mustDo(201, "POST", "/teacher/pulse", tr, map[string]interface{}{"course_id": e.w.Course.ID, "subject_id": e.w.Subject.ID, "chapter_id": e.w.Chapter.ID, "title": "Entropy", "body": "A one minute read about entropy"})
+	pid := str(item, "id")
+	e.mustDo(200, "PUT", "/me/bookmarks", s, map[string]interface{}{"item_type": "pulse", "item_id": pid})
+	sum := e.mustDo(200, "GET", "/me/bookmarks/summary?item_type=pulse", s, nil)
+	if num(sum, "total") != 1 {
+		t.Fatalf("pulse summary: %v", sum)
+	}
+	subs := sum["by_subject"].([]interface{})
+	found := false
+	for _, x := range subs {
+		m := x.(map[string]interface{})
+		if str(m, "subject_id") == e.w.Subject.ID.String() && num(m, "count") == 1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("subject count: %v", subs)
+	}
+	list := e.mustDo(200, "GET", "/me/bookmarks?item_type=pulse&chapter_ids="+e.w.Chapter.ID.String(), s, nil)["items"].([]interface{})
+	if len(list) != 1 || list[0].(map[string]interface{})["pulse"] == nil {
+		t.Fatalf("pulse list: %v", list)
+	}
+	// decks show under the Flashcards tab
+	deck := e.mustDo(201, "POST", "/teacher/flashcard-decks", tr, map[string]interface{}{"title": "D", "course_id": e.w.Course.ID.String(), "subject_id": e.w.Subject.ID.String(), "chapter_id": e.w.Chapter.ID.String()})
+	e.mustDo(200, "PUT", "/me/bookmarks", s, map[string]interface{}{"item_type": "flashcard_deck", "item_id": str(deck, "id")})
+	fl := e.mustDo(200, "GET", "/me/bookmarks?item_type=flashcard", s, nil)["items"].([]interface{})
+	if len(fl) != 1 || fl[0].(map[string]interface{})["deck"] == nil {
+		t.Fatalf("deck under flashcards: %v", fl)
+	}
+	// resetting Pulse clears pulse bookmarks too
+	e.mustDo(200, "POST", "/me/resets/pulse", s, nil)
+	if n := num(e.mustDo(200, "GET", "/me/bookmarks/summary?item_type=pulse", s, nil), "total"); n != 0 {
+		t.Fatalf("reset: %v", n)
+	}
+}

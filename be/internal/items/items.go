@@ -21,6 +21,7 @@ const (
 	BrainHack     = "brain_hack"
 	FlashcardDeck = "flashcard_deck"
 	Flashcard     = "flashcard"
+	Pulse         = "pulse"
 )
 
 // Item is a resolved reference.
@@ -82,6 +83,12 @@ func Resolve(ctx context.Context, db *gorm.DB, typ string, id uuid.UUID) (Item, 
 			return it, false
 		}
 		it.OwnerID, it.CourseID = &d.AuthorID, &d.CourseID
+	case Pulse:
+		var p models.PulseItem
+		if db.First(&p, "id = ? AND is_active", id).Error != nil {
+			return it, false
+		}
+		it.OwnerID, it.CourseID = p.AuthorID, &p.CourseID
 	default:
 		return it, false
 	}
@@ -91,7 +98,7 @@ func Resolve(ctx context.Context, db *gorm.DB, typ string, id uuid.UUID) (Item, 
 // Known reports whether typ is a supported item type.
 func Known(typ string) bool {
 	switch typ {
-	case Question, Test, Content, BrainHack, FlashcardDeck, Flashcard:
+	case Question, Test, Content, BrainHack, FlashcardDeck, Flashcard, Pulse:
 		return true
 	}
 	return false

@@ -23,7 +23,15 @@ type BookmarkHandler struct{ DB *gorm.DB }
 
 func NewBookmarkHandler(db *gorm.DB) *BookmarkHandler { return &BookmarkHandler{DB: db} }
 
-var bookmarkTypes = []string{items.Question, items.Flashcard, items.Content}
+var bookmarkTypes = []string{items.Question, items.Flashcard, items.Content, items.FlashcardDeck, items.Pulse}
+
+// typesFor widens a tab's item type to every stored type it shows: the Flashcards tab holds cards and decks.
+func typesFor(it string) []string {
+	if it == items.Flashcard {
+		return []string{items.Flashcard, items.FlashcardDeck}
+	}
+	return []string{it}
+}
 
 func (h *BookmarkHandler) collectionsFor(userID uuid.UUID) []models.BookmarkCollection {
 	var cols []models.BookmarkCollection
@@ -60,7 +68,7 @@ func (h *BookmarkHandler) ListCollections(c *gin.Context) {
 }
 
 type putBookmarkRequest struct {
-	ItemType     string  `json:"item_type" enums:"question,flashcard,content"`
+	ItemType     string  `json:"item_type" enums:"question,flashcard,flashcard_deck,pulse,content"`
 	ItemID       string  `json:"item_id"`
 	CollectionID *string `json:"collection_id"`
 	Note         *string `json:"note"`
@@ -169,7 +177,7 @@ func (h *BookmarkHandler) IDs(c *gin.Context) {
 	user := middleware.GetUser(c)
 	typ := c.DefaultQuery("item_type", items.Question)
 	var rows []models.Bookmark
-	h.DB.Select("item_id", "collection_id").Where("user_id = ? AND item_type = ?", user.ID, typ).Find(&rows)
+	h.DB.Select("item_id", "collection_id").Where("user_id = ? AND item_type IN ?", user.ID, typesFor(typ)).Find(&rows)
 	by := map[string][]uuid.UUID{}
 	all := make([]uuid.UUID, 0, len(rows))
 	for _, r := range rows {
@@ -203,6 +211,8 @@ type bookmarkRow struct {
 	Question  *bookmarkQuestion `json:"question,omitempty"`
 	Content   gin.H             `json:"content,omitempty"`
 	Flashcard gin.H             `json:"flashcard,omitempty"`
+	Deck      gin.H             `json:"deck,omitempty"`
+	Pulse     gin.H             `json:"pulse,omitempty"`
 }
 
 // List godoc
@@ -225,7 +235,7 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 		q = q.Where("bookmarks.collection_id = ?", v)
 	}
 	if v := c.Query("item_type"); v != "" {
-		q = q.Where("bookmarks.item_type = ?", v)
+		q = q.Where("bookmarks.item_type IN ?", typesFor(v))
 	}
 	if ids := csvIDs(c.Query("collection_ids")); len(ids) > 0 {
 		q = q.Where("bookmarks.collection_id IN ?", ids)
@@ -233,31 +243,45 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 	subjects := csvIDs(firstNonEmpty(c.Query("subject_ids"), c.Query("subject_id")))
 	chapters := csvIDs(firstNonEmpty(c.Query("chapter_ids"), c.Query("chapter_id")))
 	if len(subjects) > 0 {
-		if c.Query("item_type") == items.Flashcard {
-			q = q.Where("bookmarks.item_type = 'flashcard' AND bookmarks.item_id IN (SELECT f.id FROM flashcards f JOIN flashcard_decks d ON d.id = f.deck_id WHERE d.subject_id IN ?)", subjects)
-		} else {
+		switch c.Query("item_type") {
+		case items.Flashcard:
+			q = q.Where("(bookmarks.item_type = 'flashcard' AND bookmarks.item_id IN (SELECT f.id FROM flashcards f JOIN flashcard_decks d ON d.id = f.deck_id WHERE d.subject_id IN ?)) OR (bookmarks.item_type = 'flashcard_deck' AND bookmarks.item_id IN (SELECT id FROM flashcard_decks WHERE subject_id IN ?))", subjects, subjects)
+		case items.Pulse:
+			q = q.Where("bookmarks.item_type = 'pulse' AND bookmarks.item_id IN (SELECT id FROM pulse_items WHERE subject_id IN ?)", subjects)
+		default:
 			q = q.Where("bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE subject_id IN ?)", subjects)
 		}
 	}
 	if len(chapters) > 0 {
-		if c.Query("item_type") == items.Flashcard {
-			q = q.Where("bookmarks.item_type = 'flashcard' AND bookmarks.item_id IN (SELECT f.id FROM flashcards f JOIN flashcard_decks d ON d.id = f.deck_id WHERE d.chapter_id IN ?)", chapters)
-		} else {
+		switch c.Query("item_type") {
+		case items.Flashcard:
+			q = q.Where("(bookmarks.item_type = 'flashcard' AND bookmarks.item_id IN (SELECT f.id FROM flashcards f JOIN flashcard_decks d ON d.id = f.deck_id WHERE d.chapter_id IN ?)) OR (bookmarks.item_type = 'flashcard_deck' AND bookmarks.item_id IN (SELECT id FROM flashcard_decks WHERE chapter_id IN ?))", chapters, chapters)
+		case items.Pulse:
+			q = q.Where("bookmarks.item_type = 'pulse' AND bookmarks.item_id IN (SELECT id FROM pulse_items WHERE chapter_id IN ?)", chapters)
+		default:
 			q = q.Where("bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE chapter_id IN ?)", chapters)
 		}
 	}
 	if v := strings.TrimSpace(c.Query("q")); v != "" {
 		like := "%" + v + "%"
-		q = q.Where("(bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE question_text ILIKE ?)) OR (bookmarks.item_type = 'content' AND bookmarks.item_id IN (SELECT id FROM content_items WHERE title ILIKE ?))", like, like)
+		q = q.Where(`(bookmarks.item_type = 'question' AND bookmarks.item_id IN (SELECT id FROM questions WHERE question_text ILIKE ?))
+			OR (bookmarks.item_type = 'content' AND bookmarks.item_id IN (SELECT id FROM content_items WHERE title ILIKE ?))
+			OR (bookmarks.item_type = 'flashcard' AND bookmarks.item_id IN (SELECT id FROM flashcards WHERE front ILIKE ?))
+			OR (bookmarks.item_type = 'flashcard_deck' AND bookmarks.item_id IN (SELECT id FROM flashcard_decks WHERE title ILIKE ?))
+			OR (bookmarks.item_type = 'pulse' AND bookmarks.item_id IN (SELECT id FROM pulse_items WHERE title ILIKE ?))`, like, like, like, like, like)
 	}
 	q = pagination.Apply(q, "bookmarks", pagination.Decode(c.Query("cursor")), limit)
 	var bms []models.Bookmark
 	q.Find(&bms)
 	bms, next := pagination.Page(bms, limit, func(b models.Bookmark) (time.Time, uuid.UUID) { return b.CreatedAt, b.ID })
 
-	var qids, cids, fids []uuid.UUID
+	var qids, cids, fids, dids, pids []uuid.UUID
 	for _, b := range bms {
 		switch b.ItemType {
+		case items.FlashcardDeck:
+			dids = append(dids, b.ItemID)
+		case items.Pulse:
+			pids = append(pids, b.ItemID)
 		case items.Question:
 			qids = append(qids, b.ItemID)
 		case items.Content:
@@ -299,6 +323,33 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 			revealed[id] = true
 		}
 	}
+	decks := map[uuid.UUID]gin.H{}
+	if len(dids) > 0 {
+		var ds []struct {
+			ID        uuid.UUID
+			Title     string
+			CardCount int
+			Subject   *string
+			Chapter   *string
+		}
+		h.DB.WithContext(ctx).Raw(`SELECT d.id, d.title, d.card_count, s.name AS subject, ch.name AS chapter FROM flashcard_decks d LEFT JOIN subjects s ON s.id = d.subject_id LEFT JOIN chapters ch ON ch.id = d.chapter_id WHERE d.id IN ?`, dids).Scan(&ds)
+		for _, d := range ds {
+			decks[d.ID] = gin.H{"id": d.ID, "title": d.Title, "card_count": d.CardCount, "subject": d.Subject, "chapter": d.Chapter}
+		}
+	}
+	pulses := map[uuid.UUID]gin.H{}
+	if len(pids) > 0 {
+		var ps []struct {
+			ID      uuid.UUID
+			Title   string
+			Subject string
+			Chapter string
+		}
+		h.DB.WithContext(ctx).Raw(`SELECT p.id, p.title, s.name AS subject, ch.name AS chapter FROM pulse_items p JOIN subjects s ON s.id = p.subject_id JOIN chapters ch ON ch.id = p.chapter_id WHERE p.id IN ?`, pids).Scan(&ps)
+		for _, p := range ps {
+			pulses[p.ID] = gin.H{"id": p.ID, "title": p.Title, "subject": p.Subject, "chapter": p.Chapter}
+		}
+	}
 	tagsBy := tagNames(h.DB, ctx, qids)
 	mc := media.NewCollector()
 	rows := make([]bookmarkRow, len(bms))
@@ -321,6 +372,10 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 				rows[i].Flashcard = gin.H{"id": fc.ID, "deck_id": fc.DeckID, "content_format": fc.ContentFormat, "front": fc.Front, "back": fc.Back}
 				mc.Add(fc.ContentFormat, &fc.Front, &fc.Back)
 			}
+		case items.FlashcardDeck:
+			rows[i].Deck = decks[b.ItemID]
+		case items.Pulse:
+			rows[i].Pulse = pulses[b.ItemID]
 		case items.Content:
 			if ct, ok := contents[b.ItemID]; ok {
 				rows[i].Content = gin.H{"id": ct.ID, "title": ct.Title, "content_type": ct.ContentType, "chapter_id": ct.ChapterID}
@@ -451,28 +506,40 @@ func (h *BookmarkHandler) Summary(c *gin.Context) {
 	user := middleware.GetUser(c)
 	ctx := c.Request.Context()
 	it := c.DefaultQuery("item_type", items.Question)
-	if it != items.Question && it != items.Flashcard {
-		respondErr(c, http.StatusBadRequest, "invalid_item_type", "item_type must be question or flashcard")
+	if it != items.Question && it != items.Flashcard && it != items.Pulse {
+		respondErr(c, http.StatusBadRequest, "invalid_item_type", "item_type must be question, flashcard or pulse")
 		return
 	}
 	var total int64
-	h.DB.WithContext(ctx).Model(&models.Bookmark{}).Where("user_id = ? AND item_type = ?", user.ID, it).Count(&total)
+	h.DB.WithContext(ctx).Model(&models.Bookmark{}).Where("user_id = ? AND item_type IN ?", user.ID, typesFor(it)).Count(&total)
 	var byCol []struct {
 		CollectionID uuid.UUID `json:"collection_id"`
 		N            int       `json:"count"`
 	}
-	h.DB.WithContext(ctx).Raw("SELECT collection_id, count(*) AS n FROM bookmarks WHERE user_id = ? AND item_type = ? GROUP BY collection_id", user.ID, it).Scan(&byCol)
+	h.DB.WithContext(ctx).Raw("SELECT collection_id, count(*) AS n FROM bookmarks WHERE user_id = ? AND item_type IN ? GROUP BY collection_id", user.ID, typesFor(it)).Scan(&byCol)
 	subjectSQL := `SELECT q.subject_id AS subject_id, count(*) AS n FROM bookmarks b JOIN questions q ON q.id = b.item_id
 		WHERE b.user_id = ? AND b.item_type = 'question' AND q.subject_id IS NOT NULL GROUP BY q.subject_id`
-	if it == items.Flashcard {
-		subjectSQL = `SELECT d.subject_id AS subject_id, count(*) AS n FROM bookmarks b JOIN flashcards f ON f.id = b.item_id JOIN flashcard_decks d ON d.id = f.deck_id
-			WHERE b.user_id = ? AND b.item_type = 'flashcard' AND d.subject_id IS NOT NULL GROUP BY d.subject_id`
+	switch it {
+	case items.Flashcard:
+		subjectSQL = `SELECT subject_id, sum(n)::int AS n FROM (
+			SELECT d.subject_id AS subject_id, count(*) AS n FROM bookmarks b JOIN flashcards f ON f.id = b.item_id JOIN flashcard_decks d ON d.id = f.deck_id
+			  WHERE b.user_id = ? AND b.item_type = 'flashcard' AND d.subject_id IS NOT NULL GROUP BY d.subject_id
+			UNION ALL
+			SELECT d.subject_id, count(*) FROM bookmarks b JOIN flashcard_decks d ON d.id = b.item_id
+			  WHERE b.user_id = ? AND b.item_type = 'flashcard_deck' AND d.subject_id IS NOT NULL GROUP BY d.subject_id) u GROUP BY subject_id`
+	case items.Pulse:
+		subjectSQL = `SELECT p.subject_id AS subject_id, count(*) AS n FROM bookmarks b JOIN pulse_items p ON p.id = b.item_id
+			WHERE b.user_id = ? AND b.item_type = 'pulse' GROUP BY p.subject_id`
 	}
 	var bySubject []struct {
 		SubjectID uuid.UUID
 		N         int
 	}
-	h.DB.WithContext(ctx).Raw(subjectSQL, user.ID).Scan(&bySubject)
+	if it == items.Flashcard {
+		h.DB.WithContext(ctx).Raw(subjectSQL, user.ID, user.ID).Scan(&bySubject)
+	} else {
+		h.DB.WithContext(ctx).Raw(subjectSQL, user.ID).Scan(&bySubject)
+	}
 	counts := map[uuid.UUID]int{}
 	for _, x := range bySubject {
 		counts[x.SubjectID] = x.N

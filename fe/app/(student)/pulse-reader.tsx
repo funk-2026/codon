@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { EmptyState, PrimaryButton, Screen, ScreenHeader, SecondaryButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { ItemBookmarkButton } from '@/src/bookmarks/ItemBookmarkButton';
 import { markPulseRead } from '@/src/api/study';
 import { groupByChapter, LOCAL_SUBJECTS, nextPulseIndex, PULSE_SECONDS } from '@/src/study/logic';
 import { useStudyItems, type StudyItem } from '@/src/study/useStudyItems';
@@ -50,7 +51,7 @@ function Reader({ item, position, onNext, last }: { item: StudyItem; position: s
 
   return (
     <Screen>
-      <ScreenHeader title="Pulse" />
+      <ScreenHeader title="Pulse" right={<ItemBookmarkButton itemType="pulse" itemId={item.id} label={item.title} />} />
       <View style={{ paddingHorizontal: space.md, gap: 6 }}>
         <View style={{ height: 6, borderRadius: 3, backgroundColor: color('bg/sunken') }}>
           <View style={{ width: `${Math.max(0, (left / PULSE_SECONDS) * 100)}%`, height: 6, borderRadius: 3, backgroundColor: color('accent/default') }} />

@@ -1,7 +1,7 @@
 import { apiFetch, qs, type Paginated } from './client';
 import type { MediaMap } from '@/src/rich/ast';
 
-export type BookmarkItemType = 'question' | 'flashcard' | 'content';
+export type BookmarkItemType = 'question' | 'flashcard' | 'content' | 'flashcard_deck' | 'pulse';
 
 export type BookmarkCollection = {
   id: string;
@@ -45,6 +45,8 @@ export type BookmarkRow = Bookmark & {
   question?: BookmarkedQuestion;
   content?: Record<string, unknown>;
   flashcard?: Record<string, unknown>;
+  deck?: { id: string; title: string; card_count: number; subject?: string; chapter?: string };
+  pulse?: { id: string; title: string; subject: string; chapter: string };
 };
 
 /** GET /me/bookmark-collections */
@@ -89,7 +91,7 @@ export type BookmarkSummary = {
   by_subject: { subject_id: string; name: string; count: number }[];
 };
 /** GET /me/bookmarks/summary: totals per bookmark type and per subject (Biology, Chemistry, Physics order). */
-export const getBookmarkSummary = (item_type: 'question' | 'flashcard' = 'question') => apiFetch<BookmarkSummary>(`/me/bookmarks/summary${qs({ item_type })}`);
+export const getBookmarkSummary = (item_type: 'question' | 'flashcard' | 'pulse' = 'question') => apiFetch<BookmarkSummary>(`/me/bookmarks/summary${qs({ item_type })}`);
 
 export type BookmarkCheck = {
   is_correct: boolean;

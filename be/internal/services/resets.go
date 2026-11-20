@@ -115,7 +115,13 @@ func ResetContent(ctx context.Context, db *gorm.DB, userID uuid.UUID, scope stri
 			c, err = archiveAndDelete(tx, userID, scope, "student_question_states", "user_id = ?", userID)
 			removed = a + b + c
 		case ResetPulse:
-			removed, err = archiveAndDelete(tx, userID, scope, "pulse_reads", "user_id = ?", userID)
+			var a int64
+			if a, err = archiveAndDelete(tx, userID, scope, "pulse_reads", "user_id = ?", userID); err != nil {
+				return err
+			}
+			var b int64
+			b, err = archiveAndDelete(tx, userID, scope, "bookmarks", "user_id = ? AND item_type = 'pulse'", userID)
+			removed = a + b
 		}
 		if err != nil {
 			return err

@@ -43,9 +43,9 @@ export default function BookmarksRoute() {
     return () => clearTimeout(t);
   }, [q]);
 
-  const itemType = tab === 'flashcard' ? 'flashcard' : 'question';
+  const itemType = tab === 'flashcard' ? 'flashcard' : tab === 'pulse' ? 'pulse' : 'question';
   const collections = useQuery({ queryKey: ['bookmark-collections'], queryFn: listBookmarkCollections, select: (r) => r.collections });
-  const summary = useQuery({ queryKey: ['bookmark-summary', itemType], queryFn: () => getBookmarkSummary(itemType), enabled: tab !== 'pulse' });
+  const summary = useQuery({ queryKey: ['bookmark-summary', itemType], queryFn: () => getBookmarkSummary(itemType) });
   const curriculum = useQuery({ queryKey: ['curriculum', user?.selected_course_id], queryFn: () => getCurriculum(String(user?.selected_course_id)), enabled: !!user?.selected_course_id, staleTime: 10 * 60_000 });
   const cols = useMemo(() => [...(collections.data ?? [])].sort((a, b) => TYPE_ORDER.indexOf(a.key as never) - TYPE_ORDER.indexOf(b.key as never)), [collections.data]);
   const keyOf = useMemo(() => Object.fromEntries(cols.map((c) => [c.id, c.key])), [cols]);
@@ -54,7 +54,7 @@ export default function BookmarksRoute() {
   const subjectName = (id?: string) => (summary.data?.by_subject ?? []).find((s) => s.subject_id === id)?.name ?? '';
   const subjectChapters = scope !== 'landing' && scope !== 'all' ? (curriculum.data?.course.subjects.find((s) => s.id === scope)?.chapters ?? []) : [];
 
-  const inList = scope !== 'landing' && tab !== 'pulse';
+  const inList = scope !== 'landing';
   const list = useInfiniteQuery({
     queryKey: ['bookmarks-list', itemType, scope, types.join(','), chapters.join(','), query],
     queryFn: ({ pageParam }) => listBookmarks({
@@ -85,8 +85,12 @@ export default function BookmarksRoute() {
   const changeTab = (t: Tab) => { setTab(t); goScope('landing'); };
 
   const open = (row: BookmarkRow, index: number) => {
+    if (tab === 'pulse') {
+      if (row.pulse) router.push({ pathname: ROUTES.student.pulseReader, params: { id: row.pulse.id, subject: 'All' } });
+      return;
+    }
     if (tab === 'flashcard') {
-      const deck = (row.flashcard as { deck_id?: string } | undefined)?.deck_id;
+      const deck = row.deck?.id ?? (row.flashcard as { deck_id?: string } | undefined)?.deck_id;
       if (deck) router.push({ pathname: ROUTES.student.flashcardStudy, params: { deckId: deck, all: '1' } });
       return;
     }
@@ -116,22 +120,22 @@ export default function BookmarksRoute() {
   );
 
   const title = scope === 'landing' ? 'Bookmarks' : scope === 'all' ? 'All subjects' : subjectName(scope) || 'Bookmarks';
-  const noun = tab === 'flashcard' ? 'flash cards' : 'questions';
+  const noun = tab === 'flashcard' ? 'flashcards' : tab === 'pulse' ? 'pulse items' : 'questions';
 
   return (
     <Screen>
       <ScreenHeader
         title={title}
         onBack={back}
-        right={tab !== 'pulse' ? (
+        right={(
           <Pressable onPress={() => setSearching((s) => !s)} accessibilityRole="button" accessibilityLabel="Search bookmarks" style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
             {searching ? <X size={22} color={color('text/primary')} /> : <MagnifyingGlass size={22} color={color('text/primary')} />}
           </Pressable>
-        ) : undefined}
+        )}
       />
       <View style={{ paddingHorizontal: space.md, marginTop: space.sm }}>
         <SegmentedControl options={[{ key: 'question' as const, label: 'Questions' }, { key: 'flashcard' as const, label: 'Flashcards' }, { key: 'pulse' as const, label: 'Pulse' }]} value={tab} onChange={changeTab} />
-        {searching && tab !== 'pulse' ? (
+        {searching ? (
           <View style={{ marginTop: space.sm }}>
             <InputField value={q} onChangeText={(t) => { setQ(t); if (scope === 'landing') goScope('all'); }} placeholder={`Search ${noun}`} autoFocus />
           </View>
@@ -139,9 +143,7 @@ export default function BookmarksRoute() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space['3xl'] + insets.bottom, gap: space.sm }} showsVerticalScrollIndicator={false}>
-        {tab === 'pulse' ? (
-          <EmptyState icon={<BookmarkSimple size={32} color={color('text/tertiary')} />} title="Pulse bookmarks" description="Bookmarks you add in Pulse will be kept here." />
-        ) : scope === 'landing' ? (
+        {scope === 'landing' ? (
           summary.isPending ? (
             <SkeletonBlock height={160} radius={radius.lg} />
           ) : summary.isError ? (
@@ -159,7 +161,7 @@ export default function BookmarksRoute() {
                   <CaretRight size={18} color={color('text/tertiary')} />
                 </Pressable>
               ))}
-              {summary.data.total === 0 ? <Text style={[type['type/body-m'], { color: color('text/tertiary'), textAlign: 'center', marginTop: space.md }]}>Nothing saved yet. Bookmark a {tab === 'flashcard' ? 'flash card' : 'question'} to find it here.</Text> : null}
+              {summary.data.total === 0 ? <Text style={[type['type/body-m'], { color: color('text/tertiary'), textAlign: 'center', marginTop: space.md }]}>Nothing saved yet. Bookmark {tab === 'flashcard' ? 'a flashcard deck' : tab === 'pulse' ? 'a Pulse item' : 'a question'} to find it here.</Text> : null}
             </>
           )
         ) : (
@@ -190,7 +192,11 @@ export default function BookmarksRoute() {
                   </ScrollView>
                 ) : null}
                 {visible.map(({ n, row }) => {
-                  const text = tab === 'flashcard'
+                  const text = tab === 'pulse'
+                    ? row.pulse?.title ?? ''
+                    : row.deck
+                    ? row.deck.title
+                    : tab === 'flashcard'
                     ? plainText(String((row.flashcard as { front?: string } | undefined)?.front ?? ''), String((row.flashcard as { content_format?: string } | undefined)?.content_format ?? 'plain'))
                     : plainText(row.question?.question_text ?? '', row.question?.content_format ?? 'plain');
                   return (
@@ -199,6 +205,8 @@ export default function BookmarksRoute() {
                       <View style={{ flex: 1 }}>
                         <Text style={[type['type/body-m'], { color: color('text/primary') }]} numberOfLines={2}>{text || 'Open to read'}</Text>
                         {tab === 'question' ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{subjectName(row.question?.subject_id)}</Text> : null}
+                        {tab === 'pulse' && row.pulse ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{row.pulse.subject} › {row.pulse.chapter}</Text> : null}
+                        {row.deck ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{row.deck.card_count} cards{row.deck.chapter ? ` · ${row.deck.chapter}` : ''}</Text> : null}
                       </View>
                       <TypeIcon typeKey={keyOf[row.collection_id] ?? 'revise_later'} />
                     </Pressable>
