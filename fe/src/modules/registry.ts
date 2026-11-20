@@ -33,7 +33,7 @@ const DEFINITIONS: Record<ModuleKey, ModuleDefinition> = {
   qbank: {
     key: 'qbank', label: 'Q Bank', shortLabel: 'Q Bank',
     descriptor: 'Topic-wise questions to build your foundation, chapter by chapter.',
-    canRetake: true, teacherCreatable: true,
+    canRetake: false, teacherCreatable: true,
     hubRoute: { pathname: ROUTES.student.practice, params: { kind: 'qbank' } },
   },
   test_series: {

@@ -155,6 +155,10 @@ func (s *ScoringService) StartAttempt(ctx context.Context, userID uuid.UUID, tes
 	s.DB.WithContext(ctx).Model(&models.StudentAttempt{}).Where("user_id = ? AND test_id = ?", userID, test.ID).Count(&prior)
 	// An exam is sat once. While its results are still hidden, a second go would let a student see the paper
 	// again and improve on it, so a submitted attempt blocks a new start until results are out.
+	// A QBank module is solved once. To solve it again the student resets the whole QBank from Edit Profile.
+	if prior > 0 && test.ModuleType == models.ModuleQBank && test.Origin == "authored" {
+		return nil, Coded(http.StatusConflict, "already_solved", "this QBank module is already solved. Reset the QBank from your profile to solve it again.")
+	}
 	if prior > 0 && test.ModuleType == models.ModuleTestSeries && !ResultsReleased(test, now) {
 		return nil, Coded(http.StatusConflict, "already_submitted", "you have already submitted this test. Results are not out yet.")
 	}

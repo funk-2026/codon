@@ -301,9 +301,9 @@ export default function TestQuestionRoute() {
       ) : S.phase === 'error' || S.phase === 'expired' ? (
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
-          title={S.error instanceof ApiError && S.error.code === 'already_submitted' ? 'Already submitted' : 'Couldn’t load this test'}
+          title={S.error instanceof ApiError && ['already_submitted', 'already_solved'].includes(String(S.error.code)) ? 'Already solved' : 'Couldn’t load this test'}
           description={
-            S.error instanceof ApiError && ['already_submitted', 'not_started', 'late_entry_closed'].includes(String(S.error.code))
+            S.error instanceof ApiError && ['already_submitted', 'already_solved', 'not_started', 'late_entry_closed'].includes(String(S.error.code))
               ? S.error.message
               : S.error instanceof ApiError && S.error.status === 403
               ? 'This test needs an active subscription.'

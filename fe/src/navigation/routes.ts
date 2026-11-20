@@ -43,6 +43,8 @@ export const ROUTES = {
     paymentFailed: '/(student)/payment-failed',
     paymentSuccess: '/(student)/payment-success',
     practice: '/(student)/(tabs)/practice',
+    qbankChapter: '/(student)/qbank-chapter',
+    qbankSubject: '/(student)/qbank-subject',
     practiceHierarchy: '/(student)/practice-hierarchy',
     payments: '/(student)/payments',
     community: '/(student)/community',

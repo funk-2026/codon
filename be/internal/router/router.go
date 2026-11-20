@@ -39,6 +39,7 @@ type Deps struct {
 	TE        *handlers.TeacherExtrasHandler
 	Exams     *handlers.ExamHandler
 	Reference *handlers.ReferenceHandler
+	QBank     *handlers.QBankHandler
 	Extra     []func(api *gin.RouterGroup, d *Deps) // later milestones plug in here
 }
 
@@ -51,6 +52,7 @@ func NewDeps(db *gorm.DB, auth gin.HandlerFunc, sub *services.SubscriptionServic
 		TE:        handlers.NewTeacherExtrasHandler(db, services.NewReviewService(db)),
 		Exams:     handlers.NewExamHandler(db, sub),
 		Reference: handlers.NewReferenceHandler(db),
+		QBank:     handlers.NewQBankHandler(db, sub),
 		DB:        db, Auth: auth, SubSvc: sub, Scoring: scoring,
 		Tests: handlers.NewTestHandler(db), Attempts: handlers.NewAttemptHandler(db, scoring, sub),
 		Media: handlers.NewMediaHandler(db), TQ: handlers.NewTeacherQuestionHandler(db),
@@ -113,6 +115,7 @@ func Register(api *gin.RouterGroup, d *Deps) {
 
 	api.GET("/home/updates", auth, d.Extras.HomeUpdates)
 	api.GET("/home/message", auth, d.Extras.HomeMessage)
+	api.GET("/qbank/overview", auth, d.QBank.Overview)
 	api.GET("/reference-docs", auth, d.Reference.List)
 	api.GET("/reference-docs/:id", auth, d.Reference.Get)
 	api.GET("/faculty", auth, d.Reference.Faculty)
