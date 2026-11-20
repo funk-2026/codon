@@ -8,6 +8,7 @@ import { listTeacherCorrections, type CorrectionQueueRow } from '@/src/api/moder
 import { plainText } from '@/src/rich';
 import { useCursorList } from '@/src/queries/useCursorList';
 import { EmbedRoot } from './EmbedRoot';
+import { formatDate } from '@/src/format/date';
 
 const TONE = { pending: { label: 'Waiting for review', tone: 'semantic/warning' }, approved: { label: 'Approved', tone: 'semantic/success' }, rejected: { label: 'Rejected', tone: 'semantic/danger' } } as const;
 
@@ -48,7 +49,7 @@ export function CorrectionsView({ embedded }: { embedded?: boolean }) {
                 <View key={r.id} style={{ backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md, gap: 4 }}>
                   <View style={{ flexDirection: 'row' }}>
                     <Text style={[type['type/body-m-medium'], { color: color(t.tone), flex: 1 }]}>{t.label}</Text>
-                    <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{new Date(r.created_at).toLocaleDateString([], { day: 'numeric', month: 'short' })}</Text>
+                    <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{formatDate(r.created_at)}</Text>
                   </View>
                   {r.question ? <Text style={[type['type/body-m'], { color: color('text/primary') }]} numberOfLines={2}>{plainText((r.question as any).question_text, (r.question as any).content_format)}</Text> : null}
                   <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Your reason: {r.reason}</Text>

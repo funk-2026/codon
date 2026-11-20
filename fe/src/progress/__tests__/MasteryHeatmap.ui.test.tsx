@@ -22,7 +22,7 @@ describe('MasteryHeatmap (component)', () => {
     );
     expect(screen.getByRole('button', { name: 'Genetics: 90 percent, Strong' })).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Cell biology: 30 percent, Needs work' }));
-    await fireEvent.press(screen.getByRole('button', { name: 'Practise this chapter' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Practice this chapter' }));
     expect(onPractise).toHaveBeenCalledWith('c1');
   });
 

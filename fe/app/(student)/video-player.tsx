@@ -357,7 +357,7 @@ export default function VideoPlayerRoute() {
             <EmptyState
               icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
               title="Couldn't load this video"
-              description="Something went wrong loading this lesson. Check your connection and try again."
+              description="Couldn’t load this lesson. Check your connection and try again."
               action={<TextButton label="Retry" onPress={load} />}
               style={{ marginTop: space.md }}
             />
@@ -436,7 +436,7 @@ export default function VideoPlayerRoute() {
                 >
                   <Exam size={26} color={color('accent/default')} weight="duotone" />
                   <View style={{ flex: 1 }}>
-                    <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>PRACTISE THIS CHAPTER</Text>
+                    <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>Practice this chapter</Text>
                     <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{meta.chapter ? `${meta.chapter} · QBank` : 'QBank'}</Text>
                   </View>
                   <CaretLeft size={18} color={color('text/tertiary')} style={{ transform: [{ rotate: '180deg' }] }} />

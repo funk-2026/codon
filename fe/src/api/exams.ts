@@ -26,6 +26,9 @@ export type ExamCard = {
   course_id: string;
   exam_year?: number;
   author_name?: string;
+  /** What a Subject-wise or Mini test covers. */
+  subject_name?: string;
+  chapter_name?: string;
   series?: { id: string; title: string };
   registered: boolean;
   my_attempt?: { id: string; status: string; official: boolean; submitted_at?: string; score?: number; total_marks?: number };

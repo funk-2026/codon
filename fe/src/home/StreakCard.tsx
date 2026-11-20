@@ -42,7 +42,7 @@ export function StreakCard({ streak, attempts }: { streak: number; attempts: Att
       </Pressable>
 
       {!open ? (
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: space.sm }} accessible accessibilityLabel={`Practised on ${week.filter((d) => d.active).length} days this week`}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: space.sm }} accessible accessibilityLabel={`Practiced on ${week.filter((d) => d.active).length} days this week`}>
           {week.map((d, i) => (
             <View key={i} style={{ alignItems: 'center', gap: space['2xs'] }}>
               <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: d.active ? color('accent/default') : color('bg/sunken'), borderWidth: d.today ? 2 : 0, borderColor: color('accent/default'), opacity: d.future ? 0.5 : 1 }} />

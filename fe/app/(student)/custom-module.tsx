@@ -98,7 +98,7 @@ export default function CustomModuleRoute() {
   const back = () => (step === 'p2' ? setStep('p1') : step === 'p3' ? setStep('p2') : router.back());
 
   return (
-    <Screen>
+    <Screen keyboard>
       <ScreenHeader title="Create a custom module" onBack={back} />
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md, paddingBottom: space['3xl'] }} keyboardShouldPersistTaps="handled">
         {cfg.isPending ? <SkeletonBlock height={200} radius={radius.lg} /> : cfg.isError ? <ErrorBanner onRetry={() => void cfg.refetch()} /> : (
@@ -147,12 +147,12 @@ export default function CustomModuleRoute() {
         )}
       </ScrollView>
       <View style={{ flexDirection: 'row', gap: space.sm, padding: space.md }}>
-        {step === 'p2' || step === 'p3' ? <View style={{ flex: 1 }}><SecondaryButton label="PREVIOUS" onPress={back} /></View> : null}
-        <View style={{ flex: 1 }}><PrimaryButton label="NEXT" onPress={next} disabled={!canNext || cfg.isPending} /></View>
+        {step === 'p2' || step === 'p3' ? <View style={{ flex: 1 }}><SecondaryButton label="Previous" onPress={back} /></View> : null}
+        <View style={{ flex: 1 }}><PrimaryButton label="Next" onPress={next} disabled={!canNext || cfg.isPending} /></View>
       </View>
 
       <BottomSheet visible={ticks} onClose={() => setTicks(false)} title="Choose your options" maxHeightPct={0.9}>
-        <ScrollView style={{ maxHeight: 420 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 420 }}>
           <View style={{ gap: space.sm, paddingBottom: space.md }}>
             {tickLines(s, names, source.kind === 'pyq').map((l) => (
               <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
@@ -162,7 +162,7 @@ export default function CustomModuleRoute() {
             ))}
           </View>
         </ScrollView>
-        <PrimaryButton label="NEXT" onPress={() => { setTicks(false); setSaveOpen(true); }} />
+        <PrimaryButton label="Next" onPress={() => { setTicks(false); setSaveOpen(true); }} />
       </BottomSheet>
 
       <BottomSheet visible={saveOpen} onClose={() => !create.isPending && setSaveOpen(false)} title="Save this template" dismissable={!create.isPending}>
@@ -175,8 +175,8 @@ export default function CustomModuleRoute() {
           <InputField label="Name this test" value={s.name} onChangeText={(v) => setS((x) => ({ ...x, name: v }))} placeholder="Test name" maxLength={120} />
           <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>The test name shows in your history and on the leaderboard.</Text>
           <View style={{ flexDirection: 'row', gap: space.sm }}>
-            <View style={{ flex: 1 }}><SecondaryButton label="CANCEL" onPress={() => setSaveOpen(false)} disabled={create.isPending} /></View>
-            <View style={{ flex: 1 }}><PrimaryButton label="START TEST" onPress={() => create.mutate()} loading={create.isPending} disabled={(saveTpl && !tplName.trim()) || !s.name.trim()} /></View>
+            <View style={{ flex: 1 }}><SecondaryButton label="Cancel" onPress={() => setSaveOpen(false)} disabled={create.isPending} /></View>
+            <View style={{ flex: 1 }}><PrimaryButton label="Start test" onPress={() => create.mutate()} loading={create.isPending} disabled={(saveTpl && !tplName.trim()) || !s.name.trim()} /></View>
           </View>
         </View>
       </BottomSheet>

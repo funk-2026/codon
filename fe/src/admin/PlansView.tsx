@@ -44,7 +44,7 @@ export function PlansView() {
         setPlans((prev) =>
           prev.map((p) => (p.id === id ? { ...p, is_active: currentActive } : p))
         );
-        show('Failed to update plan', 'error');
+        show('Couldn’t update plan. Try again.', 'error');
       });
   };
 
@@ -96,7 +96,7 @@ export function PlansView() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load plans"
-            description="Something went wrong fetching subscription plans."
+            description="Couldn’t load subscription plans. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
           />
         ) : filtered.length === 0 ? (

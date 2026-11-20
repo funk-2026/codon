@@ -26,7 +26,7 @@ function UpdateRequired({ url }: { url: string }) {
       </View>
       <Text style={[type['type/h1'], { color: color('text/primary'), textAlign: 'center' }]}>Please update the app</Text>
       <Text style={[type['type/body-m'], { color: color('text/secondary'), textAlign: 'center' }]}>
-        This version is no longer supported. Update to keep practising and learning.
+        This version is no longer supported. Update to keep practicing and learning.
       </Text>
       {url ? (
         <Pressable

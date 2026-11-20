@@ -1,5 +1,5 @@
 import type { SchemaOverview } from '@/src/api/study';
-import { applySchemaFilter, chapterProgress, EMPTY_FILTER, flattenSchema, groupByChapter, nextPulseIndex, parseSchemaCsv, sortTopics, subjectProgress, toggle, withStatus, filterSummary } from '../logic';
+import { applySchemaFilter, chapterProgress, EMPTY_FILTER, flattenSchema, groupByChapter, nextPulseIndex, parseSchemaCsv, sortTopics, subjectProgress, toggle, withStatus, filterSummary, heat, chapterAsked, subjectAsked, shareOf, statusCounts, matchesStatus } from '../logic';
 
 const item = (id: string, subject: string, chapter: string, order: number) => ({ id, chapter_id: chapter, chapter_name: chapter, chapter_order: order, subject_name: subject });
 const t = (id: string, status: 'yet_to_read' | 'yet_to_revise' | 'confident', by: Record<string, number>) => ({ id, name: id, total: Object.values(by).reduce((a, b) => a + b, 0), by_year: by, status });
@@ -66,5 +66,33 @@ describe('parseSchemaCsv', () => {
     const r = parseSchemaCsv('subject,chapter,topic,year,subtopic,questions\nBiology,"Molecular Basis, Part 1",DNA,2022 Re,,3\nBiology,x,y,2021');
     expect(r.rows).toEqual([{ subject: 'Biology', chapter: 'Molecular Basis, Part 1', topic: 'DNA', year: '2022 Re', subtopic: '', questions: 3 }]);
     expect(r.errors).toHaveLength(1);
+  });
+});
+
+describe('weightage shading', () => {
+  it('scales against the biggest and eases the middle', () => {
+    expect(heat(0, 10)).toBe(0);
+    expect(heat(10, 10)).toBe(1);
+    expect(heat(5, 10)).toBeGreaterThan(0.5);
+    expect(heat(5, 0)).toBe(0);
+  });
+  it('adds up questions per chapter and subject, and the share of the whole', () => {
+    expect(chapterAsked(schema.subjects[0].chapters[0])).toBe(7);
+    expect(chapterAsked(schema.subjects[0].chapters[0], ['2022'])).toBe(2);
+    expect(subjectAsked(schema.subjects[1])).toBe(2);
+    expect(shareOf(7, 9)).toBe(78);
+    expect(shareOf(1, 0)).toBe(0);
+  });
+});
+
+describe('status bar and filter', () => {
+  it('counts topics by status', () => {
+    expect(statusCounts(schema.subjects[0].chapters[0].topics)).toEqual({ yet_to_read: 1, yet_to_revise: 0, confident: 1 });
+  });
+  it('filters by status, with All letting everything through', () => {
+    const [a, b] = schema.subjects[0].chapters[0].topics;
+    expect(matchesStatus(a, 'confident')).toBe(true);
+    expect(matchesStatus(b, 'confident')).toBe(false);
+    expect(matchesStatus(b, 'all')).toBe(true);
   });
 });

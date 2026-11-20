@@ -37,7 +37,7 @@ export default function CustomBoardRoute() {
               </View>
             ))}
             <CodeCard code={b.code} />
-            <PrimaryButton label="SOLVE AGAIN WITH THE CODE" onPress={() => { rememberCustomCode(String(id), b.code); router.push({ pathname: ROUTES.student.testPreStart, params: { id: String(id) } }); }} />
+            <PrimaryButton label="Solve again with the code" onPress={() => { rememberCustomCode(String(id), b.code); router.push({ pathname: ROUTES.student.testPreStart, params: { id: String(id) } }); }} />
             <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>To review the answers, solve the module again by entering its code. A second attempt never changes the leaderboard.</Text>
           </>
         )}

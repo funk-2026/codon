@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Cards, ClipboardText, FileText, Lightbulb, Lock, MagnifyingGlass, PlayCircle } from 'phosphor-react-native';
-import { EmptyState, Screen, ScreenHeader, SkeletonBlock } from '@/src/components';
+import { EmptyState, Screen, ScreenHeader, SkeletonBlock, SecondaryButton } from '@/src/components';
 import { TreeToolbar } from '@/src/screens/CurriculumTree';
 import { LockedSheet } from '@/src/screens/LockedSheet';
 import { useTheme } from '@/src/theme/ThemeProvider';
@@ -73,7 +73,7 @@ export default function SearchRoute() {
         ) : results.isPending ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} height={56} radius={radius.md} />)
         ) : results.isError ? (
-          <EmptyState title="Couldn’t search" description="Check your connection and try again." />
+          <EmptyState title="Couldn’t search" description="Check your connection and try again." action={<SecondaryButton label="Try again" onPress={() => void results.refetch()} />} />
         ) : total === 0 ? (
           <EmptyState icon={<MagnifyingGlass size={32} color={color('text/tertiary')} />} title="No matches" description={`Nothing in your course matches “${q}”. Try a shorter word.`} />
         ) : (

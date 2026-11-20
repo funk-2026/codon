@@ -156,7 +156,7 @@ export default function PhoneEntryRoute() {
           setCooldown(5 * 60);
         }
       } else {
-        setApiError(err instanceof Error ? err.message : 'Something went wrong');
+        setApiError(err instanceof Error ? err.message : 'Couldn’t continue. Try again.');
         triggerShake();
       }
     } finally {

@@ -155,7 +155,7 @@ export default function TaxonomyRoute() {
         code === 'tag_in_use' ? 'Questions still use this tag — merge it into another instead.'
         : code === 'topic_in_use' ? 'Questions still use this topic — move them first.'
         : e instanceof ApiError && e.status === 409 ? 'That name is already taken.'
-        : 'Something went wrong. Try again.',
+        : 'Couldn’t do that. Try again.',
         'error',
       );
     } finally {

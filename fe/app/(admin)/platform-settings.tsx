@@ -35,7 +35,7 @@ export default function PlatformSettingsRoute() {
       setKYCRequired(false).then(() => {
         setKycRequiredState(false);
         show('Setting updated', 'success');
-      }).catch(() => show('Failed to update setting', 'error'));
+      }).catch(() => show('Couldn’t update setting. Try again.', 'error'));
     }
   };
 
@@ -46,7 +46,7 @@ export default function PlatformSettingsRoute() {
       show('Setting updated', 'success');
     }).catch(() => {
       setConfirmOpen(false);
-      show('Failed to update setting', 'error');
+      show('Couldn’t update setting. Try again.', 'error');
     });
   };
 

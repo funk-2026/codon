@@ -13,6 +13,7 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { ROUTES } from '@/src/navigation/routes';
 import { queryClient } from '@/src/queries/queryClient';
 import { keys } from '@/src/queries/keys';
+import { formatDate } from '@/src/format/date';
 
 export default function PaymentSuccessRoute() {
   const { color, type, space, radius } = useTheme();
@@ -23,10 +24,7 @@ export default function PaymentSuccessRoute() {
   const resolvedAmount = amount ? Number(amount) : 2999;
   const resolvedValidUntil = (() => {
     if (!validUntil) return null;
-    const d = new Date(validUntil);
-    return Number.isNaN(d.getTime())
-      ? null
-      : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatDate(validUntil) || null;
   })();
 
   // The student now has an active plan: refresh everything that depends on it.
@@ -101,7 +99,7 @@ export default function PaymentSuccessRoute() {
       </View>
 
       <View style={{ paddingHorizontal: space.md, marginBottom: space.xl }}>
-        <PrimaryButton label="Start Learning" onPress={() => router.replace(ROUTES.student.home)} />
+        <PrimaryButton label="Start learning" onPress={() => router.replace(ROUTES.student.home)} />
       </View>
     </Screen>
   );

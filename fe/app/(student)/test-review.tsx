@@ -115,7 +115,7 @@ export default function TestReviewRoute() {
         startAt.current = null;
       } catch (e) {
         if (seq !== reqSeq.current) return;
-        console.error('Failed to load review', e);
+        console.error('Couldn’t load review. Try again.', e);
         setPendingResults((e as { code?: string })?.code === 'results_pending');
         setLoadError(true);
       } finally {
@@ -265,7 +265,7 @@ export default function TestReviewRoute() {
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
           title="Couldn’t load review"
-          description="Something went wrong fetching your test review."
+          description="Couldn’t load your test review. Check your connection and try again."
           action={<TextButton label="Retry" onPress={() => load(filter)} />}
           style={{ flex: 1, justifyContent: 'center' }}
         />
@@ -373,7 +373,7 @@ export default function TestReviewRoute() {
                 );
               })}
               {moduleType === 'custom' && Math.floor(current / RANGE) >= Math.ceil(items.length / RANGE) - 1 && testIdForDiscard ? (
-                <TextButton label="Discard and create a new custom module" onPress={() => { setListOpen(false); void deleteCustomTest(testIdForDiscard).finally(() => router.replace({ pathname: ROUTES.student.practice, params: { kind: 'custom' } })); }} />
+                <TextButton label="Discard and create a new custom module" onPress={() => { setListOpen(false); void deleteCustomTest(testIdForDiscard).finally(() => router.dismissTo({ pathname: ROUTES.student.practice, params: { kind: 'custom' } })); }} />
               ) : null}
             </ScrollView>
           </BottomSheet>

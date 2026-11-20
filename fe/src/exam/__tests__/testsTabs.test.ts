@@ -1,5 +1,5 @@
 import type { ExamCard, GrandAttempt } from '@/src/api/exams';
-import { historyLine, analysisUnlocked, chapterStats, monthGroups, orderStats, subjectStats, tabOf, trendValue, viewOf, windowed } from '../testsTabs';
+import { cardEyebrow, libraryYears, listGroups, subjectGroups, historyLine, analysisUnlocked, chapterStats, monthGroups, orderStats, subjectStats, tabOf, trendValue, viewOf, windowed } from '../testsTabs';
 
 const card = (o: Partial<ExamCard>): ExamCard => ({ id: 'x', title: 'T', kind: 'full', exam_style: 'neet', delivery: 'anytime', phase: 'anytime', results_released: true, late_entry_minutes: 0, total_questions: 10, requires_subscription: false, course_id: 'c', registered: false, ...o });
 const att = (o: Partial<GrandAttempt>): GrandAttempt => ({ attempt_id: 'a', test_id: 't', title: 'GT', at: '2026-01-01', score: 1, total_marks: 4, percent: 25, cohort: 0, subjects: [], chapters: [], ...o });
@@ -24,6 +24,10 @@ describe('tests tabs', () => {
       'grand', 'library', 2026,
     );
     expect(g.map((x) => x.title)).toEqual(['May 2026', 'March 2026', 'Undated']);
+  });
+  it('lists every year when no year is given, with the year in each heading', () => {
+    const g = monthGroups([card({ id: 'a', opens_at: '2026-03-10T10:00:00' }), card({ id: 'c', opens_at: '2025-05-02T10:00:00' })], 'grand', 'library', null);
+    expect(g.map((x) => x.title)).toEqual(['March 2026', 'May 2025']);
   });
   it('lists upcoming months soonest first', () => {
     const g = monthGroups([card({ id: 'a', phase: 'upcoming', opens_at: '2026-09-10T10:00:00' }), card({ id: 'b', phase: 'upcoming', opens_at: '2026-07-10T10:00:00' })], 'grand', 'live', 2026);
@@ -70,5 +74,39 @@ describe('history rows', () => {
   it('marks the current month', () => {
     const g = monthGroups([card({ opens_at: '2026-11-10T10:00:00' })], 'grand', 'library', 2026, new Date(2026, 10, 20));
     expect(g[0].current).toBe(true);
+  });
+});
+
+describe('tests tab by kind', () => {
+  it('never hides a live or upcoming test behind a year', () => {
+    const jan = card({ id: 'j', phase: 'upcoming', opens_at: '2027-01-10T10:00:00' });
+    const g = listGroups([jan], 'grand', 'live', 2026, new Date(2026, 10, 20));
+    expect(g.map((x) => x.title)).toEqual(['January 2027']);
+  });
+  it('groups Mini and Subject-wise library tests by subject, not by month', () => {
+    const g = listGroups([
+      card({ id: 'a', kind: 'subject', phase: 'anytime', subject_name: 'Physics' }),
+      card({ id: 'b', kind: 'subject', phase: 'anytime', subject_name: 'Chemistry' }),
+      card({ id: 'c', kind: 'subject', phase: 'anytime' }),
+    ], 'subject', 'library', 2026);
+    expect(g.map((x) => x.title)).toEqual(['Chemistry', 'Physics', 'Other']);
+  });
+  it('orders a subject group by chapter then title', () => {
+    const g = subjectGroups([
+      card({ id: 'b', kind: 'chapter', phase: 'anytime', subject_name: 'Physics', chapter_name: 'Optics', title: 'Optics 2' }),
+      card({ id: 'a', kind: 'chapter', phase: 'anytime', subject_name: 'Physics', chapter_name: 'Motion', title: 'Motion 1' }),
+    ], 'mini', 'library');
+    expect(g[0].cards.map((c) => c.id)).toEqual(['a', 'b']);
+  });
+  it('names what a card covers', () => {
+    expect(cardEyebrow(card({ kind: 'subject', subject_name: 'Physics' }))).toBe('Physics');
+    expect(cardEyebrow(card({ kind: 'chapter', subject_name: 'Physics', chapter_name: 'Optics' }))).toBe('Physics · Optics');
+    expect(cardEyebrow(card({ kind: 'pyq', exam_year: 2024 }))).toBe('Previous-year paper · 2024');
+    expect(cardEyebrow(card({ kind: 'full' }))).toBe('Grand Test');
+    expect(cardEyebrow(card({ kind: 'chapter' }))).toBe('Mini Test');
+  });
+  it('lists the years that have library papers, newest first, including this year', () => {
+    const ys = libraryYears([card({ kind: 'pyq', phase: 'anytime', exam_year: 2024 }), card({ kind: 'pyq', phase: 'ended', exam_year: 2025 })], new Date(2026, 10, 20));
+    expect(ys).toEqual([2026, 2025, 2024]);
   });
 });

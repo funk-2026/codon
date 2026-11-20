@@ -10,6 +10,8 @@ import { useCursorList } from '@/src/queries/useCursorList';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
+import { formatDate } from '@/src/format/date';
+import { usePullRefresh } from '@/src/components/PullRefresh';
 
 type Payment = {
   id: string;
@@ -30,11 +32,12 @@ const STATUS: Record<Payment['status'], { label: string; token: 'semantic/succes
   refunded: { label: 'Refunded', token: 'semantic/warning' },
 };
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString('en-IN')}`;
-const when = (iso: string) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+const when = (iso: string) => formatDate(iso);
 
 /** What the student has paid, newest first, each with a shareable receipt. */
 export default function PaymentsRoute() {
   const { color, type, space, radius } = useTheme();
+  const pull = usePullRefresh();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [picked, setPicked] = useState<Payment | null>(null);
@@ -60,7 +63,7 @@ export default function PaymentsRoute() {
   return (
     <Screen>
       <ScreenHeader title="Payments" />
-      <ScrollView contentContainerStyle={{ padding: space.md, gap: space.xs, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView refreshControl={pull.control} contentContainerStyle={{ padding: space.md, gap: space.xs, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
         {list.loading ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} height={64} radius={radius.md} />)
         ) : list.error ? (
@@ -71,7 +74,7 @@ export default function PaymentsRoute() {
             action={<TextButton label="Retry" onPress={list.load} />}
           />
         ) : list.rows.length === 0 ? (
-          <EmptyState icon={<Receipt size={32} color={color('text/tertiary')} />} title="No payments yet" description="When you buy a plan, the receipt will be here." />
+          <EmptyState icon={<Receipt size={32} color={color('text/tertiary')} />} title="No payments yet" description="When you buy a plan, the receipt will be here." action={<SecondaryButton label="View plans" onPress={() => router.push(ROUTES.student.subscriptionPlans)} />} />
         ) : (
           <>
             {list.rows.map((p) => (

@@ -93,7 +93,7 @@ export default function CreateTestRoute() {
       // For MVP, proceed to question builder
       router.push({ pathname: ROUTES.teacher.questionBuilder, params: { testId: id } });
     } catch (err) {
-      show(err instanceof Error && err.message === 'marks' ? 'Enter valid marks: a positive number for correct answers.' : 'Failed to save draft', 'error');
+      show(err instanceof Error && err.message === 'marks' ? 'Enter valid marks: a positive number for correct answers.' : 'Couldn’t save draft. Try again.', 'error');
     } finally {
       setSaving(false);
     }
@@ -109,7 +109,7 @@ export default function CreateTestRoute() {
       }
       router.push({ pathname: ROUTES.teacher.csvUpload, params: { testId: id } });
     } catch (err) {
-      show(err instanceof Error && err.message === 'marks' ? 'Enter valid marks: a positive number for correct answers.' : 'Failed to save test', 'error');
+      show(err instanceof Error && err.message === 'marks' ? 'Enter valid marks: a positive number for correct answers.' : 'Couldn’t save test. Try again.', 'error');
     } finally {
       setSaving(false);
     }
@@ -135,7 +135,7 @@ export default function CreateTestRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="New Test" right={<>
+      <ScreenHeader title="New test" right={<>
 <TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
 </>} />
 
@@ -317,7 +317,7 @@ export default function CreateTestRoute() {
             />
           ) : (
             <>
-              <SecondaryButton label="Add More Questions" onPress={() => router.push(ROUTES.teacher.questionBuilder)} />
+              <SecondaryButton label="Add more questions" onPress={() => router.push(ROUTES.teacher.questionBuilder)} />
               <PrimaryButton
                 label="Preview & Submit"
                 onPress={() =>

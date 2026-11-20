@@ -95,7 +95,7 @@ export function BrainHackDetail() {
       }
     } catch (e) {
       const code = e instanceof ApiError ? e.code : undefined;
-      show(code === 'incomplete' ? 'Title, category and text are required.' : code === 'not_approved' ? 'Only approved Brain Hacks can be published.' : code === 'locked' ? 'This can’t be changed in its current state.' : 'Something went wrong. Try again.', 'error');
+      show(code === 'incomplete' ? 'Title, category and text are required.' : code === 'not_approved' ? 'Only approved Brain Hacks can be published.' : code === 'locked' ? 'This can’t be changed in its current state.' : 'Couldn’t do that. Try again.', 'error');
     } finally {
       setBusy(null);
       setConfirmDelete(false);

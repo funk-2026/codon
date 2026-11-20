@@ -9,7 +9,7 @@ import { shadow } from '@/src/theme/elevation';
 const TILES: { label: string; text: string; Icon: Icon; href: string }[] = [
   { label: 'Bookmarks', text: 'Saved questions', Icon: BookmarkSimple, href: ROUTES.student.bookmarks },
   { label: 'Schema', text: 'Topics and how often asked', Icon: TreeStructure, href: ROUTES.student.schema },
-  { label: 'Flashcard', text: 'Quick recall', Icon: Cards, href: ROUTES.student.flashcards },
+  { label: 'Flashcards', text: 'Quick recall', Icon: Cards, href: ROUTES.student.flashcards },
   { label: 'Pulse', text: 'One-minute revision', Icon: Pulse, href: ROUTES.student.pulse },
 ];
 

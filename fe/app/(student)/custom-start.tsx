@@ -23,7 +23,7 @@ export default function CustomStartRoute() {
   const [confirm, setConfirm] = useState(false);
   const del = useMutation({
     mutationFn: () => deleteCustomTest(String(id)),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['custom-challenges'] }); setConfirm(false); router.replace({ pathname: ROUTES.student.practice, params: { kind: 'custom' } }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['custom-challenges'] }); setConfirm(false); router.dismissTo({ pathname: ROUTES.student.practice, params: { kind: 'custom' } }); },
     onError: () => show('Couldn’t discard it. Try again.', 'error'),
   });
 
@@ -46,7 +46,7 @@ export default function CustomStartRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Start" onBack={() => router.replace({ pathname: ROUTES.student.practice, params: { kind: 'custom' } })} />
+      <ScreenHeader title="Start" onBack={() => router.dismissTo({ pathname: ROUTES.student.practice, params: { kind: 'custom' } })} />
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md, paddingBottom: space['3xl'] }}>
         {q.isPending ? <SkeletonBlock height={220} radius={radius.lg} /> : !d ? (
           <EmptyState title="This module isn’t available" description="It may have been discarded." action={<TextButton label="Back" onPress={() => router.back()} />} />
@@ -71,9 +71,9 @@ export default function CustomStartRoute() {
               </View>
               <View style={{ width: 130 }}>
                 {solved && !inProgress ? (
-                  <PrimaryButton label="REVIEW" onPress={() => { const a = mine.find((x) => x.status === 'submitted'); if (a) router.push({ pathname: ROUTES.student.testResult, params: { id: a.id, fromHistory: '1' } }); }} />
+                  <PrimaryButton label="Review" onPress={() => { const a = mine.find((x) => x.status === 'submitted'); if (a) router.push({ pathname: ROUTES.student.testResult, params: { id: a.id, fromHistory: '1' } }); }} />
                 ) : (
-                  <PrimaryButton label={inProgress ? 'RESUME' : 'SOLVE'} onPress={() => router.push({ pathname: ROUTES.student.testPreStart, params: { id: d.test.id } })} />
+                  <PrimaryButton label={inProgress ? 'RESUME' : 'Solve'} onPress={() => router.push({ pathname: ROUTES.student.testPreStart, params: { id: d.test.id } })} />
                 )}
               </View>
             </View>

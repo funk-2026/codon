@@ -84,7 +84,7 @@ export default function CourseStructureRoute() {
       show('Subject added', 'success');
       close();
     } catch {
-      show('Failed to add subject', 'error');
+      show('Couldn’t add subject. Try again.', 'error');
     } finally {
       setBusy(false);
     }
@@ -98,7 +98,7 @@ export default function CourseStructureRoute() {
       show('Chapter added', 'success');
       close();
     } catch {
-      show('Failed to add chapter', 'error');
+      show('Couldn’t add chapter. Try again.', 'error');
     } finally {
       setBusy(false);
     }

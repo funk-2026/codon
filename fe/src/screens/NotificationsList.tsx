@@ -6,6 +6,7 @@ import { EmptyState, SecondaryButton, SkeletonBlock, TextButton, ScreenHeader, S
 import { useTheme } from '@/src/theme/ThemeProvider';
 import type { NotificationAudience, NotificationItem } from '@/src/api/discover';
 import { useMarkNotificationsRead, useNotifications } from '@/src/queries/discover';
+import { usePullRefresh } from '@/src/components/PullRefresh';
 
 const ago = (iso: string) => {
   const m = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
@@ -16,6 +17,7 @@ const ago = (iso: string) => {
 
 export function NotificationsList({ audience, routeFor, emptyText }: { audience: NotificationAudience; routeFor: (n: NotificationItem) => string | null; emptyText: string }) {
   const { color, type, space, radius } = useTheme();
+  const pull = usePullRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const list = useNotifications(audience);
@@ -39,7 +41,7 @@ export function NotificationsList({ audience, routeFor, emptyText }: { audience:
       <ScreenHeader title="Notifications" right={<>
 {unread > 0 ? <TextButton label="Mark all read" onPress={readAll} /> : null}
 </>} />
-      <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] + insets.bottom }}>
+      <ScrollView refreshControl={pull.control} contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] + insets.bottom }}>
         {loading ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} height={72} radius={radius.md} />)
         ) : error ? (

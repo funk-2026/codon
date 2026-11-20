@@ -1,6 +1,7 @@
 import { Pressable, StyleProp, Text, View, ViewStyle } from 'react-native';
 import { WarningCircle } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
+import { useIsOffline } from '@/src/net/network';
 
 export type ErrorBannerProps = {
   message?: string;
@@ -12,8 +13,10 @@ export type ErrorBannerProps = {
 // Inline error notice for dashboard-style screens where a failed load
 // shouldn't blank the whole page — pairs with EmptyState, which is used
 // instead when the failed fetch *is* the whole screen's content.
-export function ErrorBanner({ message = "Couldn't load the latest data.", onRetry, style }: ErrorBannerProps) {
+export function ErrorBanner({ message, onRetry, style }: ErrorBannerProps) {
   const { color, type, space, radius } = useTheme();
+  const offline = useIsOffline();
+  const text = offline ? 'You’re offline. Check your connection and try again.' : message ?? 'Couldn’t load the latest data. Try again.';
 
   return (
     <View
@@ -34,7 +37,7 @@ export function ErrorBanner({ message = "Couldn't load the latest data.", onRetr
     >
       <WarningCircle size={20} color={color('semantic/danger')} weight="fill" />
       <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
-        {message}
+        {text}
       </Text>
       {onRetry ? (
         <Pressable onPress={onRetry} hitSlop={space.xs} accessibilityRole="button" accessibilityLabel="Retry" style={{ minHeight: 44, justifyContent: 'center' }}>

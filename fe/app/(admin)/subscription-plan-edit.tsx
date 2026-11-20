@@ -79,7 +79,7 @@ export default function SubscriptionPlanEditRoute() {
         router.replace({ pathname: ROUTES.admin.payments, params: { segment: 'plans' } });
       })
       .catch((e) => {
-        show(e.message || 'Failed to save', 'error');
+        show(e.message || 'Couldn’t save. Try again.', 'error');
       })
       .finally(() => setSaving(false));
   };
@@ -111,7 +111,7 @@ export default function SubscriptionPlanEditRoute() {
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
           title="Couldn't load plan data"
-          description="Something went wrong fetching courses and plan details."
+          description="Couldn’t load courses and plan details. Check your connection and try again."
           action={<TextButton label="Retry" onPress={loadData} />}
           style={{ flex: 1 }}
         />
@@ -201,7 +201,7 @@ export default function SubscriptionPlanEditRoute() {
                 </View>
               ))}
             </View>
-            <TextButton label="Add Benefit" onPress={addBenefit} style={{ alignSelf: 'flex-start', marginTop: space.sm }} />
+            <TextButton label="Add benefit" onPress={addBenefit} style={{ alignSelf: 'flex-start', marginTop: space.sm }} />
           </View>
 
           {isEditing ? (
@@ -255,7 +255,7 @@ export default function SubscriptionPlanEditRoute() {
 
       {!loadError ? (
         <View style={{ paddingHorizontal: space.md, marginBottom: space.lg }}>
-          <PrimaryButton label="Save Plan" onPress={handleSave} disabled={!valid} loading={saving} />
+          <PrimaryButton label="Save plan" onPress={handleSave} disabled={!valid} loading={saving} />
         </View>
       ) : null}
     </Screen>

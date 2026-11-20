@@ -38,7 +38,7 @@ export default function CustomTemplateRoute() {
   const del = useMutation({ mutationFn: (id: string) => removeTemplate(id), onSuccess: () => void qc.invalidateQueries({ queryKey: ['custom-templates'] }) });
 
   return (
-    <Screen>
+    <Screen keyboard>
       <ScreenHeader title="Create a template" />
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md, paddingBottom: space['3xl'] }} keyboardShouldPersistTaps="handled">
         <View style={{ backgroundColor: color('accent/tint'), borderRadius: radius.md, padding: space.md }}>
@@ -61,14 +61,14 @@ export default function CustomTemplateRoute() {
         )}
       </ScrollView>
       <View style={{ padding: space.md }}>
-        <PrimaryButton label="SAVE TEMPLATE" onPress={() => setOpen(true)} disabled={full || !mixValid(s)} />
+        <PrimaryButton label="Save template" onPress={() => setOpen(true)} disabled={full || !mixValid(s)} />
       </View>
       <BottomSheet visible={open} onClose={() => !save.isPending && setOpen(false)} title="Save this template" dismissable={!save.isPending}>
         <View style={{ gap: space.sm, paddingBottom: space.md }}>
           <InputField label="Name this template" value={name} onChangeText={setName} placeholder="Template name" maxLength={80} autoFocus />
           <View style={{ flexDirection: 'row', gap: space.sm }}>
-            <View style={{ flex: 1 }}><SecondaryButton label="CANCEL" onPress={() => setOpen(false)} disabled={save.isPending} /></View>
-            <View style={{ flex: 1 }}><PrimaryButton label="SAVE" onPress={() => save.mutate()} loading={save.isPending} disabled={!name.trim()} /></View>
+            <View style={{ flex: 1 }}><SecondaryButton label="Cancel" onPress={() => setOpen(false)} disabled={save.isPending} /></View>
+            <View style={{ flex: 1 }}><PrimaryButton label="Save" onPress={() => save.mutate()} loading={save.isPending} disabled={!name.trim()} /></View>
           </View>
         </View>
       </BottomSheet>

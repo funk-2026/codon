@@ -35,7 +35,7 @@ export default function BookmarkSolveRoute() {
   if (!session || !row?.question) {
     return (
       <Screen>
-        <EmptyState icon={<X size={32} color={color('text/tertiary')} />} title="Nothing to practise" description="Open a bookmarked question from your list." action={<TextButton label="Back" onPress={() => router.back()} />} />
+        <EmptyState icon={<X size={32} color={color('text/tertiary')} />} title="Nothing to practice" description="Open a bookmarked question from your list." action={<TextButton label="Back" onPress={() => router.back()} />} />
       </Screen>
     );
   }

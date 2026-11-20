@@ -1,33 +1,27 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import Animated from 'react-native-reanimated';
-import { MagnifyingGlass } from 'phosphor-react-native';
-import { CollapsingHeader, SegmentedControl, useCollapsingHeader } from '@/src/components';
+import { CollapsingHeader, SearchBar, SegmentedControl, useCollapsingHeader } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { QBankPanel } from '@/src/qbank/QBankPanel';
 import { QBankSearchSheet } from '@/src/qbank/QBankSearchSheet';
 import { CustomTestsPanel } from '@/src/screens/CustomTestsPanel';
 import { useFlag } from '@/src/config/AppConfigContext';
-import { ROUTES } from '@/src/navigation/routes';
+import { TabHeaderActions } from '@/src/components/TabHeaderActions';
+import { usePullRefresh, RefreshPill } from '@/src/components/PullRefresh';
 
 type Segment = 'qbank' | 'custom';
 
-/** MCQs: the NEET UG QBank, and Custom Module when it is switched on. No stats card, recent tests or sort chips. */
+/** MCQs: the MCQs, and Custom Module when it is switched on. No stats card, recent tests or sort chips. */
 export default function PracticeHubRoute() {
   const { color, type, space } = useTheme();
   const header = useCollapsingHeader(64);
-  const router = useRouter();
+  const pull = usePullRefresh(header.maxHeight);
   const params = useLocalSearchParams<{ kind?: string }>();
   const customOn = useFlag('custom_test.enabled');
   const [segment, setSegment] = useState<Segment>(params.kind === 'custom' ? 'custom' : 'qbank');
   const [searchOpen, setSearchOpen] = useState(false);
-
-  const search = (
-    <Pressable onPress={() => (segment === 'custom' ? router.push(ROUTES.student.customChallenges) : setSearchOpen(true))} accessibilityRole="button" accessibilityLabel={segment === 'custom' ? 'Search your custom module history' : 'Search subjects and chapters'} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-      <MagnifyingGlass size={24} color={color('header/text')} />
-    </Pressable>
-  );
 
   return (
     <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -36,25 +30,34 @@ export default function PracticeHubRoute() {
         expanded={
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
-              <Text style={[type['type/h1'], { color: color('header/text') }]}>NEET UG QBank</Text>
+              <Text style={[type['type/h1'], { color: color('header/text') }]}>MCQs</Text>
               <Text style={[type['type/body-m'], { color: color('header/text-secondary'), marginTop: space['2xs'] }]}>Solve chapter by chapter</Text>
             </View>
-            {search}
+            <TabHeaderActions size="large" />
           </View>
         }
-        compact={<View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={[type['type/h3'], { color: color('header/text'), flex: 1 }]}>NEET UG QBank</Text>{search}</View>}
+        compact={<View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={[type['type/h3'], { color: color('header/text'), flex: 1 }]}>MCQs</Text><TabHeaderActions size="small" /></View>}
       />
       <Animated.ScrollView
         style={{ flex: 1 }}
         onScroll={header.onScroll}
+        refreshControl={pull.control}
         scrollEventThrottle={16}
         scrollIndicatorInsets={{ top: header.minHeight }}
-        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: header.maxHeight + space.md, paddingBottom: space['3xl'], gap: space.md }}
+        contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: header.maxHeight + space.md, paddingBottom: space['3xl'], gap: space.sm }}
         showsVerticalScrollIndicator={false}
       >
         {customOn ? <SegmentedControl options={[{ key: 'qbank' as const, label: 'QBank' }, { key: 'custom' as const, label: 'Custom Module' }]} value={segment} onChange={setSegment} /> : null}
-        {segment === 'custom' && customOn ? <CustomTestsPanel /> : <QBankPanel />}
+        {segment === 'custom' && customOn ? (
+          <CustomTestsPanel />
+        ) : (
+          <>
+            <SearchBar placeholder="Search subjects and chapters" onPress={() => setSearchOpen(true)} />
+            <QBankPanel />
+          </>
+        )}
       </Animated.ScrollView>
+      <RefreshPill visible={pull.refreshing} top={header.maxHeight} />
       <QBankSearchSheet visible={searchOpen} onClose={() => setSearchOpen(false)} />
     </View>
   );

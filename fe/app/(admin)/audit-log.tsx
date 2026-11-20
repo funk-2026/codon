@@ -9,6 +9,7 @@ import { useCursorList } from '@/src/queries/useCursorList';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { auditDetail } from '@/src/admin/auditDetail';
 import { shadow } from '@/src/theme/elevation';
+import { formatDateTime } from '@/src/format/date';
 
 const LABEL: Record<string, string> = {
   'user.role_change': 'Changed a role',
@@ -32,7 +33,7 @@ const LABEL: Record<string, string> = {
 
 const detail = auditDetail;
 
-const when = (iso: string) => new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const when = (iso: string) => formatDateTime(iso);
 
 /** Who changed what, newest first. Opened from a user, it shows only that account's history. */
 export default function AuditLogRoute() {

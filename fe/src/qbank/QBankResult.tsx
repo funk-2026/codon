@@ -71,7 +71,7 @@ export function QBankResult(p: QBankResultProps) {
           <Text style={[type['type/h2'], { color: color('text/primary') }]}>{p.mcqs} MCQs</Text>
           <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Review your answers</Text>
         </View>
-        <View style={{ width: 130 }}><PrimaryButton label="REVIEW" onPress={p.onReview} /></View>
+        <View style={{ width: 130 }}><PrimaryButton label="Review" onPress={p.onReview} /></View>
       </View>
 
       <Pressable onPress={p.onBookmarks} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>

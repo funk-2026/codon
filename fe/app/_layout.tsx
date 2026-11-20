@@ -22,6 +22,8 @@ import { PushProvider } from '@/src/notifications/PushProvider';
 import { ToastProvider } from '@/src/components';
 import { stackAnimation } from '@/src/components/ThemedStack';
 import { UpdateGate } from '@/src/config/UpdateGate';
+import { OfflineFrame } from '@/src/components/OfflineBar';
+import { useWireOnlineManager } from '@/src/net/network';
 import { AnalyticsBootstrap } from '@/src/analytics/AnalyticsBootstrap';
 
 SplashScreen.preventAutoHideAsync();
@@ -85,6 +87,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => wireAppStateFocus(), []);
+  useWireOnlineManager();
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -108,7 +111,9 @@ export default function RootLayout() {
               <ToastProvider>
                 <UpdateGate>
                   <AnalyticsBootstrap />
-                  <RootNavigator />
+                  <OfflineFrame>
+                    <RootNavigator />
+                  </OfflineFrame>
                 </UpdateGate>
                 <ThemedStatusBar />
               </ToastProvider>

@@ -69,14 +69,14 @@ export default function ProgressDetailRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Your Progress" />
+      <ScreenHeader title="My progress" />
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false}>
         {allFailed ? (
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn’t load your progress"
-            description="Something went wrong fetching your progress data."
+            description="Couldn’t load your progress data. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
             style={{ marginTop: space.xl }}
           />
@@ -107,7 +107,7 @@ export default function ProgressDetailRoute() {
                         <Text style={[type['type/body-m-medium'], { color: color('text/primary'), flex: 1 }]}>{r.title}</Text>
                       </View>
                       <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>{r.reason}</Text>
-                      <SecondaryButton label="Practise this" onPress={() => practise(r.patch)} />
+                      <SecondaryButton label="Practice this" onPress={() => practise(r.patch)} />
                     </View>
                   ))}
                 </View>

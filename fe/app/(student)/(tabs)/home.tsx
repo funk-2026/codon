@@ -1,8 +1,9 @@
+import { useCourses } from '@/src/queries/curriculum';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated from 'react-native-reanimated';
-import { Flame, Exam, BookOpen, Bell, FileText, MagnifyingGlass, CaretRight } from 'phosphor-react-native';
+import { Flame, Exam, BookOpen, FileText, CaretRight } from 'phosphor-react-native';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { CollapsingHeader, ErrorBanner, useCollapsingHeader } from '@/src/components';
@@ -17,11 +18,14 @@ import { StreakCard } from '@/src/home/StreakCard';
 import { DetailedAnalysisCard } from '@/src/home/DetailedAnalysisCard';
 import { MessageCard } from '@/src/home/MessageCard';
 import { BrainHackOfTheDay, HomeUpdatesCarousel } from '@/src/home/HomeShelves';
-import { daysUntil, formatExamDate } from '@/src/profile/examDate';
+import { daysUntil } from '@/src/profile/examDate';
 import { useExplore, useNotifications } from '@/src/queries/discover';
 import { useFlag } from '@/src/config/AppConfigContext';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
+import { formatDate } from '@/src/format/date';
+import { TabHeaderActions } from '@/src/components/TabHeaderActions';
+import { usePullRefresh, RefreshPill } from '@/src/components/PullRefresh';
 
 type SubState = 'active' | 'expiring' | 'none';
 
@@ -30,6 +34,7 @@ export default function HomeDashboardRoute() {
   const router = useRouter();
   const { user } = useAuth();
   const header = useCollapsingHeader(64);
+  const pull = usePullRefresh(header.maxHeight);
 
 
   const me = useMe();
@@ -38,12 +43,14 @@ export default function HomeDashboardRoute() {
   const recent = useRecentContent();
   const customOn = useFlag('custom_test.enabled');
   const explore = useExplore(user?.selected_course_id);
+  // The board-paper channel is for the Class 10 course only; a NEET UG student never sees it.
+  const courses = useCourses();
+  const boardChannel = /class-?10|board|school/i.test(courses.data?.find((c) => c.id === user?.selected_course_id)?.slug ?? '');
   const next = customOn ? (explore.data?.recommended?.[0] ?? null) : null;
   const attempts = useAttempts();
   const loadError = me.isError || progress.isError || breakdown.isError || recent.isError;
   const loadData = () => void Promise.all([me.refetch(), progress.refetch(), breakdown.refetch(), recent.refetch(), attempts.refetch()]);
   const notifications = useNotifications('student');
-  const unread = notifications.data?.pages[0]?.unread_count ?? 0;
   useRefetchOnFocus(() => { loadData(); void notifications.refetch(); });
 
   const inProgress = attempts.data?.attempts.find((a) => a.status === 'in_progress') ?? null;
@@ -60,50 +67,13 @@ export default function HomeDashboardRoute() {
     const diffDays = Math.ceil((end.getTime() - loadedAt) / (1000 * 3600 * 24));
     const planName = sub.plan?.name || 'Pro';
     return diffDays <= 7
-      ? { subState: 'expiring', subText: `Your ${planName} plan expires in ${diffDays} days — renew to keep access.` }
-      : { subState: 'active', subText: `${planName} — active until ${end.toLocaleDateString()}` };
+      ? { subState: 'expiring', subText: `Your ${planName} plan expires in ${diffDays} ${diffDays === 1 ? 'day' : 'days'}. Renew to keep access.` }
+      : { subState: 'active', subText: '' };
   }, [me.data, loadedAt]);
 
   const firstName = user?.name?.split(' ')[0] || 'Student';
 
-  // Bell and avatar: two circles of the same size, so the right side reads as one control group.
-  const headerActions = (size: 'large' | 'small') => {
-    const d = size === 'large' ? 40 : 32;
-    return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
-        <Pressable
-          onPress={() => router.push(ROUTES.student.search)}
-          hitSlop={space.xs}
-          accessibilityRole="button"
-          accessibilityLabel="Search"
-          style={[styles.avatar, { width: d, height: d, borderRadius: d / 2, backgroundColor: color('header/chip') }]}
-        >
-          <MagnifyingGlass size={size === 'large' ? 22 : 18} color={color('header/text')} weight="regular" />
-        </Pressable>
-        <Pressable
-          onPress={() => router.push(ROUTES.student.notifications)}
-          hitSlop={space.xs}
-          accessibilityRole="button"
-          accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
-          style={[styles.avatar, { width: d, height: d, borderRadius: d / 2, backgroundColor: color('header/chip') }]}
-        >
-          <Bell size={size === 'large' ? 22 : 18} color={color('header/text')} weight={unread > 0 ? 'fill' : 'regular'} />
-          {unread > 0 ? <View style={{ position: 'absolute', top: 6, right: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: color('semantic/danger') }} /> : null}
-        </Pressable>
-        <Pressable
-          onPress={() => router.push(ROUTES.student.profile)}
-          hitSlop={space.xs}
-          accessibilityRole="button"
-          accessibilityLabel="Open profile"
-          style={[styles.avatar, { width: d, height: d, borderRadius: d / 2, backgroundColor: color('bg/surface') }]}
-        >
-          <Text style={[size === 'large' ? type['type/body-l'] : type['type/body-m-medium'], { color: color('accent/default'), fontWeight: '600' }]}>
-            {(user?.name || 'A').charAt(0).toUpperCase()}
-          </Text>
-        </Pressable>
-      </View>
-    );
-  };
+  const headerActions = (size: 'large' | 'small') => <TabHeaderActions size={size} avatar />;
 
   return (
     <View style={[styles.container, { backgroundColor: color('bg/canvas') }]}>
@@ -137,6 +107,7 @@ export default function HomeDashboardRoute() {
       <Animated.FlatList
         data={[{}]}
         onScroll={header.onScroll}
+        refreshControl={pull.control}
         scrollEventThrottle={16}
         scrollIndicatorInsets={{ top: header.minHeight }}
         contentContainerStyle={{ paddingTop: header.maxHeight }}
@@ -161,7 +132,7 @@ export default function HomeDashboardRoute() {
                   <Text style={[type['type/numeral-display'], { color: color('accent/default'), fontSize: 40 }]}>{examDays}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[type['type/h3'], { color: color('text/primary') }]}>{examDays === 0 ? 'Exam day. Good luck!' : examDays === 1 ? 'day to your exam' : 'days to your exam'}</Text>
-                    <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{formatExamDate(me.data?.user?.exam_date)}</Text>
+                    <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{formatDate(me.data?.user?.exam_date)}</Text>
                   </View>
                 </Pressable>
               ) : (
@@ -194,25 +165,18 @@ export default function HomeDashboardRoute() {
             <StreakCard streak={streak} attempts={attempts.data?.attempts ?? []} />
 
             {/* Sample Board Exam Paper: the Class 10 channel, straight to its four tiles */}
-            <View style={{ marginTop: space.md }}>
-              <Pressable
-                onPress={() => router.push(ROUTES.student.boardPapers)}
-                accessibilityRole="button"
-                accessibilityLabel="Sample Board Exam Paper, Class 10"
-                style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}
-              >
-                <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: color('accent/tint'), alignItems: 'center', justifyContent: 'center' }}>
-                  <FileText size={24} color={color('accent/default')} weight="duotone" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[type['type/h3'], { color: color('text/primary') }]}>Sample Board Exam Paper</Text>
-                  <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Class 10 channel</Text>
-                </View>
-                <CaretRight size={18} color={color('text/tertiary')} />
-              </Pressable>
-            </View>
+            {boardChannel ? (
+              <View style={{ marginTop: space.md }}>
+                <ActionCard
+                  icon={<FileText size={26} color={color('accent/default')} weight="duotone" />}
+                  title="Sample board exam paper"
+                  caption="Class 10 channel"
+                  onPress={() => router.push(ROUTES.student.boardPapers)}
+                />
+              </View>
+            ) : null}
 
-            {/* 7 · Detailed analysis */}
+            {/* 7 · My progress */}
             <View style={{ marginTop: space.md }}>
               <DetailedAnalysisCard />
             </View>
@@ -235,7 +199,7 @@ export default function HomeDashboardRoute() {
               <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs }]}>CONTINUE SOLVING</Text>
               <ActionCard
                 icon={<Exam size={26} color={color('accent/default')} weight="duotone" />}
-                title={inProgress ? inProgress.test?.title ?? 'Your test' : next ? next.title : 'Practise a chapter'}
+                title={inProgress ? inProgress.test?.title ?? 'Your test' : next ? next.title : 'Practice a chapter'}
                 caption={inProgress ? 'Test in progress. Tap to resume' : next ? next.reason : 'A few questions every day keeps your streak going'}
                 onPress={() => (inProgress
                   ? router.push({ pathname: ROUTES.student.testPreStart, params: { id: inProgress.test_id } })
@@ -260,68 +224,22 @@ export default function HomeDashboardRoute() {
           </View>
         )}
       />
+      <RefreshPill visible={pull.refreshing} top={header.maxHeight} />
     </View>
   );
 }
 
 
-function SubscriptionStrip({
-  state,
-  text,
-  onViewPlans,
-}: {
-  state: SubState;
-  text?: string;
-  onViewPlans: () => void;
-}) {
+function SubscriptionStrip({ state, text, onViewPlans }: { state: SubState; text?: string; onViewPlans: () => void }) {
   const { color, type, space, radius } = useTheme();
-  if (state === 'active') {
-    return (
-      <View
-        style={[
-          styles.strip,
-          { backgroundColor: color('bg/surface'), borderRadius: radius.md, padding: space.md },
-        ]}
-      >
-        <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
-          {text || 'Pro — active'}
-        </Text>
-        <Text style={[type['type/caption'], { color: color('semantic/success') }]}>Active</Text>
-      </View>
-    );
-  }
-  if (state === 'expiring') {
-    return (
-      <View
-        style={[
-          styles.strip,
-          {
-            backgroundColor: color('semantic/warning'),
-            borderRadius: radius.md,
-            padding: space.md,
-          },
-        ]}
-      >
-        <Text style={[type['type/body-m'], { color: color('text/primary') }]}>
-          {text || 'Your plan is expiring soon.'}
-        </Text>
-      </View>
-    );
-  }
+  const expiring = state === 'expiring';
   return (
-    <View
-      style={[
-        styles.strip,
-        { backgroundColor: color('accent/tint'), borderRadius: radius.md, padding: space.md },
-      ]}
-    >
+    <View style={[styles.strip, { backgroundColor: color(expiring ? 'semantic/warning' : 'accent/tint'), borderRadius: radius.md, padding: space.md, gap: space.sm }]}>
       <Text style={[type['type/body-m'], { color: color('text/primary'), flex: 1 }]}>
-        You&apos;re on Free access. Unlock full Test Series and Video Classes.
+        {expiring ? text || 'Your plan is expiring soon.' : 'You’re on free access. Unlock all tests and video lectures.'}
       </Text>
-      <Pressable onPress={onViewPlans}>
-        <Text style={[type['type/body-m-medium'], { color: color('accent/default') }]}>
-          View Plans
-        </Text>
+      <Pressable onPress={onViewPlans} accessibilityRole="button" hitSlop={space.xs} style={{ minHeight: 44, justifyContent: 'center' }}>
+        <Text style={[type['type/body-m-medium'], { color: expiring ? color('text/primary') : color('accent/default') }]}>{expiring ? 'Renew' : 'View plans'}</Text>
       </Pressable>
     </View>
   );

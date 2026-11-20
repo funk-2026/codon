@@ -12,8 +12,9 @@ import { parseSchedule, scheduleError, toScheduleInputs } from '@/src/teacher/sc
 import { KIND_LABEL } from '@/src/exam/logic';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { shadow } from '@/src/theme/elevation';
+import { formatDateTime } from '@/src/format/date';
 
-const when = (iso?: string) => (iso ? new Date(iso).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
+const when = (iso?: string) => formatDateTime(iso);
 
 /** Exam day control room: what is live, who is in, extend after an outage, move results, recompute after a key fix. */
 export default function AdminExamsRoute() {
@@ -33,7 +34,7 @@ export default function AdminExamsRoute() {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = () => void qc.invalidateQueries({ queryKey: ['admin', 'exams'] });
-  const fail = (e: unknown) => setError(e instanceof ApiError ? e.message : 'Something went wrong. Try again.');
+  const fail = (e: unknown) => setError(e instanceof ApiError ? e.message : 'Couldn’t do that. Try again.');
 
   const doExtend = useMutation({
     mutationFn: () => adminExtendExam(extend!.id, Number(minutes)),

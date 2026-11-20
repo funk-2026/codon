@@ -8,6 +8,14 @@ export const KIND_LABEL: Record<ExamKind, string> = {
   part: 'Mini Test (part syllabus)',
   chapter: 'Mini Test (one chapter)',
 };
+/** Short names for students. The longer KIND_LABEL helps staff pick a type. */
+export const KIND_SHORT: Record<ExamKind, string> = {
+  full: 'Grand Test',
+  pyq: 'Previous-year paper',
+  subject: 'Subject-wise',
+  part: 'Mini Test',
+  chapter: 'Mini Test',
+};
 export const STYLE_LABEL: Record<ExamStyle, string> = { neet: 'NEET style', school: 'School' };
 
 /** "2 h 05 min", "9 min 30 s", "45 s": a countdown that reads at a glance. */

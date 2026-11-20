@@ -4,16 +4,17 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { CaretRight, ChartLineUp, CheckCircle, FilePdf, Funnel } from 'phosphor-react-native';
 import { listReferenceDocs } from '@/src/api/reference';
-import { BottomSheet, EmptyState, ErrorBanner, PrimaryButton, Screen, ScreenHeader, SecondaryButton, SkeletonBlock } from '@/src/components';
+import { BottomSheet, EmptyState, ErrorBanner, PrimaryButton, Screen, ScreenHeader, SecondaryButton, SegmentedControl, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
-import { applySchemaFilter, EMPTY_FILTER, filterActive, filterSummary, flattenSchema, progressText, sortTopics, STATUS_LABEL, STATUS_ORDER, subjectProgress, toggle, type SchemaFilter, type SchemaSort } from '@/src/study/logic';
+import { applySchemaFilter, EMPTY_FILTER, filterActive, filterSummary, flattenSchema, progressText, shareOf, sortTopics, STATUS_LABEL, STATUS_ORDER, subjectAsked, subjectProgress, subjectStatusCounts, toggle, type SchemaFilter } from '@/src/study/logic';
 import { useSchema, useSchemaSort } from '@/src/study/useSchema';
 import { TopicRow } from '@/src/study/TopicRow';
+import { StatusBar } from '@/src/study/StatusBar';
 
-/** Schema home: Idx / Frq and Filter live here only. Subjects with progress; with a filter on, the topic-level result. */
+/** Schema home: topic order (syllabus order or most asked) and Filter live here only. Subjects with progress; with a filter on, the topic-level result. */
 export default function SchemaRoute() {
   const { color, type, space, radius } = useTheme();
   const router = useRouter();
@@ -27,21 +28,13 @@ export default function SchemaRoute() {
   const schemaPdf = pdf.data?.[0];
   const data = q.data;
   const active = filterActive(filter);
+  const totalAsked = data ? data.subjects.reduce((n, x) => n + subjectAsked(x), 0) : 0;
   const rows = data && active ? sortTopics(applySchemaFilter(flattenSchema(data), filter), sort, filter.years) : [];
 
-  const toggleBtn = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: color('bg/sunken'), borderRadius: radius.pill, padding: 2 }}>
-        {(['idx', 'frq'] as SchemaSort[]).map((s) => (
-          <Pressable key={s} onPress={() => setSort(s)} accessibilityRole="tab" accessibilityState={{ selected: sort === s }} accessibilityLabel={s === 'idx' ? 'Syllabus order' : 'Most asked first'} style={{ minHeight: 32, paddingHorizontal: 10, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: sort === s ? color('bg/surface') : 'transparent' }}>
-            <Text style={[type['type/caption'], { color: sort === s ? color('accent/default') : color('text/secondary') }]}>{s === 'idx' ? 'Idx' : 'Frq'}</Text>
-          </Pressable>
-        ))}
-      </View>
+  const filterBtn = (
       <Pressable onPress={() => { setDraft(filter); setSheet(true); }} accessibilityRole="button" accessibilityLabel="Filter topics" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? color('accent/default') : color('bg/sunken') }}>
         <Funnel size={20} color={active ? color('accent/on-accent') : color('text/primary')} weight={active ? 'fill' : 'regular'} />
       </Pressable>
-    </View>
   );
 
   const group = (title: string, children: React.ReactNode) => (
@@ -61,13 +54,18 @@ export default function SchemaRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Schema" right={toggleBtn} />
+      <ScreenHeader title="Schema" right={filterBtn} />
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] }}>
         <Pressable onPress={() => router.push({ pathname: ROUTES.student.analytics, params: { area: 'schema' } })} accessibilityRole="button" style={({ pressed }) => ({ minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('accent/tint'), borderRadius: radius.lg, paddingHorizontal: space.md, opacity: pressed ? 0.94 : 1 })}>
           <ChartLineUp size={24} color={color('accent/default')} weight="duotone" />
           <Text style={[type['type/h3'], { color: color('accent/default'), flex: 1 }]}>Check analytics</Text>
           <CaretRight size={18} color={color('accent/default')} />
         </Pressable>
+
+        <View style={{ gap: space.xs }}>
+          <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>Order topics by</Text>
+          <SegmentedControl options={[{ key: 'idx' as const, label: 'Syllabus order' }, { key: 'frq' as const, label: 'Most asked' }]} value={sort} onChange={setSort} />
+        </View>
 
         {schemaPdf && !active ? (
           <Pressable onPress={() => router.push({ pathname: ROUTES.student.referenceDoc, params: { id: schemaPdf.id } })} accessibilityRole="button" style={({ pressed }) => ({ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('bg/surface'), borderRadius: radius.lg, paddingHorizontal: space.md, opacity: pressed ? 0.94 : 1 })}>
@@ -105,13 +103,11 @@ export default function SchemaRoute() {
             return (
               <Pressable key={s.id} onPress={() => router.push({ pathname: ROUTES.student.schemaSubject, params: { id: s.id } })} accessibilityRole="button" accessibilityLabel={`${s.name}, ${p.total} topics, ${progressText(p)}`} style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, gap: 6, opacity: pressed ? 0.94 : 1 }, shadow()]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[type['type/h3'], { color: color('text/primary'), flex: 1 }]}>{s.name} ({p.total} topics)</Text>
+                  <Text style={[type['type/h3'], { color: color('text/primary'), flex: 1 }]}>{s.name}</Text>
                   <CaretRight size={18} color={color('text/tertiary')} />
                 </View>
-                <Text style={[type['type/caption'], { color: color('semantic/success') }]}>{progressText(p)}</Text>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: color('bg/sunken') }}>
-                  <View style={{ width: `${p.total ? Math.round((p.confident / p.total) * 100) : 0}%`, height: 6, borderRadius: 3, backgroundColor: color('semantic/success') }} />
-                </View>
+                <StatusBar counts={subjectStatusCounts(s)} />
+                <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{p.confident} of {p.total} confident · {subjectAsked(s)} questions asked · {shareOf(subjectAsked(s), totalAsked)}% of all</Text>
               </Pressable>
             );
           })

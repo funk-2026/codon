@@ -88,7 +88,7 @@ export default function CreateContentRoute() {
       setPicked({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType || 'video/mp4', size: asset.size ?? 0 });
       uploadVideo(asset.uri, asset.name, asset.mimeType || 'video/mp4', asset.size ?? 0);
     } catch (err) {
-      setVideoError('Failed to select file.');
+      setVideoError('Couldn’t pick that file. Try again.');
     }
   };
 
@@ -197,7 +197,7 @@ export default function CreateContentRoute() {
       show('Content saved', 'success');
       router.push({ pathname: ROUTES.teacher.contentPreview, params: { type: contentType, id: res.id } });
     } catch (err) {
-      show('Failed to save content', 'error');
+      show('Couldn’t save content. Try again.', 'error');
     } finally {
       setSaving(false);
     }
@@ -205,7 +205,7 @@ export default function CreateContentRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="New Content" right={<>
+      <ScreenHeader title="New content" right={<>
 <TextButton label={saving ? 'Saving…' : 'Save Draft'} onPress={handleSaveDraft} disabled={saving} />
 </>} />
 
@@ -380,7 +380,7 @@ export default function CreateContentRoute() {
               Your uploaded file will be removed.
             </Text>
             <View style={{ gap: space.sm, marginTop: space.lg }}>
-              <PrimaryButton label="Switch Type" onPress={confirmTypeSwitch} />
+              <PrimaryButton label="Switch type" onPress={confirmTypeSwitch} />
               <SecondaryButton label="Cancel" onPress={() => setPendingTypeSwitch(null)} />
             </View>
           </View>

@@ -1,4 +1,5 @@
 import type { ExamCard, ExamKind, GrandAttempt } from '@/src/api/exams';
+import { KIND_SHORT } from './logic';
 
 /** The three Tests tabs. Full-length mocks and previous-year papers are Grand Tests; chapter and part tests are Mini; subject tests are Subject-wise. */
 export type TestTab = 'grand' | 'mini' | 'subject';
@@ -9,13 +10,13 @@ export const TEST_TABS: { key: TestTab; label: string }[] = [
   { key: 'mini', label: 'Mini Test' },
   { key: 'subject', label: 'Subject-wise' },
 ];
-export const TEST_VIEWS: Record<TestTab, { key: TestView; label: string }[]> = {
-  grand: [{ key: 'live', label: 'Live & Upcoming' }, { key: 'library', label: 'Library' }, { key: 'attempted', label: 'Attempted' }],
-  mini: [{ key: 'live', label: 'Live & Upcoming' }, { key: 'library', label: 'Past Tests' }, { key: 'attempted', label: 'Attempted' }],
-  subject: [{ key: 'live', label: 'Live & Upcoming' }, { key: 'library', label: 'Past Tests' }, { key: 'attempted', label: 'Attempted' }],
-};
-export const YEARS = [2025, 2026, 2027] as const;
-export const DEFAULT_YEAR = 2026;
+/** The same three views on every tab, so a student learns them once. */
+const VIEWS: { key: TestView; label: string }[] = [
+  { key: 'live', label: 'Live & upcoming' },
+  { key: 'library', label: 'Library' },
+  { key: 'attempted', label: 'Attempted' },
+];
+export const TEST_VIEWS: Record<TestTab, { key: TestView; label: string }[]> = { grand: VIEWS, mini: VIEWS, subject: VIEWS };
 
 const TAB_OF: Record<ExamKind, TestTab> = { full: 'grand', pyq: 'grand', part: 'mini', chapter: 'mini', subject: 'subject' };
 export const tabOf = (c: ExamCard): TestTab => TAB_OF[c.kind] ?? 'mini';
@@ -42,11 +43,23 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 /** Counts of each tab's attempted tests, for badges. */
 export const countTab = (cards: ExamCard[], tab: TestTab, view: TestView) => cards.filter((c) => tabOf(c) === tab && viewOf(c) === view).length;
 
+/** What a card covers, as its first line: the subject and chapter when it has them, else its type. */
+export function cardEyebrow(c: ExamCard): string {
+  const sub = c.subject_name;
+  const ch = c.chapter_name;
+  if (c.kind === 'subject') return sub ?? KIND_SHORT.subject;
+  if (c.kind === 'chapter') return [sub, ch].filter(Boolean).join(' · ') || KIND_SHORT.chapter;
+  if (c.kind === 'part') return sub ? `${sub} · ${KIND_SHORT.part}` : KIND_SHORT.part;
+  if (c.kind === 'pyq') return c.exam_year ? `${KIND_SHORT.pyq} · ${c.exam_year}` : KIND_SHORT.pyq;
+  return KIND_SHORT.full;
+}
+
 /**
- * Cards of one tab and view, grouped by month for the chosen year. Upcoming tests list the soonest month first;
- * the rest list the newest month first. Tests with no date at all sit in an "Undated" group so nothing is hidden.
+ * Cards of one tab and view, grouped by month. `year` limits it to one year (the Grand Test library, which is
+ * browsed by year); `null` lists every year, with the year in each heading. Upcoming tests list the soonest month
+ * first, the rest newest first. Tests with no date sit in an "Undated" group so nothing is hidden.
  */
-export function monthGroups(cards: ExamCard[], tab: TestTab, view: TestView, year: number, now: Date = new Date()): MonthGroup[] {
+export function monthGroups(cards: ExamCard[], tab: TestTab, view: TestView, year: number | null, now: Date = new Date()): MonthGroup[] {
   const list = cards.filter((c) => tabOf(c) === tab && viewOf(c) === view);
   const byMonth = new Map<number, ExamCard[]>();
   const undated: ExamCard[] = [];
@@ -57,19 +70,57 @@ export function monthGroups(cards: ExamCard[], tab: TestTab, view: TestView, yea
       continue;
     }
     const d = new Date(t);
-    if (d.getFullYear() !== year) continue;
-    byMonth.set(d.getMonth(), [...(byMonth.get(d.getMonth()) ?? []), c]);
+    if (year != null && d.getFullYear() !== year) continue;
+    const k = d.getFullYear() * 12 + d.getMonth();
+    byMonth.set(k, [...(byMonth.get(k) ?? []), c]);
   }
   const asc = view === 'live';
   const months = [...byMonth.keys()].sort((a, b) => (asc ? a - b : b - a));
-  const out: MonthGroup[] = months.map((m) => ({
-    key: `${year}-${m}`,
-    title: `${MONTHS[m]} ${year}`,
-    current: now.getFullYear() === year && now.getMonth() === m,
-    cards: (byMonth.get(m) ?? []).sort((a, b) => ((cardTime(a) ?? 0) - (cardTime(b) ?? 0)) * (asc ? 1 : -1)),
-  }));
+  const out: MonthGroup[] = months.map((k) => {
+    const y = Math.floor(k / 12);
+    const m = k % 12;
+    return {
+      key: `${y}-${m}`,
+      title: `${MONTHS[m]} ${y}`,
+      current: now.getFullYear() === y && now.getMonth() === m,
+      cards: (byMonth.get(k) ?? []).sort((a, b) => ((cardTime(a) ?? 0) - (cardTime(b) ?? 0)) * (asc ? 1 : -1)),
+    };
+  });
   if (undated.length) out.push({ key: 'undated', title: 'Undated', cards: undated.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true })) });
   return out;
+}
+
+/** Mini and Subject-wise tests are a library, not a calendar: grouped by subject, then chapter and title. */
+export function subjectGroups(cards: ExamCard[], tab: TestTab, view: TestView): MonthGroup[] {
+  const by = new Map<string, ExamCard[]>();
+  for (const c of cards) {
+    if (tabOf(c) !== tab || viewOf(c) !== view) continue;
+    const name = c.subject_name ?? 'Other';
+    by.set(name, [...(by.get(name) ?? []), c]);
+  }
+  const names = [...by.keys()].sort((a, b) => (a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)));
+  return names.map((n) => ({
+    key: `subject-${n}`,
+    title: n,
+    cards: (by.get(n) ?? []).sort((a, b) => (a.chapter_name ?? '').localeCompare(b.chapter_name ?? '', undefined, { numeric: true }) || a.title.localeCompare(b.title, undefined, { numeric: true })),
+  }));
+}
+
+/** What the list shows: months for anything dated, subjects for the Mini and Subject-wise library. */
+export function listGroups(cards: ExamCard[], tab: TestTab, view: TestView, year: number, now: Date = new Date()): MonthGroup[] {
+  if (view === 'library') return tab === 'grand' ? monthGroups(cards, tab, view, year, now) : subjectGroups(cards, tab, view);
+  return monthGroups(cards, tab, view, null, now);
+}
+
+/** Years that have Grand Test library papers, newest first, always including this year. */
+export function libraryYears(cards: ExamCard[], now: Date = new Date()): number[] {
+  const ys = new Set<number>([now.getFullYear()]);
+  for (const c of cards) {
+    if (tabOf(c) !== 'grand' || viewOf(c) !== 'library') continue;
+    const t = cardTime(c);
+    if (t != null) ys.add(new Date(t).getFullYear());
+  }
+  return [...ys].sort((a, b) => b - a);
 }
 
 // ── Grand Test performance analysis ─────────────────────────────────────────

@@ -14,6 +14,7 @@ import { MediaImage } from '@/src/rich/MediaImage';
 import { updateMe, type Subscription } from '@/src/api/profile';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
+import { formatDate } from '@/src/format/date';
 
 type KycState = 'not_started' | 'pending' | 'verified' | 'action_needed' | null;
 const KYC: Record<Exclude<KycState, null>, { label: string; token: 'text/tertiary' | 'semantic/warning' | 'semantic/success' | 'semantic/danger' }> = {
@@ -23,16 +24,30 @@ const KYC: Record<Exclude<KycState, null>, { label: string; token: 'text/tertiar
   action_needed: { label: 'Action needed', token: 'semantic/danger' },
 };
 
-const ROWS: { label: string; text: string; Icon: Icon; href: string }[] = [
-  { label: 'Edit Profile', text: 'Name, exam date, state', Icon: PencilSimple, href: ROUTES.student.editProfile },
-  { label: 'My progress', text: 'QBank, tests, videos, Schema', Icon: ChartLineUp, href: ROUTES.student.myProgress },
-  { label: 'My plan and payments', text: 'Your plan and receipts', Icon: Receipt, href: ROUTES.student.payments },
-  { label: 'Settings', text: 'Theme, reminders, account', Icon: Gear, href: ROUTES.student.settings },
-  { label: 'How to use this app', text: 'A short guide to each feature', Icon: FilePdf, href: ROUTES.student.howToUse },
-  { label: 'Our team and faculty', text: 'The people behind Codon', Icon: UsersThree, href: ROUTES.student.team },
-  { label: 'Give feedback', text: 'Report a problem or send an idea', Icon: ChatCircleText, href: ROUTES.student.giveFeedback },
-  { label: 'Help and information', text: 'FAQ, contact, policies, legal', Icon: Info, href: ROUTES.student.help },
-  { label: 'Community and sharing', text: 'Follow us and invite friends', Icon: ShareNetwork, href: ROUTES.student.community },
+type Row = { label: string; text: string; Icon: Icon; href: string };
+const SECTIONS: { title: string; rows: Row[] }[] = [
+  {
+    title: 'My account',
+    rows: [
+      { label: 'Edit profile', text: 'Name, exam date, state', Icon: PencilSimple, href: ROUTES.student.editProfile },
+      { label: 'My plan and payments', text: 'Your plan and receipts', Icon: Receipt, href: ROUTES.student.payments },
+      { label: 'Settings', text: 'Theme, reminders, account', Icon: Gear, href: ROUTES.student.settings },
+    ],
+  },
+  {
+    title: 'Learning',
+    rows: [{ label: 'My progress', text: 'QBank, tests, videos, Schema', Icon: ChartLineUp, href: ROUTES.student.myProgress }],
+  },
+  {
+    title: 'Help and about',
+    rows: [
+      { label: 'How to use this app', text: 'A short guide to each feature', Icon: FilePdf, href: ROUTES.student.howToUse },
+      { label: 'Help and information', text: 'FAQ, contact, policies, legal', Icon: Info, href: ROUTES.student.help },
+      { label: 'Give feedback', text: 'Report a problem or send an idea', Icon: ChatCircleText, href: ROUTES.student.giveFeedback },
+      { label: 'Our team and faculty', text: 'The people behind Codon', Icon: UsersThree, href: ROUTES.student.team },
+      { label: 'Community and sharing', text: 'Follow us and invite friends', Icon: ShareNetwork, href: ROUTES.student.community },
+    ],
+  },
 ];
 
 /** The student's own page. Opens from the avatar on Home. Tapping the photo changes the photo only. */
@@ -100,7 +115,7 @@ export default function ProfileHomeRoute() {
             <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md }, shadow()]}>
               <Text style={[type['type/overline'], { color: color('text/tertiary') }]}>ACTIVE PLAN</Text>
               <Text style={[type['type/h3'], { color: color('text/primary'), marginTop: 2 }]}>{sub.plan?.name || 'Subscription'}</Text>
-              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Active until {new Date(sub.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+              <Text style={[type['type/caption'], { color: color('text/secondary') }]}>Active until {formatDate(sub.end_date)}</Text>
             </View>
           ) : (
             <Pressable onPress={() => router.push(ROUTES.student.subscriptionPlans)} accessibilityRole="button" style={({ pressed }) => [{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, opacity: pressed ? 0.94 : 1 }, shadow()]}>
@@ -124,24 +139,29 @@ export default function ProfileHomeRoute() {
           </Pressable>
         ) : null}
 
-        <View style={[{ marginTop: space.lg, backgroundColor: color('bg/surface'), borderRadius: radius.lg, overflow: 'hidden' }, shadow()]}>
-          {ROWS.map((r, i) => (
-            <Pressable
-              key={r.label}
-              onPress={() => router.push(r.href as never)}
-              accessibilityRole="button"
-              accessibilityLabel={`${r.label}. ${r.text}`}
-              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 60, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: color('border/subtle'), opacity: pressed ? 0.85 : 1 })}
-            >
-              <r.Icon size={22} color={color('accent/default')} weight="duotone" />
-              <View style={{ flex: 1 }}>
-                <Text style={[type['type/body-l'], { color: color('text/primary') }]}>{r.label}</Text>
-                <Text style={[type['type/caption'], { color: color('text/tertiary') }]} numberOfLines={1}>{r.text}</Text>
-              </View>
-              <CaretRight size={18} color={color('text/tertiary')} />
-            </Pressable>
-          ))}
-        </View>
+        {SECTIONS.map((sec) => (
+          <View key={sec.title} style={{ marginTop: space.lg }}>
+            <Text style={[type['type/overline'], { color: color('text/tertiary'), marginBottom: space.xs, marginLeft: space.xs }]}>{sec.title.toUpperCase()}</Text>
+            <View style={[{ backgroundColor: color('bg/surface'), borderRadius: radius.lg, overflow: 'hidden' }, shadow()]}>
+              {sec.rows.map((r, i) => (
+                <Pressable
+                  key={r.label}
+                  onPress={() => router.push(r.href as never)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${r.label}. ${r.text}`}
+                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 60, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: color('border/subtle'), opacity: pressed ? 0.85 : 1 })}
+                >
+                  <r.Icon size={22} color={color('accent/default')} weight="duotone" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type['type/body-l'], { color: color('text/primary') }]}>{r.label}</Text>
+                    <Text style={[type['type/caption'], { color: color('text/tertiary') }]} numberOfLines={1}>{r.text}</Text>
+                  </View>
+                  <CaretRight size={18} color={color('text/tertiary')} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ))}
         <View style={{ height: space.md }} />
       </ScrollView>
     </Screen>

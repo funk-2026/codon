@@ -11,7 +11,7 @@ import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 
 export const BOARD_CLASS = '10';
-const TITLES: Partial<Record<RefKind, string>> = { pattern: 'Paper Pattern', past_paper: 'Past Year Papers', practice_paper: 'Practice Question Papers', weightage: 'Weightage' };
+const TITLES: Partial<Record<RefKind, string>> = { pattern: 'Paper Pattern', past_paper: 'Past Year Papers', practice_paper: 'Practice question papers', weightage: 'Weightage' };
 const KINDS = Object.keys(TITLES) as RefKind[];
 
 /**

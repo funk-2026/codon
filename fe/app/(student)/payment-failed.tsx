@@ -69,7 +69,7 @@ export default function PaymentFailedRoute() {
         {maybeCharged ? (
           <PrimaryButton label="Check my payments" onPress={() => router.replace(ROUTES.student.payments)} />
         ) : (
-          <PrimaryButton label="Try Again" onPress={handleRetry} loading={retrying} />
+          <PrimaryButton label="Try again" onPress={handleRetry} loading={retrying} />
         )}
         {order ? <SecondaryButton label="Get help with this payment" onPress={() => router.push({ pathname: ROUTES.student.help, params: { order } })} /> : null}
         <SecondaryButton

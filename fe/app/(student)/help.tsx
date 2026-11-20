@@ -18,7 +18,7 @@ import { track } from '@/src/analytics/track';
 const FAQ: { q: string; a: string }[] = [
   {
     q: 'I paid but I don’t have access',
-    a: 'Open Payments (Profile → Payments) and check the status. If it says captured but your plan isn’t active, tap “Report a payment problem” below and send us the order ID shown on that payment.',
+    a: 'Open My plan and payments (Profile → My plan and payments) and check the status. If it says captured but your plan isn’t active, tap “Report a payment problem” below and send us the order ID shown on that payment.',
   },
   {
     q: 'My answers didn’t save during a test',
@@ -30,11 +30,11 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'How do I sign out of a phone I no longer use?',
-    a: 'Go to Profile → Manage devices to see where you’re signed in, and sign out of any device from there.',
+    a: 'Go to Profile → Settings → Manage devices to see where you’re signed in, and sign out of any device from there.',
   },
   {
     q: 'How do I change my course?',
-    a: 'Go to Profile → Settings → Change Course. Your progress is kept per test, but lists will show the new course.',
+    a: 'Go to Profile → Settings → Change course. Your progress is kept per test, but lists will show the new course.',
   },
   {
     q: 'How do I delete my account or get a copy of my data?',

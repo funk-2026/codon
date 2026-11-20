@@ -14,6 +14,7 @@ import { useAuth } from '@/src/auth/AuthContext';
 import { ApiError } from '@/src/api/client';
 import { getResets, INDIAN_STATES, resetContent, updateMe, type ResetScope, type ResetStatus } from '@/src/api/profile';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
+import { formatDate } from '@/src/format/date';
 
 const STATE_OPTIONS = INDIAN_STATES.map((s) => ({ value: s, label: s }));
 const RESETS: { scope: ResetScope; label: string; what: string }[] = [
@@ -22,7 +23,7 @@ const RESETS: { scope: ResetScope; label: string; what: string }[] = [
   { scope: 'flashcards', label: 'Reset Flashcards', what: 'Your flash card progress and review schedule.' },
   { scope: 'pulse', label: 'Reset Pulse', what: 'Your Pulse reading history.' },
 ];
-const when = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+const when = (iso?: string) => formatDate(iso);
 
 export default function EditProfileRoute() {
   const { color, type, space, radius } = useTheme();
@@ -75,7 +76,7 @@ export default function EditProfileRoute() {
       show('Profile updated', 'success');
       goBack();
     } catch {
-      show('Failed to update profile.', 'error');
+      show('Couldn’t update your profile. Try again.', 'error');
     } finally {
       setSaving(false);
     }
@@ -101,8 +102,8 @@ export default function EditProfileRoute() {
   const masked = phone ? `${phone.slice(0, 3)} ${'X'.repeat(Math.max(0, phone.length - 5))}${phone.slice(-2)}` : '';
 
   return (
-    <Screen>
-      <ScreenHeader title="Edit Profile" right={<TextButton label={saving ? 'Saving…' : 'Save'} onPress={handleSave} disabled={!dirty || saving} />} />
+    <Screen keyboard>
+      <ScreenHeader title="Edit profile" right={<TextButton label={saving ? 'Saving…' : 'Save'} onPress={handleSave} disabled={!dirty || saving} />} />
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={{ marginTop: space.lg, gap: space.lg }}>
           <InputField label="Full name" value={name} onChangeText={setName} error={error} />

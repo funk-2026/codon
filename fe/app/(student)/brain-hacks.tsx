@@ -50,7 +50,7 @@ export default function BrainHacksListRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Free Brain Hacks." subtitle="Quick, practical tips — no course or subscription needed." />
+      <ScreenHeader title="Free Brain Hacks" subtitle="Quick, practical tips — no course or subscription needed." />
 
       {cats.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginTop: space.md }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
@@ -73,7 +73,7 @@ export default function BrainHacksListRoute() {
         ) : error ? (
           <EmptyState icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />} title="Couldn’t load Brain Hacks" description="Check your connection and try again." action={<TextButton label="Retry" onPress={load} />} />
         ) : rows.length === 0 ? (
-          <EmptyState icon={<Sparkle size={32} color={color('text/tertiary')} weight="duotone" />} title="New Brain Hacks are on the way" description={category ? 'Nothing in this category yet.' : 'Check back soon.'} />
+          <EmptyState icon={<Sparkle size={32} color={color('text/tertiary')} weight="duotone" />} title="New Brain Hacks are on the way" description={category ? 'Nothing in this category yet.' : 'Check back soon.'} action={category ? <SecondaryButton label="Show all" onPress={() => setCategory(undefined)} /> : undefined} />
         ) : (
           <>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}>

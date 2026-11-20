@@ -11,6 +11,7 @@ import type { KYCRecord } from '@/src/api/kyc';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { formatDate } from '@/src/format/date';
 
 
 function QueueRow({
@@ -30,7 +31,7 @@ function QueueRow({
 
   const displayName = entry.user?.name || 'Unknown User';
   const displayPhone = entry.user?.phone_number || 'No Phone';
-  const displayDate = new Date(entry.submitted_at).toLocaleDateString();
+  const displayDate = formatDate(entry.submitted_at);
 
   return (
     <Animated.View style={flashStyle}>
@@ -114,7 +115,7 @@ export function KycQueueView() {
       void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       show('Approved', 'success');
     } catch (e) {
-      show('Failed to approve', 'error');
+      show('Couldn’t approve. Try again.', 'error');
     }
   };
 
@@ -126,7 +127,7 @@ export function KycQueueView() {
       void queryClient.invalidateQueries({ queryKey: ['admin', 'inbox'] });
       show('Rejected', 'success');
     } catch (e) {
-      show('Failed to reject', 'error');
+      show('Couldn’t reject. Try again.', 'error');
     } finally {
       setRejectTarget(null);
       setReason('');
@@ -145,7 +146,7 @@ export function KycQueueView() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load KYC queue"
-            description="Something went wrong fetching pending reviews."
+            description="Couldn’t load pending reviews. Check your connection and try again."
             action={<TextButton label="Retry" onPress={fetchRecords} />}
           />
         ) : entries.length === 0 ? (

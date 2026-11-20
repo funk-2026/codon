@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { listSessions, revokeSession } from '@/src/api/sessions';
 import { keys } from './keys';
+import { formatDate } from '@/src/format/date';
 
 export type Device = {
   id: string;
@@ -20,7 +21,7 @@ export const useDevices = () =>
         return {
           id: s.id,
           label: s.device_info || 'Unknown Device',
-          lastActive: new Date(s.last_used_at).toLocaleDateString(),
+          lastActive: formatDate(s.last_used_at),
           current: false,
           kind: info.includes('ipad') || info.includes('tablet') ? 'tablet' : 'phone',
         };

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle, Lock, PauseCircle } from 'phosphor-react-native';
-import { EmptyState, ErrorBanner, Screen, ScreenHeader, SkeletonBlock, TextButton } from '@/src/components';
+import { EmptyState, ErrorBanner, FilterPills, ProgressStrip, Screen, ScreenHeader, SkeletonBlock, TextButton } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { useAuth } from '@/src/auth/AuthContext';
 import { getQBankOverview } from '@/src/api/qbank';
@@ -25,24 +25,8 @@ export default function QBankSubjectRoute() {
   return (
     <Screen>
       <ScreenHeader title={subject?.name ?? 'QBank'} />
-      {subject ? (
-        <View style={{ paddingHorizontal: space.md, marginTop: space.xs, gap: 6 }}>
-          <Text style={[type['type/body-m-medium'], { color: color('semantic/success') }]}>{progressLine(subject)}</Text>
-          <View style={{ height: 6, borderRadius: 3, backgroundColor: color('bg/sunken') }}>
-            <View style={{ width: `${Math.round(progressFraction(subject) * 100)}%`, height: 6, borderRadius: 3, backgroundColor: color('semantic/success') }} />
-          </View>
-        </View>
-      ) : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: space.sm }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
-        {QBANK_FILTERS.map((f) => {
-          const on = f.key === filter;
-          return (
-            <Pressable key={f.key} onPress={() => setFilter(f.key)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ minHeight: 36, paddingHorizontal: space.md, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: on ? color('accent/tint') : color('bg/surface'), borderWidth: 1, borderColor: on ? color('accent/default') : color('border/subtle') }}>
-              <Text style={[type['type/caption'], { color: on ? color('accent/default') : color('text/secondary') }]}>{f.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {subject ? <ProgressStrip line={progressLine(subject)} fraction={progressFraction(subject)} /> : null}
+      <FilterPills options={QBANK_FILTERS} value={filter} onChange={setFilter} />
       <ScrollView contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: space['3xl'] }}>
         {q.isPending ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} height={72} radius={radius.lg} />)

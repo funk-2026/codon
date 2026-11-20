@@ -48,6 +48,15 @@ export const topicsOf = (c: SchemaChapter) => c.topics;
 export const chapterProgress = (c: SchemaChapter): Progress => ({ total: c.topics.length, confident: c.topics.filter((t) => t.status === 'confident').length });
 export const subjectProgress = (s: SchemaSubject): Progress =>
   s.chapters.reduce<Progress>((p, c) => { const x = chapterProgress(c); return { total: p.total + x.total, confident: p.confident + x.confident }; }, { confident: 0, total: 0 });
+/** How many topics sit in each status, for the chapter and subject bars. */
+export type StatusCounts = Record<SchemaStatus, number>;
+export const statusCounts = (topics: SchemaTopic[]): StatusCounts =>
+  topics.reduce<StatusCounts>((n, t) => ({ ...n, [t.status]: n[t.status] + 1 }), { yet_to_read: 0, yet_to_revise: 0, confident: 0 });
+export const subjectStatusCounts = (s: SchemaSubject): StatusCounts => statusCounts(s.chapters.flatMap((c) => c.topics));
+/** The topics a status filter lets through. `all` lets every topic through. */
+export type StatusFilter = 'all' | SchemaStatus;
+export const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [{ key: 'all', label: 'All' }, ...STATUS_ORDER.map((k) => ({ key: k, label: STATUS_LABEL[k] }))];
+export const matchesStatus = (t: SchemaTopic, f: StatusFilter) => f === 'all' || t.status === f;
 export const progressText = (p: Progress) => `${p.confident}/${p.total} confident`;
 
 export type SchemaSort = 'idx' | 'frq';
@@ -58,6 +67,15 @@ export function sortTopics<T extends { topic: SchemaTopic }>(rows: T[], sort: Sc
   if (sort === 'idx') return rows;
   return rows.map((r, i) => ({ r, i })).sort((a, b) => topicCount(b.r.topic, years) - topicCount(a.r.topic, years) || a.i - b.i).map((x) => x.r);
 }
+
+// ── Weightage: how often a topic, chapter or subject has been asked ──────────
+/** 0 to 1: this much against the biggest in its group, eased so mid-sized topics still show a visible shade. */
+export const heat = (value: number, max: number): number => (max > 0 && value > 0 ? Math.pow(Math.min(1, value / max), 0.7) : 0);
+/** Questions asked in a chapter (limited to the chosen years when there are any). */
+export const chapterAsked = (c: SchemaChapter, years: string[] = []) => c.topics.reduce((n, t) => n + topicCount(t, years), 0);
+export const subjectAsked = (s: SchemaSubject, years: string[] = []) => s.chapters.reduce((n, c) => n + chapterAsked(c, years), 0);
+/** A subject's share of all questions asked, as a whole percentage. */
+export const shareOf = (value: number, total: number) => (total > 0 ? Math.round((value * 100) / total) : 0);
 
 export type SchemaFilter = { years: string[]; subjectIds: string[]; chapterIds: string[]; statuses: SchemaStatus[] };
 export const EMPTY_FILTER: SchemaFilter = { years: [], subjectIds: [], chapterIds: [], statuses: [] };

@@ -10,6 +10,7 @@ import type { KYCRecord } from '@/src/api/kyc';
 import { ROUTES } from '@/src/navigation/routes';
 import { useSafeBack } from '@/src/navigation/useSafeBack';
 import { useAdminKycRecord, useRemovePendingKyc } from '@/src/queries/admin';
+import { formatDate } from '@/src/format/date';
 
 const ID_TYPE_LABEL: Record<KYCRecord['id_type'], string> = {
   aadhaar: 'Aadhaar',
@@ -68,7 +69,7 @@ export default function KycReviewDetailRoute() {
       show(`Approved — ${displayName} now has verified access.`, 'success');
       await advance();
     } catch (e) {
-      show('Failed to approve', 'error');
+      show('Couldn’t approve. Try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -85,7 +86,7 @@ export default function KycReviewDetailRoute() {
       show(`Rejected — ${displayName} has been notified.`, 'success');
       await advance();
     } catch (e) {
-      show('Failed to reject', 'error');
+      show('Couldn’t reject. Try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -111,7 +112,7 @@ export default function KycReviewDetailRoute() {
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
           title="Couldn't load record"
-          description="Something went wrong fetching this KYC record."
+          description="Couldn’t load this KYC record. Check your connection and try again."
           action={<TextButton label="Retry" onPress={load} />}
           style={{ marginTop: space.xl }}
         />
@@ -168,7 +169,7 @@ export default function KycReviewDetailRoute() {
               <Divider />
               <DetailRow label="ID Number" value={record.id_number} />
               <Divider />
-              <DetailRow label="Submitted" value={new Date(record.submitted_at).toLocaleDateString()} />
+              <DetailRow label="Submitted" value={formatDate(record.submitted_at)} />
             </View>
           </ScrollView>
 

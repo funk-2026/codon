@@ -70,7 +70,7 @@ export function ContentReviewView({ items, loading, error, onRetry }: { items: R
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load the queue"
-            description="Something went wrong fetching what's waiting."
+            description="Couldn’t load what’s waiting. Check your connection and try again."
             action={<TextButton label="Retry" onPress={onRetry} />}
           />
         ) : items.length === 0 ? (

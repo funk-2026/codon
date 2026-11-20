@@ -33,14 +33,14 @@ export default function GiveFeedbackScreen() {
       await submitFeedback({ category, message });
       setSubmitted(true);
     } catch (err) {
-      show('Failed to submit feedback. Please try again.', 'error');
+      show('Couldn’t send your feedback. Try again.', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Screen>
+    <Screen keyboard>
       <ScreenHeader title="Give Feedback" />
 
       {submitted ? (
@@ -62,7 +62,7 @@ export default function GiveFeedbackScreen() {
           <TextButton label="Done" onPress={() => goBack()} style={{ marginTop: space.lg }} />
         </View>
       ) : (
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: space['3xl'] + insets.bottom }}
           showsVerticalScrollIndicator={false}
         >

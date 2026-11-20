@@ -313,7 +313,7 @@ export default function TestQuestionRoute() {
               ? S.error.message
               : S.error instanceof ApiError && S.error.status === 403
               ? 'This test needs an active subscription.'
-              : 'Something went wrong loading your questions. Check your connection and try again.'
+              : 'Couldn’t load your questions. Check your connection and try again.'
           }
           action={<TextButton label="Retry" onPress={S.reload} />}
           style={{ flex: 1, justifyContent: 'center' }}
@@ -570,9 +570,9 @@ export default function TestQuestionRoute() {
                   if (n >= 0) go(n);
                 }}
               />
-              <PrimaryButton label="Submit Test" onPress={() => { setPaletteOpen(false); setSubmitOpen(true); }} />
+              <PrimaryButton label="Submit test" onPress={() => { setPaletteOpen(false); setSubmitOpen(true); }} />
               {!(attempt?.test?.delivery === 'live' && attempt?.official) ? (
-                <TextButton label="Discard Test" onPress={() => { setPaletteOpen(false); setDiscardOpen(true); }} />
+                <TextButton label="Discard test" onPress={() => { setPaletteOpen(false); setDiscardOpen(true); }} />
               ) : null}
             </View>
           </BottomSheet>
@@ -625,7 +625,7 @@ export default function TestQuestionRoute() {
                 await discardAttempt(attempt.id);
                 void queryClient.invalidateQueries({ queryKey: keys.attempts });
                 setDiscardOpen(false);
-                router.replace(ROUTES.student.practice);
+                router.dismissTo(ROUTES.student.practice);
               } catch {
                 setDiscarding(false);
                 setDiscardOpen(false);
@@ -648,8 +648,8 @@ export default function TestQuestionRoute() {
             onPress={() => {
               void sync.flushNow();
               // Back in the middle of a custom module pauses it: the Start screen then reads Resume.
-              if (attempt?.test?.module_type === 'custom' && attempt.test_id) router.replace({ pathname: ROUTES.student.customStart, params: { id: attempt.test_id } });
-              else router.replace(ROUTES.student.practice);
+              if (attempt?.test?.module_type === 'custom' && attempt.test_id) router.dismissTo({ pathname: ROUTES.student.customStart, params: { id: attempt.test_id } });
+              else router.dismissTo(ROUTES.student.practice);
             }}
           />
           <PrimaryButton label="Stay" onPress={() => setExitOpen(false)} />

@@ -28,3 +28,6 @@ Custom Module v44 (three tiles, three-page builder, PYQ 10/25, saved templates w
 
 ## Needs a device
 Dark theme contrast, Android PDF viewer, picture in picture and the mini player, push taps, the Pulse timer, video download (needs MP4 renditions on the host), clipboard copy.
+
+## Tests tab consistency pass (2026-11-20)
+Grand, Mini and Subject-wise now behave the same (views, next up, waiting, series, subject and chapter on cards, subject grouping for the library, no year filter on live or attempted). Details and decisions are in tests-product-spec.md section 18. Backend: the exams list now returns `subject_name` and `chapter_name`.

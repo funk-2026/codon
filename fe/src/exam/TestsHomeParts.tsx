@@ -5,11 +5,12 @@ import { useTheme } from '@/src/theme/ThemeProvider';
 import { shadow } from '@/src/theme/elevation';
 import { useHasSubscription } from '@/src/queries/curriculum';
 import type { ExamCard } from '@/src/api/exams';
-import { formatCountdown, KIND_LABEL, type NextUp, type SeriesProgress } from './logic';
-import { historyLine } from './testsTabs';
+import { formatCountdown, type NextUp, type SeriesProgress } from './logic';
+import { cardEyebrow, historyLine } from './testsTabs';
+import { formatDateTime } from '@/src/format/date';
 
 const when = (iso?: string) =>
-  iso ? new Date(iso).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  formatDateTime(iso);
 const meta = (c: ExamCard) => [c.duration_minutes ? `${c.duration_minutes} min` : 'No time limit', `${c.total_questions} Qs`].join(' · ');
 
 /** The one thing to do now. */
@@ -29,7 +30,7 @@ export function NextUpCard({ next, now, onOpen, onRemind }: { next: NextUp; now:
     <View style={[{ backgroundColor: color('accent/tint'), borderRadius: radius.lg, padding: space.md, gap: space.xs }, shadow()]}>
       <Text style={[type['type/overline'], { color: color('accent/default') }]}>{head}</Text>
       <Text style={[type['type/h2'], { color: color('text/primary') }]}>{c.title}</Text>
-      <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{[KIND_LABEL[c.kind], meta(c)].join(' · ')}</Text>
+      <Text style={[type['type/caption'], { color: color('text/secondary') }]}>{[cardEyebrow(c), meta(c)].join(' · ')}</Text>
       {line ? <Text style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{line}</Text> : null}
       <View style={{ marginTop: space.xs }}>
         {next.kind === 'upcoming' ? (
@@ -61,7 +62,7 @@ export function CompactTestCard({ card, onOpen, width = 200 }: { card: ExamCard;
       style={({ pressed }) => [{ width, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.sm, gap: space['2xs'], opacity: pressed ? 0.95 : 1 }, shadow()]}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{card.exam_year ? `${KIND_LABEL[card.kind]} · ${card.exam_year}` : KIND_LABEL[card.kind]}</Text>
+        <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{cardEyebrow(card)}</Text>
         {locked ? <Lock size={14} color={color('text/tertiary')} /> : null}
       </View>
       <Text numberOfLines={2} style={[type['type/body-m-medium'], { color: color('text/primary'), minHeight: 40 }]}>{card.title}</Text>
@@ -110,7 +111,8 @@ export function AttemptedRow({ card, onOpen }: { card: ExamCard; onOpen: () => v
       style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color('bg/surface'), borderRadius: radius.lg, padding: space.md, opacity: pressed ? 0.95 : 1 }, shadow()]}
     >
       <View style={{ flex: 1 }}>
-        <Text numberOfLines={2} style={[type['type/body-m-medium'], { color: color('text/primary') }]}>{card.title}</Text>
+        <Text numberOfLines={1} style={[type['type/caption'], { color: color('text/tertiary') }]}>{[cardEyebrow(card), card.series?.title].filter(Boolean).join(' · ')}</Text>
+        <Text numberOfLines={2} style={[type['type/body-m-medium'], { color: color('text/primary'), marginTop: 2 }]}>{card.title}</Text>
         <Text style={[type['type/caption'], { color: color('text/secondary'), marginTop: 2 }]}>{historyLine(card)}</Text>
       </View>
       <CaretRight size={16} color={color('text/tertiary')} />

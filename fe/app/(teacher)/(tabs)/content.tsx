@@ -184,7 +184,7 @@ export default function TeacherContentRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load your content"
-            description="Something went wrong fetching your work."
+            description="Couldn’t load your work. Check your connection and try again."
             action={<TextButton label="Retry" onPress={() => void itemsQuery.refetch()} />}
           />
         ) : !hasAny ? (

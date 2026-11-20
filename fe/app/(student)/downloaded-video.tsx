@@ -1,12 +1,14 @@
 import { View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { EmptyState, Screen, ScreenHeader } from '@/src/components';
+import { EmptyState, Screen, ScreenHeader, SecondaryButton } from '@/src/components';
 import { listDownloads } from '@/src/video/downloads';
+import { ROUTES } from '@/src/navigation/routes';
 
 /** Plays a downloaded lecture from this phone. No connection or login check is needed. */
 export default function DownloadedVideoRoute() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const q = useQuery({ queryKey: ['video-downloads'], queryFn: listDownloads });
   const hit = q.data?.find((d) => d.id === id);
@@ -19,7 +21,7 @@ export default function DownloadedVideoRoute() {
           <VideoView player={player} style={{ width: '100%', aspectRatio: 16 / 9 }} contentFit="contain" nativeControls allowsPictureInPicture fullscreenOptions={{ enable: true, orientation: 'landscape' }} />
         </View>
       ) : (
-        <EmptyState title="This download isn’t on the phone" description="It may have been removed." />
+        <EmptyState title="This download isn’t on the phone" description="It may have been removed." action={<SecondaryButton label="Back to downloads" onPress={() => router.dismissTo(ROUTES.student.downloads)} />} />
       )}
     </Screen>
   );

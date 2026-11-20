@@ -134,7 +134,7 @@ export default function ContentReaderRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load this content"
-            description="Something went wrong loading this page. Check your connection and try again."
+            description="Couldn’t load this page. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
             style={{ marginTop: space.xl }}
           />

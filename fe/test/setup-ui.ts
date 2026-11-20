@@ -41,3 +41,6 @@ jest.mock('react-native-safe-area-context', () => require('react-native-safe-are
 
 // The theme remembers the student's choice with AsyncStorage, which has no native module under Jest.
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+
+// The phone's network state is native; in tests the phone is always online.
+jest.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: true, isInternetReachable: true }) }));

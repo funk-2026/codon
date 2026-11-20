@@ -158,7 +158,7 @@ export default function SettingsRoute() {
       await auth.signOut();
       router.replace(ROUTES.auth.phoneEntry);
     } catch (err) {
-      show('Failed to delete account. Please try again.', 'error');
+      show('Couldn’t delete your account. Try again.', 'error');
     } finally {
       setDeleting(false);
     }
@@ -261,7 +261,7 @@ export default function SettingsRoute() {
         tone="danger"
         title="Log out of Codon?"
         message="You'll need your phone number and a new code to sign back in."
-        confirmLabel="Log Out"
+        confirmLabel="Log out"
         onConfirm={handleLogout}
         onCancel={() => setLogoutConfirmOpen(false)}
       />

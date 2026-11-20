@@ -130,7 +130,7 @@ export function CurriculumTree({ kind, query, topRated = false }: { kind: TreeKi
       <EmptyState
         icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
         title="Couldn't load this section"
-        description="Something went wrong loading the curriculum. Check your connection and try again."
+        description="Couldn’t load the curriculum. Check your connection and try again."
         action={<TextButton label="Retry" onPress={() => void curriculum.refetch()} />}
       />
     );

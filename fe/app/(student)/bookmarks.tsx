@@ -16,6 +16,7 @@ import { setReattempt } from '@/src/bookmarks/reattemptStore';
 import { useRefetchOnFocus } from '@/src/queries/useRefetchOnFocus';
 import { ROUTES } from '@/src/navigation/routes';
 import { shadow } from '@/src/theme/elevation';
+import { usePullRefresh } from '@/src/components/PullRefresh';
 
 type Tab = 'question' | 'flashcard' | 'pulse';
 type Scope = 'landing' | 'all' | string; // a subject id once inside one subject
@@ -23,6 +24,7 @@ type Scope = 'landing' | 'all' | string; // a subject id once inside one subject
 /** Bookmarks: a landing with the three bookmark types and the subjects, then a list inside All subjects or one subject. */
 export default function BookmarksRoute() {
   const { color, type, space, radius } = useTheme();
+  const pull = usePullRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -142,7 +144,7 @@ export default function BookmarksRoute() {
         ) : null}
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space['3xl'] + insets.bottom, gap: space.sm }} showsVerticalScrollIndicator={false}>
+      <ScrollView refreshControl={pull.control} contentContainerStyle={{ padding: space.md, paddingBottom: space['3xl'] + insets.bottom, gap: space.sm }} showsVerticalScrollIndicator={false}>
         {scope === 'landing' ? (
           summary.isPending ? (
             <SkeletonBlock height={160} radius={radius.lg} />
@@ -175,7 +177,7 @@ export default function BookmarksRoute() {
             ) : list.isError ? (
               <ErrorBanner onRetry={() => void list.refetch()} />
             ) : rows.length === 0 ? (
-              <EmptyState icon={<BookmarkSimple size={32} color={color('text/tertiary')} />} title={types.length || chapters.length || query ? 'No matches' : `No ${noun} here yet`} description={types.length || chapters.length || query ? 'Try a different filter.' : `Bookmarked ${noun} show up here.`} />
+              <EmptyState icon={<BookmarkSimple size={32} color={color('text/tertiary')} />} title={types.length || chapters.length || query ? 'No matches' : `No ${noun} here yet`} description={types.length || chapters.length || query ? 'Try a different filter.' : `Bookmarked ${noun} show up here.`} action={types.length || chapters.length || query ? <SecondaryButton label="Clear filters" onPress={() => { setTypes([]); setChapters([]); setQ(''); setRangeIx(0); }} /> : undefined} />
             ) : (
               <>
                 <Text style={[type['type/body-m-medium'], { color: color('text/secondary') }]}>{rows.length} {rows.length === 1 ? noun.replace(/s$/, '') : noun}</Text>

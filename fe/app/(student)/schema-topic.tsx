@@ -5,6 +5,8 @@ import { ChartLineUp } from 'phosphor-react-native';
 import { EmptyState, ErrorBanner, Screen, ScreenHeader, SkeletonBlock } from '@/src/components';
 import { useTheme } from '@/src/theme/ThemeProvider';
 import { getSchemaTopic } from '@/src/api/study';
+import { heat } from '@/src/study/logic';
+import { HeatFill } from '@/src/study/Heat';
 
 /** An opened topic: total asked till now, the path, and a Year | Subtopic | Qs table, newest year first. */
 export default function SchemaTopicRoute() {
@@ -15,6 +17,7 @@ export default function SchemaTopicRoute() {
   const d = q.data;
   const rows = d ? d.rows.filter((r) => chosen.length === 0 || chosen.includes(r.year)) : [];
   const total = rows.reduce((n, r) => n + r.questions, 0);
+  const most = Math.max(0, ...rows.map((r) => r.questions));
   const cell = { padding: space.sm, borderColor: color('border/strong'), borderWidth: 0.5 } as const;
 
   return (
@@ -40,13 +43,15 @@ export default function SchemaTopicRoute() {
                 </View>
                 {rows.map((r, i) => (
                   <View key={i} style={{ flexDirection: 'row' }}>
+                    <HeatFill h={heat(r.questions, most)} />
                     <Text style={[type['type/body-m'], cell, { width: 86, color: color('text/primary') }]}>{r.year}</Text>
                     <Text style={[type['type/body-m'], cell, { flex: 1, color: color('text/primary') }]}>{r.subtopic || `${d.name} (topic level)`}</Text>
-                    <Text style={[type['type/body-m'], cell, { width: 48, color: color('text/primary'), textAlign: 'right' }]}>{r.questions}</Text>
+                    <Text style={[type['type/body-m'], cell, { width: 48, color: color('text/primary'), textAlign: 'right', fontWeight: '600' }]}>{r.questions}</Text>
                   </View>
                 ))}
               </View>
             )}
+            {rows.length > 0 ? <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>A deeper shade means more questions in that row.</Text> : null}
           </>
         )}
       </ScrollView>

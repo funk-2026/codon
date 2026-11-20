@@ -10,7 +10,7 @@ import { shadow } from '@/src/theme/elevation';
 const TILES: { kind: string; label: string; text: string; Icon: Icon }[] = [
   { kind: 'pattern', label: 'Paper Pattern', text: 'How the paper is set', Icon: Blueprint },
   { kind: 'past_paper', label: 'Past Year Papers', text: 'Earlier board papers', Icon: ClockCounterClockwise },
-  { kind: 'practice_paper', label: 'Practice Question Papers', text: 'Papers to practise with', Icon: Exam },
+  { kind: 'practice_paper', label: 'Practice question papers', text: 'Papers to practice with', Icon: Exam },
   { kind: 'weightage', label: 'Weightage', text: 'Marks by chapter', Icon: Scales },
 ];
 
@@ -20,7 +20,7 @@ export default function BoardPapersRoute() {
   const router = useRouter();
   return (
     <Screen>
-      <ScreenHeader title="Sample Board Exam Paper" />
+      <ScreenHeader title="Sample board exam paper" />
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space['3xl'] }}>
         <Text style={[type['type/h2'], { color: color('text/primary'), marginBottom: space.sm }]}>Class 10</Text>
         <View style={{ gap: space.sm }}>

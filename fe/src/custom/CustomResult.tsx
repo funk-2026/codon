@@ -34,7 +34,7 @@ export function CustomResult({ title, correct, total, percent, code, onReview, o
           <Text style={[type['type/h3'], { color: color('text/primary') }]} numberOfLines={1}>{title}</Text>
           <Text style={[type['type/caption'], { color: color('text/tertiary') }]}>{total} MCQs · Review your answers</Text>
         </View>
-        <View style={{ width: 120 }}><PrimaryButton label="REVIEW" onPress={onReview} /></View>
+        <View style={{ width: 120 }}><PrimaryButton label="Review" onPress={onReview} /></View>
       </View>
       <TextButton label="Discard and create a new Custom Module" onPress={onDiscard} />
       {code ? <CodeCard code={code} /> : null}

@@ -37,7 +37,7 @@ export default function KycSubmissionRoute() {
       void queryClient.invalidateQueries({ queryKey: keys.myKyc });
       router.replace(ROUTES.student.kycStatus);
     } catch (err) {
-      show('Failed to submit KYC. Please try again.', 'error');
+      show('Couldn’t submit your verification. Try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -46,8 +46,8 @@ export default function KycSubmissionRoute() {
   const numberLabel = idType === 'PAN' ? 'PAN Number' : 'Aadhaar Number';
 
   return (
-    <Screen>
-      <ScreenHeader title="Identity Verification" />
+    <Screen keyboard>
+      <ScreenHeader title="Identity verification" />
       <Text
         style={[
           type['type/body-m'],
@@ -57,7 +57,7 @@ export default function KycSubmissionRoute() {
         This is a one-time check required for paid access. Reviewed by our team, never shared.
       </Text>
 
-      <ScrollView
+      <ScrollView keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.xl, paddingBottom: space['3xl'] + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >

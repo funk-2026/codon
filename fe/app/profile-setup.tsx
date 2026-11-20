@@ -67,7 +67,7 @@ export default function ProfileSetupRoute() {
         router.replace(ROUTES.student.home);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to save profile');
+      setError(err.message || 'Couldn’t save your profile. Try again.');
       setSaving(false);
     }
   };
@@ -132,7 +132,7 @@ export default function ProfileSetupRoute() {
             <EmptyState
               icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
               title="Couldn't load courses"
-              description="Something went wrong fetching the list of courses."
+              description="Couldn’t load the list of courses. Check your connection and try again."
               action={<TextButton label="Retry" onPress={loadCourses} />}
             />
           ) : (

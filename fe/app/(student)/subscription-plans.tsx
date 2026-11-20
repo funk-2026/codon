@@ -49,7 +49,7 @@ export default function SubscriptionPlansRoute() {
 
   return (
     <Screen>
-      <ScreenHeader title="Choose Your Plan" />
+      <ScreenHeader title="Choose your plan" />
       <Text
         style={[
           type['type/body-m'],
@@ -72,7 +72,7 @@ export default function SubscriptionPlansRoute() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load plans"
-            description="Something went wrong fetching subscription plans."
+            description="Couldn’t load subscription plans. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
           />
         ) : (

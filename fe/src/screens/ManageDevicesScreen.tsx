@@ -30,7 +30,7 @@ export default function ManageDevicesScreen() {
         setTarget(null);
         show('Device signed out', 'success');
       },
-      onError: () => show('Failed to log out device', 'error'),
+      onError: () => show('Couldn’t log that device out. Try again.', 'error'),
     });
   };
 
@@ -64,7 +64,7 @@ export default function ManageDevicesScreen() {
           <EmptyState
             icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
             title="Couldn't load devices"
-            description="Something went wrong fetching your signed-in devices."
+            description="Couldn’t load your signed-in devices. Check your connection and try again."
             action={<TextButton label="Retry" onPress={load} />}
           />
         ) : (
@@ -98,7 +98,7 @@ export default function ManageDevicesScreen() {
                     </Text>
                   </View>
                 ) : (
-                  <SecondaryButton label="Log Out" variant="danger" onPress={() => setTarget(d)} />
+                  <SecondaryButton label="Log out" variant="danger" onPress={() => setTarget(d)} />
                 )}
               </View>
             );
@@ -111,7 +111,7 @@ export default function ManageDevicesScreen() {
         tone="danger"
         title="Log out this device?"
         message={`${target?.label ?? 'This device'} will be signed out immediately.`}
-        confirmLabel="Log Out"
+        confirmLabel="Log out"
         loading={revoke.isPending}
         onConfirm={confirmRemove}
         onCancel={() => setTarget(null)}

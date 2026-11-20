@@ -200,7 +200,7 @@ export const deleteCustomTest = (id: string) => apiFetch<{ message: string }>(`/
 export const regenerateCustomTest = (id: string, idempotencyKey: string = newIdempotencyKey()) =>
   apiFetch<GenerateResult>(`/custom-tests/${id}/regenerate`, { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } }).then(normGenerate);
 
-/** POST /custom-tests/from-attempt/:attempt_id — "Practise my mistakes". */
+/** POST /custom-tests/from-attempt/:attempt_id — "Practice my mistakes". */
 export const customFromAttempt = (
   attemptId: string,
   body: { include?: 'wrong' | 'unattempted' | 'both'; mode?: CustomMode; timing?: Blueprint['timing']; marking?: Blueprint['marking']; title?: string } = {},

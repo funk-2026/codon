@@ -221,7 +221,7 @@ export default function FlashcardDeckRoute() {
       }
     } catch (e) {
       const code = e instanceof ApiError ? e.code : undefined;
-      show(code === 'incomplete' ? 'Add at least one card first.' : code === 'chapter_required' ? 'Choose the subject and chapter first, then save details.' : code === 'not_approved' ? 'Only approved decks can be published.' : 'Something went wrong. Try again.', 'error');
+      show(code === 'incomplete' ? 'Add at least one card first.' : code === 'chapter_required' ? 'Choose the subject and chapter first, then save details.' : code === 'not_approved' ? 'Only approved decks can be published.' : 'Couldn’t do that. Try again.', 'error');
     } finally {
       setBusy(null);
     }

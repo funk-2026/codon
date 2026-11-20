@@ -27,6 +27,7 @@ import { CustomResult } from '@/src/custom/CustomResult';
 import { deleteCustomTest } from '@/src/api/customTests';
 import { ConfirmDialog } from '@/src/components';
 import { shortDate } from '@/src/qbank/logic';
+import { formatDateTime } from '@/src/format/date';
 
 function band(p: number): { color: 'semantic/success' | 'semantic/warning' | 'semantic/danger'; headline: string } {
   if (p >= 85) return { color: 'semantic/success', headline: 'Excellent work.' };
@@ -135,7 +136,7 @@ export default function TestResultRoute() {
         <EmptyState
           icon={<Timer size={36} color={color('accent/default')} />}
           title="Submitted. Results are not out yet"
-          description={`${attempt.test?.title ?? 'Your test'} is a live event. Scores, ranks and answers open${at ? ` on ${at.toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ' later'}. We will notify you.`}
+          description={`${attempt.test?.title ?? 'Your test'} is a live event. Scores, ranks and answers open${at ? ` on ${formatDateTime(at)}` : ' later'}. We will notify you.`}
           action={<PrimaryButton label="Back to Tests" onPress={() => leave(ROUTES.student.tests)} />}
           style={{ flex: 1, justifyContent: 'center' }}
         />
@@ -149,7 +150,7 @@ export default function TestResultRoute() {
         <EmptyState
           icon={<WarningCircle size={32} color={color('semantic/danger')} weight="fill" />}
           title="Couldn’t load your result"
-          description="Something went wrong fetching this test result. Check your connection and try again."
+          description="Couldn’t load this test result. Check your connection and try again."
           action={<TextButton label="Retry" onPress={load} />}
           style={{ flex: 1, justifyContent: 'center' }}
         />
@@ -171,9 +172,9 @@ export default function TestResultRoute() {
           code={moduleCode}
           onReview={() => router.push({ pathname: ROUTES.student.testReview, params: { id } })}
           onDiscard={() => setDiscardOpen(true)}
-          onBack={() => router.replace({ pathname: ROUTES.student.customStart, params: { id: attempt.test_id } })}
+          onBack={() => router.dismissTo({ pathname: ROUTES.student.customStart, params: { id: attempt.test_id } })}
         />
-        <ConfirmDialog visible={discardOpen} title="Discard this module?" message="If you discard this custom module, you will not be able to attempt it again in the future." confirmLabel="Discard" cancelLabel="Keep it" tone="danger" onConfirm={() => void deleteCustomTest(attempt.test_id).then(() => router.replace({ pathname: ROUTES.student.practice, params: { kind: 'custom' } })).catch(() => show('Couldn’t discard it. Try again.', 'error'))} onCancel={() => setDiscardOpen(false)} />
+        <ConfirmDialog visible={discardOpen} title="Discard this module?" message="If you discard this custom module, you will not be able to attempt it again in the future." confirmLabel="Discard" cancelLabel="Keep it" tone="danger" onConfirm={() => void deleteCustomTest(attempt.test_id).then(() => router.dismissTo({ pathname: ROUTES.student.practice, params: { kind: 'custom' } })).catch(() => show('Couldn’t discard it. Try again.', 'error'))} onCancel={() => setDiscardOpen(false)} />
       </Screen>
     );
   }
@@ -343,11 +344,11 @@ export default function TestResultRoute() {
             </>
           ) : null}
           {canPractiseMistakes ? (
-            <SecondaryButton label="Practise my mistakes" onPress={() => setMistakesOpen(true)} />
+            <SecondaryButton label="Practice my mistakes" onPress={() => setMistakesOpen(true)} />
           ) : null}
           {module.canRetake ? (
             <SecondaryButton
-              label={isCustom ? 'Retake these questions' : module.key === 'test_series' ? 'Practise this test again' : 'Retake Test'}
+              label={isCustom ? 'Retake these questions' : module.key === 'test_series' ? 'Practice this test again' : 'Retake test'}
               onPress={() => router.push({ pathname: ROUTES.student.testPreStart, params: { id: attempt.test_id } })}
             />
           ) : null}
@@ -372,7 +373,7 @@ export default function TestResultRoute() {
           rank: cohort && !cohort.locked && cohort.rank != null && !cohort.estimated ? `Rank ${cohort.rank} of ${cohort.total}` : undefined,
         }}
       />
-      <BottomSheet visible={mistakesOpen} onClose={() => setMistakesOpen(false)} title="Practise my mistakes" dismissable={!building}>
+      <BottomSheet visible={mistakesOpen} onClose={() => setMistakesOpen(false)} title="Practice my mistakes" dismissable={!building}>
         <Text style={[type['type/body-m'], { color: color('text/secondary') }]}>
           We’ll build a new private test from the questions you got wrong or skipped.
         </Text>
